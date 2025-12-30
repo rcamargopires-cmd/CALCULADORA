@@ -244,8 +244,11 @@ const App: React.FC = () => {
   };
 
   const handleAnalyze = async () => {
-    if (!process.env.API_KEY) {
-      setAnalysis("⚠️ Configure a API_KEY no ambiente para usar a inteligência artificial.");
+    // Ajustado para o padrão do Vite e para o nome que você salvou na Vercel
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+    if (!apiKey) {
+      setAnalysis("⚠️ Configure a variável VITE_GEMINI_API_KEY no painel da Vercel.");
       return;
     }
     setIsAnalyzing(true);
