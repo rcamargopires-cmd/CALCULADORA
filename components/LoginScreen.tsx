@@ -61,7 +61,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <div className="space-y-2">
             <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Senha</label>
             <div className="relative">
-              <img src="/logo.png" alt="DealMaster Logo" className="w-32 h-32 mx-auto mb-4 object-contain" />
+            
               <input
                 type="password"
                 value={password}
