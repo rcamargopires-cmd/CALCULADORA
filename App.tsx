@@ -403,9 +403,9 @@ const handleAnalyze = async () => {
           <div>
             <h1 className="text-3xl font-black text-white flex items-center gap-2">
               <Calculator className="w-8 h-8 text-amber-400" />
-              Calculadora de Margem
+              DealMaster
             </h1>
-            <p className="text-zinc-400 mt-1">Ferramenta de estruturação de vendas de veículos</p>
+            <p className="text-zinc-400 mt-1">A inteligência por trás de cada venda</p>
           </div>
           <div className="flex gap-3 flex-wrap">
             {commissionConfig.enabled && (
