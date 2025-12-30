@@ -30,7 +30,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-xl shadow-2xl w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-amber-400 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-amber-400/20">
-            <<img src="https://lh3.googleusercontent.com/gg-dl/ABS2GSn1QtRao8JruHTI-y6y3ZXMOyvRKMEC2mfn9D9E_J3qsnspd96NDsZQwpYArUkIMABmJSL-ydvoWWTqzOrB6IXXzXWx1upVwSd9kzh7Xp5mmYpJ5kk0mptcK1o4Z3aMKoeBI2T5TZExFD-7Oi4_ECbaIz3jmunXrPgCTmnP5kJJQ-4M6A=s1024-rj" alt="DealMaster Logo" className="w-32 h-32 mx-auto mb-4 object-contain" /> className="w-8 h-8 text-black" />
+            <img src="https://lh3.googleusercontent.com/gg-dl/ABS2GSn1QtRao8JruHTI-y6y3ZXMOyvRKMEC2mfn9D9E_J3qsnspd96NDsZQwpYArUkIMABmJSL-ydvoWWTqzOrB6IXXzXWx1upVwSd9kzh7Xp5mmYpJ5kk0mptcK1o4Z3aMKoeBI2T5TZExFD-7Oi4_ECbaIz3jmunXrPgCTmnP5kJJQ-4M6A=s1024-rj" alt="DealMaster Logo" className="w-32 h-32 mx-auto mb-4 object-contain" /> className="w-8 h-8 text-black" />
           </div>
           <h1 className="text-2xl font-black text-white uppercase tracking-wide">DealMaster</h1>
           <p className="text-zinc-500 text-sm mt-1">A inteligência por trás de cada venda</p>
