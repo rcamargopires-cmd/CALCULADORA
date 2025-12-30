@@ -5,7 +5,7 @@ import { formatCurrency, formatPercentage } from "../utils/currency";
 
 // Initialize the client safely.
 const getClient = () => {
-  const apiKey = process.env.API_KEY;
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("API Key is missing. Please configure process.env.API_KEY.");
   }
