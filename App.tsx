@@ -243,19 +243,24 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleAnalyze = async () => {
-    // Ajustado para o padrão do Vite e para o nome que você salvou na Vercel
+const handleAnalyze = async () => {
+    // Ajustado para ler a chave que você salvou na Vercel
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     if (!apiKey) {
-      setAnalysis("⚠️ Configure a variável VITE_GEMINI_API_KEY no painel da Vercel.");
+      setAnalysis("⚠️ Chave de API não encontrada. Verifique as configurações na Vercel.");
       return;
     }
     setIsAnalyzing(true);
     setAnalysis(null);
-    const result = await analyzeDeal(data, results);
-    setAnalysis(result);
-    setIsAnalyzing(false);
+    try {
+      const result = await analyzeDeal(data, results);
+      setAnalysis(result);
+    } catch (error) {
+      setAnalysis("❌ Erro técnico ao processar análise.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleSave = (status: 'open' | 'closed' = 'open') => {
