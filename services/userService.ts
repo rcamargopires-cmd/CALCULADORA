@@ -1,73 +1,37 @@
-import { User } from '../types';
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { User, UserRole, UserStatus } from '../types';
 
-const USERS_STORAGE_KEY = 'app_users';
-
-const DEFAULT_USERS: User[] = [
-  {
-    id: '1',
-    name: 'Administrador',
-    username: 'admin',
-    password: '123', // Senha padrão simples
-    role: 'admin',
-    status: 'active'
-  },
-  {
-    id: '2',
-    name: 'Vendedor Padrão',
-    username: 'vendedor',
-    password: '123',
-    role: 'user',
-    status: 'active'
-  }
-];
+const USERS_COLLECTION = 'users';
 
 export const userService = {
-  // Inicializa o banco de usuários se estiver vazio
-  initialize: () => {
-    const stored = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!stored) {
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
-    }
+  // Busca todos os usuários
+  getAll: async (): Promise<User[]> => {
+    const querySnapshot = await getDocs(collection(db, USERS_COLLECTION));
+    return querySnapshot.docs.map(doc => doc.data() as User);
   },
 
-  // Busca todos os usuários
-  getAll: (): User[] => {
-    const stored = localStorage.getItem(USERS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+  // Busca um usuário específico
+  getUser: async (email: string): Promise<User | null> => {
+    const docRef = doc(db, USERS_COLLECTION, email);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data() as User;
+    }
+    return null;
   },
 
   // Salva ou Atualiza usuário
-  save: (user: User) => {
-    const users = userService.getAll();
-    const existingIndex = users.findIndex(u => u.id === user.id);
-
-    if (existingIndex >= 0) {
-      // Atualizar
-      users[existingIndex] = user;
-    } else {
-      // Criar novo
-      users.push(user);
+  save: async (user: User): Promise<void> => {
+    const userToSave = { ...user, id: user.email };
+    if (!userToSave.createdAt) {
+      userToSave.createdAt = new Date().toISOString();
     }
-    
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    await setDoc(doc(db, USERS_COLLECTION, user.email), userToSave);
   },
 
   // Remove usuário
-  delete: (id: string) => {
-    const users = userService.getAll();
-    const filtered = users.filter(u => u.id !== id);
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(filtered));
-  },
-
-  // Autenticação
-  authenticate: (username: string, password: string): User | null => {
-    const users = userService.getAll();
-    // Busca usuário ativo que combine username e password
-    const user = users.find(u => 
-      u.username.toLowerCase() === username.toLowerCase() && 
-      u.password === password &&
-      u.status === 'active'
-    );
-    return user || null;
+  delete: async (email: string): Promise<void> => {
+    await deleteDoc(doc(db, USERS_COLLECTION, email));
   }
 };

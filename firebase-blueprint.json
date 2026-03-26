@@ -1,0 +1,55 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "name", "role", "status"]
+    },
+    "Deal": {
+      "title": "Deal",
+      "description": "A saved vehicle deal calculation",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "data": { "type": "object" },
+        "bankType": { "type": "string" },
+        "summary": { "type": "object" }
+      },
+      "required": ["userId", "timestamp", "data"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Global application configuration",
+      "type": "object",
+      "properties": {
+        "visibility": { "type": "object" },
+        "commission": { "type": "object" },
+        "bankRates": { "type": "object" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{email}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Users collection keyed by email address"
+    },
+    "/deals/{dealId}": {
+      "schema": { "$ref": "#/entities/Deal" },
+      "description": "Saved deals"
+    },
+    "/config/main": {
+      "schema": { "$ref": "#/entities/AppConfig" },
+      "description": "Global configuration document"
+    }
+  }
+}

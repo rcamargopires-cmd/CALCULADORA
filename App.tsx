@@ -1,6 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Calculator, RefreshCw, Sparkles, AlertTriangle, Building2, Save, History, ArrowRight, CarFront, Clock, AlertOctagon, Percent, Info, LogOut, ShieldCheck, FolderOpen, Coins, Wallet, User as UserIcon, CheckCircle, Gift, FileText, Check } from 'lucide-react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where, doc } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import CurrencyInput from './components/CurrencyInput';
 import TextInput from './components/TextInput';
 import NumberInput from './components/NumberInput';
@@ -43,24 +46,21 @@ const getInitialData = (): DealData => ({
 });
 
 const App: React.FC = () => {
-  // Inicializa usuários padrão se necessário
-  useEffect(() => {
-    userService.initialize();
-  }, []);
-
   // --- Auth State ---
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
 
   // --- Config State ---
-  const [fieldConfig, setFieldConfig] = useState<FieldVisibility>(configService.getVisibility());
-  const [commissionConfig, setCommissionConfig] = useState<CommissionConfig>(configService.getCommission());
-  const [bankRates, setBankRates] = useState<BankRates>(configService.getBankRates());
+  const [fieldConfig, setFieldConfig] = useState<FieldVisibility | null>(null);
+  const [commissionConfig, setCommissionConfig] = useState<CommissionConfig | null>(null);
+  const [bankRates, setBankRates] = useState<BankRates | null>(null);
 
   // --- App State ---
   const [data, setData] = useState<DealData>(getInitialData());
 
   // Hook customizado para lógica bancária
-  const { bankType, setBankType, getReturnAmount } = useBankCalculator(bankRates, 'volks');
+  const { bankType, setBankType, getReturnAmount } = useBankCalculator(bankRates || { volks: 10, others: 3.6 }, 'volks');
 
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -71,36 +71,98 @@ const App: React.FC = () => {
   // Estado do Histórico (Visualização)
   const [history, setHistory] = useState<SavedCalculation[]>([]);
 
-  // Carrega e filtra histórico sempre que o usuário mudar
+  // --- Firebase Listeners ---
   useEffect(() => {
-    if (!user) {
-      setHistory([]);
-      return;
-    }
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser && firebaseUser.email) {
+        try {
+          let dbUser = await userService.getUser(firebaseUser.email);
+          
+          // Auto-create admin if it's the default email
+          if (!dbUser && firebaseUser.email === 'r.camargo.pires@gmail.com') {
+            const newUser: User = {
+              id: firebaseUser.email,
+              email: firebaseUser.email,
+              name: firebaseUser.displayName || 'Admin',
+              role: 'admin',
+              status: 'active',
+              createdAt: new Date().toISOString()
+            };
+            await userService.save(newUser);
+            dbUser = newUser;
+          }
 
-    try {
-      const savedRaw = localStorage.getItem('dealHistory');
-      const allHistory: SavedCalculation[] = savedRaw ? JSON.parse(savedRaw) : [];
-      
-      if (user.role === 'admin') {
-        // Admin vê tudo
-        setHistory(allHistory);
+          if (dbUser && dbUser.status === 'active') {
+            setUser(dbUser);
+            setAuthError('');
+          } else {
+            setUser(null);
+            setAuthError('Acesso negado. Sua conta não está ativa ou não possui permissão.');
+            await signOut(auth);
+          }
+        } catch (error) {
+          console.error("Error fetching user:", error);
+          setAuthError('Erro ao verificar permissões.');
+          setUser(null);
+        }
       } else {
-        // Vendedor vê apenas os seus
-        const myHistory = allHistory.filter(item => item.userId === user.id);
-        setHistory(myHistory);
+        setUser(null);
       }
-    } catch (e) {
-      console.error("Erro ao carregar histórico", e);
-      setHistory([]);
+      setIsAuthLoading(false);
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Listen to Config
+    const loadInitialConfig = async () => {
+      const config = await configService.loadConfig();
+      setFieldConfig(config.visibility);
+      setCommissionConfig(config.commission);
+      setBankRates(config.bankRates);
+    };
+    loadInitialConfig();
+
+    // Listen to Config changes
+    const unsubscribeConfig = onSnapshot(doc(db, 'config/main'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.visibility) setFieldConfig(data.visibility);
+        if (data.commission) setCommissionConfig(data.commission);
+        if (data.bankRates) setBankRates(data.bankRates);
+      }
+    });
+
+    // Listen to Deals
+    let dealsQuery;
+    if (user.role === 'admin') {
+      dealsQuery = query(collection(db, 'deals'), orderBy('timestamp', 'desc'));
+    } else {
+      dealsQuery = query(collection(db, 'deals'), where('userId', '==', user.id), orderBy('timestamp', 'desc'));
     }
+    
+    const unsubscribeDeals = onSnapshot(dealsQuery, (snapshot) => {
+      const allDeals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SavedCalculation));
+      setHistory(allDeals);
+    }, (error) => {
+      console.error("Erro ao carregar histórico:", error);
+    });
+
+    return () => {
+      unsubscribeConfig();
+      unsubscribeDeals();
+    };
   }, [user]);
 
-  // Atualiza config quando o painel admin salva
-  const handleConfigUpdate = () => {
-    setFieldConfig(configService.getVisibility());
-    setCommissionConfig(configService.getCommission());
-    setBankRates(configService.getBankRates());
+  // Atualiza config quando o painel admin salva (agora via snapshot, mas mantemos o callback por segurança)
+  const handleConfigUpdate = async () => {
+    const config = await configService.loadConfig();
+    setFieldConfig(config.visibility);
+    setCommissionConfig(config.commission);
+    setBankRates(config.bankRates);
   };
 
   // --- Calculations ---
@@ -147,6 +209,7 @@ const App: React.FC = () => {
 
   // --- Commission Breakdown (Cálculo dinâmico baseado na seleção) ---
   const commissionBreakdown = useMemo(() => {
+    if (!commissionConfig) return null;
     // Determina qual lucro usar com base na escolha do usuário (Standard ou Banking)
     const activeProfit = data.closingType === 'banking' ? results.profitWithBank : results.profit;
     return calculateCommission(data, activeProfit, commissionConfig);
@@ -208,11 +271,8 @@ const App: React.FC = () => {
   const stockStatus = getStockStatus(data.stockDays);
 
   // --- Handlers ---
-  const handleLogin = (authenticatedUser: User) => {
-    setUser(authenticatedUser);
-  };
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut(auth);
     setUser(null);
     handleResetNoConfirm();
   };
@@ -257,20 +317,17 @@ const App: React.FC = () => {
     setIsAnalyzing(false);
   };
 
-  const handleSave = (status: 'open' | 'closed' = 'open') => {
+  const handleSave = async (status: 'open' | 'closed' = 'open') => {
     if (!user) return;
 
     const dataSnapshot = JSON.parse(JSON.stringify(data));
     dataSnapshot.dealStatus = status;
     
-    const newItem: SavedCalculation = {
-      id: Date.now().toString(),
-      timestamp: new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
+    const newItem: Omit<SavedCalculation, 'id'> = {
+      timestamp: new Date().toISOString(),
       data: dataSnapshot,
       bankType,
       summary: {
-        // Salva o lucro padrão operacional na summary para listagem rápida, 
-        // mas o cálculo real de histórico usará data.closingType para decidir
         profit: results.profit, 
         marginPercent: results.marginPercent
       },
@@ -278,20 +335,21 @@ const App: React.FC = () => {
       userName: user.name
     };
 
-    const savedRaw = localStorage.getItem('dealHistory');
-    const allHistory: SavedCalculation[] = savedRaw ? JSON.parse(savedRaw) : [];
-    const newAllHistory = [newItem, ...allHistory].slice(0, 50);
-    
-    localStorage.setItem('dealHistory', JSON.stringify(newAllHistory));
+    try {
+      await addDoc(collection(db, 'deals'), {
+        ...newItem,
+        createdAt: serverTimestamp()
+      });
 
-    if (user.role === 'admin') {
-      setHistory(newAllHistory);
-    } else {
-      setHistory(newAllHistory.filter(h => h.userId === user.id));
-    }
-
-    if (status === 'closed') {
-      alert("Parabéns! Venda FECHADA e registrada com sucesso.");
+      if (status === 'closed') {
+        alert("Parabéns! Venda FECHADA e registrada com sucesso no banco de dados.");
+        handleResetNoConfirm();
+      } else {
+        alert("Negócio salvo no histórico.");
+      }
+    } catch (error) {
+      console.error("Erro ao salvar negócio:", error);
+      alert("Erro ao salvar negócio no banco de dados.");
     }
   };
 
@@ -326,8 +384,25 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  if (isAuthLoading) {
+    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white">Carregando...</div>;
+  }
+
   if (!user) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return (
+      <>
+        {authError && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/90 text-white px-4 py-2 rounded-lg shadow-lg">
+            {authError}
+          </div>
+        )}
+        <LoginScreen onLoginSuccess={() => {}} />
+      </>
+    );
+  }
+
+  if (!fieldConfig || !commissionConfig || !bankRates) {
+    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white">Carregando configurações...</div>;
   }
 
   return (
@@ -363,7 +438,7 @@ const App: React.FC = () => {
         <div className="bg-zinc-900 border-b border-zinc-800 -mx-4 -mt-8 px-8 py-3 mb-8 flex justify-between items-center shadow-lg">
            <div className="flex items-center gap-2">
              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-black ${user.role === 'admin' ? 'bg-red-500' : 'bg-blue-500'}`}>
-               {user.username.charAt(0).toUpperCase()}
+               {user.name.charAt(0).toUpperCase()}
              </div>
              <div className="flex flex-col">
                <span className="text-sm font-bold text-white leading-none">{user.name}</span>
@@ -397,7 +472,7 @@ const App: React.FC = () => {
           <div>
             <h1 className="text-3xl font-black text-white flex items-center gap-2">
               <Calculator className="w-8 h-8 text-amber-400" />
-              Calculadora de Margem
+              DealMaster
             </h1>
             <p className="text-zinc-400 mt-1">Ferramenta de estruturação de vendas de veículos</p>
           </div>

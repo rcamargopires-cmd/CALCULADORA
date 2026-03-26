@@ -4,7 +4,7 @@ import { Shield, Users, Settings, X, CheckCircle, Plus, Edit2, Trash2, Save, Lay
 import SectionHeader from './SectionHeader';
 import { User, UserRole, UserStatus, FieldVisibility, CommissionConfig, BankRates } from '../types';
 import { userService } from '../services/userService';
-import { configService } from '../services/configService';
+import { configService, DEFAULT_VISIBILITY, DEFAULT_COMMISSION, DEFAULT_BANK_RATES } from '../services/configService';
 import CurrencyInput from './CurrencyInput';
 import NumberInput from './NumberInput';
 import { formatCurrency } from '../utils/currency';
@@ -23,13 +23,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   // Field Config State
-  const [fieldConfig, setFieldConfig] = useState<FieldVisibility>(configService.getVisibility());
+  const [fieldConfig, setFieldConfig] = useState<FieldVisibility>(DEFAULT_VISIBILITY);
   
   // Commission Config State
-  const [commissionConfig, setCommissionConfig] = useState<CommissionConfig>(configService.getCommission());
+  const [commissionConfig, setCommissionConfig] = useState<CommissionConfig>(DEFAULT_COMMISSION);
 
   // Bank Rates State
-  const [bankRates, setBankRates] = useState<BankRates>(configService.getBankRates());
+  const [bankRates, setBankRates] = useState<BankRates>(DEFAULT_BANK_RATES);
   
   // Simulation State for Commission Tab
   const [simulatedProfit, setSimulatedProfit] = useState(2000);
@@ -37,8 +37,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
   // Form States (Users)
   const [formData, setFormData] = useState({
     name: '',
-    username: '',
-    password: '',
+    email: '',
     role: 'user' as UserRole,
     status: 'active' as UserStatus
   });
@@ -46,21 +45,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
   useEffect(() => {
     if (isOpen) {
       loadUsers();
-      setFieldConfig(configService.getVisibility());
-      setCommissionConfig(configService.getCommission());
-      setBankRates(configService.getBankRates());
+      const loadConfigs = async () => {
+        const config = await configService.loadConfig();
+        setFieldConfig(config.visibility);
+        setCommissionConfig(config.commission);
+        setBankRates(config.bankRates);
+      };
+      loadConfigs();
     }
   }, [isOpen]);
 
-  const loadUsers = () => {
-    setUsers(userService.getAll());
+  const loadUsers = async () => {
+    const allUsers = await userService.getAll();
+    setUsers(allUsers);
   };
 
   const resetForm = () => {
     setFormData({
       name: '',
-      username: '',
-      password: '',
+      email: '',
       role: 'user',
       status: 'active'
     });
@@ -72,42 +75,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
     setEditingUser(user);
     setFormData({
       name: user.name,
-      username: user.username,
-      password: user.password || '',
+      email: user.email,
       role: user.role,
       status: user.status
     });
     setIsEditing(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (id === currentUser.id) {
       alert("Você não pode excluir seu próprio usuário.");
       return;
     }
     if (window.confirm("Tem certeza que deseja remover este usuário?")) {
-      userService.delete(id);
+      await userService.delete(id);
       loadUsers();
     }
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.username || (!editingUser && !formData.password)) {
+    if (!formData.name || !formData.email) {
       alert("Preencha todos os campos obrigatórios.");
       return;
     }
 
     const newUser: User = {
-      id: editingUser ? editingUser.id : Date.now().toString(),
+      id: formData.email,
+      email: formData.email,
       name: formData.name,
-      username: formData.username,
-      password: formData.password || (editingUser ? editingUser.password : '123456'), 
       role: formData.role,
-      status: formData.status
+      status: formData.status,
+      createdAt: editingUser?.createdAt || new Date().toISOString()
     };
 
-    userService.save(newUser);
+    await userService.save(newUser);
     loadUsers();
     resetForm();
     alert("Usuário salvo com sucesso!");
@@ -120,27 +122,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
     }));
   };
 
-  const handleSaveConfig = () => {
-    configService.saveVisibility(fieldConfig);
+  const handleSaveConfig = async () => {
+    await configService.saveVisibility(fieldConfig);
     if (onConfigUpdate) onConfigUpdate();
     alert("Configuração do formulário atualizada!");
   };
 
-  const handleSaveCommission = () => {
-    configService.saveCommission(commissionConfig);
+  const handleSaveCommission = async () => {
+    await configService.saveCommission(commissionConfig);
     if (onConfigUpdate) onConfigUpdate();
     alert("Regras de comissão atualizadas!");
   };
 
-  const handleSaveBankRates = () => {
-    configService.saveBankRates(bankRates);
+  const handleSaveBankRates = async () => {
+    await configService.saveBankRates(bankRates);
     if (onConfigUpdate) onConfigUpdate();
     alert("Taxas bancárias atualizadas!");
   };
 
-  const handleResetToDefaults = () => {
+  const handleResetToDefaults = async () => {
     if (window.confirm("Deseja resetar TODAS as configurações para os padrões de fábrica?")) {
-      const defaults = configService.reset();
+      const defaults = await configService.reset();
       setFieldConfig(defaults.visibility);
       setCommissionConfig(defaults.commission);
       setBankRates(defaults.bankRates);
@@ -297,7 +299,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
                       <thead>
                         <tr className="bg-zinc-800 text-zinc-400 text-xs uppercase">
                           <th className="p-3">Nome</th>
-                          <th className="p-3">Usuário</th>
+                          <th className="p-3">E-mail</th>
                           <th className="p-3">Permissão</th>
                           <th className="p-3">Status</th>
                           <th className="p-3 text-right">Ações</th>
@@ -307,7 +309,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
                         {users.map(u => (
                           <tr key={u.id} className="hover:bg-zinc-900 transition-colors">
                             <td className="p-3 text-white font-medium text-sm">{u.name}</td>
-                            <td className="p-3 text-zinc-400 font-mono text-xs">{u.username}</td>
+                            <td className="p-3 text-zinc-400 font-mono text-xs">{u.email}</td>
                             <td className="p-3">
                               <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${u.role === 'admin' ? 'bg-red-900/30 text-red-400' : 'bg-blue-900/30 text-blue-400'}`}>
                                 {u.role}
@@ -353,22 +355,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
                           />
                         </div>
                         <div>
-                          <label className="text-xs font-bold text-zinc-400 uppercase">Nome de Usuário (Login)</label>
+                          <label className="text-xs font-bold text-zinc-400 uppercase">E-mail (Login Google)</label>
                           <input 
-                            type="text" 
+                            type="email" 
                             required
                             className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-white mt-1 focus:border-amber-400 focus:outline-none"
-                            value={formData.username}
-                            onChange={e => setFormData({...formData, username: e.target.value})}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold text-zinc-400 uppercase">Senha {isEditing && '(Deixe em branco p/ manter)'}</label>
-                          <input 
-                            type="password" 
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-white mt-1 focus:border-amber-400 focus:outline-none"
-                            value={formData.password}
-                            onChange={e => setFormData({...formData, password: e.target.value})}
+                            value={formData.email}
+                            onChange={e => setFormData({...formData, email: e.target.value})}
                           />
                         </div>
                         <div className="grid grid-cols-2 gap-4">

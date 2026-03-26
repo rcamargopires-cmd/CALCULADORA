@@ -6,11 +6,11 @@ export type UserStatus = 'active' | 'inactive';
 
 export interface User {
   id: string;
-  username: string;
-  password?: string; // Opcional apenas na visualização, obrigatório no cadastro
+  email: string;
   role: UserRole;
   name: string;
   status: UserStatus;
+  createdAt?: string;
 }
 
 export interface FieldVisibility {

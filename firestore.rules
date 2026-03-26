@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin') ||
+          (request.auth.token.email == "r.camargo.pires@gmail.com" && request.auth.token.email_verified == true)
+        );
+    }
+
+    function isUserActive() {
+      return isAuthenticated() && 
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.status == 'active') ||
+          (request.auth.token.email == "r.camargo.pires@gmail.com" && request.auth.token.email_verified == true)
+        );
+    }
+
+    // Users Collection
+    match /users/{email} {
+      // Anyone authenticated can read their own profile. Admins can read all.
+      allow read: if isAuthenticated() && (request.auth.token.email == email || isAdmin());
+      // Only admins can create/update/delete users
+      allow write: if isAdmin();
+    }
+
+    // Deals Collection
+    match /deals/{dealId} {
+      // Users can read their own deals. Admins can read all.
+      allow read: if isUserActive() && (resource.data.userId == request.auth.token.email || isAdmin());
+      // Active users can create deals. They must set themselves as the owner.
+      allow create: if isUserActive() && request.resource.data.userId == request.auth.token.email;
+      // Users can update their own deals (e.g., closing them).
+      allow update: if isUserActive() && resource.data.userId == request.auth.token.email && request.resource.data.userId == request.auth.token.email;
+      // Only admins can delete deals
+      allow delete: if isAdmin();
+    }
+
+    // Config Collection
+    match /config/{document=**} {
+      // All active users can read config
+      allow read: if isUserActive();
+      // Only admins can write config
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -1,11 +1,10 @@
-
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { FieldVisibility, CommissionConfig, BankRates } from '../types';
 
-const CONFIG_STORAGE_KEY = 'app_field_config';
-const COMMISSION_STORAGE_KEY = 'app_commission_config';
-const BANK_RATES_STORAGE_KEY = 'app_bank_rates_config';
+const CONFIG_DOC = 'config/main';
 
-const DEFAULT_VISIBILITY: FieldVisibility = {
+export const DEFAULT_VISIBILITY: FieldVisibility = {
   licensePlate: true,
   stockDays: true,
   invoiceValue: true,
@@ -20,7 +19,7 @@ const DEFAULT_VISIBILITY: FieldVisibility = {
   others: true,
 };
 
-const DEFAULT_COMMISSION: CommissionConfig = {
+export const DEFAULT_COMMISSION: CommissionConfig = {
   enabled: true,
   type: 'percent', // Padrão: Porcentagem
   fixedValue: 200, // Ex: 200 reais fixos
@@ -43,72 +42,58 @@ const DEFAULT_COMMISSION: CommissionConfig = {
   }
 };
 
-const DEFAULT_BANK_RATES: BankRates = {
+export const DEFAULT_BANK_RATES: BankRates = {
   volks: 10, // 10%
   others: 3.6 // 3.6%
 };
 
 export const configService = {
-  // --- Field Visibility ---
-  getVisibility: (): FieldVisibility => {
-    try {
-      const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
-      if (stored) {
-        return { ...DEFAULT_VISIBILITY, ...JSON.parse(stored) };
-      }
-    } catch (e) {
-      console.error("Erro ao carregar configurações de campo", e);
+  // --- Load Config ---
+  loadConfig: async () => {
+    const docRef = doc(db, CONFIG_DOC);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        visibility: { ...DEFAULT_VISIBILITY, ...data.visibility },
+        commission: { ...DEFAULT_COMMISSION, ...data.commission },
+        bankRates: { ...DEFAULT_BANK_RATES, ...data.bankRates }
+      };
+    } else {
+      const defaults = {
+        visibility: DEFAULT_VISIBILITY,
+        commission: DEFAULT_COMMISSION,
+        bankRates: DEFAULT_BANK_RATES
+      };
+      return defaults;
     }
-    return DEFAULT_VISIBILITY;
   },
 
-  saveVisibility: (config: FieldVisibility) => {
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+  // --- Save Configs ---
+  saveVisibility: async (visibility: FieldVisibility) => {
+    const docRef = doc(db, CONFIG_DOC);
+    await setDoc(docRef, { visibility }, { merge: true });
   },
   
-  // --- Commission Config ---
-  getCommission: (): CommissionConfig => {
-    try {
-      const stored = localStorage.getItem(COMMISSION_STORAGE_KEY);
-      if (stored) {
-        return { ...DEFAULT_COMMISSION, ...JSON.parse(stored) };
-      }
-    } catch (e) {
-      console.error("Erro ao carregar configurações de comissão", e);
-    }
-    return DEFAULT_COMMISSION;
+  saveCommission: async (commission: CommissionConfig) => {
+    const docRef = doc(db, CONFIG_DOC);
+    await setDoc(docRef, { commission }, { merge: true });
   },
 
-  saveCommission: (config: CommissionConfig) => {
-    localStorage.setItem(COMMISSION_STORAGE_KEY, JSON.stringify(config));
-  },
-
-  // --- Bank Rates ---
-  getBankRates: (): BankRates => {
-    try {
-      const stored = localStorage.getItem(BANK_RATES_STORAGE_KEY);
-      if (stored) {
-        return { ...DEFAULT_BANK_RATES, ...JSON.parse(stored) };
-      }
-    } catch (e) {
-      console.error("Erro ao carregar configurações de taxas bancárias", e);
-    }
-    return DEFAULT_BANK_RATES;
-  },
-
-  saveBankRates: (config: BankRates) => {
-    localStorage.setItem(BANK_RATES_STORAGE_KEY, JSON.stringify(config));
+  saveBankRates: async (bankRates: BankRates) => {
+    const docRef = doc(db, CONFIG_DOC);
+    await setDoc(docRef, { bankRates }, { merge: true });
   },
 
   // Reset Geral
-  reset: () => {
-    localStorage.removeItem(CONFIG_STORAGE_KEY);
-    localStorage.removeItem(COMMISSION_STORAGE_KEY);
-    localStorage.removeItem(BANK_RATES_STORAGE_KEY);
-    return {
+  reset: async () => {
+    const defaults = {
       visibility: DEFAULT_VISIBILITY,
       commission: DEFAULT_COMMISSION,
       bankRates: DEFAULT_BANK_RATES
     };
+    const docRef = doc(db, CONFIG_DOC);
+    await setDoc(docRef, defaults);
+    return defaults;
   }
 };
