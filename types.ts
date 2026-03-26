@@ -36,6 +36,28 @@ export interface CommissionConfig {
   fixedValue: number;      // Valor fixo em R$ (se type for fixed ou mixed)
   percentage: number;      // Porcentagem sobre o LUCRO (se type for percent ou mixed)
   minProfitThreshold: number; // Lucro mínimo para ativar a comissão
+  invoicePercentage: number;  // % sobre o Valor da Nota Fiscal
+  stockPrizeConfig: {
+    enabled: boolean;
+    thresholds: {
+      days: number;
+      value: number;
+      valueWithTradeIn?: number;
+    }[];
+  };
+  docPrizeConfig: {
+    enabled: boolean;
+    thresholds: {
+      min: number;
+      max?: number;
+      value: number;
+    }[];
+  };
+}
+
+export interface BankRates {
+  volks: number;
+  others: number;
 }
 
 export interface PaymentMethods {

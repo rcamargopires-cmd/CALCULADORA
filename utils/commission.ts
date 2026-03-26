@@ -39,31 +39,44 @@ export const calculateCommission = (
     }
 
     // Revenue Share (Comissão sobre NF)
-    const invoicePct = (config as any).invoicePercentage || 0;
-    if (invoicePct > 0 && deal.invoiceValue > 0) {
-      invoice = (deal.invoiceValue * invoicePct) / 100;
+    if (config.invoicePercentage > 0 && deal.invoiceValue > 0) {
+      invoice = (deal.invoiceValue * config.invoicePercentage) / 100;
     }
   }
 
   // --- Bônus de Estoque (Spiff) ---
   let stockPrize = 0;
-  const days = deal.stockDays || 0;
-  const hasTradeIn = deal.payments.tradeIn > 0;
-  
-  if (days >= 120) {
-    stockPrize = 1000;
-  } else if (days >= 90) {
-    stockPrize = hasTradeIn ? 500 : 350;
+  if (config.stockPrizeConfig.enabled) {
+    const days = deal.stockDays || 0;
+    const hasTradeIn = deal.payments.tradeIn > 0;
+    
+    // Ordena por dias decrescente para pegar o maior threshold atingido
+    const sortedThresholds = [...config.stockPrizeConfig.thresholds].sort((a, b) => b.days - a.days);
+    
+    for (const threshold of sortedThresholds) {
+      if (days >= threshold.days) {
+        stockPrize = (hasTradeIn && threshold.valueWithTradeIn !== undefined) 
+          ? threshold.valueWithTradeIn 
+          : threshold.value;
+        break;
+      }
+    }
   }
 
   // --- Bônus de Documentação ---
   let docPrize = 0;
-  const docValue = deal.costs.documentation || 0;
-  
-  if (docValue >= 1350) {
-    docPrize = 150;
-  } else if (docValue >= 1000 && docValue <= 1200) {
-    docPrize = 100;
+  if (config.docPrizeConfig.enabled) {
+    const docValue = deal.costs.documentation || 0;
+    
+    for (const threshold of config.docPrizeConfig.thresholds) {
+      const minOk = docValue >= threshold.min;
+      const maxOk = threshold.max === undefined || docValue <= threshold.max;
+      
+      if (minOk && maxOk) {
+        docPrize = threshold.value;
+        break;
+      }
+    }
   }
 
   return {

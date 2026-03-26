@@ -10,7 +10,7 @@ import FinancingSimulator from './components/FinancingSimulator';
 import LoginScreen from './components/LoginScreen';
 import AdminPanel from './components/AdminPanel';
 import CommissionModal from './components/CommissionModal';
-import { DealData, CalculationResult, SavedCalculation, BankType, User, UserRole, FieldVisibility, CommissionConfig } from './types';
+import { DealData, CalculationResult, SavedCalculation, BankType, User, UserRole, FieldVisibility, CommissionConfig, BankRates } from './types';
 import { formatCurrency, formatPercentage } from './utils/currency';
 import { analyzeDeal } from './services/geminiService';
 import { useBankCalculator } from './hooks/useBankCalculator';
@@ -54,12 +54,13 @@ const App: React.FC = () => {
   // --- Config State ---
   const [fieldConfig, setFieldConfig] = useState<FieldVisibility>(configService.getVisibility());
   const [commissionConfig, setCommissionConfig] = useState<CommissionConfig>(configService.getCommission());
+  const [bankRates, setBankRates] = useState<BankRates>(configService.getBankRates());
 
   // --- App State ---
   const [data, setData] = useState<DealData>(getInitialData());
 
   // Hook customizado para lógica bancária
-  const { bankType, setBankType, getReturnAmount } = useBankCalculator('volks');
+  const { bankType, setBankType, getReturnAmount } = useBankCalculator(bankRates, 'volks');
 
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -99,6 +100,7 @@ const App: React.FC = () => {
   const handleConfigUpdate = () => {
     setFieldConfig(configService.getVisibility());
     setCommissionConfig(configService.getCommission());
+    setBankRates(configService.getBankRates());
   };
 
   // --- Calculations ---
@@ -243,24 +245,16 @@ const App: React.FC = () => {
     }));
   };
 
-const handleAnalyze = async () => {
-    // Ajustado para ler a chave que você salvou na Vercel
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-    if (!apiKey) {
-      setAnalysis("⚠️ Chave de API não encontrada. Verifique as configurações na Vercel.");
+  const handleAnalyze = async () => {
+    if (!process.env.GEMINI_API_KEY) {
+      setAnalysis("⚠️ Configure a GEMINI_API_KEY no ambiente para usar a inteligência artificial.");
       return;
     }
     setIsAnalyzing(true);
     setAnalysis(null);
-    try {
-      const result = await analyzeDeal(data, results);
-      setAnalysis(result);
-    } catch (error) {
-      setAnalysis("❌ Erro técnico ao processar análise.");
-    } finally {
-      setIsAnalyzing(false);
-    }
+    const result = await analyzeDeal(data, results);
+    setAnalysis(result);
+    setIsAnalyzing(false);
   };
 
   const handleSave = (status: 'open' | 'closed' = 'open') => {
@@ -403,9 +397,9 @@ const handleAnalyze = async () => {
           <div>
             <h1 className="text-3xl font-black text-white flex items-center gap-2">
               <Calculator className="w-8 h-8 text-amber-400" />
-              DealMaster
+              Calculadora de Margem
             </h1>
-            <p className="text-zinc-400 mt-1">A inteligência por trás de cada venda</p>
+            <p className="text-zinc-400 mt-1">Ferramenta de estruturação de vendas de veículos</p>
           </div>
           <div className="flex gap-3 flex-wrap">
             {commissionConfig.enabled && (
@@ -547,8 +541,8 @@ const handleAnalyze = async () => {
                         onChange={(e) => handleBankTypeChange(e.target.value as BankType)}
                         className="w-full h-[42px] border border-zinc-700 bg-zinc-800 rounded px-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                       >
-                        <option value="volks">Banco Volks (13.0%)</option>
-                        <option value="others">Outros Bancos (3.6%)</option>
+                        <option value="volks">Banco Volks ({bankRates.volks.toFixed(1)}%)</option>
+                        <option value="others">Outros Bancos ({bankRates.others.toFixed(1)}%)</option>
                       </select>
                     </div>
                   </div>

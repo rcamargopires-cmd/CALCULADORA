@@ -32,8 +32,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <div className="w-16 h-16 bg-amber-400 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-amber-400/20">
             <Lock className="w-8 h-8 text-black" />
           </div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-wide">DealMaster</h1>
-          <p className="text-zinc-500 text-sm mt-1">A inteligência por trás de cada venda</p>
+          <h1 className="text-2xl font-black text-white uppercase tracking-wide">Acesso Restrito</h1>
+          <p className="text-zinc-500 text-sm mt-1">Calculadora de Margem Veicular</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -61,7 +61,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <div className="space-y-2">
             <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Senha</label>
             <div className="relative">
-            
+              <Lock className="absolute left-3 top-3 text-zinc-500" size={18} />
               <input
                 type="password"
                 value={password}
@@ -82,8 +82,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         </form>
         
         <div className="mt-6 text-center text-xs text-zinc-600">
-          <p>copyright ©:</p>
-          <p>Reinaldo Ribas 15 l 98102-2055</p>
+          <p>Credenciais Padrão:</p>
+          <p>admin / 123 | vendedor / 123</p>
         </div>
       </div>
     </div>

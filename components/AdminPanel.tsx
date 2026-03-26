@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shield, Users, Settings, X, CheckCircle, Plus, Edit2, Trash2, Save, LayoutTemplate, Coins, DollarSign, Calculator, ArrowRight } from 'lucide-react';
+import { Shield, Users, Settings, X, CheckCircle, Plus, Edit2, Trash2, Save, LayoutTemplate, Coins, DollarSign, Calculator, ArrowRight, Building2, Gift, FileText, RotateCcw } from 'lucide-react';
 import SectionHeader from './SectionHeader';
-import { User, UserRole, UserStatus, FieldVisibility, CommissionConfig } from '../types';
+import { User, UserRole, UserStatus, FieldVisibility, CommissionConfig, BankRates } from '../types';
 import { userService } from '../services/userService';
 import { configService } from '../services/configService';
 import CurrencyInput from './CurrencyInput';
@@ -17,7 +17,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, onConfigUpdate }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'form' | 'commissions'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'form' | 'commissions' | 'banks'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -27,6 +27,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
   
   // Commission Config State
   const [commissionConfig, setCommissionConfig] = useState<CommissionConfig>(configService.getCommission());
+
+  // Bank Rates State
+  const [bankRates, setBankRates] = useState<BankRates>(configService.getBankRates());
   
   // Simulation State for Commission Tab
   const [simulatedProfit, setSimulatedProfit] = useState(2000);
@@ -45,6 +48,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
       loadUsers();
       setFieldConfig(configService.getVisibility());
       setCommissionConfig(configService.getCommission());
+      setBankRates(configService.getBankRates());
     }
   }, [isOpen]);
 
@@ -128,6 +132,63 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
     alert("Regras de comissão atualizadas!");
   };
 
+  const handleSaveBankRates = () => {
+    configService.saveBankRates(bankRates);
+    if (onConfigUpdate) onConfigUpdate();
+    alert("Taxas bancárias atualizadas!");
+  };
+
+  const handleResetToDefaults = () => {
+    if (window.confirm("Deseja resetar TODAS as configurações para os padrões de fábrica?")) {
+      const defaults = configService.reset();
+      setFieldConfig(defaults.visibility);
+      setCommissionConfig(defaults.commission);
+      setBankRates(defaults.bankRates);
+      if (onConfigUpdate) onConfigUpdate();
+      alert("Configurações resetadas com sucesso!");
+    }
+  };
+
+  const handleAddStockThreshold = () => {
+    setCommissionConfig(prev => ({
+      ...prev,
+      stockPrizeConfig: {
+        ...prev.stockPrizeConfig,
+        thresholds: [...prev.stockPrizeConfig.thresholds, { days: 0, value: 0 }]
+      }
+    }));
+  };
+
+  const handleRemoveStockThreshold = (index: number) => {
+    setCommissionConfig(prev => ({
+      ...prev,
+      stockPrizeConfig: {
+        ...prev.stockPrizeConfig,
+        thresholds: prev.stockPrizeConfig.thresholds.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const handleAddDocThreshold = () => {
+    setCommissionConfig(prev => ({
+      ...prev,
+      docPrizeConfig: {
+        ...prev.docPrizeConfig,
+        thresholds: [...prev.docPrizeConfig.thresholds, { min: 0, value: 0 }]
+      }
+    }));
+  };
+
+  const handleRemoveDocThreshold = (index: number) => {
+    setCommissionConfig(prev => ({
+      ...prev,
+      docPrizeConfig: {
+        ...prev.docPrizeConfig,
+        thresholds: prev.docPrizeConfig.thresholds.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
   // Cálculo da simulação em tempo real para o admin visualizar a regra
   const simulatedCommissionValue = useMemo(() => {
     if (!commissionConfig.enabled) return 0;
@@ -158,9 +219,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
               <p className="text-xs text-zinc-400">Gerenciamento do Sistema</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors bg-zinc-700/50 p-2 rounded-full">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={handleResetToDefaults}
+              className="text-xs font-bold text-zinc-500 hover:text-red-400 flex items-center gap-1 transition-colors"
+              title="Resetar todas as configurações para o padrão"
+            >
+              <RotateCcw size={14} /> RESETAR PADRÕES
+            </button>
+            <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors bg-zinc-700/50 p-2 rounded-full">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -182,6 +252,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
              className={`flex-1 min-w-[150px] py-3 text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${activeTab === 'commissions' ? 'bg-zinc-800 text-white border-b-2 border-red-500' : 'text-zinc-500 hover:text-zinc-300'}`}
           >
             <Coins size={16} /> Comissões
+          </button>
+          <button 
+             onClick={() => setActiveTab('banks')}
+             className={`flex-1 min-w-[150px] py-3 text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${activeTab === 'banks' ? 'bg-zinc-800 text-white border-b-2 border-red-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            <Building2 size={16} /> Taxas Bancárias
           </button>
         </div>
 
@@ -580,6 +656,191 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
                             onChange={(v) => setCommissionConfig({...commissionConfig, fixedValue: v})}
                           />
                         )}
+
+                        <div>
+                          <label className="text-xs font-bold text-zinc-400 uppercase mb-1 block">Comissão sobre Nota Fiscal (%)</label>
+                          <input 
+                            type="number"
+                            step="0.01"
+                            value={commissionConfig.invoicePercentage}
+                            onChange={(e) => setCommissionConfig({...commissionConfig, invoicePercentage: parseFloat(e.target.value) || 0})}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-white font-mono focus:border-amber-400 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Bônus de Estoque */}
+                        <div className="p-4 bg-zinc-900 rounded border border-zinc-800 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Gift size={18} className="text-purple-400" />
+                              <h4 className="font-bold text-white text-sm">Prêmios de Estoque</h4>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <button 
+                                onClick={handleAddStockThreshold}
+                                className="text-[10px] font-bold text-purple-400 hover:text-white bg-purple-900/20 px-2 py-1 rounded border border-purple-500/30"
+                              >
+                                + ADICIONAR FAIXA
+                              </button>
+                              <label className="relative inline-flex items-center cursor-pointer scale-75">
+                                <input 
+                                  type="checkbox" 
+                                  className="sr-only peer"
+                                  checked={commissionConfig.stockPrizeConfig.enabled}
+                                  onChange={(e) => setCommissionConfig({
+                                    ...commissionConfig, 
+                                    stockPrizeConfig: { ...commissionConfig.stockPrizeConfig, enabled: e.target.checked }
+                                  })}
+                                />
+                                <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                              </label>
+                            </div>
+                          </div>
+
+                          {commissionConfig.stockPrizeConfig.enabled && (
+                            <div className="space-y-3">
+                              {commissionConfig.stockPrizeConfig.thresholds.map((t, idx) => (
+                                <div key={idx} className="grid grid-cols-12 gap-2 items-end border-b border-zinc-800 pb-3 last:border-0">
+                                  <div className="col-span-3">
+                                    <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Dias Min.</label>
+                                    <input 
+                                      type="number"
+                                      value={t.days}
+                                      onChange={(e) => {
+                                        const newThresholds = [...commissionConfig.stockPrizeConfig.thresholds];
+                                        newThresholds[idx].days = parseInt(e.target.value) || 0;
+                                        setCommissionConfig({...commissionConfig, stockPrizeConfig: {...commissionConfig.stockPrizeConfig, thresholds: newThresholds}});
+                                      }}
+                                      className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-white text-xs"
+                                    />
+                                  </div>
+                                  <div className="col-span-3">
+                                    <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Prêmio (R$)</label>
+                                    <input 
+                                      type="number"
+                                      value={t.value}
+                                      onChange={(e) => {
+                                        const newThresholds = [...commissionConfig.stockPrizeConfig.thresholds];
+                                        newThresholds[idx].value = parseFloat(e.target.value) || 0;
+                                        setCommissionConfig({...commissionConfig, stockPrizeConfig: {...commissionConfig.stockPrizeConfig, thresholds: newThresholds}});
+                                      }}
+                                      className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-white text-xs"
+                                    />
+                                  </div>
+                                  <div className="col-span-4">
+                                    <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">C/ Troca (R$)</label>
+                                    <input 
+                                      type="number"
+                                      value={t.valueWithTradeIn || 0}
+                                      onChange={(e) => {
+                                        const newThresholds = [...commissionConfig.stockPrizeConfig.thresholds];
+                                        newThresholds[idx].valueWithTradeIn = parseFloat(e.target.value) || 0;
+                                        setCommissionConfig({...commissionConfig, stockPrizeConfig: {...commissionConfig.stockPrizeConfig, thresholds: newThresholds}});
+                                      }}
+                                      className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-white text-xs"
+                                    />
+                                  </div>
+                                  <div className="col-span-2 flex justify-end">
+                                    <button 
+                                      onClick={() => handleRemoveStockThreshold(idx)}
+                                      className="p-1.5 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                                      title="Remover faixa"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Bônus de Documentação */}
+                        <div className="p-4 bg-zinc-900 rounded border border-zinc-800 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <FileText size={18} className="text-cyan-400" />
+                              <h4 className="font-bold text-white text-sm">Bônus de Documentação</h4>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <button 
+                                onClick={handleAddDocThreshold}
+                                className="text-[10px] font-bold text-cyan-400 hover:text-white bg-cyan-900/20 px-2 py-1 rounded border border-cyan-500/30"
+                              >
+                                + ADICIONAR FAIXA
+                              </button>
+                              <label className="relative inline-flex items-center cursor-pointer scale-75">
+                                <input 
+                                  type="checkbox" 
+                                  className="sr-only peer"
+                                  checked={commissionConfig.docPrizeConfig.enabled}
+                                  onChange={(e) => setCommissionConfig({
+                                    ...commissionConfig, 
+                                    docPrizeConfig: { ...commissionConfig.docPrizeConfig, enabled: e.target.checked }
+                                  })}
+                                />
+                                <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                              </label>
+                            </div>
+                          </div>
+
+                          {commissionConfig.docPrizeConfig.enabled && (
+                            <div className="space-y-3">
+                              {commissionConfig.docPrizeConfig.thresholds.map((t, idx) => (
+                                <div key={idx} className="grid grid-cols-12 gap-2 items-end border-b border-zinc-800 pb-3 last:border-0">
+                                  <div className="col-span-3">
+                                    <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Valor Min.</label>
+                                    <input 
+                                      type="number"
+                                      value={t.min}
+                                      onChange={(e) => {
+                                        const newThresholds = [...commissionConfig.docPrizeConfig.thresholds];
+                                        newThresholds[idx].min = parseFloat(e.target.value) || 0;
+                                        setCommissionConfig({...commissionConfig, docPrizeConfig: {...commissionConfig.docPrizeConfig, thresholds: newThresholds}});
+                                      }}
+                                      className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-white text-xs"
+                                    />
+                                  </div>
+                                  <div className="col-span-3">
+                                    <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Valor Max.</label>
+                                    <input 
+                                      type="number"
+                                      value={t.max || 0}
+                                      onChange={(e) => {
+                                        const newThresholds = [...commissionConfig.docPrizeConfig.thresholds];
+                                        newThresholds[idx].max = parseFloat(e.target.value) || undefined;
+                                        setCommissionConfig({...commissionConfig, docPrizeConfig: {...commissionConfig.docPrizeConfig, thresholds: newThresholds}});
+                                      }}
+                                      className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-white text-xs"
+                                    />
+                                  </div>
+                                  <div className="col-span-4">
+                                    <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Bônus (R$)</label>
+                                    <input 
+                                      type="number"
+                                      value={t.value}
+                                      onChange={(e) => {
+                                        const newThresholds = [...commissionConfig.docPrizeConfig.thresholds];
+                                        newThresholds[idx].value = parseFloat(e.target.value) || 0;
+                                        setCommissionConfig({...commissionConfig, docPrizeConfig: {...commissionConfig.docPrizeConfig, thresholds: newThresholds}});
+                                      }}
+                                      className="w-full bg-zinc-800 border border-zinc-700 rounded p-1.5 text-white text-xs"
+                                    />
+                                  </div>
+                                  <div className="col-span-2 flex justify-end">
+                                    <button 
+                                      onClick={() => handleRemoveDocThreshold(idx)}
+                                      className="p-1.5 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                                      title="Remover faixa"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                      </div>
 
                      <div className="bg-red-900/10 border border-red-900/30 p-4 rounded">
@@ -653,6 +914,81 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
                         </button>
                       </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: BANK RATES */}
+          {activeTab === 'banks' && (
+            <div className="max-w-2xl mx-auto">
+              <div className="mb-6">
+                <SectionHeader title="Configuração de Retorno Bancário" />
+                <p className="text-zinc-400 text-sm mb-4">
+                  Defina as porcentagens de retorno (bônus) que a loja recebe sobre o valor financiado em cada instituição.
+                </p>
+              </div>
+
+              <div className="bg-zinc-950 p-8 rounded border border-zinc-800 space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                      <Building2 size={14} className="text-blue-400" />
+                      Banco Volks (%)
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        step="0.1"
+                        value={bankRates.volks}
+                        onChange={(e) => setBankRates({...bankRates, volks: parseFloat(e.target.value) || 0})}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded p-3 text-white font-mono text-xl focus:border-amber-400 focus:outline-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">%</span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 italic">Taxa aplicada ao financiamento via Banco Volkswagen.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                      <Building2 size={14} className="text-zinc-400" />
+                      Outros Bancos (%)
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        step="0.1"
+                        value={bankRates.others}
+                        onChange={(e) => setBankRates({...bankRates, others: parseFloat(e.target.value) || 0})}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded p-3 text-white font-mono text-xl focus:border-amber-400 focus:outline-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">%</span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 italic">Taxa aplicada a todos os outros bancos parceiros.</p>
+                  </div>
+                </div>
+
+                <div className="bg-blue-900/10 border border-blue-900/30 p-4 rounded flex items-start gap-3">
+                  <div className="p-2 bg-blue-900/30 rounded text-blue-400 mt-1">
+                    <Calculator size={18} />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-blue-200">Exemplo de Cálculo</span>
+                    <p className="text-xs text-blue-400/80 mt-1 leading-relaxed">
+                      Se o financiamento for de <strong>R$ 50.000,00</strong> via Banco Volks ({bankRates.volks}%):<br/>
+                      O retorno será de <strong>{formatCurrency(50000 * (bankRates.volks / 100))}</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-zinc-800">
+                  <button 
+                    onClick={handleSaveBankRates}
+                    className="w-full px-6 py-4 bg-amber-400 hover:bg-amber-500 text-black font-bold rounded shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Save size={20} />
+                    SALVAR TAXAS BANCÁRIAS
+                  </button>
                 </div>
               </div>
             </div>
