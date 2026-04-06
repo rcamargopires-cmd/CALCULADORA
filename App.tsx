@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Calculator, RefreshCw, Sparkles, AlertTriangle, Building2, Save, History, ArrowRight, CarFront, Clock, AlertOctagon, Percent, Info, LogOut, ShieldCheck, FolderOpen, Coins, Wallet, User as UserIcon, CheckCircle, Gift, FileText, Check } from 'lucide-react';
+import { Calculator, RefreshCw, Sparkles, AlertTriangle, Building2, Save, History, ArrowRight, CarFront, Clock, AlertOctagon, Percent, Info, LogOut, ShieldCheck, FolderOpen, Coins, Wallet, User as UserIcon, CheckCircle, Gift, FileText, Check, Calendar } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where, doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import CurrencyInput from './components/CurrencyInput';
 import TextInput from './components/TextInput';
@@ -67,9 +67,19 @@ const App: React.FC = () => {
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false); // Modal de Comissões
+  const [duplicateDeal, setDuplicateDeal] = useState<{ id: string, status: 'open' | 'closed' } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Estado do Histórico (Visualização)
   const [history, setHistory] = useState<SavedCalculation[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const filteredHistory = useMemo(() => {
+    return history.filter(item => item.timestamp.startsWith(selectedMonth));
+  }, [history, selectedMonth]);
 
   // --- Firebase Listeners ---
   useEffect(() => {
@@ -317,9 +327,23 @@ const App: React.FC = () => {
     setIsAnalyzing(false);
   };
 
-  const handleSave = async (status: 'open' | 'closed' = 'open') => {
-    if (!user) return;
+  const handleSave = async (status: 'open' | 'closed' = 'open', forceUpdateId?: string, skipDuplicateCheck: boolean = false) => {
+    if (!user || isSaving) return;
 
+    // Verificar se já existe um negócio com a mesma placa (se informada)
+    if (!forceUpdateId && !skipDuplicateCheck && data.licensePlate && data.licensePlate.trim() !== '') {
+      const existing = history.find(h => 
+        h.data.licensePlate && 
+        h.data.licensePlate.toUpperCase() === data.licensePlate.toUpperCase()
+      );
+      
+      if (existing) {
+        setDuplicateDeal({ id: existing.id, status });
+        return;
+      }
+    }
+
+    setIsSaving(true);
     const dataSnapshot = JSON.parse(JSON.stringify(data));
     dataSnapshot.dealStatus = status;
     
@@ -336,20 +360,31 @@ const App: React.FC = () => {
     };
 
     try {
-      await addDoc(collection(db, 'deals'), {
-        ...newItem,
-        createdAt: serverTimestamp()
-      });
+      if (forceUpdateId) {
+        await updateDoc(doc(db, 'deals', forceUpdateId), {
+          ...newItem,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        await addDoc(collection(db, 'deals'), {
+          ...newItem,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      setDuplicateDeal(null);
 
       if (status === 'closed') {
-        alert("Parabéns! Venda FECHADA e registrada com sucesso no banco de dados.");
+        // Substituindo alert por log ou feedback visual se necessário
+        console.log("Venda FECHADA e registrada com sucesso.");
         handleResetNoConfirm();
       } else {
-        alert("Negócio salvo no histórico.");
+        console.log("Negócio salvo no histórico.");
       }
     } catch (error) {
       console.error("Erro ao salvar negócio:", error);
-      alert("Erro ao salvar negócio no banco de dados.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -429,7 +464,9 @@ const App: React.FC = () => {
         // Passa o lucro correto baseado na seleção para o modal de detalhe atual
         currentProfit={data.closingType === 'banking' ? results.profitWithBank : results.profit}
         commissionConfig={commissionConfig}
-        history={history}
+        history={filteredHistory}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
       />
 
       <div className="max-w-6xl mx-auto">
@@ -828,12 +865,31 @@ const App: React.FC = () => {
 
                 {history.length > 0 && (
                   <div className="mt-8">
-                    <div className="flex items-center gap-2 mb-4 text-zinc-400">
-                      <History className="w-5 h-5" />
-                      <h3 className="font-bold text-sm uppercase tracking-wider">Histórico Recente</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-2 text-zinc-400">
+                        <History className="w-5 h-5" />
+                        <h3 className="font-bold text-sm uppercase tracking-wider">Histórico de Negócios</h3>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 p-1 rounded-lg">
+                        <Calendar size={14} className="text-zinc-500 ml-2" />
+                        <input 
+                          type="month" 
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(e.target.value)}
+                          className="bg-transparent text-xs font-bold text-white focus:outline-none p-1 uppercase"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-3">
-                      {history.map((item) => (
+
+                    {filteredHistory.length === 0 ? (
+                      <div className="bg-zinc-900/50 border border-zinc-800 border-dashed rounded-lg p-8 text-center">
+                        <Clock className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
+                        <p className="text-zinc-500 text-sm">Nenhum negócio encontrado para este mês.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {filteredHistory.map((item) => (
                         <div 
                           key={item.id}
                           className={`group bg-zinc-900 border ${item.data.dealStatus === 'closed' ? 'border-green-800/50 bg-green-900/10' : 'border-zinc-800'} rounded-lg p-3 flex justify-between items-center transition-all hover:border-amber-400/30`}
@@ -888,12 +944,55 @@ const App: React.FC = () => {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              )}
              </section>
           </div>
         </div>
       </div>
+      {duplicateDeal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center gap-3 text-amber-400 mb-4">
+              <AlertOctagon size={24} />
+              <h3 className="text-lg font-bold text-white">Placa Duplicada</h3>
+            </div>
+            
+            <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
+              Já existe uma negociação registrada com a placa <strong className="text-amber-300">{data.licensePlate}</strong> no histórico. 
+              Deseja atualizar o registro existente ou criar um novo?
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handleSave(duplicateDeal.status, duplicateDeal.id)}
+                disabled={isSaving}
+                className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-black font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                {isSaving ? <RefreshCw size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                ATUALIZAR EXISTENTE
+              </button>
+              
+              <button
+                onClick={() => handleSave(duplicateDeal.status, undefined, true)}
+                disabled={isSaving}
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                CRIAR NOVO MESMO ASSIM
+              </button>
+
+              <button
+                onClick={() => setDuplicateDeal(null)}
+                disabled={isSaving}
+                className="w-full py-3 bg-transparent hover:bg-zinc-800 text-zinc-500 font-bold rounded-lg transition-colors"
+              >
+                CANCELAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -12,6 +12,8 @@ interface CommissionModalProps {
   currentProfit: number;
   commissionConfig: CommissionConfig;
   history: SavedCalculation[];
+  selectedMonth: string;
+  onMonthChange: (month: string) => void;
 }
 
 const CommissionModal: React.FC<CommissionModalProps> = ({
@@ -20,7 +22,9 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
   currentDeal,
   currentProfit,
   commissionConfig,
-  history
+  history,
+  selectedMonth,
+  onMonthChange
 }) => {
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
 
@@ -32,6 +36,13 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
   const closedDeals = useMemo(() => 
     history.filter(h => h.data.dealStatus === 'closed'), 
   [history]);
+
+  // Formata o nome do mês selecionado
+  const monthLabel = useMemo(() => {
+    const [year, month] = selectedMonth.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1);
+    return date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+  }, [selectedMonth]);
 
   // Calcula o total acumulado histórico (Estimado com as regras atuais)
   // Agora considera se a venda foi fechada "Com Banco" ou "Sem Banco" para calcular o lucro base da comissão
@@ -78,8 +89,8 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
             <TrendingUp size={16} /> Simulação Atual
           </button>
           <button 
-             onClick={() => setActiveTab('history')}
-             className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-zinc-800 text-white border-b-2 border-amber-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-zinc-800 text-white border-b-2 border-amber-500' : 'text-zinc-500 hover:text-zinc-300'}`}
           >
             <Briefcase size={16} /> Extrato de Vendas
           </button>
@@ -183,18 +194,33 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
 
           {activeTab === 'history' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between bg-zinc-900 p-4 rounded border border-zinc-800">
-                <span className="text-zinc-400 font-bold uppercase text-xs">Total Acumulado (Fechadas)</span>
-                <span className="text-2xl font-bold text-green-400 font-mono">{formatCurrency(historyTotal)}</span>
+              <div className="flex flex-col gap-4 bg-zinc-900 p-4 rounded border border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 font-bold uppercase text-[10px] tracking-wider">Mês de Referência</span>
+                  <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-700 px-2 py-1 rounded">
+                    <Calendar size={12} className="text-zinc-500" />
+                    <input 
+                      type="month" 
+                      value={selectedMonth}
+                      onChange={(e) => onMonthChange(e.target.value)}
+                      className="bg-transparent text-xs font-bold text-white focus:outline-none uppercase"
+                    />
+                  </div>
+                </div>
+                <div className="h-px bg-zinc-800"></div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 font-bold uppercase text-xs">Total Acumulado em {monthLabel}</span>
+                  <span className="text-2xl font-bold text-green-400 font-mono">{formatCurrency(historyTotal)}</span>
+                </div>
               </div>
 
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-zinc-500 uppercase ml-1 mb-2">Vendas Realizadas</h4>
+                <h4 className="text-xs font-bold text-zinc-500 uppercase ml-1 mb-2">Vendas Realizadas no Mês</h4>
                 
                 {closedDeals.length === 0 ? (
-                  <div className="text-center py-8 text-zinc-600">
+                  <div className="text-center py-8 text-zinc-600 bg-zinc-900/30 rounded-lg border border-dashed border-zinc-800">
                     <Briefcase size={32} className="mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Nenhuma venda fechada registrada ainda.</p>
+                    <p className="text-sm">Nenhuma venda fechada em {monthLabel}.</p>
                   </div>
                 ) : (
                   closedDeals.map((deal) => {
@@ -206,11 +232,19 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
 
                      const dealBreakdown = calculateCommission(deal.data, finalProfit, commissionConfig);
                      
+                     // Formata a data de forma mais amigável
+                     const dealDate = new Date(deal.timestamp).toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                     });
+
                      return (
                         <div key={deal.id} className="bg-zinc-900 p-3 rounded border border-zinc-800 flex justify-between items-center hover:bg-zinc-800 transition-colors">
                           <div className="flex flex-col">
                              <div className="flex items-center gap-2 mb-1">
-                               <span className="text-xs text-zinc-500 font-mono">{deal.timestamp}</span>
+                               <span className="text-[10px] text-zinc-500 font-mono">{dealDate}</span>
                                <span className="text-xs font-bold text-white bg-zinc-700 px-1.5 rounded">{deal.data.licensePlate || 'S/ Placa'}</span>
                              </div>
                              <div className="flex items-center gap-2 text-[10px] text-zinc-500">
@@ -238,7 +272,6 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>
