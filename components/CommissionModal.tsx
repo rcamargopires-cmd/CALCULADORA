@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { X, Coins, TrendingUp, AlertCircle, Calendar, DollarSign, Gift, FileText, Briefcase } from 'lucide-react';
+import { X, Coins, TrendingUp, AlertCircle, Calendar, DollarSign, Gift, FileText, Briefcase, User } from 'lucide-react';
 import { formatCurrency } from '../utils/currency';
 import { CommissionConfig, DealData, SavedCalculation } from '../types';
 import { calculateCommission, CommissionBreakdown } from '../utils/commission';
@@ -145,6 +145,20 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
                   </div>
                 )}
 
+                {/* Financing Bonus */}
+                {currentBreakdown.financing > 0 && (
+                   <div className="flex justify-between items-center p-3 bg-zinc-900/50 rounded border border-zinc-800">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-amber-900/20 text-amber-400 rounded-full"><TrendingUp size={16} /></div>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-zinc-300 text-sm">Comissão Financiamento</span>
+                        <span className="text-[10px] text-zinc-500">% sobre Valor Financiado</span>
+                      </div>
+                    </div>
+                    <span className="font-mono font-bold text-amber-400">{formatCurrency(currentBreakdown.financing)}</span>
+                  </div>
+                )}
+
                 {/* Stock Prize */}
                  <div className={`flex justify-between items-center p-3 rounded border transition-colors ${currentBreakdown.stockPrize > 0 ? 'bg-purple-900/10 border-purple-500/30' : 'bg-zinc-900/30 border-zinc-800 opacity-50'}`}>
                   <div className="flex items-center gap-3">
@@ -181,6 +195,19 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
                   </span>
                 </div>
 
+                {/* Split Info */}
+                {currentBreakdown.isSplit && (
+                  <div className="flex justify-between items-center p-3 bg-red-900/10 rounded border border-red-500/30">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-red-900/20 text-red-400 rounded-full"><User size={16} /></div>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-red-200 text-sm">Divisão de Venda (Web)</span>
+                        <span className="text-[10px] text-red-400">40% para {currentDeal.splitWithUserName || 'outro vendedor'}</span>
+                      </div>
+                    </div>
+                    <span className="font-mono font-bold text-red-400">-{formatCurrency(currentBreakdown.splitValue)}</span>
+                  </div>
+                )}
               </div>
 
               {currentProfit < commissionConfig.minProfitThreshold && currentBreakdown.total > 0 && (
@@ -256,7 +283,8 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
                           </div>
                           <div className="flex flex-col items-end">
                              <span className="text-green-400 font-bold font-mono">{formatCurrency(dealBreakdown.total)}</span>
-                             <div className="flex gap-1">
+                             <div className="flex gap-1 items-center">
+                                {dealBreakdown.isSplit && <span className="text-[8px] font-bold text-red-400 uppercase bg-red-900/20 px-1 rounded mr-1">Dividida</span>}
                                 {dealBreakdown.stockPrize > 0 && <span title="Prêmio Estoque" className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>}
                                 {dealBreakdown.docPrize > 0 && <span title="Prêmio Doc" className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>}
                              </div>

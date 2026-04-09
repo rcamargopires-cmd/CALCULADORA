@@ -650,15 +650,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
                           />
                         )}
 
-                        <div>
-                          <label className="text-xs font-bold text-zinc-400 uppercase mb-1 block">Comissão sobre Nota Fiscal (%)</label>
-                          <input 
-                            type="number"
-                            step="0.01"
-                            value={commissionConfig.invoicePercentage}
-                            onChange={(e) => setCommissionConfig({...commissionConfig, invoicePercentage: parseFloat(e.target.value) || 0})}
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-white font-mono focus:border-amber-400 focus:outline-none"
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-xs font-bold text-zinc-400 uppercase mb-1 block">Comissão sobre Nota Fiscal (%)</label>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              value={commissionConfig.invoicePercentage}
+                              onChange={(e) => setCommissionConfig({...commissionConfig, invoicePercentage: parseFloat(e.target.value) || 0})}
+                              className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-white font-mono focus:border-amber-400 focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-zinc-400 uppercase mb-1 block">Comissão sobre Financiamento (%)</label>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              value={commissionConfig.financingPercentage}
+                              onChange={(e) => setCommissionConfig({...commissionConfig, financingPercentage: parseFloat(e.target.value) || 0})}
+                              className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-white font-mono focus:border-amber-400 focus:outline-none"
+                            />
+                          </div>
                         </div>
 
                         {/* Bônus de Estoque */}

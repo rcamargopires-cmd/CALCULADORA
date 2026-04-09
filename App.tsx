@@ -69,6 +69,7 @@ const App: React.FC = () => {
   const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false); // Modal de Comissões
   const [duplicateDeal, setDuplicateDeal] = useState<{ id: string, status: 'open' | 'closed' } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
   
   // Estado do Histórico (Visualização)
   const [history, setHistory] = useState<SavedCalculation[]>([]);
@@ -146,6 +147,12 @@ const App: React.FC = () => {
       }
     });
 
+    // Listen to Users
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+      setUsers(allUsers.filter(u => u.status === 'active'));
+    });
+
     // Listen to Deals
     let dealsQuery;
     if (user.role === 'admin') {
@@ -163,6 +170,7 @@ const App: React.FC = () => {
 
     return () => {
       unsubscribeConfig();
+      unsubscribeUsers();
       unsubscribeDeals();
     };
   }, [user]);
@@ -600,6 +608,57 @@ const App: React.FC = () => {
                   className="md:col-span-1"
                 />
              )}
+
+              {/* Origem da Venda / Divisão */}
+              <div className="md:col-span-1 flex flex-col justify-end">
+                <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-3 h-[68px] flex flex-col justify-center">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
+                      <Sparkles size={10} className="text-amber-400" />
+                      Venda Web / Divisão
+                    </label>
+                    <label className="relative inline-flex items-center cursor-pointer scale-75">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer"
+                        checked={data.isWebLead || false}
+                        onChange={(e) => setData(prev => ({
+                          ...prev, 
+                          isWebLead: e.target.checked,
+                          splitWithUserId: e.target.checked ? prev.splitWithUserId : undefined,
+                          splitWithUserName: e.target.checked ? prev.splitWithUserName : undefined
+                        }))}
+                      />
+                      <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                  </div>
+                  
+                  {data.isWebLead && (
+                    <select
+                      value={data.splitWithUserId || ''}
+                      onChange={(e) => {
+                        const selectedUser = users.find(u => u.id === e.target.value);
+                        setData(prev => ({
+                          ...prev,
+                          splitWithUserId: e.target.value,
+                          splitWithUserName: selectedUser?.name
+                        }));
+                      }}
+                      className="bg-transparent text-[10px] font-bold text-amber-400 focus:outline-none w-full border-t border-zinc-700 mt-1 pt-1"
+                    >
+                      <option value="" className="bg-zinc-900 text-zinc-500">SELECIONAR VENDEDOR (40%)</option>
+                      {users.filter(u => u.id !== user.id).map(u => (
+                        <option key={u.id} value={u.id} className="bg-zinc-900 text-white">
+                          {u.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {!data.isWebLead && (
+                    <span className="text-[10px] text-zinc-600 italic">Venda Direta</span>
+                  )}
+                </div>
+              </div>
               
              {fieldConfig.vehicleCost && (
                 <CurrencyInput 

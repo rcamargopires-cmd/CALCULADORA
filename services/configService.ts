@@ -26,6 +26,7 @@ export const DEFAULT_COMMISSION: CommissionConfig = {
   percentage: 5,   // Ex: 5% do lucro
   minProfitThreshold: 1000, // Só paga comissão se der pelo menos 1000 de lucro
   invoicePercentage: 0.5, // 0.5% sobre a NF
+  financingPercentage: 1, // 1% sobre o Financiamento
   stockPrizeConfig: {
     enabled: true,
     thresholds: [

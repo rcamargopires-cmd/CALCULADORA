@@ -5,9 +5,12 @@ export interface CommissionBreakdown {
   base: number;       // % sobre o Lucro
   fixed: number;      // Valor fixo
   invoice: number;    // % sobre Nota Fiscal
+  financing: number;  // % sobre Financiamento
   stockPrize: number; // Prêmio de Estoque
   docPrize: number;   // Prêmio de Documentação
-  total: number;      // Soma total
+  isSplit: boolean;   // Se houve divisão
+  splitValue: number; // Valor da divisão (40%)
+  total: number;      // Soma total (já descontada a divisão se houver)
 }
 
 /**
@@ -19,15 +22,15 @@ export const calculateCommission = (
   config: CommissionConfig
 ): CommissionBreakdown => {
   if (!config.enabled) {
-    return { base: 0, fixed: 0, invoice: 0, stockPrize: 0, docPrize: 0, total: 0 };
+    return { base: 0, fixed: 0, invoice: 0, financing: 0, stockPrize: 0, docPrize: 0, isSplit: false, splitValue: 0, total: 0 };
   }
 
   let base = 0;
   let fixed = 0;
   let invoice = 0;
+  let financing = 0;
 
   // Regras de Comissão Base (Lucro Mínimo)
-  // Só paga comissão base se atingir o lucro mínimo. Bônus (spiffs) geralmente pagam independente.
   if (profit >= config.minProfitThreshold) {
     if (config.type === 'fixed' || config.type === 'mixed') {
       fixed = config.fixedValue;
@@ -42,6 +45,11 @@ export const calculateCommission = (
     if (config.invoicePercentage > 0 && deal.invoiceValue > 0) {
       invoice = (deal.invoiceValue * config.invoicePercentage) / 100;
     }
+
+    // Comissão sobre Financiamento
+    if (config.financingPercentage > 0 && deal.payments.financing > 0) {
+      financing = (deal.payments.financing * config.financingPercentage) / 100;
+    }
   }
 
   // --- Bônus de Estoque (Spiff) ---
@@ -50,7 +58,6 @@ export const calculateCommission = (
     const days = deal.stockDays || 0;
     const hasTradeIn = deal.payments.tradeIn > 0;
     
-    // Ordena por dias decrescente para pegar o maior threshold atingido
     const sortedThresholds = [...config.stockPrizeConfig.thresholds].sort((a, b) => b.days - a.days);
     
     for (const threshold of sortedThresholds) {
@@ -79,12 +86,24 @@ export const calculateCommission = (
     }
   }
 
+  const subtotal = base + fixed + invoice + financing + stockPrize + docPrize;
+  let splitValue = 0;
+  const isSplit = !!(deal.isWebLead && deal.splitWithUserId);
+
+  if (isSplit) {
+    // Divisão de 40% para o outro vendedor, o atual fica com 60%
+    splitValue = subtotal * 0.4;
+  }
+
   return {
     base,
     fixed,
     invoice,
+    financing,
     stockPrize,
     docPrize,
-    total: base + fixed + invoice + stockPrize + docPrize
+    isSplit,
+    splitValue,
+    total: subtotal - splitValue
   };
 };

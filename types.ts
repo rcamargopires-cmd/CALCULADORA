@@ -37,6 +37,7 @@ export interface CommissionConfig {
   percentage: number;      // Porcentagem sobre o LUCRO (se type for percent ou mixed)
   minProfitThreshold: number; // Lucro mínimo para ativar a comissão
   invoicePercentage: number;  // % sobre o Valor da Nota Fiscal
+  financingPercentage: number; // % sobre o Valor Financiado
   stockPrizeConfig: {
     enabled: boolean;
     thresholds: {
@@ -85,6 +86,9 @@ export interface DealData {
   costs: AdditionalCosts;
   dealStatus?: 'open' | 'closed';
   closingType: 'standard' | 'banking'; // Qual opção foi escolhida para fechar o negócio
+  isWebLead?: boolean;
+  splitWithUserId?: string;
+  splitWithUserName?: string;
 }
 
 export interface CalculationResult {
