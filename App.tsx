@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Calculator, RefreshCw, Sparkles, AlertTriangle, Building2, Save, History, ArrowRight, CarFront, Clock, AlertOctagon, Percent, Info, LogOut, ShieldCheck, FolderOpen, Coins, Wallet, User as UserIcon, CheckCircle, Gift, FileText, Check, Calendar } from 'lucide-react';
+import { Calculator, RefreshCw, Sparkles, AlertTriangle, Building2, Save, History, ArrowRight, CarFront, Clock, AlertOctagon, Percent, Info, LogOut, ShieldCheck, FolderOpen, Coins, Wallet, User as UserIcon, CheckCircle, Gift, FileText, Check, Calendar, LayoutDashboard, Calculator as CalcIcon } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where, doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -13,6 +13,7 @@ import FinancingSimulator from './components/FinancingSimulator';
 import LoginScreen from './components/LoginScreen';
 import AdminPanel from './components/AdminPanel';
 import CommissionModal from './components/CommissionModal';
+import Dashboard from './components/Dashboard';
 import { DealData, CalculationResult, SavedCalculation, BankType, User, UserRole, FieldVisibility, CommissionConfig, BankRates } from './types';
 import { formatCurrency, formatPercentage } from './utils/currency';
 import { analyzeDeal } from './services/geminiService';
@@ -70,6 +71,7 @@ const App: React.FC = () => {
   const [duplicateDeal, setDuplicateDeal] = useState<{ id: string, status: 'open' | 'closed' } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+  const [activeView, setActiveView] = useState<'dashboard' | 'calculator'>('dashboard');
   
   // Estado do Histórico (Visualização)
   const [history, setHistory] = useState<SavedCalculation[]>([]);
@@ -338,6 +340,9 @@ const App: React.FC = () => {
   const handleSave = async (status: 'open' | 'closed' = 'open', forceUpdateId?: string, skipDuplicateCheck: boolean = false) => {
     if (!user || isSaving) return;
 
+    // Se estiver no dashboard e clicar em salvar (improvável mas possível via atalhos), muda pra calculadora
+    if (activeView === 'dashboard') setActiveView('calculator');
+
     // Verificar se já existe um negócio com a mesma placa (se informada)
     if (!forceUpdateId && !skipDuplicateCheck && data.licensePlate && data.licensePlate.trim() !== '') {
       const existing = history.find(h => 
@@ -405,6 +410,7 @@ const App: React.FC = () => {
   const handleReset = () => {
     if (window.confirm('Tem certeza que deseja limpar todo o formulário?')) {
       handleResetNoConfirm();
+      setActiveView('calculator');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -424,6 +430,7 @@ const App: React.FC = () => {
     setBankType(item.bankType || 'volks');
     setData(restoredData);
     setAnalysis(null);
+    setActiveView('calculator');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -514,12 +521,36 @@ const App: React.FC = () => {
 
         {/* Top Header */}
         <header className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-3xl font-black text-white flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <Calculator className="w-8 h-8 text-amber-400" />
-              DealMaster
-            </h1>
-            <p className="text-zinc-400 mt-1">Ferramenta de estruturação de vendas de veículos</p>
+              <h1 className="text-3xl font-black text-white">DealMaster</h1>
+            </div>
+            
+            <nav className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-lg ml-4">
+              <button 
+                onClick={() => setActiveView('dashboard')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+                  activeView === 'dashboard' 
+                    ? 'bg-amber-400 text-black shadow-lg' 
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <LayoutDashboard size={14} />
+                DASHBOARD
+              </button>
+              <button 
+                onClick={() => setActiveView('calculator')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+                  activeView === 'calculator' 
+                    ? 'bg-amber-400 text-black shadow-lg' 
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <CalcIcon size={14} />
+                CALCULADORA
+              </button>
+            </nav>
           </div>
           <div className="flex gap-3 flex-wrap">
             {commissionConfig.enabled && (
@@ -563,8 +594,21 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Top Inputs: Vehicle Data & Basics */}
-        <div className="bg-zinc-900 p-6 rounded-lg shadow-sm border border-zinc-800 mb-6 relative overflow-hidden">
+        {activeView === 'dashboard' ? (
+          <Dashboard 
+            history={history}
+            users={users}
+            currentUser={user}
+            commissionConfig={commissionConfig}
+            onStartNewCalculation={() => {
+              handleResetNoConfirm();
+              setActiveView('calculator');
+            }}
+          />
+        ) : (
+          <>
+            {/* Top Inputs: Vehicle Data & Basics */}
+            <div className="bg-zinc-900 p-6 rounded-lg shadow-sm border border-zinc-800 mb-6 relative overflow-hidden">
            {data.stockDays >= 31 && (
               <div className={`absolute top-0 left-0 right-0 h-1 ${stockStatus.color}`}></div>
            )}
@@ -1006,10 +1050,12 @@ const App: React.FC = () => {
                   )}
                 </div>
               )}
-             </section>
+            </section>
           </div>
         </div>
-      </div>
+      </>
+    )}
+  </div>
       {duplicateDeal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
