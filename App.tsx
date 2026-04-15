@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Calculator, RefreshCw, Sparkles, AlertTriangle, Building2, Save, History, ArrowRight, CarFront, Clock, AlertOctagon, Percent, Info, LogOut, ShieldCheck, FolderOpen, Coins, Wallet, User as UserIcon, CheckCircle, Gift, FileText, Check, Calendar, LayoutDashboard, Calculator as CalcIcon } from 'lucide-react';
+import { Calculator, RefreshCw, Sparkles, AlertTriangle, Building2, Save, History, ArrowRight, CarFront, Clock, AlertOctagon, Percent, Info, LogOut, ShieldCheck, FolderOpen, Coins, Wallet, User as UserIcon, CheckCircle, Gift, FileText, Check, Calendar, LayoutDashboard, Calculator as CalcIcon, Trash2, AlertCircle } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import CurrencyInput from './components/CurrencyInput';
 import TextInput from './components/TextInput';
@@ -69,6 +69,8 @@ const App: React.FC = () => {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false); // Modal de Comissões
   const [duplicateDeal, setDuplicateDeal] = useState<{ id: string, status: 'open' | 'closed' } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [activeView, setActiveView] = useState<'dashboard' | 'calculator'>('dashboard');
@@ -84,7 +86,12 @@ const App: React.FC = () => {
     return history.filter(item => item.timestamp.startsWith(selectedMonth));
   }, [history, selectedMonth]);
 
-  // --- Firebase Listeners ---
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser && firebaseUser.email) {
@@ -408,11 +415,7 @@ const App: React.FC = () => {
   };
 
   const handleReset = () => {
-    if (window.confirm('Tem certeza que deseja limpar todo o formulário?')) {
-      handleResetNoConfirm();
-      setActiveView('calculator');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    setItemToDelete('FORM_RESET');
   };
 
   const restoreCalculation = (item: SavedCalculation) => {
@@ -432,6 +435,38 @@ const App: React.FC = () => {
     setAnalysis(null);
     setActiveView('calculator');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteDeal = async (id: string) => {
+    console.log("handleDeleteDeal called for id:", id);
+    if (!user || user.role !== 'admin') {
+      setToast({ message: "Apenas administradores podem excluir negociações.", type: 'error' });
+      return;
+    }
+    setItemToDelete(id);
+  };
+
+  const confirmDeleteDeal = async () => {
+    if (!itemToDelete) return;
+    
+    if (itemToDelete === 'FORM_RESET') {
+      handleResetNoConfirm();
+      setActiveView('calculator');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setItemToDelete(null);
+      setToast({ message: "Formulário limpo!", type: 'success' });
+      return;
+    }
+    
+    try {
+      console.log("Confirming deletion for id:", itemToDelete);
+      await deleteDoc(doc(db, 'deals', itemToDelete));
+      setToast({ message: "Negociação excluída com sucesso!", type: 'success' });
+      setItemToDelete(null);
+    } catch (error) {
+      console.error("Erro ao excluir negociação:", error);
+      setToast({ message: "Erro ao excluir: " + (error instanceof Error ? error.message : "Erro desconhecido"), type: 'error' });
+    }
   };
 
   if (isAuthLoading) {
@@ -469,9 +504,55 @@ const App: React.FC = () => {
         onClose={() => setIsAdminPanelOpen(false)}
         currentUser={user}
         onConfigUpdate={handleConfigUpdate}
+        setToast={setToast}
       />
 
       {/* Novo Modal de Comissões */}
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300 ${
+          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {toast.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+          <span className="text-sm font-bold uppercase tracking-wider">{toast.message}</span>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão / Reset */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className={`flex items-center gap-3 mb-4 ${itemToDelete === 'FORM_RESET' ? 'text-amber-400' : 'text-red-400'}`}>
+              {itemToDelete === 'FORM_RESET' ? <RefreshCw size={24} /> : <AlertTriangle size={24} />}
+              <h3 className="text-lg font-bold">
+                {itemToDelete === 'FORM_RESET' ? 'Limpar Formulário' : 'Confirmar Exclusão'}
+              </h3>
+            </div>
+            <p className="text-zinc-400 text-sm mb-6">
+              {itemToDelete === 'FORM_RESET' 
+                ? 'Tem certeza que deseja limpar todos os dados preenchidos? Esta ação não pode ser desfeita.'
+                : 'Tem certeza que deseja excluir esta negociação permanentemente? Esta ação não pode ser desfeita.'}
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setItemToDelete(null)}
+                className="flex-1 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors text-sm font-bold"
+              >
+                CANCELAR
+              </button>
+              <button 
+                onClick={confirmDeleteDeal}
+                className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors text-sm font-bold ${
+                  itemToDelete === 'FORM_RESET' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {itemToDelete === 'FORM_RESET' ? 'LIMPAR' : 'EXCLUIR'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <CommissionModal 
         isOpen={isCommissionModalOpen}
         onClose={() => setIsCommissionModalOpen(false)}
@@ -482,6 +563,8 @@ const App: React.FC = () => {
         history={filteredHistory}
         selectedMonth={selectedMonth}
         onMonthChange={setSelectedMonth}
+        onDelete={handleDeleteDeal}
+        currentUserRole={user.role}
       />
 
       <div className="max-w-6xl mx-auto">
@@ -604,6 +687,7 @@ const App: React.FC = () => {
               handleResetNoConfirm();
               setActiveView('calculator');
             }}
+            onDelete={handleDeleteDeal}
           />
         ) : (
           <>
@@ -1037,13 +1121,25 @@ const App: React.FC = () => {
                              </div>
                           </div>
                           
-                          <button 
-                            onClick={() => restoreCalculation(item)}
-                            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs font-bold px-3 py-2 rounded transition-colors"
-                          >
-                             <FolderOpen size={14} className="text-amber-400" />
-                             ABRIR
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => restoreCalculation(item)}
+                              className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs font-bold px-3 py-2 rounded transition-colors"
+                            >
+                               <FolderOpen size={14} className="text-amber-400" />
+                               ABRIR
+                            </button>
+                            
+                            {user.role === 'admin' && (
+                              <button 
+                                onClick={() => handleDeleteDeal(item.id)}
+                                className="p-2 bg-zinc-800 hover:bg-red-900/30 border border-zinc-700 hover:border-red-500/30 text-zinc-500 hover:text-red-400 rounded transition-colors"
+                                title="Excluir Negociação"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

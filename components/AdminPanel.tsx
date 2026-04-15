@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shield, Users, Settings, X, CheckCircle, Plus, Edit2, Trash2, Save, LayoutTemplate, Coins, DollarSign, Calculator, ArrowRight, Building2, Gift, FileText, RotateCcw } from 'lucide-react';
+import { Shield, Users, Settings, X, CheckCircle, Plus, Edit2, Trash2, Save, LayoutTemplate, Coins, DollarSign, Calculator, ArrowRight, Building2, Gift, FileText, RotateCcw, AlertCircle } from 'lucide-react';
 import SectionHeader from './SectionHeader';
 import { User, UserRole, UserStatus, FieldVisibility, CommissionConfig, BankRates } from '../types';
 import { userService } from '../services/userService';
@@ -14,13 +14,27 @@ interface AdminPanelProps {
   onClose: () => void;
   currentUser: User;
   onConfigUpdate?: () => void; // Callback para avisar o App que mudou algo
+  setToast: (toast: { message: string, type: 'success' | 'error' } | null) => void;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, onConfigUpdate }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, onConfigUpdate, setToast }) => {
   const [activeTab, setActiveTab] = useState<'users' | 'form' | 'commissions' | 'banks'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type: 'danger' | 'warning';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    type: 'danger'
+  });
 
   // Field Config State
   const [fieldConfig, setFieldConfig] = useState<FieldVisibility>(DEFAULT_VISIBILITY);
@@ -84,19 +98,28 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
 
   const handleDelete = async (id: string) => {
     if (id === currentUser.id) {
-      alert("Você não pode excluir seu próprio usuário.");
+      setToast({ message: "Você não pode excluir seu próprio usuário.", type: 'error' });
       return;
     }
-    if (window.confirm("Tem certeza que deseja remover este usuário?")) {
-      await userService.delete(id);
-      loadUsers();
-    }
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Remover Usuário',
+      message: 'Tem certeza que deseja remover este usuário? Esta ação não pode ser desfeita.',
+      type: 'danger',
+      onConfirm: async () => {
+        await userService.delete(id);
+        loadUsers();
+        setToast({ message: "Usuário removido com sucesso!", type: 'success' });
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email) {
-      alert("Preencha todos os campos obrigatórios.");
+      setToast({ message: "Preencha todos os campos obrigatórios.", type: 'error' });
       return;
     }
 
@@ -112,7 +135,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
     await userService.save(newUser);
     loadUsers();
     resetForm();
-    alert("Usuário salvo com sucesso!");
+    setToast({ message: "Usuário salvo com sucesso!", type: 'success' });
   };
 
   const handleToggleField = (field: keyof FieldVisibility) => {
@@ -125,30 +148,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
   const handleSaveConfig = async () => {
     await configService.saveVisibility(fieldConfig);
     if (onConfigUpdate) onConfigUpdate();
-    alert("Configuração do formulário atualizada!");
+    setToast({ message: "Configuração do formulário atualizada!", type: 'success' });
   };
 
   const handleSaveCommission = async () => {
     await configService.saveCommission(commissionConfig);
     if (onConfigUpdate) onConfigUpdate();
-    alert("Regras de comissão atualizadas!");
+    setToast({ message: "Regras de comissão atualizadas!", type: 'success' });
   };
 
   const handleSaveBankRates = async () => {
     await configService.saveBankRates(bankRates);
     if (onConfigUpdate) onConfigUpdate();
-    alert("Taxas bancárias atualizadas!");
+    setToast({ message: "Taxas bancárias atualizadas!", type: 'success' });
   };
 
   const handleResetToDefaults = async () => {
-    if (window.confirm("Deseja resetar TODAS as configurações para os padrões de fábrica?")) {
-      const defaults = await configService.reset();
-      setFieldConfig(defaults.visibility);
-      setCommissionConfig(defaults.commission);
-      setBankRates(defaults.bankRates);
-      if (onConfigUpdate) onConfigUpdate();
-      alert("Configurações resetadas com sucesso!");
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Resetar Padrões',
+      message: 'Deseja resetar TODAS as configurações para os padrões de fábrica? Esta ação não pode ser desfeita.',
+      type: 'warning',
+      onConfirm: async () => {
+        const defaults = await configService.reset();
+        setFieldConfig(defaults.visibility);
+        setCommissionConfig(defaults.commission);
+        setBankRates(defaults.bankRates);
+        if (onConfigUpdate) onConfigUpdate();
+        setToast({ message: "Configurações resetadas com sucesso!", type: 'success' });
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const handleAddStockThreshold = () => {
@@ -266,6 +296,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1">
           
+          {/* Internal Confirmation Modal */}
+          {confirmModal.isOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                <div className={`flex items-center gap-3 mb-4 ${confirmModal.type === 'danger' ? 'text-red-400' : 'text-amber-400'}`}>
+                  <AlertCircle size={24} />
+                  <h3 className="text-lg font-bold text-white">{confirmModal.title}</h3>
+                </div>
+                <p className="text-zinc-400 text-sm mb-6">
+                  {confirmModal.message}
+                </p>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                    className="flex-1 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors text-sm font-bold"
+                  >
+                    CANCELAR
+                  </button>
+                  <button 
+                    onClick={confirmModal.onConfirm}
+                    className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors text-sm font-bold ${
+                      confirmModal.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'
+                    }`}
+                  >
+                    CONFIRMAR
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB: USERS */}
           {activeTab === 'users' && (
             <>

@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { X, Coins, TrendingUp, AlertCircle, Calendar, DollarSign, Gift, FileText, Briefcase, User } from 'lucide-react';
+import { X, Coins, TrendingUp, AlertCircle, Calendar, DollarSign, Gift, FileText, Briefcase, User, Trash2 } from 'lucide-react';
 import { formatCurrency } from '../utils/currency';
 import { CommissionConfig, DealData, SavedCalculation } from '../types';
 import { calculateCommission, CommissionBreakdown } from '../utils/commission';
@@ -14,6 +14,8 @@ interface CommissionModalProps {
   history: SavedCalculation[];
   selectedMonth: string;
   onMonthChange: (month: string) => void;
+  onDelete?: (id: string) => void;
+  currentUserRole?: string;
 }
 
 const CommissionModal: React.FC<CommissionModalProps> = ({
@@ -24,7 +26,9 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
   commissionConfig,
   history,
   selectedMonth,
-  onMonthChange
+  onMonthChange,
+  onDelete,
+  currentUserRole
 }) => {
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
 
@@ -287,6 +291,19 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
                                 {dealBreakdown.isSplit && <span className="text-[8px] font-bold text-red-400 uppercase bg-red-900/20 px-1 rounded mr-1">Dividida</span>}
                                 {dealBreakdown.stockPrize > 0 && <span title="Prêmio Estoque" className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>}
                                 {dealBreakdown.docPrize > 0 && <span title="Prêmio Doc" className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>}
+                                
+                                {currentUserRole === 'admin' && onDelete && (
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onDelete(deal.id);
+                                    }}
+                                    className="ml-2 p-1 text-zinc-600 hover:text-red-400 transition-colors"
+                                    title="Excluir Venda"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
                              </div>
                           </div>
                         </div>

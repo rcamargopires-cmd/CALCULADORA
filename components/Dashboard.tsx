@@ -7,7 +7,7 @@ import {
 import { 
   TrendingUp, Users, CarFront, Coins, ArrowUpRight, ArrowDownRight, 
   Clock, AlertCircle, CheckCircle2, LayoutDashboard, Calculator as CalcIcon,
-  Percent, History
+  Percent, History, Trash2
 } from 'lucide-react';
 import { SavedCalculation, User, CommissionConfig } from '../types';
 import { formatCurrency } from '../utils/currency';
@@ -21,6 +21,7 @@ interface DashboardProps {
   currentUser: User;
   commissionConfig: CommissionConfig | null;
   onStartNewCalculation: () => void;
+  onDelete?: (id: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -28,7 +29,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   users, 
   currentUser, 
   commissionConfig,
-  onStartNewCalculation
+  onStartNewCalculation,
+  onDelete
 }) => {
   // --- Data Processing ---
   const currentMonthHistory = useMemo(() => {
@@ -240,6 +242,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider">Vendedor</th>
                 <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider">Status</th>
                 <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider text-right">Lucro</th>
+                {currentUser.role === 'admin' && onDelete && <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider text-right w-10"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
@@ -271,6 +274,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <td className="py-4 text-xs font-mono font-bold text-white text-right">
                     {formatCurrency(item.summary.profit)}
                   </td>
+                  {currentUser.role === 'admin' && onDelete && (
+                    <td className="py-4 text-right">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(item.id);
+                        }}
+                        className="p-1.5 text-zinc-600 hover:text-red-400 transition-colors"
+                        title="Excluir"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
