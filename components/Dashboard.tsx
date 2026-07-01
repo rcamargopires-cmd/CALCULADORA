@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   LineChart, Line, Cell, PieChart, Pie
@@ -32,12 +32,52 @@ const Dashboard: React.FC<DashboardProps> = ({
   onStartNewCalculation,
   onDelete
 }) => {
-  // --- Data Processing ---
-  const currentMonthHistory = useMemo(() => {
+  // --- Dashboard Month State ---
+  const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<string>(() => {
     const now = new Date();
-    const monthStr = format(now, 'yyyy-MM');
-    return history.filter(item => item.timestamp.startsWith(monthStr));
+    return format(now, 'yyyy-MM');
+  });
+
+  // Extract all available months in history to show in filter
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    
+    // Always include current month
+    const now = new Date();
+    monthsSet.add(format(now, 'yyyy-MM'));
+
+    // Include other months with deals
+    history.forEach(item => {
+      if (item.timestamp) {
+        const monthPart = item.timestamp.substring(0, 7); // "yyyy-MM"
+        if (/^\d{4}-\d{2}$/.test(monthPart)) {
+          monthsSet.add(monthPart);
+        }
+      }
+    });
+
+    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
   }, [history]);
+
+  // Format month string (e.g. 2026-07) into Brazilian Portuguese label
+  const formatMonthLabel = (monthStr: string) => {
+    try {
+      const [year, month] = monthStr.split('-');
+      const date = new Date(Number(year), Number(month) - 1, 1);
+      const formatted = format(date, 'MMMM yyyy', { locale: ptBR });
+      return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    } catch (e) {
+      return monthStr;
+    }
+  };
+
+  // --- Data Processing filtered by selected month ---
+  const currentMonthHistory = useMemo(() => {
+    if (selectedDashboardMonth === 'all') {
+      return history;
+    }
+    return history.filter(item => item.timestamp.startsWith(selectedDashboardMonth));
+  }, [history, selectedDashboardMonth]);
 
   const stats = useMemo(() => {
     const closedDeals = currentMonthHistory.filter(h => h.data.dealStatus === 'closed');
@@ -66,28 +106,49 @@ const Dashboard: React.FC<DashboardProps> = ({
     };
   }, [currentMonthHistory, commissionConfig]);
 
+  const isAllMonths = selectedDashboardMonth === 'all';
+
   const chartData = useMemo(() => {
-    const now = new Date();
-    const days = eachDayOfInterval({
-      start: startOfMonth(now),
-      end: endOfMonth(now)
-    });
+    if (isAllMonths) {
+      // Group by month chronologically
+      const monthsAsc = [...availableMonths].reverse();
+      return monthsAsc.map(monthStr => {
+        const monthDeals = history.filter(h => h.timestamp.startsWith(monthStr));
+        const profit = monthDeals.reduce((acc, deal) => {
+          if (deal.data.dealStatus !== 'closed') return acc;
+          const baseProfit = deal.summary.profit;
+          return acc + (deal.data.closingType === 'banking' ? baseProfit + deal.data.bankReturn : baseProfit);
+        }, 0);
 
-    return days.map(day => {
-      const dayDeals = currentMonthHistory.filter(h => isSameDay(parseISO(h.timestamp), day));
-      const profit = dayDeals.reduce((acc, deal) => {
-        if (deal.data.dealStatus !== 'closed') return acc;
-        const baseProfit = deal.summary.profit;
-        return acc + (deal.data.closingType === 'banking' ? baseProfit + deal.data.bankReturn : baseProfit);
-      }, 0);
+        return {
+          label: formatMonthLabel(monthStr),
+          profit,
+          count: monthDeals.length
+        };
+      });
+    } else {
+      // Days of specific month
+      const [year, month] = selectedDashboardMonth.split('-');
+      const start = new Date(Number(year), Number(month) - 1, 1);
+      const end = endOfMonth(start);
+      const days = eachDayOfInterval({ start, end });
 
-      return {
-        day: format(day, 'dd'),
-        profit,
-        count: dayDeals.length
-      };
-    });
-  }, [currentMonthHistory]);
+      return days.map(day => {
+        const dayDeals = currentMonthHistory.filter(h => isSameDay(parseISO(h.timestamp), day));
+        const profit = dayDeals.reduce((acc, deal) => {
+          if (deal.data.dealStatus !== 'closed') return acc;
+          const baseProfit = deal.summary.profit;
+          return acc + (deal.data.closingType === 'banking' ? baseProfit + deal.data.bankReturn : baseProfit);
+        }, 0);
+
+        return {
+          label: format(day, 'dd'),
+          profit,
+          count: dayDeals.length
+        };
+      });
+    }
+  }, [history, currentMonthHistory, selectedDashboardMonth, availableMonths, isAllMonths]);
 
   const stockAlerts = useMemo(() => {
     return history
@@ -104,15 +165,39 @@ const Dashboard: React.FC<DashboardProps> = ({
           <h2 className="text-2xl font-black text-white flex items-center gap-2">
             Olá, {currentUser.name.split(' ')[0]}! 👋
           </h2>
-          <p className="text-zinc-400 text-sm">Aqui está o resumo de performance da loja este mês.</p>
+          <p className="text-zinc-400 text-sm">
+            {isAllMonths 
+              ? 'Aqui está o resumo de performance geral da loja.' 
+              : `Aqui está o resumo de performance da loja em ${formatMonthLabel(selectedDashboardMonth)}.`}
+          </p>
         </div>
-        <button 
-          onClick={onStartNewCalculation}
-          className="flex items-center gap-2 px-6 py-3 bg-amber-400 text-black font-black rounded-lg shadow-lg hover:bg-amber-500 transition-all active:scale-95 uppercase tracking-wider text-sm"
-        >
-          <CalcIcon size={18} />
-          Nova Negociação
-        </button>
+        
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Month Filter Dropdown */}
+          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Período:</span>
+            <select
+              value={selectedDashboardMonth}
+              onChange={(e) => setSelectedDashboardMonth(e.target.value)}
+              className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5"
+            >
+              <option value="all" className="bg-zinc-900 text-white font-bold">Todos os Meses</option>
+              {availableMonths.map(monthStr => (
+                <option key={monthStr} value={monthStr} className="bg-zinc-900 text-white font-bold">
+                  {formatMonthLabel(monthStr)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button 
+            onClick={onStartNewCalculation}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-400 text-black font-black rounded-lg shadow-lg hover:bg-amber-500 transition-all active:scale-95 uppercase tracking-wider text-xs"
+          >
+            <CalcIcon size={16} />
+            Nova Negociação
+          </button>
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -124,7 +209,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           subtitle={`${stats.openCount} em negociação`}
         />
         <StatCard 
-          title="Lucro Total (Mês)" 
+          title={isAllMonths ? "Lucro Total (Acumulado)" : "Lucro Total"} 
           value={formatCurrency(stats.totalProfit)} 
           icon={<TrendingUp className="text-blue-400" />}
           trend={stats.totalProfit > 0 ? 'up' : 'neutral'}
@@ -133,13 +218,13 @@ const Dashboard: React.FC<DashboardProps> = ({
           title="Minha Comissão" 
           value={formatCurrency(stats.totalCommission)} 
           icon={<Coins className="text-amber-400" />}
-          subtitle="Estimativa do mês"
+          subtitle={isAllMonths ? "Acumulado histórico" : "Estimativa do período"}
         />
         <StatCard 
           title="Margem Média" 
           value={`${stats.avgMargin.toFixed(1)}%`} 
           icon={<Percent className="text-purple-400" />}
-          subtitle="Sobre vendas fechadas"
+          subtitle={isAllMonths ? "Geral sobre fechadas" : "Sobre fechadas do período"}
         />
       </div>
 
@@ -149,16 +234,18 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-white flex items-center gap-2">
               <TrendingUp size={18} className="text-blue-400" />
-              Evolução de Lucro Diário
+              {isAllMonths ? 'Histórico de Lucro Mensal' : 'Evolução de Lucro Diário'}
             </h3>
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Mês Atual</span>
+            <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded uppercase tracking-widest">
+              {isAllMonths ? 'Todos os Meses' : formatMonthLabel(selectedDashboardMonth)}
+            </span>
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                 <XAxis 
-                  dataKey="day" 
+                  dataKey="label" 
                   stroke="#71717a" 
                   fontSize={10} 
                   tickLine={false} 
@@ -176,7 +263,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   itemStyle={{ color: '#fbbf24', fontSize: '12px', fontWeight: 'bold' }}
                   labelStyle={{ color: '#a1a1aa', fontSize: '10px', marginBottom: '4px' }}
                   formatter={(value: number) => [formatCurrency(value), 'Lucro']}
-                  labelFormatter={(label) => `Dia ${label}`}
+                  labelFormatter={(label) => isAllMonths ? label : `Dia ${label}`}
                 />
                 <Bar dataKey="profit" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>

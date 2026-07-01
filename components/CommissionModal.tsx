@@ -36,16 +36,59 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
     calculateCommission(currentDeal, currentProfit, commissionConfig), 
   [currentDeal, currentProfit, commissionConfig]);
 
-  // Filtra apenas vendas FECHADAS para o histórico de ganhos
-  const closedDeals = useMemo(() => 
-    history.filter(h => h.data.dealStatus === 'closed'), 
-  [history]);
+  // Generate list of available months in history
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    
+    // Always include current month
+    const now = new Date();
+    monthsSet.add(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+
+    history.forEach(item => {
+      if (item.timestamp) {
+        const monthPart = item.timestamp.substring(0, 7);
+        if (/^\d{4}-\d{2}$/.test(monthPart)) {
+          monthsSet.add(monthPart);
+        }
+      }
+    });
+
+    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+  }, [history]);
+
+  const formatMonthLabel = (monthStr: string) => {
+    if (monthStr === 'all') return 'Todos os Meses';
+    try {
+      const [year, month] = monthStr.split('-');
+      const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      const monthIdx = Number(month) - 1;
+      return `${monthNames[monthIdx]} de ${year}`;
+    } catch (e) {
+      return monthStr;
+    }
+  };
+
+  // Filtra apenas vendas FECHADAS para o histórico de ganhos baseadas no mês selecionado
+  const closedDeals = useMemo(() => {
+    const closed = history.filter(h => h.data.dealStatus === 'closed');
+    if (selectedMonth === 'all') return closed;
+    return closed.filter(h => h.timestamp.startsWith(selectedMonth));
+  }, [history, selectedMonth]);
 
   // Formata o nome do mês selecionado
   const monthLabel = useMemo(() => {
-    const [year, month] = selectedMonth.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1);
-    return date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+    if (selectedMonth === 'all') return 'Todos os Meses';
+    try {
+      const [year, month] = selectedMonth.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      const label = date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    } catch (e) {
+      return selectedMonth;
+    }
   }, [selectedMonth]);
 
   // Calcula o total acumulado histórico (Estimado com as regras atuais)
@@ -228,14 +271,20 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
               <div className="flex flex-col gap-4 bg-zinc-900 p-4 rounded border border-zinc-800">
                 <div className="flex items-center justify-between">
                   <span className="text-zinc-400 font-bold uppercase text-[10px] tracking-wider">Mês de Referência</span>
-                  <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-700 px-2 py-1 rounded">
-                    <Calendar size={12} className="text-zinc-500" />
-                    <input 
-                      type="month" 
+                  <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-700 px-3 py-1 rounded">
+                    <Calendar size={12} className="text-zinc-400" />
+                    <select
                       value={selectedMonth}
                       onChange={(e) => onMonthChange(e.target.value)}
-                      className="bg-transparent text-xs font-bold text-white focus:outline-none uppercase"
-                    />
+                      className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5"
+                    >
+                      <option value="all" className="bg-zinc-900 text-white font-bold">Todos os Meses</option>
+                      {availableMonths.map(monthStr => (
+                        <option key={monthStr} value={monthStr} className="bg-zinc-900 text-white font-bold">
+                          {formatMonthLabel(monthStr)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="h-px bg-zinc-800"></div>

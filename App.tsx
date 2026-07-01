@@ -77,12 +77,47 @@ const App: React.FC = () => {
   
   // Estado do Histórico (Visualização)
   const [history, setHistory] = useState<SavedCalculation[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState(() => {
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    
+    // Always include current month
+    const now = new Date();
+    monthsSet.add(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+
+    history.forEach(item => {
+      if (item.timestamp) {
+        const monthPart = item.timestamp.substring(0, 7);
+        if (/^\d{4}-\d{2}$/.test(monthPart)) {
+          monthsSet.add(monthPart);
+        }
+      }
+    });
+
+    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+  }, [history]);
+
+  const formatMonthLabel = (monthStr: string) => {
+    if (monthStr === 'all') return 'Todos os Meses';
+    try {
+      const [year, month] = monthStr.split('-');
+      const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      const monthIdx = Number(month) - 1;
+      return `${monthNames[monthIdx]} de ${year}`;
+    } catch (e) {
+      return monthStr;
+    }
+  };
+
   const filteredHistory = useMemo(() => {
+    if (selectedMonth === 'all') return history;
     return history.filter(item => item.timestamp.startsWith(selectedMonth));
   }, [history, selectedMonth]);
 
@@ -560,7 +595,7 @@ const App: React.FC = () => {
         // Passa o lucro correto baseado na seleção para o modal de detalhe atual
         currentProfit={data.closingType === 'banking' ? results.profitWithBank : results.profit}
         commissionConfig={commissionConfig}
-        history={filteredHistory}
+        history={history}
         selectedMonth={selectedMonth}
         onMonthChange={setSelectedMonth}
         onDelete={handleDeleteDeal}
@@ -1058,14 +1093,20 @@ const App: React.FC = () => {
                         <h3 className="font-bold text-sm uppercase tracking-wider">Histórico de Negócios</h3>
                       </div>
                       
-                      <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 p-1 rounded-lg">
-                        <Calendar size={14} className="text-zinc-500 ml-2" />
-                        <input 
-                          type="month" 
+                      <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg">
+                        <Calendar size={14} className="text-zinc-500" />
+                        <select
                           value={selectedMonth}
                           onChange={(e) => setSelectedMonth(e.target.value)}
-                          className="bg-transparent text-xs font-bold text-white focus:outline-none p-1 uppercase"
-                        />
+                          className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5"
+                        >
+                          <option value="all" className="bg-zinc-900 text-white font-bold">Todos os Meses</option>
+                          {availableMonths.map(monthStr => (
+                            <option key={monthStr} value={monthStr} className="bg-zinc-900 text-white font-bold">
+                              {formatMonthLabel(monthStr)}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
