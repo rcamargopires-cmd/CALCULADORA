@@ -37,6 +37,17 @@ const Dashboard: React.FC<DashboardProps> = ({
     const now = new Date();
     return format(now, 'yyyy-MM');
   });
+  const [selectedDashboardSeller, setSelectedDashboardSeller] = useState<string>('all');
+
+  const availableSellers = useMemo(() => {
+    const sellersMap = new Map<string, string>();
+    history.forEach(item => {
+      if (item.userId && item.userName) {
+        sellersMap.set(item.userId, item.userName);
+      }
+    });
+    return Array.from(sellersMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [history]);
 
   // Extract all available months in history to show in filter
   const availableMonths = useMemo(() => {
@@ -71,13 +82,17 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  // --- Data Processing filtered by selected month ---
+  // --- Data Processing filtered by selected month and seller ---
   const currentMonthHistory = useMemo(() => {
-    if (selectedDashboardMonth === 'all') {
-      return history;
+    let result = history;
+    if (selectedDashboardMonth !== 'all') {
+      result = result.filter(item => item.timestamp.startsWith(selectedDashboardMonth));
     }
-    return history.filter(item => item.timestamp.startsWith(selectedDashboardMonth));
-  }, [history, selectedDashboardMonth]);
+    if (selectedDashboardSeller !== 'all') {
+      result = result.filter(item => item.userId === selectedDashboardSeller);
+    }
+    return result;
+  }, [history, selectedDashboardMonth, selectedDashboardSeller]);
 
   const stats = useMemo(() => {
     const closedDeals = currentMonthHistory.filter(h => h.data.dealStatus === 'closed');
@@ -88,6 +103,8 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const totalCommission = closedDeals.reduce((acc, deal) => {
       if (!commissionConfig) return acc;
+      // Only calculate commission for the logged in user
+      if (deal.userId !== currentUser.id) return acc;
       const profit = deal.data.closingType === 'banking' ? deal.summary.profit + deal.data.bankReturn : deal.summary.profit;
       const breakdown = calculateCommission(deal.data, profit, commissionConfig);
       return acc + breakdown.total;
@@ -104,7 +121,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       totalCommission,
       avgMargin
     };
-  }, [currentMonthHistory, commissionConfig]);
+  }, [currentMonthHistory, commissionConfig, currentUser.id]);
 
   const isAllMonths = selectedDashboardMonth === 'all';
 
@@ -113,7 +130,10 @@ const Dashboard: React.FC<DashboardProps> = ({
       // Group by month chronologically
       const monthsAsc = [...availableMonths].reverse();
       return monthsAsc.map(monthStr => {
-        const monthDeals = history.filter(h => h.timestamp.startsWith(monthStr));
+        let monthDeals = history.filter(h => h.timestamp.startsWith(monthStr));
+        if (selectedDashboardSeller !== 'all') {
+          monthDeals = monthDeals.filter(h => h.userId === selectedDashboardSeller);
+        }
         const profit = monthDeals.reduce((acc, deal) => {
           if (deal.data.dealStatus !== 'closed') return acc;
           const baseProfit = deal.summary.profit;
@@ -148,14 +168,25 @@ const Dashboard: React.FC<DashboardProps> = ({
         };
       });
     }
-  }, [history, currentMonthHistory, selectedDashboardMonth, availableMonths, isAllMonths]);
+  }, [history, currentMonthHistory, selectedDashboardMonth, availableMonths, isAllMonths, selectedDashboardSeller]);
 
   const stockAlerts = useMemo(() => {
-    return history
-      .filter(h => h.data.dealStatus === 'open' && h.data.stockDays >= 60)
+    let result = history.filter(h => h.data.dealStatus === 'open' && h.data.stockDays >= 60);
+    if (selectedDashboardSeller !== 'all') {
+      result = result.filter(h => h.userId === selectedDashboardSeller);
+    }
+    return result
       .sort((a, b) => b.data.stockDays - a.data.stockDays)
       .slice(0, 5);
-  }, [history]);
+  }, [history, selectedDashboardSeller]);
+
+  const displayedHistory = useMemo(() => {
+    let result = history;
+    if (selectedDashboardSeller !== 'all') {
+      result = result.filter(item => item.userId === selectedDashboardSeller);
+    }
+    return result;
+  }, [history, selectedDashboardSeller]);
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -173,13 +204,30 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Vendedor Filter Dropdown */}
+          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Vendedor:</span>
+            <select
+              value={selectedDashboardSeller}
+              onChange={(e) => setSelectedDashboardSeller(e.target.value)}
+              className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5 font-sans"
+            >
+              <option value="all" className="bg-zinc-900 text-white font-bold">Todos</option>
+              {availableSellers.map(seller => (
+                <option key={seller.id} value={seller.id} className="bg-zinc-900 text-white font-bold">
+                  {seller.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Month Filter Dropdown */}
           <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg">
             <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Período:</span>
             <select
               value={selectedDashboardMonth}
               onChange={(e) => setSelectedDashboardMonth(e.target.value)}
-              className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5"
+              className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5 font-sans"
             >
               <option value="all" className="bg-zinc-900 text-white font-bold">Todos os Meses</option>
               {availableMonths.map(monthStr => (
@@ -333,7 +381,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
-              {history.slice(0, 5).map((item) => (
+              {displayedHistory.slice(0, 5).map((item) => (
                 <tr key={item.id} className="group hover:bg-white/5 transition-colors">
                   <td className="py-4 text-xs text-zinc-400 font-mono">
                     {format(parseISO(item.timestamp), 'dd/MM HH:mm')}

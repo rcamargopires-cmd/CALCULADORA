@@ -81,6 +81,17 @@ const App: React.FC = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [selectedSeller, setSelectedSeller] = useState<string>('all');
+
+  const availableSellers = useMemo(() => {
+    const sellersMap = new Map<string, string>();
+    history.forEach(item => {
+      if (item.userId && item.userName) {
+        sellersMap.set(item.userId, item.userName);
+      }
+    });
+    return Array.from(sellersMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [history]);
 
   const availableMonths = useMemo(() => {
     const monthsSet = new Set<string>();
@@ -117,9 +128,15 @@ const App: React.FC = () => {
   };
 
   const filteredHistory = useMemo(() => {
-    if (selectedMonth === 'all') return history;
-    return history.filter(item => item.timestamp.startsWith(selectedMonth));
-  }, [history, selectedMonth]);
+    let result = history;
+    if (selectedMonth !== 'all') {
+      result = result.filter(item => item.timestamp.startsWith(selectedMonth));
+    }
+    if (selectedSeller !== 'all') {
+      result = result.filter(item => item.userId === selectedSeller);
+    }
+    return result;
+  }, [history, selectedMonth, selectedSeller]);
 
   useEffect(() => {
     if (toast) {
@@ -197,13 +214,8 @@ const App: React.FC = () => {
       setUsers(allUsers.filter(u => u.status === 'active'));
     });
 
-    // Listen to Deals
-    let dealsQuery;
-    if (user.role === 'admin') {
-      dealsQuery = query(collection(db, 'deals'), orderBy('timestamp', 'desc'));
-    } else {
-      dealsQuery = query(collection(db, 'deals'), where('userId', '==', user.id), orderBy('timestamp', 'desc'));
-    }
+    // Listen to Deals - Load all deals for everyone to access the history of all negotiations
+    const dealsQuery = query(collection(db, 'deals'), orderBy('timestamp', 'desc'));
     
     const unsubscribeDeals = onSnapshot(dealsQuery, (snapshot) => {
       const allDeals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SavedCalculation));
@@ -595,7 +607,7 @@ const App: React.FC = () => {
         // Passa o lucro correto baseado na seleção para o modal de detalhe atual
         currentProfit={data.closingType === 'banking' ? results.profitWithBank : results.profit}
         commissionConfig={commissionConfig}
-        history={history}
+        history={user.role === 'admin' ? history : history.filter(h => h.userId === user.id)}
         selectedMonth={selectedMonth}
         onMonthChange={setSelectedMonth}
         onDelete={handleDeleteDeal}
@@ -1093,27 +1105,47 @@ const App: React.FC = () => {
                         <h3 className="font-bold text-sm uppercase tracking-wider">Histórico de Negócios</h3>
                       </div>
                       
-                      <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg">
-                        <Calendar size={14} className="text-zinc-500" />
-                        <select
-                          value={selectedMonth}
-                          onChange={(e) => setSelectedMonth(e.target.value)}
-                          className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5"
-                        >
-                          <option value="all" className="bg-zinc-900 text-white font-bold">Todos os Meses</option>
-                          {availableMonths.map(monthStr => (
-                            <option key={monthStr} value={monthStr} className="bg-zinc-900 text-white font-bold">
-                              {formatMonthLabel(monthStr)}
-                            </option>
-                          ))}
-                        </select>
+                      <div className="flex flex-wrap gap-2">
+                        {/* Filtro por Vendedor */}
+                        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg">
+                          <UserIcon size={14} className="text-zinc-500" />
+                          <select
+                            value={selectedSeller}
+                            onChange={(e) => setSelectedSeller(e.target.value)}
+                            className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5 font-sans"
+                          >
+                            <option value="all" className="bg-zinc-900 text-white font-bold">Todos os Vendedores</option>
+                            {availableSellers.map(seller => (
+                              <option key={seller.id} value={seller.id} className="bg-zinc-900 text-white font-bold">
+                                {seller.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Filtro por Mês */}
+                        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg">
+                          <Calendar size={14} className="text-zinc-500" />
+                          <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5 font-sans"
+                          >
+                            <option value="all" className="bg-zinc-900 text-white font-bold">Todos os Meses</option>
+                            {availableMonths.map(monthStr => (
+                              <option key={monthStr} value={monthStr} className="bg-zinc-900 text-white font-bold">
+                                {formatMonthLabel(monthStr)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
 
                     {filteredHistory.length === 0 ? (
                       <div className="bg-zinc-900/50 border border-zinc-800 border-dashed rounded-lg p-8 text-center">
                         <Clock className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
-                        <p className="text-zinc-500 text-sm">Nenhum negócio encontrado para este mês.</p>
+                        <p className="text-zinc-500 text-sm">Nenhum negócio encontrado para os filtros selecionados.</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -1140,7 +1172,7 @@ const App: React.FC = () => {
                                </div>
                              </div>
 
-                             {user.role === 'admin' && item.userName && (
+                             {item.userName && (
                                <div className="flex items-center gap-1 mt-0.5 mb-1 text-zinc-500">
                                  <UserIcon size={10} />
                                  <span className="text-[10px] font-bold uppercase">{item.userName}</span>

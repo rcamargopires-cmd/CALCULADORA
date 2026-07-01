@@ -36,12 +36,12 @@ service cloud.firestore {
 
     // Deals Collection
     match /deals/{dealId} {
-      // Users can read their own deals. Admins can read all.
-      allow read: if isUserActive() && (resource.data.userId == request.auth.token.email || isAdmin());
+      // All active users can read all deals
+      allow read: if isUserActive();
       // Active users can create deals. They must set themselves as the owner.
       allow create: if isUserActive() && request.resource.data.userId == request.auth.token.email;
-      // Users can update their own deals (e.g., closing them).
-      allow update: if isUserActive() && resource.data.userId == request.auth.token.email && request.resource.data.userId == request.auth.token.email;
+      // Users can update their own deals (e.g., closing them). Admins can update any.
+      allow update: if isUserActive() && (resource.data.userId == request.auth.token.email || isAdmin());
       // Only admins can delete deals
       allow delete: if isAdmin();
     }
