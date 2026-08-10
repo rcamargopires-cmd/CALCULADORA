@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { FieldVisibility, CommissionConfig, BankRates } from '../types';
 
@@ -21,12 +21,12 @@ export const DEFAULT_VISIBILITY: FieldVisibility = {
 
 export const DEFAULT_COMMISSION: CommissionConfig = {
   enabled: true,
-  type: 'percent', // Padrão: Porcentagem
-  fixedValue: 200, // Ex: 200 reais fixos
-  percentage: 5,   // Ex: 5% do lucro
-  minProfitThreshold: 1000, // Só paga comissão se der pelo menos 1000 de lucro
-  invoicePercentage: 0.5, // 0.5% sobre a NF
-  financingPercentage: 1, // 1% sobre o Financiamento
+  type: 'percent',
+  fixedValue: 200,
+  percentage: 5,
+  minProfitThreshold: 1000,
+  invoicePercentage: 0.5,
+  financingPercentage: 1,
   stockPrizeConfig: {
     enabled: true,
     thresholds: [
@@ -44,57 +44,50 @@ export const DEFAULT_COMMISSION: CommissionConfig = {
 };
 
 export const DEFAULT_BANK_RATES: BankRates = {
-  volks: 10, // 10%
-  others: 3.6 // 3.6%
+  volks: 10,
+  others: 3.6
 };
 
+const defaults = () => ({
+  visibility: { ...DEFAULT_VISIBILITY },
+  commission: { ...DEFAULT_COMMISSION },
+  bankRates: { ...DEFAULT_BANK_RATES }
+});
+
 export const configService = {
-  // --- Load Config ---
   loadConfig: async () => {
-    const docRef = doc(db, CONFIG_DOC);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
+    try {
+      const docRef = doc(db, CONFIG_DOC);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) return defaults();
+
       const data = docSnap.data();
       return {
-        visibility: { ...DEFAULT_VISIBILITY, ...data.visibility },
-        commission: { ...DEFAULT_COMMISSION, ...data.commission },
-        bankRates: { ...DEFAULT_BANK_RATES, ...data.bankRates }
+        visibility: { ...DEFAULT_VISIBILITY, ...(data.visibility || {}) },
+        commission: { ...DEFAULT_COMMISSION, ...(data.commission || {}) },
+        bankRates: { ...DEFAULT_BANK_RATES, ...(data.bankRates || {}) }
       };
-    } else {
-      const defaults = {
-        visibility: DEFAULT_VISIBILITY,
-        commission: DEFAULT_COMMISSION,
-        bankRates: DEFAULT_BANK_RATES
-      };
-      return defaults;
+    } catch (error) {
+      console.error('Erro ao carregar configurações; usando padrões seguros:', error);
+      return defaults();
     }
   },
 
-  // --- Save Configs ---
   saveVisibility: async (visibility: FieldVisibility) => {
-    const docRef = doc(db, CONFIG_DOC);
-    await setDoc(docRef, { visibility }, { merge: true });
+    await setDoc(doc(db, CONFIG_DOC), { visibility }, { merge: true });
   },
-  
+
   saveCommission: async (commission: CommissionConfig) => {
-    const docRef = doc(db, CONFIG_DOC);
-    await setDoc(docRef, { commission }, { merge: true });
+    await setDoc(doc(db, CONFIG_DOC), { commission }, { merge: true });
   },
 
   saveBankRates: async (bankRates: BankRates) => {
-    const docRef = doc(db, CONFIG_DOC);
-    await setDoc(docRef, { bankRates }, { merge: true });
+    await setDoc(doc(db, CONFIG_DOC), { bankRates }, { merge: true });
   },
 
-  // Reset Geral
   reset: async () => {
-    const defaults = {
-      visibility: DEFAULT_VISIBILITY,
-      commission: DEFAULT_COMMISSION,
-      bankRates: DEFAULT_BANK_RATES
-    };
-    const docRef = doc(db, CONFIG_DOC);
-    await setDoc(docRef, defaults);
-    return defaults;
+    const value = defaults();
+    await setDoc(doc(db, CONFIG_DOC), value);
+    return value;
   }
 };
