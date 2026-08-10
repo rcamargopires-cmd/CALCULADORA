@@ -117,6 +117,7 @@ export const mapSalesRows = (rows: Record<string, string>[], referenceDate: stri
   const marginValue = parseNumber(valueByAliases(row, aliases.marginValue));
   let marginPercent = parseNumber(valueByAliases(row, aliases.marginPercent));
   if (!marginPercent && invoiceValue) marginPercent = (marginValue / invoiceValue) * 100;
+  const tradeRaw = valueByAliases(row, aliases.tradeIn);
   const key = plate || `${normalize(vehicle)}-${index + 1}`;
   return {
     id: safeId(`${saleDate}_${key}`),
@@ -127,7 +128,7 @@ export const mapSalesRows = (rows: Record<string, string>[], referenceDate: stri
     invoiceValue,
     marginValue,
     marginPercent,
-    hasTradeIn: parseBoolean(valueByAliases(row, aliases.tradeIn)),
+    hasTradeIn: clean(tradeRaw) ? parseBoolean(tradeRaw) : undefined,
   };
 }).filter(item => item.plate || item.vehicle || item.invoiceValue);
 
