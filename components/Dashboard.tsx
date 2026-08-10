@@ -1,19 +1,36 @@
-
 import React, { useMemo, useState } from 'react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  LineChart, Line, Cell, PieChart, Pie
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
-import { 
-  TrendingUp, Users, CarFront, Coins, ArrowUpRight, ArrowDownRight, 
-  Clock, AlertCircle, CheckCircle2, LayoutDashboard, Calculator as CalcIcon,
-  Percent, History, Trash2
+import {
+  AlertCircle,
+  ArrowRight,
+  BrainCircuit,
+  Calculator as CalcIcon,
+  CarFront,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Coins,
+  Gauge,
+  Percent,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Trophy,
+  Users,
 } from 'lucide-react';
+import { endOfMonth, eachDayOfInterval, format, isSameDay, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { SavedCalculation, User, CommissionConfig } from '../types';
 import { formatCurrency } from '../utils/currency';
 import { calculateCommission } from '../utils/commission';
-import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 interface DashboardProps {
   history: SavedCalculation[];
@@ -24,442 +41,497 @@ interface DashboardProps {
   onDelete?: (id: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ 
-  history, 
-  users, 
-  currentUser, 
+const MONTHLY_GOAL = 70;
+const CAPTURE_GOAL = 60;
+const HEALTHY_MARGIN = 8;
+
+const Dashboard: React.FC<DashboardProps> = ({
+  history,
+  users,
+  currentUser,
   commissionConfig,
   onStartNewCalculation,
-  onDelete
 }) => {
-  // --- Dashboard Month State ---
-  const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<string>(() => {
-    const now = new Date();
-    return format(now, 'yyyy-MM');
-  });
-  const [selectedDashboardSeller, setSelectedDashboardSeller] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
+  const [selectedSeller, setSelectedSeller] = useState('all');
+
+  const firstName = currentUser.name?.split(' ')[0] || 'Olá';
+  const todayLabel = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
+
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    months.add(format(new Date(), 'yyyy-MM'));
+    history.forEach(item => {
+      if (item.timestamp) months.add(item.timestamp.substring(0, 7));
+    });
+    return Array.from(months).filter(Boolean).sort((a, b) => b.localeCompare(a));
+  }, [history]);
 
   const availableSellers = useMemo(() => {
-    const sellersMap = new Map<string, string>();
+    const map = new Map<string, string>();
     history.forEach(item => {
-      if (item.userId && item.userName) {
-        sellersMap.set(item.userId, item.userName);
-      }
+      if (item.userId && item.userName) map.set(item.userId, item.userName);
     });
-    return Array.from(sellersMap.entries()).map(([id, name]) => ({ id, name }));
-  }, [history]);
+    users.forEach(user => map.set(user.id, user.name));
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [history, users]);
 
-  // Extract all available months in history to show in filter
-  const availableMonths = useMemo(() => {
-    const monthsSet = new Set<string>();
-    
-    // Always include current month
-    const now = new Date();
-    monthsSet.add(format(now, 'yyyy-MM'));
-
-    // Include other months with deals
-    history.forEach(item => {
-      if (item.timestamp) {
-        const monthPart = item.timestamp.substring(0, 7); // "yyyy-MM"
-        if (/^\d{4}-\d{2}$/.test(monthPart)) {
-          monthsSet.add(monthPart);
-        }
-      }
-    });
-
-    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
-  }, [history]);
-
-  // Format month string (e.g. 2026-07) into Brazilian Portuguese label
-  const formatMonthLabel = (monthStr: string) => {
-    try {
-      const [year, month] = monthStr.split('-');
-      const date = new Date(Number(year), Number(month) - 1, 1);
-      const formatted = format(date, 'MMMM yyyy', { locale: ptBR });
-      return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-    } catch (e) {
-      return monthStr;
-    }
+  const formatMonth = (month: string) => {
+    if (month === 'all') return 'Todo período';
+    const [year, monthNumber] = month.split('-');
+    const value = new Date(Number(year), Number(monthNumber) - 1, 1);
+    const label = format(value, 'MMMM yyyy', { locale: ptBR });
+    return label.charAt(0).toUpperCase() + label.slice(1);
   };
 
-  // --- Data Processing filtered by selected month and seller ---
-  const currentMonthHistory = useMemo(() => {
-    let result = history;
-    if (selectedDashboardMonth !== 'all') {
-      result = result.filter(item => item.timestamp.startsWith(selectedDashboardMonth));
-    }
-    if (selectedDashboardSeller !== 'all') {
-      result = result.filter(item => item.userId === selectedDashboardSeller);
-    }
-    return result;
-  }, [history, selectedDashboardMonth, selectedDashboardSeller]);
+  const filtered = useMemo(() => {
+    let data = history;
+    if (selectedMonth !== 'all') data = data.filter(item => item.timestamp.startsWith(selectedMonth));
+    if (selectedSeller !== 'all') data = data.filter(item => item.userId === selectedSeller);
+    return data;
+  }, [history, selectedMonth, selectedSeller]);
+
+  const closedDeals = useMemo(
+    () => filtered.filter(item => item.data.dealStatus === 'closed'),
+    [filtered]
+  );
+
+  const openDeals = useMemo(
+    () => filtered.filter(item => item.data.dealStatus !== 'closed'),
+    [filtered]
+  );
+
+  const getEffectiveProfit = (deal: SavedCalculation) => {
+    return deal.data.closingType === 'banking'
+      ? deal.summary.profit + (Number(deal.data.bankReturn) || 0)
+      : deal.summary.profit;
+  };
+
+  const getEffectiveMargin = (deal: SavedCalculation) => {
+    const invoiceValue = Number(deal.data.invoiceValue) || 0;
+    if (!invoiceValue) return Number(deal.summary.marginPercent) || 0;
+    return (getEffectiveProfit(deal) / invoiceValue) * 100;
+  };
 
   const stats = useMemo(() => {
-    const closedDeals = currentMonthHistory.filter(h => h.data.dealStatus === 'closed');
-    const totalProfit = closedDeals.reduce((acc, deal) => {
-      const baseProfit = deal.summary.profit;
-      return acc + (deal.data.closingType === 'banking' ? baseProfit + deal.data.bankReturn : baseProfit);
-    }, 0);
-
-    const totalCommission = closedDeals.reduce((acc, deal) => {
-      if (!commissionConfig) return acc;
-      // Only calculate commission for the logged in user
-      if (deal.userId !== currentUser.id) return acc;
-      const profit = deal.data.closingType === 'banking' ? deal.summary.profit + deal.data.bankReturn : deal.summary.profit;
-      const breakdown = calculateCommission(deal.data, profit, commissionConfig);
-      return acc + breakdown.total;
-    }, 0);
-
-    const avgMargin = closedDeals.length > 0 
-      ? closedDeals.reduce((acc, deal) => acc + deal.summary.marginPercent, 0) / closedDeals.length 
+    const totalProfit = closedDeals.reduce((sum, deal) => sum + getEffectiveProfit(deal), 0);
+    const avgMargin = closedDeals.length
+      ? closedDeals.reduce((sum, deal) => sum + getEffectiveMargin(deal), 0) / closedDeals.length
       : 0;
+    const capturedDeals = closedDeals.filter(deal => Number(deal.data.payments?.tradeIn) > 0).length;
+    const captureRate = closedDeals.length ? (capturedDeals / closedDeals.length) * 100 : 0;
+
+    const totalCommission = closedDeals.reduce((sum, deal) => {
+      if (!commissionConfig || deal.userId !== currentUser.id) return sum;
+      return sum + calculateCommission(deal.data, getEffectiveProfit(deal), commissionConfig).total;
+    }, 0);
+
+    const agedStock = history.filter(
+      deal => deal.data.dealStatus !== 'closed' && Number(deal.data.stockDays) >= 60
+    );
+    const agedStockValue = agedStock.reduce((sum, deal) => sum + (Number(deal.data.vehicleCost) || 0), 0);
 
     return {
-      closedCount: closedDeals.length,
-      openCount: currentMonthHistory.filter(h => h.data.dealStatus === 'open').length,
       totalProfit,
+      avgMargin,
+      captureRate,
       totalCommission,
-      avgMargin
+      agedStockCount: agedStock.length,
+      agedStockValue,
     };
-  }, [currentMonthHistory, commissionConfig, currentUser.id]);
+  }, [closedDeals, history, commissionConfig, currentUser.id]);
 
-  const isAllMonths = selectedDashboardMonth === 'all';
+  const goalProgress = Math.min((closedDeals.length / MONTHLY_GOAL) * 100, 100);
+  const goalGap = Math.max(MONTHLY_GOAL - closedDeals.length, 0);
+
+  const projection = useMemo(() => {
+    if (selectedMonth === 'all') return closedDeals.length;
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const selectedDate = new Date(year, month - 1, 1);
+    const now = new Date();
+    const monthEnd = endOfMonth(selectedDate);
+    const isCurrentMonth = now.getFullYear() === year && now.getMonth() === month - 1;
+    const elapsed = isCurrentMonth ? Math.max(now.getDate(), 1) : monthEnd.getDate();
+    return Math.round((closedDeals.length / elapsed) * monthEnd.getDate());
+  }, [closedDeals.length, selectedMonth]);
 
   const chartData = useMemo(() => {
-    if (isAllMonths) {
-      // Group by month chronologically
-      const monthsAsc = [...availableMonths].reverse();
-      return monthsAsc.map(monthStr => {
-        let monthDeals = history.filter(h => h.timestamp.startsWith(monthStr));
-        if (selectedDashboardSeller !== 'all') {
-          monthDeals = monthDeals.filter(h => h.userId === selectedDashboardSeller);
-        }
-        const profit = monthDeals.reduce((acc, deal) => {
-          if (deal.data.dealStatus !== 'closed') return acc;
-          const baseProfit = deal.summary.profit;
-          return acc + (deal.data.closingType === 'banking' ? baseProfit + deal.data.bankReturn : baseProfit);
-        }, 0);
-
-        return {
-          label: formatMonthLabel(monthStr),
-          profit,
-          count: monthDeals.length
-        };
-      });
-    } else {
-      // Days of specific month
-      const [year, month] = selectedDashboardMonth.split('-');
-      const start = new Date(Number(year), Number(month) - 1, 1);
-      const end = endOfMonth(start);
-      const days = eachDayOfInterval({ start, end });
-
-      return days.map(day => {
-        const dayDeals = currentMonthHistory.filter(h => isSameDay(parseISO(h.timestamp), day));
-        const profit = dayDeals.reduce((acc, deal) => {
-          if (deal.data.dealStatus !== 'closed') return acc;
-          const baseProfit = deal.summary.profit;
-          return acc + (deal.data.closingType === 'banking' ? baseProfit + deal.data.bankReturn : baseProfit);
-        }, 0);
-
-        return {
-          label: format(day, 'dd'),
-          profit,
-          count: dayDeals.length
-        };
-      });
+    if (selectedMonth === 'all') {
+      return availableMonths
+        .slice()
+        .reverse()
+        .map(month => {
+          let deals = history.filter(item => item.timestamp.startsWith(month));
+          if (selectedSeller !== 'all') deals = deals.filter(item => item.userId === selectedSeller);
+          const closed = deals.filter(item => item.data.dealStatus === 'closed');
+          return {
+            label: formatMonth(month).split(' ')[0].slice(0, 3),
+            vendas: closed.length,
+            lucro: closed.reduce((sum, item) => sum + getEffectiveProfit(item), 0),
+          };
+        });
     }
-  }, [history, currentMonthHistory, selectedDashboardMonth, availableMonths, isAllMonths, selectedDashboardSeller]);
+
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const start = new Date(year, month - 1, 1);
+    const days = eachDayOfInterval({ start, end: endOfMonth(start) });
+    return days.map(day => {
+      const deals = filtered.filter(item => isSameDay(parseISO(item.timestamp), day));
+      const closed = deals.filter(item => item.data.dealStatus === 'closed');
+      return {
+        label: format(day, 'dd'),
+        vendas: closed.length,
+        lucro: closed.reduce((sum, item) => sum + getEffectiveProfit(item), 0),
+      };
+    });
+  }, [availableMonths, filtered, history, selectedMonth, selectedSeller]);
 
   const stockAlerts = useMemo(() => {
-    let result = history.filter(h => h.data.dealStatus === 'open' && h.data.stockDays >= 60);
-    if (selectedDashboardSeller !== 'all') {
-      result = result.filter(h => h.userId === selectedDashboardSeller);
-    }
-    return result
-      .sort((a, b) => b.data.stockDays - a.data.stockDays)
-      .slice(0, 5);
-  }, [history, selectedDashboardSeller]);
+    let data = history.filter(
+      item => item.data.dealStatus !== 'closed' && Number(item.data.stockDays) >= 60
+    );
+    if (selectedSeller !== 'all') data = data.filter(item => item.userId === selectedSeller);
+    return data.sort((a, b) => Number(b.data.stockDays) - Number(a.data.stockDays)).slice(0, 4);
+  }, [history, selectedSeller]);
 
-  const displayedHistory = useMemo(() => {
-    let result = history;
-    if (selectedDashboardSeller !== 'all') {
-      result = result.filter(item => item.userId === selectedDashboardSeller);
+  const sellerRanking = useMemo(() => {
+    const sellerMap = new Map<string, { name: string; count: number; profit: number }>();
+    closedDeals.forEach(deal => {
+      if (!deal.userId || !deal.userName) return;
+      const current = sellerMap.get(deal.userId) || { name: deal.userName, count: 0, profit: 0 };
+      current.count += 1;
+      current.profit += getEffectiveProfit(deal);
+      sellerMap.set(deal.userId, current);
+    });
+    return Array.from(sellerMap.values()).sort((a, b) => b.count - a.count).slice(0, 4);
+  }, [closedDeals]);
+
+  const aiInsight = useMemo(() => {
+    if (closedDeals.length === 0) {
+      return {
+        tone: 'neutral',
+        title: 'Comece registrando as negociações',
+        text: 'Assim que houver vendas fechadas, o DealMaster passa a cruzar margem, captura e ritmo de faturamento para destacar onde agir.',
+      };
     }
-    return result;
-  }, [history, selectedDashboardSeller]);
+
+    if (projection < MONTHLY_GOAL) {
+      return {
+        tone: 'warning',
+        title: `${MONTHLY_GOAL - projection} carros abaixo da projeção da meta`,
+        text: stats.agedStockCount > 0
+          ? `Há ${stats.agedStockCount} veículos com mais de 60 dias. Eles são a melhor frente para buscar giro sem sacrificar margem nos carros recentes.`
+          : `O ritmo atual projeta ${projection} vendas. Priorize propostas abertas e vendedores abaixo da média para recuperar volume.`,
+      };
+    }
+
+    if (stats.captureRate < CAPTURE_GOAL) {
+      return {
+        tone: 'warning',
+        title: 'Volume saudável, captura pede atenção',
+        text: `A projeção está em ${projection} vendas, mas a captura está em ${stats.captureRate.toFixed(0)}%. A meta de referência é ${CAPTURE_GOAL}%.`,
+      };
+    }
+
+    return {
+      tone: 'good',
+      title: 'Operação em ritmo saudável',
+      text: `A projeção está em ${projection} vendas, captura em ${stats.captureRate.toFixed(0)}% e margem média em ${stats.avgMargin.toFixed(1)}%. Preserve margem nos carros recentes.`,
+    };
+  }, [closedDeals.length, projection, stats.agedStockCount, stats.captureRate, stats.avgMargin]);
+
+  const recentDeals = filtered.slice(0, 4);
 
   return (
-    <div className="space-y-8 animate-fade-in pb-12">
-      {/* Welcome Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="pb-24 md:pb-12 space-y-6 md:space-y-8 animate-fade-in">
+      <section className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-black text-white flex items-center gap-2">
-            Olá, {currentUser.name.split(' ')[0]}! 👋
+          <p className="text-zinc-500 text-sm capitalize mb-1">{todayLabel}</p>
+          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-white">
+            Bom dia, {firstName}.
           </h2>
-          <p className="text-zinc-400 text-sm">
-            {isAllMonths 
-              ? 'Aqui está o resumo de performance geral da loja.' 
-              : `Aqui está o resumo de performance da loja em ${formatMonthLabel(selectedDashboardMonth)}.`}
+          <p className="text-zinc-400 mt-2 max-w-xl">
+            Veja o que merece sua atenção na operação agora.
           </p>
         </div>
-        
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {/* Vendedor Filter Dropdown */}
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg">
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Vendedor:</span>
-            <select
-              value={selectedDashboardSeller}
-              onChange={(e) => setSelectedDashboardSeller(e.target.value)}
-              className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5 font-sans"
-            >
-              <option value="all" className="bg-zinc-900 text-white font-bold">Todos</option>
-              {availableSellers.map(seller => (
-                <option key={seller.id} value={seller.id} className="bg-zinc-900 text-white font-bold">
-                  {seller.name}
-                </option>
-              ))}
-            </select>
-          </div>
 
-          {/* Month Filter Dropdown */}
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg">
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Período:</span>
-            <select
-              value={selectedDashboardMonth}
-              onChange={(e) => setSelectedDashboardMonth(e.target.value)}
-              className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer uppercase border-none py-0.5 font-sans"
-            >
-              <option value="all" className="bg-zinc-900 text-white font-bold">Todos os Meses</option>
-              {availableMonths.map(monthStr => (
-                <option key={monthStr} value={monthStr} className="bg-zinc-900 text-white font-bold">
-                  {formatMonthLabel(monthStr)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button 
-            onClick={onStartNewCalculation}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-400 text-black font-black rounded-lg shadow-lg hover:bg-amber-500 transition-all active:scale-95 uppercase tracking-wider text-xs"
+        <div className="flex flex-col sm:flex-row gap-2">
+          <select
+            value={selectedSeller}
+            onChange={event => setSelectedSeller(event.target.value)}
+            className="h-11 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm text-zinc-200 outline-none backdrop-blur-xl"
           >
-            <CalcIcon size={16} />
-            Nova Negociação
+            <option value="all" className="bg-zinc-900">Toda equipe</option>
+            {availableSellers.map(seller => (
+              <option key={seller.id} value={seller.id} className="bg-zinc-900">{seller.name}</option>
+            ))}
+          </select>
+          <select
+            value={selectedMonth}
+            onChange={event => setSelectedMonth(event.target.value)}
+            className="h-11 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm text-zinc-200 outline-none backdrop-blur-xl"
+          >
+            <option value="all" className="bg-zinc-900">Todo período</option>
+            {availableMonths.map(month => (
+              <option key={month} value={month} className="bg-zinc-900">{formatMonth(month)}</option>
+            ))}
+          </select>
+        </div>
+      </section>
+
+      <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black p-6 md:p-8 shadow-2xl shadow-black/30">
+        <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-amber-400/5 blur-3xl" />
+
+        <div className="relative grid gap-7 lg:grid-cols-[1.2fr_.8fr] lg:items-end">
+          <div>
+            <div className="mb-5 flex items-center gap-2 text-sm text-zinc-400">
+              <Target size={16} />
+              Meta do mês
+            </div>
+            <div className="flex items-end gap-3">
+              <span className="text-6xl md:text-7xl font-semibold tracking-[-0.06em] text-white">{closedDeals.length}</span>
+              <span className="pb-2 text-xl text-zinc-500">de {MONTHLY_GOAL}</span>
+            </div>
+
+            <div className="mt-6 h-2.5 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-white transition-all duration-700"
+                style={{ width: `${goalProgress}%` }}
+              />
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <span className="text-zinc-400">Faltam <strong className="text-white">{goalGap}</strong></span>
+              <span className="text-zinc-400">Projeção <strong className={projection >= MONTHLY_GOAL ? 'text-emerald-400' : 'text-amber-400'}>{projection}</strong></span>
+              <span className="text-zinc-400">Em negociação <strong className="text-white">{openDeals.length}</strong></span>
+            </div>
+          </div>
+
+          <button
+            onClick={onStartNewCalculation}
+            className="group flex min-h-24 items-center justify-between rounded-[26px] bg-white px-5 py-5 text-left text-black transition-transform active:scale-[0.98]"
+          >
+            <div>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Ação rápida</span>
+              <span className="block text-lg font-semibold">Nova negociação</span>
+              <span className="mt-1 block text-sm text-zinc-500">Calcule margem antes de fechar.</span>
+            </div>
+            <div className="grid h-11 w-11 place-items-center rounded-full bg-black text-white transition-transform group-hover:translate-x-1">
+              <ArrowRight size={20} />
+            </div>
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard 
-          title="Vendas Fechadas" 
-          value={stats.closedCount} 
-          icon={<CheckCircle2 className="text-green-400" />}
-          subtitle={`${stats.openCount} em negociação`}
-        />
-        <StatCard 
-          title={isAllMonths ? "Lucro Total (Acumulado)" : "Lucro Total"} 
-          value={formatCurrency(stats.totalProfit)} 
-          icon={<TrendingUp className="text-blue-400" />}
-          trend={stats.totalProfit > 0 ? 'up' : 'neutral'}
-        />
-        <StatCard 
-          title="Minha Comissão" 
-          value={formatCurrency(stats.totalCommission)} 
-          icon={<Coins className="text-amber-400" />}
-          subtitle={isAllMonths ? "Acumulado histórico" : "Estimativa do período"}
-        />
-        <StatCard 
-          title="Margem Média" 
-          value={`${stats.avgMargin.toFixed(1)}%`} 
-          icon={<Percent className="text-purple-400" />}
-          subtitle={isAllMonths ? "Geral sobre fechadas" : "Sobre fechadas do período"}
-        />
-      </div>
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <MetricCard icon={<Percent size={18} />} label="Margem média" value={`${stats.avgMargin.toFixed(1)}%`} hint={`Saudável ≥ ${HEALTHY_MARGIN}%`} state={stats.avgMargin >= HEALTHY_MARGIN ? 'good' : 'warning'} />
+        <MetricCard icon={<CarFront size={18} />} label="Captura" value={`${stats.captureRate.toFixed(0)}%`} hint={`Meta ${CAPTURE_GOAL}%`} state={stats.captureRate >= CAPTURE_GOAL ? 'good' : 'warning'} />
+        <MetricCard icon={<TrendingUp size={18} />} label="Lucro" value={formatCurrency(stats.totalProfit)} hint={formatMonth(selectedMonth)} />
+        <MetricCard icon={<Clock3 size={18} />} label="Estoque +60d" value={`${stats.agedStockCount}`} hint={formatCurrency(stats.agedStockValue)} state={stats.agedStockCount > 0 ? 'warning' : 'good'} />
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Chart */}
-        <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold text-white flex items-center gap-2">
-              <TrendingUp size={18} className="text-blue-400" />
-              {isAllMonths ? 'Histórico de Lucro Mensal' : 'Evolução de Lucro Diário'}
-            </h3>
-            <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded uppercase tracking-widest">
-              {isAllMonths ? 'Todos os Meses' : formatMonthLabel(selectedDashboardMonth)}
-            </span>
+      <section className={`rounded-[30px] border p-6 md:p-7 ${
+        aiInsight.tone === 'good'
+          ? 'border-emerald-500/20 bg-emerald-500/[0.07]'
+          : aiInsight.tone === 'warning'
+            ? 'border-amber-400/20 bg-amber-400/[0.07]'
+            : 'border-white/10 bg-white/[0.04]'
+      }`}>
+        <div className="flex items-start gap-4">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-black shadow-lg">
+            <Sparkles size={20} />
           </div>
-          <div className="h-[300px] w-full">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">DealMaster AI</span>
+              <span className="h-1 w-1 rounded-full bg-zinc-600" />
+              <span className="text-xs text-zinc-500">Resumo executivo</span>
+            </div>
+            <h3 className="text-xl font-semibold tracking-tight text-white">{aiInsight.title}</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">{aiInsight.text}</p>
+          </div>
+          <BrainCircuit className="hidden text-zinc-700 md:block" size={26} />
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.5fr_.8fr]">
+        <div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 md:p-7">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Performance</p>
+              <h3 className="mt-1 text-xl font-semibold text-white">Ritmo de vendas</h3>
+            </div>
+            <div className="rounded-full bg-white/[0.06] px-3 py-1.5 text-xs text-zinc-400">{formatMonth(selectedMonth)}</div>
+          </div>
+
+          <div className="h-[270px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                <XAxis 
-                  dataKey="label" 
-                  stroke="#71717a" 
-                  fontSize={10} 
-                  tickLine={false} 
-                  axisLine={false}
+              <AreaChart data={chartData} margin={{ top: 10, right: 6, left: -22, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="dealMasterArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#27272a" strokeDasharray="3 6" vertical={false} />
+                <XAxis dataKey="label" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 16 }}
+                  labelStyle={{ color: '#a1a1aa', fontSize: 11 }}
+                  itemStyle={{ color: '#ffffff', fontSize: 12 }}
                 />
-                <YAxis 
-                  stroke="#71717a" 
-                  fontSize={10} 
-                  tickLine={false} 
-                  axisLine={false}
-                  tickFormatter={(value) => `R$ ${value >= 1000 ? (value/1000).toFixed(0) + 'k' : value}`}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px' }}
-                  itemStyle={{ color: '#fbbf24', fontSize: '12px', fontWeight: 'bold' }}
-                  labelStyle={{ color: '#a1a1aa', fontSize: '10px', marginBottom: '4px' }}
-                  formatter={(value: number) => [formatCurrency(value), 'Lucro']}
-                  labelFormatter={(label) => isAllMonths ? label : `Dia ${label}`}
-                />
-                <Bar dataKey="profit" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Area type="monotone" dataKey="vendas" name="Vendas" stroke="#ffffff" strokeWidth={2.5} fill="url(#dealMasterArea)" />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Stock Alerts */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold text-white flex items-center gap-2">
-              <Clock size={18} className="text-red-400" />
-              Alertas de Estoque
-            </h3>
-            <span className="text-[10px] font-bold text-red-500/50 uppercase tracking-widest">+60 DIAS</span>
+        <div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 md:p-7">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Prioridade</p>
+              <h3 className="mt-1 text-xl font-semibold text-white">Estoque envelhecido</h3>
+            </div>
+            <Gauge size={21} className="text-zinc-600" />
           </div>
-          
-          <div className="space-y-4">
+
+          <div className="space-y-2.5">
             {stockAlerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 opacity-30">
-                <CarFront size={40} className="mb-2" />
-                <p className="text-xs font-bold">Tudo em dia!</p>
+              <div className="flex min-h-52 flex-col items-center justify-center text-center">
+                <div className="mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-400">
+                  <CheckCircle2 size={22} />
+                </div>
+                <p className="font-medium text-white">Estoque saudável</p>
+                <p className="mt-1 max-w-48 text-sm text-zinc-500">Nenhum negócio aberto acima de 60 dias.</p>
               </div>
             ) : (
-              stockAlerts.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-black/20 rounded-lg border border-zinc-800/50 group hover:border-red-500/30 transition-colors">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-black text-white uppercase">{item.data.licensePlate || 'S/ PLACA'}</span>
-                    <span className="text-[10px] text-zinc-500">{formatCurrency(item.data.vehicleCost)} custo</span>
+              stockAlerts.map(item => (
+                <div key={item.id} className="flex items-center justify-between rounded-2xl bg-black/20 p-3.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold uppercase text-white">{item.data.licensePlate || 'Sem placa'}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500">{formatCurrency(Number(item.data.vehicleCost) || 0)} de custo</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-red-400">{item.data.stockDays} dias</span>
-                    <AlertCircle size={14} className="text-red-500 animate-pulse" />
+                  <div className="ml-3 flex items-center gap-2 rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-400">
+                    <AlertCircle size={13} />
+                    {Number(item.data.stockDays) || 0}d
                   </div>
                 </div>
               ))
             )}
           </div>
+        </div>
+      </section>
 
-          {stockAlerts.length > 0 && (
-            <p className="mt-4 text-[10px] text-zinc-500 italic text-center">
-              Veículos com giro baixo. Considere revisar a margem ou criar promoções.
-            </p>
-          )}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 md:p-7">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Equipe</p>
+              <h3 className="mt-1 text-xl font-semibold text-white">Ranking do período</h3>
+            </div>
+            <Users size={20} className="text-zinc-600" />
+          </div>
+          <div className="space-y-2">
+            {sellerRanking.length === 0 ? (
+              <EmptyState text="Ainda não há vendas fechadas para montar o ranking." />
+            ) : sellerRanking.map((seller, index) => (
+              <div key={seller.name} className="flex items-center gap-3 rounded-2xl px-2 py-3">
+                <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-semibold ${index === 0 ? 'bg-white text-black' : 'bg-white/[0.06] text-zinc-400'}`}>
+                  {index === 0 ? <Trophy size={16} /> : index + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-white">{seller.name}</p>
+                  <p className="text-xs text-zinc-500">{formatCurrency(seller.profit)} de lucro</p>
+                </div>
+                <span className="text-lg font-semibold text-white">{seller.count}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Recent Activity */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="font-bold text-white flex items-center gap-2">
-            <History size={18} className="text-amber-400" />
-            Atividade Recente
-          </h3>
+        <div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 md:p-7">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Atividade</p>
+              <h3 className="mt-1 text-xl font-semibold text-white">Negociações recentes</h3>
+            </div>
+            <Coins size={20} className="text-zinc-600" />
+          </div>
+
+          <div className="space-y-2">
+            {recentDeals.length === 0 ? (
+              <EmptyState text="As negociações mais recentes aparecerão aqui." />
+            ) : recentDeals.map(item => {
+              const isClosed = item.data.dealStatus === 'closed';
+              return (
+                <div key={item.id} className="flex items-center gap-3 rounded-2xl px-2 py-3">
+                  <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${isClosed ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-400/10 text-amber-400'}`}>
+                    {isClosed ? <CheckCircle2 size={16} /> : <Clock3 size={16} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium uppercase text-white">{item.data.licensePlate || 'Negociação sem placa'}</p>
+                    <p className="text-xs text-zinc-500">{item.userName || 'Sem vendedor'} · {isClosed ? 'Fechada' : 'Em andamento'}</p>
+                  </div>
+                  <ChevronRight size={17} className="text-zinc-700" />
+                </div>
+              );
+            })}
+          </div>
         </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider">Data</th>
-                <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider">Veículo</th>
-                <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider">Vendedor</th>
-                <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider">Status</th>
-                <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider text-right">Lucro</th>
-                {currentUser.role === 'admin' && onDelete && <th className="pb-3 text-[10px] font-black text-zinc-500 uppercase tracking-wider text-right w-10"></th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/50">
-              {displayedHistory.slice(0, 5).map((item) => (
-                <tr key={item.id} className="group hover:bg-white/5 transition-colors">
-                  <td className="py-4 text-xs text-zinc-400 font-mono">
-                    {format(parseISO(item.timestamp), 'dd/MM HH:mm')}
-                  </td>
-                  <td className="py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center text-zinc-500">
-                        <CarFront size={14} />
-                      </div>
-                      <span className="text-xs font-bold text-white uppercase">{item.data.licensePlate || 'S/ PLACA'}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 text-xs text-zinc-400 uppercase font-bold">
-                    {item.userName || 'Sistema'}
-                  </td>
-                  <td className="py-4">
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase ${
-                      item.data.dealStatus === 'closed' 
-                        ? 'bg-green-900/30 text-green-400 border border-green-500/20' 
-                        : 'bg-zinc-800 text-zinc-500'
-                    }`}>
-                      {item.data.dealStatus === 'closed' ? 'Fechado' : 'Aberto'}
-                    </span>
-                  </td>
-                  <td className="py-4 text-xs font-mono font-bold text-white text-right">
-                    {formatCurrency(item.summary.profit)}
-                  </td>
-                  {currentUser.role === 'admin' && onDelete && (
-                    <td className="py-4 text-right">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDelete(item.id);
-                        }}
-                        className="p-1.5 text-zinc-600 hover:text-red-400 transition-colors"
-                        title="Excluir"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      </section>
+
+      {commissionConfig?.enabled && currentUser.role !== 'admin' && (
+        <section className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 md:p-7">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-400/10 text-amber-400">
+                <Coins size={21} />
+              </div>
+              <div>
+                <p className="text-sm text-zinc-500">Minha comissão estimada</p>
+                <p className="text-2xl font-semibold tracking-tight text-white">{formatCurrency(stats.totalCommission)}</p>
+              </div>
+            </div>
+            <CalcIcon size={20} className="text-zinc-700" />
+          </div>
+        </section>
+      )}
     </div>
   );
 };
 
-interface StatCardProps {
-  title: string;
-  value: string | number;
+const MetricCard = ({
+  icon,
+  label,
+  value,
+  hint,
+  state = 'neutral',
+}: {
   icon: React.ReactNode;
-  subtitle?: string;
-  trend?: 'up' | 'down' | 'neutral';
-}
+  label: string;
+  value: string;
+  hint: string;
+  state?: 'neutral' | 'good' | 'warning';
+}) => (
+  <div className="min-h-36 rounded-[26px] border border-white/10 bg-white/[0.035] p-4 md:p-5">
+    <div className="mb-5 flex items-center justify-between">
+      <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/[0.06] text-zinc-300">{icon}</span>
+      {state !== 'neutral' && <span className={`h-2.5 w-2.5 rounded-full ${state === 'good' ? 'bg-emerald-400' : 'bg-amber-400'}`} />}
+    </div>
+    <p className="text-xs font-medium text-zinc-500">{label}</p>
+    <p className="mt-1 truncate text-2xl font-semibold tracking-tight text-white">{value}</p>
+    <p className="mt-1 truncate text-[11px] text-zinc-600">{hint}</p>
+  </div>
+);
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon, subtitle, trend }) => (
-  <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl relative overflow-hidden group hover:border-zinc-700 transition-all">
-    <div className="flex justify-between items-start mb-2">
-      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{title}</span>
-      <div className="p-2 bg-zinc-800 rounded-lg group-hover:scale-110 transition-transform">
-        {icon}
-      </div>
-    </div>
-    <div className="flex items-baseline gap-2">
-      <span className="text-2xl font-black text-white font-mono tracking-tight">{value}</span>
-      {trend && (
-        <span className={`text-[10px] font-bold flex items-center ${
-          trend === 'up' ? 'text-green-400' : trend === 'down' ? 'text-red-400' : 'text-zinc-500'
-        }`}>
-          {trend === 'up' ? <ArrowUpRight size={12} /> : trend === 'down' ? <ArrowDownRight size={12} /> : null}
-        </span>
-      )}
-    </div>
-    {subtitle && <p className="text-[10px] text-zinc-500 mt-1 font-medium">{subtitle}</p>}
+const EmptyState = ({ text }: { text: string }) => (
+  <div className="flex min-h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 p-4 text-center">
+    <CarFront size={22} className="mb-2 text-zinc-700" />
+    <p className="max-w-52 text-sm text-zinc-600">{text}</p>
   </div>
 );
 
