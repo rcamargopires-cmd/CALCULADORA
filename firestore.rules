@@ -2,56 +2,59 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper Functions
-    function isAuthenticated() {
-      return request.auth != null;
+    function isAuthenticated() { return request.auth != null; }
+    function profileExists() { return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.token.email)); }
+    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data; }
+    function isOwnerAdmin() { return isAuthenticated() && request.auth.token.email == "r.camargo.pires@gmail.com" && request.auth.token.email_verified == true; }
+    function isActive() { return isOwnerAdmin() || (profileExists() && profile().status == 'active'); }
+    function role() { return isOwnerAdmin() ? 'admin' : (profileExists() ? profile().role : ''); }
+    function isAdmin() { return isActive() && role() == 'admin'; }
+    function isManager() { return isActive() && (role() == 'manager' || role() == 'admin'); }
+    function isSeller() { return isActive() && (role() == 'seller' || role() == 'user'); }
+    function ownsDeal() {
+      return resource.data.userId == request.auth.token.email || resource.data.userId == request.auth.uid;
     }
-    
-    function isAdmin() {
-      return isAuthenticated() && 
-        (
-          (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin') ||
-          (request.auth.token.email == "r.camargo.pires@gmail.com" && request.auth.token.email_verified == true)
-        );
-    }
-
-    function isUserActive() {
-      return isAuthenticated() && 
-        (
-          (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.status == 'active') ||
-          (request.auth.token.email == "r.camargo.pires@gmail.com" && request.auth.token.email_verified == true)
-        );
+    function createsOwnDeal() {
+      return request.resource.data.userId == request.auth.token.email || request.resource.data.userId == request.auth.uid;
     }
 
-    // Users Collection
     match /users/{email} {
-      // Anyone authenticated can read their own profile. Admins can read all.
-      allow read: if isAuthenticated() && (request.auth.token.email == email || isAdmin());
-      // Only admins can create/update/delete users
+      allow read: if isAuthenticated() && (request.auth.token.email == email || isManager());
       allow write: if isAdmin();
     }
 
-    // Deals Collection
     match /deals/{dealId} {
-      // All active users can read all deals
-      allow read: if isUserActive();
-      // Active users can create deals. They must set themselves as the owner.
-      allow create: if isUserActive() && request.resource.data.userId == request.auth.token.email;
-      // Users can update their own deals (e.g., closing them). Admins can update any.
-      allow update: if isUserActive() && (resource.data.userId == request.auth.token.email || isAdmin());
-      // Only admins can delete deals
-      allow delete: if isAdmin();
+      allow read: if isManager() || (isSeller() && ownsDeal());
+      allow create: if isActive() && createsOwnDeal();
+      allow update: if isManager() || (isSeller() && ownsDeal() && createsOwnDeal());
+      allow delete: if isManager() || (isSeller() && ownsDeal());
     }
 
-    // Config Collection
     match /config/{document=**} {
-      // All active users can read config
-      allow read: if isUserActive();
-      // Only admins can write config
+      allow read: if isActive();
       allow write: if isAdmin();
+    }
+
+    match /operational_stock/{itemId} {
+      allow read: if isManager();
+      allow write: if isManager();
+    }
+    match /operational_sales/{itemId} {
+      allow read: if isManager();
+      allow write: if isManager();
+    }
+    match /operational_meta/{itemId} {
+      allow read: if isManager();
+      allow write: if isManager();
+    }
+    match /operational_imports/{itemId} {
+      allow read: if isManager();
+      allow create: if isManager();
+      allow update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
