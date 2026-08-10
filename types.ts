@@ -1,5 +1,5 @@
 export type BankType = 'volks' | 'others';
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'manager' | 'seller' | 'user';
 export type UserStatus = 'active' | 'inactive';
 
 export interface User {
