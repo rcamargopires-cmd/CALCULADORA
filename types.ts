@@ -1,5 +1,3 @@
-
-
 export type BankType = 'volks' | 'others';
 export type UserRole = 'admin' | 'user';
 export type UserStatus = 'active' | 'inactive';
@@ -11,6 +9,41 @@ export interface User {
   name: string;
   status: UserStatus;
   createdAt?: string;
+}
+
+export interface OperationalStockItem {
+  id: string;
+  snapshotDate: string;
+  plate: string;
+  vehicle: string;
+  stockDays: number;
+  cost: number;
+  fipe: number;
+  askingPrice: number;
+  location?: string;
+  status?: string;
+}
+
+export interface OperationalSaleItem {
+  id: string;
+  saleDate: string;
+  plate: string;
+  vehicle: string;
+  seller: string;
+  invoiceValue: number;
+  marginValue: number;
+  marginPercent: number;
+  hasTradeIn?: boolean;
+}
+
+export interface OperationalImportLog {
+  id: string;
+  type: 'stock' | 'sales';
+  importedAt: string;
+  referenceDate: string;
+  rows: number;
+  fileName: string;
+  importedBy?: string;
 }
 
 export interface FieldVisibility {
@@ -33,59 +66,36 @@ export type CommissionType = 'fixed' | 'percent' | 'mixed';
 export interface CommissionConfig {
   enabled: boolean;
   type: CommissionType;
-  fixedValue: number;      // Valor fixo em R$ (se type for fixed ou mixed)
-  percentage: number;      // Porcentagem sobre o LUCRO (se type for percent ou mixed)
-  minProfitThreshold: number; // Lucro mínimo para ativar a comissão
-  invoicePercentage: number;  // % sobre o Valor da Nota Fiscal
-  financingPercentage: number; // % sobre o Valor Financiado
+  fixedValue: number;
+  percentage: number;
+  minProfitThreshold: number;
+  invoicePercentage: number;
+  financingPercentage: number;
   stockPrizeConfig: {
     enabled: boolean;
-    thresholds: {
-      days: number;
-      value: number;
-      valueWithTradeIn?: number;
-    }[];
+    thresholds: { days: number; value: number; valueWithTradeIn?: number; }[];
   };
   docPrizeConfig: {
     enabled: boolean;
-    thresholds: {
-      min: number;
-      max?: number;
-      value: number;
-    }[];
+    thresholds: { min: number; max?: number; value: number; }[];
   };
 }
 
-export interface BankRates {
-  volks: number;
-  others: number;
-}
-
-export interface PaymentMethods {
-  entry: number;
-  financing: number;
-  tradeIn: number;
-}
-
-export interface AdditionalCosts {
-  documentation: number;
-  accessories: number;
-  payoff: number; // Quitação
-  debts: number;  // Débitos
-  others: number;
-}
+export interface BankRates { volks: number; others: number; }
+export interface PaymentMethods { entry: number; financing: number; tradeIn: number; }
+export interface AdditionalCosts { documentation: number; accessories: number; payoff: number; debts: number; others: number; }
 
 export interface DealData {
-  licensePlate: string; // Placa do veículo
-  fipeValue: number;    // Valor da Tabela FIPE
-  stockDays: number;    // Dias de estoque
-  invoiceValue: number; // Valor NF
-  vehicleCost: number;  // Custo do carro
-  bankReturn: number;   // Retorno bancário (Bonus) - Optional enhancement
+  licensePlate: string;
+  fipeValue: number;
+  stockDays: number;
+  invoiceValue: number;
+  vehicleCost: number;
+  bankReturn: number;
   payments: PaymentMethods;
   costs: AdditionalCosts;
   dealStatus?: 'open' | 'closed';
-  closingType: 'standard' | 'banking'; // Qual opção foi escolhida para fechar o negócio
+  closingType: 'standard' | 'banking';
   isWebLead?: boolean;
   splitWithUserId?: string;
   splitWithUserName?: string;
@@ -106,10 +116,7 @@ export interface SavedCalculation {
   timestamp: string;
   data: DealData;
   bankType: BankType;
-  summary: {
-    profit: number;
-    marginPercent: number;
-  };
+  summary: { profit: number; marginPercent: number; };
   userId?: string;
   userName?: string;
 }
