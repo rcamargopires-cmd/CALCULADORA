@@ -2,6 +2,13 @@ export type BankType = 'volks' | 'others';
 export type UserRole = 'admin' | 'manager' | 'seller' | 'user';
 export type UserStatus = 'active' | 'inactive';
 
+export interface SellerGoals {
+  monthly: number;
+  firstHalf: number;
+  capture: number;
+  margin: number;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -9,6 +16,7 @@ export interface User {
   name: string;
   status: UserStatus;
   createdAt?: string;
+  goals?: SellerGoals;
 }
 
 export interface OperationalStockItem {
