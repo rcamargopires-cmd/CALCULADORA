@@ -5,6 +5,7 @@ import { User } from '../types';
 import { userService } from '../services/userService';
 import OperationalDataPanel from './OperationalDataPanel';
 import AIManagerV2 from './AIManagerV2';
+import HierarchyPanel from './HierarchyPanel';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -20,9 +21,12 @@ const OperationalTools: React.FC = () => {
   }), []);
 
   if (!user) return null;
+  const isManager = user.role === 'admin' || user.role === 'manager';
+
   return <>
-    <OperationalDataPanel currentUser={user}/>
-    <AIManagerV2/>
+    {isManager && <OperationalDataPanel currentUser={user}/>} 
+    {isManager && <AIManagerV2/>}
+    {user.role === 'admin' && <HierarchyPanel currentUser={user}/>} 
   </>;
 };
 
