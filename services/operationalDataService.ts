@@ -1,17 +1,22 @@
 import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { OperationalSaleItem, OperationalStockItem, User } from '../types';
+import { OperationalPerformanceSeller, OperationalPerformanceSnapshot, OperationalSaleItem, OperationalStockItem, User } from '../types';
 
 const clean = (value: unknown) => String(value ?? '').trim();
-const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+export const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 120);
 
-const parseNumber = (value: unknown) => {
+export const parseNumber = (value: unknown) => {
   const raw = clean(value).replace(/R\$/gi, '').replace(/%/g, '').replace(/\s/g, '');
-  if (!raw) return 0;
+  if (!raw || /^#/.test(raw)) return 0;
   if (raw.includes(',') && raw.includes('.')) return Number(raw.replace(/\./g, '').replace(',', '.')) || 0;
   if (raw.includes(',')) return Number(raw.replace(',', '.')) || 0;
   return Number(raw) || 0;
+};
+
+const asPercent = (value: unknown) => {
+  const n = parseNumber(value);
+  return Math.abs(n) <= 1 ? n * 100 : n;
 };
 
 const parseBoolean = (value: unknown) => {
@@ -79,6 +84,29 @@ const aliases = {
   tradeIn: ['troca', 'captura', 'com troca', 'tem troca'],
 };
 
+const performanceAliases = {
+  seller: ['vendedor'],
+  passages: ['passagens'],
+  orders: ['pedido'],
+  flowTotal: ['fluxo total'],
+  orderPercent: ['pedido %', 'pedido percentual'],
+  workInPeriod: ['trab no periodo', 'trabalho no periodo'],
+  avgContactsPerDay: ['media contatos por dia'],
+  evaluations: ['quantida avaliacao', 'quantidade avaliacao', 'quantidade de avaliacao'],
+  evaluationRate: ['% taxa avaliacao', 'taxa avaliacao'],
+  closing: ['fechamento'],
+  syonetSales: ['vendas syonet'],
+  closingPercent: ['% fechamento', 'fechamento %'],
+  marginPerCar: ['mc por carro'],
+  marginTotal: ['mc total'],
+  marginPercent: ['% mc', 'mc %'],
+  captureQty: ['qtde captura', 'quantidade captura'],
+  capturePercent: ['% captura', 'captura %'],
+  pipeline: ['caixa d agua', 'caixa dagua'],
+  projection: ['projecao vendedor'],
+  additionalPurchase: ['compra adicional'],
+};
+
 const normalizeDate = (raw: string, fallback: string) => {
   const v = clean(raw);
   if (!v) return fallback;
@@ -132,6 +160,39 @@ export const mapSalesRows = (rows: Record<string, string>[], referenceDate: stri
   };
 }).filter(item => item.plate || item.vehicle || item.invoiceValue);
 
+export const mapPerformanceRows = (rows: Record<string, string>[]): { sellers: OperationalPerformanceSeller[]; total?: OperationalPerformanceSeller } => {
+  const mapped = rows.map(row => {
+    const seller = clean(valueByAliases(row, performanceAliases.seller));
+    if (!seller) return null;
+    const item: OperationalPerformanceSeller = {
+      seller,
+      sellerKey: normalize(seller),
+      passages: parseNumber(valueByAliases(row, performanceAliases.passages)),
+      orders: parseNumber(valueByAliases(row, performanceAliases.orders)),
+      flowTotal: parseNumber(valueByAliases(row, performanceAliases.flowTotal)),
+      orderPercent: asPercent(valueByAliases(row, performanceAliases.orderPercent)),
+      workInPeriod: parseNumber(valueByAliases(row, performanceAliases.workInPeriod)),
+      avgContactsPerDay: parseNumber(valueByAliases(row, performanceAliases.avgContactsPerDay)),
+      evaluations: parseNumber(valueByAliases(row, performanceAliases.evaluations)),
+      evaluationRate: asPercent(valueByAliases(row, performanceAliases.evaluationRate)),
+      closing: parseNumber(valueByAliases(row, performanceAliases.closing)),
+      syonetSales: parseNumber(valueByAliases(row, performanceAliases.syonetSales)),
+      closingPercent: asPercent(valueByAliases(row, performanceAliases.closingPercent)),
+      marginPerCar: parseNumber(valueByAliases(row, performanceAliases.marginPerCar)),
+      marginTotal: parseNumber(valueByAliases(row, performanceAliases.marginTotal)),
+      marginPercent: asPercent(valueByAliases(row, performanceAliases.marginPercent)),
+      captureQty: parseNumber(valueByAliases(row, performanceAliases.captureQty)),
+      capturePercent: asPercent(valueByAliases(row, performanceAliases.capturePercent)),
+      pipeline: parseNumber(valueByAliases(row, performanceAliases.pipeline)),
+      projection: parseNumber(valueByAliases(row, performanceAliases.projection)),
+      additionalPurchase: parseNumber(valueByAliases(row, performanceAliases.additionalPurchase)),
+    };
+    return item;
+  }).filter(Boolean) as OperationalPerformanceSeller[];
+  const total = mapped.find(i => i.sellerKey === 'total');
+  return { sellers: mapped.filter(i => i.sellerKey !== 'total'), total };
+};
+
 export const operationalDataService = {
   importStock: async (items: OperationalStockItem[], fileName: string, user?: User) => {
     if (!items.length) throw new Error('Nenhuma linha de estoque reconhecida no arquivo.');
@@ -150,6 +211,31 @@ export const operationalDataService = {
     return items.length;
   },
 
+  importPerformance: async (snapshot: OperationalPerformanceSnapshot, fileName: string, user?: User) => {
+    if (!snapshot.sellers.length) throw new Error('Nenhum vendedor reconhecido no mapa.');
+    const id = `performance_${safeId(snapshot.referenceDate)}`;
+    await setDoc(doc(db, 'operational_meta', id), {
+      ...snapshot,
+      sourceFile: fileName,
+      importedBy: user?.email || '',
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    await setDoc(doc(db, 'operational_meta', 'current'), {
+      latestPerformanceDate: snapshot.referenceDate,
+      performanceRowsLastImport: snapshot.sellers.length,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    await addDoc(collection(db, 'operational_imports'), {
+      type: 'performance',
+      referenceDate: snapshot.referenceDate,
+      rows: snapshot.sellers.length,
+      fileName,
+      importedBy: user?.email || '',
+      importedAt: serverTimestamp(),
+    });
+    return snapshot.sellers.length;
+  },
+
   getLatestStock: async (): Promise<OperationalStockItem[]> => {
     const meta = await getDoc(doc(db, 'operational_meta', 'current'));
     const latest = meta.exists() ? String(meta.data().latestStockDate || '') : '';
@@ -161,5 +247,13 @@ export const operationalDataService = {
   getSales: async (): Promise<OperationalSaleItem[]> => {
     const snap = await getDocs(collection(db, 'operational_sales'));
     return snap.docs.map(d => d.data() as OperationalSaleItem);
+  },
+
+  getLatestPerformance: async (): Promise<OperationalPerformanceSnapshot | null> => {
+    const meta = await getDoc(doc(db, 'operational_meta', 'current'));
+    const latest = meta.exists() ? String(meta.data().latestPerformanceDate || '') : '';
+    if (!latest) return null;
+    const snap = await getDoc(doc(db, 'operational_meta', `performance_${safeId(latest)}`));
+    return snap.exists() ? snap.data() as OperationalPerformanceSnapshot : null;
   }
 };
