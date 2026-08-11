@@ -1,14 +1,28 @@
 import React, { useMemo, useState } from 'react';
 import { Building2, FileUp, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { OperationalPerformanceSnapshot, User } from '../types';
-import { mapPerformanceRows, mapStockRows, normalize, operationalDataService, parseCsv } from '../services/operationalDataService';
+import { OperationalPerformanceSeller, OperationalPerformanceSnapshot, User } from '../types';
+import { mapStockRows, normalize, operationalDataService, parseCsv } from '../services/operationalDataService';
 import { stockSnapshotService } from '../services/stockSnapshotService';
 
 type Props = { currentUser: User };
 type ImportType = 'stock' | 'performance';
 
 const MONTHS = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+
+const toNumber = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const raw = String(value ?? '').trim().replace(/R\$/gi, '').replace(/%/g, '').replace(/\s/g, '');
+  if (!raw || raw.startsWith('#')) return 0;
+  if (raw.includes(',') && raw.includes('.')) return Number(raw.replace(/\./g, '').replace(',', '.')) || 0;
+  if (raw.includes(',')) return Number(raw.replace(',', '.')) || 0;
+  return Number(raw) || 0;
+};
+
+const toPercent = (value: unknown) => {
+  const n = toNumber(value);
+  return Math.abs(n) <= 1 ? n * 100 : n;
+};
 
 const excelRows = async (file: File) => {
   // cellStyles + skipHidden faz o XLS/XLSX respeitar o filtro salvo no DealerNet/LibreOffice.
@@ -25,6 +39,38 @@ const excelRows = async (file: File) => {
   }).filter(r => Object.values(r).some(Boolean));
 };
 
+const mapPerformanceRowByPosition = (row: any[]): OperationalPerformanceSeller | null => {
+  const seller = String(row[0] ?? '').trim();
+  if (!seller) return null;
+
+  // IMPORTANTE: o Mapa possui colunas com nomes que normalizam para a mesma chave,
+  // por exemplo "Fechamento" e "% FECHAMENTO". Por isso o mapa é lido por posição,
+  // preservando exatamente a estrutura oficial do arquivo.
+  return {
+    seller,
+    sellerKey: normalize(seller),
+    passages: toNumber(row[1]),
+    orders: toNumber(row[2]),
+    flowTotal: toNumber(row[3]),
+    orderPercent: toPercent(row[4]),
+    workInPeriod: toNumber(row[5]),
+    avgContactsPerDay: toNumber(row[6]),
+    evaluations: toNumber(row[7]),
+    evaluationRate: toPercent(row[8]),
+    closing: toNumber(row[9]),
+    syonetSales: toNumber(row[10]),
+    closingPercent: toPercent(row[11]),
+    marginPerCar: toNumber(row[12]),
+    marginTotal: toNumber(row[13]),
+    marginPercent: toPercent(row[14]),
+    captureQty: toNumber(row[15]),
+    capturePercent: toPercent(row[16]),
+    pipeline: toNumber(row[17]),
+    projection: toNumber(row[18]),
+    additionalPurchase: toNumber(row[19]),
+  };
+};
+
 const readPerformanceMap = async (file: File, referenceDate: string): Promise<OperationalPerformanceSnapshot> => {
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const month = MONTHS[Math.max(0, Number(referenceDate.slice(5, 7)) - 1)];
@@ -36,21 +82,24 @@ const readPerformanceMap = async (file: File, referenceDate: string): Promise<Op
   const headerIndex = matrix.findIndex(row => row.some((cell: any) => normalize(String(cell)) === 'vendedor'));
   if (headerIndex < 0) throw new Error('Não encontrei o cabeçalho de vendedores no mapa.');
 
-  const headers = matrix[headerIndex].map((h: any) => normalize(String(h)));
-  const sellerRows: Record<string, string>[] = [];
+  const sellers: OperationalPerformanceSeller[] = [];
+  let total: OperationalPerformanceSeller | undefined;
   let storeSectionIndex = -1;
 
   for (let i = headerIndex + 1; i < matrix.length; i++) {
     const row = matrix[i] || [];
     const first = normalize(String(row[0] ?? ''));
-    if (first === 'indicadores da loja' || first === 'indicadores do dia') { storeSectionIndex = i; break; }
+    if (first === 'indicadores da loja' || first === 'indicadores do dia') {
+      storeSectionIndex = i;
+      break;
+    }
     if (!first) continue;
-    const obj: Record<string, string> = {};
-    headers.forEach((h: string, col: number) => { if (h) obj[h] = String(row[col] ?? ''); });
-    sellerRows.push(obj);
+    const mapped = mapPerformanceRowByPosition(row);
+    if (!mapped) continue;
+    if (mapped.sellerKey === 'total') total = mapped;
+    else sellers.push(mapped);
   }
 
-  const { sellers, total } = mapPerformanceRows(sellerRows);
   if (!sellers.length) throw new Error(`A aba ${sheetName} foi encontrada, mas nenhum vendedor foi reconhecido.`);
 
   const storeMetrics: Record<string, number | string> = {};
