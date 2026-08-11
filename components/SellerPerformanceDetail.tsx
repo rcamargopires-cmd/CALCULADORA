@@ -9,7 +9,6 @@ import {
   Repeat2,
   Target,
   TrendingUp,
-  Users,
   WalletCards,
   X,
 } from 'lucide-react';
