@@ -88,12 +88,12 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
     if (snapshot?.total) return snapshot.total;
     if (!sellers.length) return null;
     const sum = (key: keyof OperationalPerformanceSeller) => sellers.reduce((acc, item) => acc + Number(item[key] || 0), 0);
-    const salesBase = sum('syonetSales');
+    const salesBase = sum('closing');
     return {
       seller: 'TOTAL', sellerKey: 'total', passages: sum('passages'), orders: sum('orders'), flowTotal: sum('flowTotal'), orderPercent: 0,
-      workInPeriod: sum('workInPeriod'), avgContactsPerDay: 0, evaluations: sum('evaluations'), evaluationRate: 0, closing: sum('closing'),
-      syonetSales: salesBase, closingPercent: 0, marginPerCar: salesBase ? sum('marginTotal') / salesBase : 0, marginTotal: sum('marginTotal'),
-      marginPercent: salesBase ? sellers.reduce((acc, item) => acc + item.marginPercent * item.syonetSales, 0) / salesBase : 0,
+      workInPeriod: sum('workInPeriod'), avgContactsPerDay: 0, evaluations: sum('evaluations'), evaluationRate: 0, closing: salesBase,
+      syonetSales: sum('syonetSales'), closingPercent: 0, marginPerCar: salesBase ? sum('marginTotal') / salesBase : 0, marginTotal: sum('marginTotal'),
+      marginPercent: salesBase ? sellers.reduce((acc, item) => acc + item.marginPercent * item.closing, 0) / salesBase : 0,
       captureQty: sum('captureQty'), capturePercent: salesBase ? sum('captureQty') / salesBase * 100 : 0,
       pipeline: sum('pipeline'), projection: sum('projection'), additionalPurchase: sum('additionalPurchase'),
     };
@@ -112,7 +112,8 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
   const elapsed = workDays.filter(d => !isAfter(d, now));
   const remaining = workDays.filter(d => isAfter(d, now));
 
-  const actual = Number(current?.syonetSales || 0);
+  // REGRA DEALMASTER: o volume oficial de vendas vem da coluna "Fechamento" do Mapa de Indicadores.
+  const actual = Number(current?.closing || 0);
   const expected = goal * elapsed.length / Math.max(workDays.length, 1);
   const projection = Number(current?.projection || 0);
   const missing = Math.max(goal - actual, 0);
@@ -121,7 +122,7 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
   const marginValue = Number(current?.marginTotal || 0);
   const capture = Number(current?.capturePercent || 0);
   const evaluations = Number(current?.evaluations || 0);
-  const closing = Number(current?.closingPercent || 0);
+  const closingRate = Number(current?.closingPercent || 0);
   const passages = Number(current?.passages || 0);
 
   const stockValue = stock.reduce((s, i) => s + (Number(i.cost) || 0), 0);
@@ -134,7 +135,7 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
     const sellerGoal = user?.goals?.monthly ?? performance.sellerMonthlyGoal;
     const sellerCaptureGoal = user?.goals?.capture ?? performance.sellerCaptureGoal;
     const sellerMarginGoal = user?.goals?.margin ?? performance.healthyMargin;
-    const needsAction = s.projection < sellerGoal || s.capturePercent < sellerCaptureGoal || (s.syonetSales > 0 && s.marginPercent < sellerMarginGoal);
+    const needsAction = s.projection < sellerGoal || s.capturePercent < sellerCaptureGoal || (s.closing > 0 && s.marginPercent < sellerMarginGoal);
     return { ...s, sellerGoal, needsAction };
   }).sort((a, b) => Number(b.needsAction) - Number(a.needsAction) || a.projection - b.projection), [sellers, users, performance]);
 
@@ -160,13 +161,13 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
 
     <section className="rounded-[32px] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black p-6 md:p-8"><div className="grid gap-7 lg:grid-cols-[1.25fr_.75fr] lg:items-end"><div><div className="mb-5 flex items-center gap-2 text-sm text-zinc-400"><Target size={16}/> {selected ? `GoalTrack · ${selected.seller}` : 'GoalTrack · Loja'}</div><div className="flex items-end gap-3"><span className="text-6xl font-semibold tracking-[-0.06em] text-white md:text-7xl">{actual}</span><span className="pb-2 text-xl text-zinc-500">de {goal}</span></div><div className="mt-6 h-2.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-white" style={{ width: `${Math.min(actual / Math.max(goal, 1) * 100, 100)}%` }}/></div><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><Mini label="Esperado hoje" value={expected.toFixed(1)}/><Mini label="Projeção do mapa" value={projection.toFixed(1)}/><Mini label="Faltam" value={missing.toFixed(0)}/><Mini label="Ritmo necessário" value={`${dailyNeeded.toFixed(2)}/dia`}/></div></div><button onClick={onStartNewCalculation} className="flex min-h-24 items-center justify-between rounded-[26px] bg-white px-5 py-5 text-left text-black"><div><span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">DealGuard</span><span className="block text-lg font-semibold">Nova negociação</span><span className="mt-1 block text-sm text-zinc-500">Proteja a margem antes de fechar.</span></div><div className="grid h-11 w-11 place-items-center rounded-full bg-black text-white"><ArrowRight size={20}/></div></button></div></section>
 
-    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Metric icon={<TrendingUp size={18}/>} label="Vendas Syonet" value={`${actual}`} hint={`Projeção ${projection.toFixed(1)}`}/><Metric icon={<WalletCards size={18}/>} label="Margem MC" value={pct(margin)} hint={formatCurrency(marginValue)}/><Metric icon={<Repeat2 size={18}/>} label="Captura" value={pct(capture)} hint={`${Number(current?.captureQty || 0)} captura(s)`}/><Metric icon={<CarFront size={18}/>} label="Estoque atual" value={`${stock.length}`} hint={`${aged.length} acima de 60 dias`}/></section>
+    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Metric icon={<TrendingUp size={18}/>} label="Vendas" value={`${actual}`} hint={`Projeção ${projection.toFixed(1)}`}/><Metric icon={<WalletCards size={18}/>} label="Margem MC" value={pct(margin)} hint={formatCurrency(marginValue)}/><Metric icon={<Repeat2 size={18}/>} label="Captura" value={pct(capture)} hint={`${Number(current?.captureQty || 0)} captura(s)`}/><Metric icon={<CarFront size={18}/>} label="Estoque atual" value={`${stock.length}`} hint={`${aged.length} acima de 60 dias`}/></section>
 
     <section className={`rounded-[30px] border p-6 ${diagnosis.tone === 'good' ? 'border-emerald-500/20 bg-emerald-500/[0.07]' : diagnosis.tone === 'warning' ? 'border-amber-400/20 bg-amber-400/[0.07]' : 'border-white/10 bg-white/[0.04]'}`}><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Prioridade do gestor</p><h3 className="mt-2 text-xl font-semibold text-white">{diagnosis.title}</h3><p className="mt-2 text-sm leading-6 text-zinc-400">{diagnosis.text}</p></section>
 
-    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Metric icon={<BarChart3 size={18}/>} label="Avaliações" value={`${evaluations}`} hint={`${passages} passagens`}/><Metric icon={<Target size={18}/>} label="Fechamento" value={pct(closing)} hint={`${Number(current?.closing || 0)} fechamento(s)`}/><Metric icon={<Users size={18}/>} label="Equipe em atenção" value={`${sellersNeedingAction}`} hint={`${openDeals.length} negociações abertas`}/><Metric icon={<WalletCards size={18}/>} label="Capital em estoque" value={formatCurrency(stockValue)} hint={`${critical.length} acima de 90 dias`}/></section>
+    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Metric icon={<BarChart3 size={18}/>} label="Avaliações" value={`${evaluations}`} hint={`${passages} passagens`}/><Metric icon={<Target size={18}/>} label="Taxa de fechamento" value={pct(closingRate)} hint={`${actual} venda(s)`}/><Metric icon={<Users size={18}/>} label="Equipe em atenção" value={`${sellersNeedingAction}`} hint={`${openDeals.length} negociações abertas`}/><Metric icon={<WalletCards size={18}/>} label="Capital em estoque" value={formatCurrency(stockValue)} hint={`${critical.length} acima de 90 dias`}/></section>
 
-    <section className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 md:p-7"><div className="mb-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Performance Hub</p><h3 className="mt-1 text-xl font-semibold text-white">Equipe · dados do mapa</h3></div><div className="grid gap-3 lg:grid-cols-2">{sellerPerformance.length === 0 ? <Empty text="Importe o Mapa de Performance para montar a equipe."/> : sellerPerformance.map(s => <button key={s.sellerKey} onClick={() => setSelectedSeller(s.sellerKey)} className="rounded-[22px] border border-white/10 bg-black/20 p-4 text-left"><div className="flex items-center justify-between"><div><p className="font-medium text-white">{s.seller}</p><p className="mt-1 text-xs text-zinc-500">{s.syonetSales}/{s.sellerGoal} vendas · projeção {s.projection.toFixed(1)}</p></div><span className={`h-3 w-3 rounded-full ${s.needsAction ? 'bg-amber-400' : 'bg-emerald-400'}`}/></div><div className="mt-4 grid grid-cols-4 gap-2"><Small label="MC" value={pct(s.marginPercent)}/><Small label="Captura" value={pct(s.capturePercent)}/><Small label="Avaliações" value={`${s.evaluations}`}/><Small label="Fechamento" value={pct(s.closingPercent)}/></div></button>)}</div></section>
+    <section className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 md:p-7"><div className="mb-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Performance Hub</p><h3 className="mt-1 text-xl font-semibold text-white">Equipe · dados do mapa</h3></div><div className="grid gap-3 lg:grid-cols-2">{sellerPerformance.length === 0 ? <Empty text="Importe o Mapa de Performance para montar a equipe."/> : sellerPerformance.map(s => <button key={s.sellerKey} onClick={() => setSelectedSeller(s.sellerKey)} className="rounded-[22px] border border-white/10 bg-black/20 p-4 text-left"><div className="flex items-center justify-between"><div><p className="font-medium text-white">{s.seller}</p><p className="mt-1 text-xs text-zinc-500">{s.closing}/{s.sellerGoal} vendas · projeção {s.projection.toFixed(1)}</p></div><span className={`h-3 w-3 rounded-full ${s.needsAction ? 'bg-amber-400' : 'bg-emerald-400'}`}/></div><div className="mt-4 grid grid-cols-4 gap-2"><Small label="MC" value={pct(s.marginPercent)}/><Small label="Captura" value={pct(s.capturePercent)}/><Small label="Avaliações" value={`${s.evaluations}`}/><Small label="Fechamento" value={pct(s.closingPercent)}/></div></button>)}</div></section>
 
     <section className="grid gap-4 xl:grid-cols-2"><div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 md:p-7"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Stock Intelligence</p><h3 className="mt-1 text-xl font-semibold text-white">Estoque crítico</h3><div className="mt-5 grid grid-cols-2 gap-3"><Small label="Capital total" value={formatCurrency(stockValue)}/><Small label="Capital +90d" value={formatCurrency(criticalValue)}/><Small label="+60 dias" value={`${aged.length}`}/><Small label="+90 dias" value={`${critical.length}`}/></div></div><div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 md:p-7"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Negociações</p><h3 className="mt-1 text-xl font-semibold text-white">Abertas da equipe</h3><div className="mt-4 space-y-2">{openDeals.length === 0 ? <Empty text="Nenhuma negociação aberta neste filtro."/> : openDeals.slice(0, 8).map(d => <div key={d.id} className="flex items-center justify-between rounded-2xl bg-black/20 p-3"><div><p className="text-sm font-medium text-white">{d.data.licensePlate || 'Sem placa'}</p><p className="mt-1 text-xs text-zinc-500">{d.userName || 'Sem vendedor'}</p></div><span className="text-xs text-amber-400">aberta</span></div>)}</div></div></section>
   </div>;
