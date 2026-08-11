@@ -11,6 +11,12 @@ export type SellerPerformanceRecord = {
   metrics: OperationalPerformanceSeller;
 };
 
+export type SellerPerformanceSyncResult = {
+  linked: number;
+  linkedSellers: string[];
+  unlinkedSellers: string[];
+};
+
 const officialClosingRate = (item: OperationalPerformanceSeller) => {
   const flow = Number(item.flowTotal || 0);
   const rawRate = Number(item.closingPercent || 0);
@@ -38,10 +44,15 @@ const normalizeMetrics = (item: OperationalPerformanceSeller): OperationalPerfor
 
 const findUserForSeller = (seller: OperationalPerformanceSeller, users: User[]) => {
   const key = normalize(seller.seller);
-  const exact = users.find(user => normalize(user.name || '') === key);
-  if (exact) return exact;
 
-  const firstNameMatches = users.filter(user => {
+  // O My Performance pertence exclusivamente a contas de vendedor.
+  // Isso evita vincular um nome do mapa a um admin/gestor homônimo.
+  const sellerUsers = users.filter(user => user.role === 'seller' || user.role === 'user');
+
+  const exactMatches = sellerUsers.filter(user => normalize(user.name || '') === key);
+  if (exactMatches.length === 1) return exactMatches[0];
+
+  const firstNameMatches = sellerUsers.filter(user => {
     const userKey = normalize(user.name || '');
     return userKey.split(' ')[0] === key.split(' ')[0];
   });
@@ -49,42 +60,56 @@ const findUserForSeller = (seller: OperationalPerformanceSeller, users: User[]) 
 };
 
 export const sellerPerformanceService = {
-  syncFromSnapshot: async (snapshot: OperationalPerformanceSnapshot) => {
+  syncFromSnapshot: async (snapshot: OperationalPerformanceSnapshot): Promise<SellerPerformanceSyncResult> => {
     const usersSnap = await getDocs(collection(db, 'users'));
     const users = usersSnap.docs.map(d => d.data() as User).filter(u => u.status === 'active');
-    let linked = 0;
+    const linkedSellers: string[] = [];
+    const unlinkedSellers: string[] = [];
 
     for (const seller of snapshot.sellers) {
       const user = findUserForSeller(seller, users);
-      if (!user?.email) continue;
+      if (!user?.email) {
+        unlinkedSellers.push(seller.seller);
+        continue;
+      }
 
+      const email = String(user.email).trim();
       const record: SellerPerformanceRecord = {
-        sellerEmail: user.email,
+        sellerEmail: email,
         sellerName: seller.seller,
         referenceDate: snapshot.referenceDate,
         sheetName: snapshot.sheetName,
         metrics: normalizeMetrics(seller),
       };
 
-      await setDoc(doc(db, 'seller_performance', user.email), {
+      await setDoc(doc(db, 'seller_performance', email), {
         ...record,
+        userId: user.id || '',
+        userRole: user.role,
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
-      await setDoc(doc(db, 'seller_performance', user.email, 'history', snapshot.referenceDate), {
+      await setDoc(doc(db, 'seller_performance', email, 'history', snapshot.referenceDate), {
         ...record,
+        userId: user.id || '',
+        userRole: user.role,
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
-      linked += 1;
+      linkedSellers.push(`${seller.seller} → ${email}`);
     }
 
-    return linked;
+    return {
+      linked: linkedSellers.length,
+      linkedSellers,
+      unlinkedSellers,
+    };
   },
 
   getMine: async (email: string): Promise<SellerPerformanceRecord | null> => {
-    if (!email) return null;
-    const snap = await getDoc(doc(db, 'seller_performance', email));
+    const exactEmail = String(email || '').trim();
+    if (!exactEmail) return null;
+    const snap = await getDoc(doc(db, 'seller_performance', exactEmail));
     return snap.exists() ? snap.data() as SellerPerformanceRecord : null;
   },
 };
