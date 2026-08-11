@@ -11,12 +11,6 @@ export type SellerPerformanceRecord = {
   metrics: OperationalPerformanceSeller;
 };
 
-export type SellerPerformanceSyncResult = {
-  linked: number;
-  linkedSellers: string[];
-  unlinkedSellers: string[];
-};
-
 const officialClosingRate = (item: OperationalPerformanceSeller) => {
   const flow = Number(item.flowTotal || 0);
   const rawRate = Number(item.closingPercent || 0);
@@ -45,8 +39,8 @@ const normalizeMetrics = (item: OperationalPerformanceSeller): OperationalPerfor
 const findUserForSeller = (seller: OperationalPerformanceSeller, users: User[]) => {
   const key = normalize(seller.seller);
 
-  // O My Performance pertence exclusivamente a contas de vendedor.
-  // Isso evita vincular um nome do mapa a um admin/gestor homônimo.
+  // O My Performance deve ser vinculado somente a uma conta de vendedor.
+  // Isso evita que um administrador/gestor homônimo receba o mapa de um vendedor.
   const sellerUsers = users.filter(user => user.role === 'seller' || user.role === 'user');
 
   const exactMatches = sellerUsers.filter(user => normalize(user.name || '') === key);
@@ -60,18 +54,14 @@ const findUserForSeller = (seller: OperationalPerformanceSeller, users: User[]) 
 };
 
 export const sellerPerformanceService = {
-  syncFromSnapshot: async (snapshot: OperationalPerformanceSnapshot): Promise<SellerPerformanceSyncResult> => {
+  syncFromSnapshot: async (snapshot: OperationalPerformanceSnapshot) => {
     const usersSnap = await getDocs(collection(db, 'users'));
     const users = usersSnap.docs.map(d => d.data() as User).filter(u => u.status === 'active');
-    const linkedSellers: string[] = [];
-    const unlinkedSellers: string[] = [];
+    let linked = 0;
 
     for (const seller of snapshot.sellers) {
       const user = findUserForSeller(seller, users);
-      if (!user?.email) {
-        unlinkedSellers.push(seller.seller);
-        continue;
-      }
+      if (!user?.email) continue;
 
       const email = String(user.email).trim();
       const record: SellerPerformanceRecord = {
@@ -96,14 +86,10 @@ export const sellerPerformanceService = {
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
-      linkedSellers.push(`${seller.seller} → ${email}`);
+      linked += 1;
     }
 
-    return {
-      linked: linkedSellers.length,
-      linkedSellers,
-      unlinkedSellers,
-    };
+    return linked;
   },
 
   getMine: async (email: string): Promise<SellerPerformanceRecord | null> => {
