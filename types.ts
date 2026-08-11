@@ -44,9 +44,43 @@ export interface OperationalSaleItem {
   hasTradeIn?: boolean;
 }
 
+export interface OperationalPerformanceSeller {
+  seller: string;
+  sellerKey: string;
+  passages: number;
+  orders: number;
+  flowTotal: number;
+  orderPercent: number;
+  workInPeriod: number;
+  avgContactsPerDay: number;
+  evaluations: number;
+  evaluationRate: number;
+  closing: number;
+  syonetSales: number;
+  closingPercent: number;
+  marginPerCar: number;
+  marginTotal: number;
+  marginPercent: number;
+  captureQty: number;
+  capturePercent: number;
+  pipeline: number;
+  projection: number;
+  additionalPurchase: number;
+}
+
+export interface OperationalPerformanceSnapshot {
+  referenceDate: string;
+  sheetName: string;
+  sellers: OperationalPerformanceSeller[];
+  total?: OperationalPerformanceSeller;
+  storeMetrics: Record<string, number | string>;
+  sourceFile?: string;
+  importedBy?: string;
+}
+
 export interface OperationalImportLog {
   id: string;
-  type: 'stock' | 'sales';
+  type: 'stock' | 'sales' | 'performance';
   importedAt: string;
   referenceDate: string;
   rows: number;
