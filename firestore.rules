@@ -39,18 +39,33 @@ service cloud.firestore {
       allow read: if isManager();
       allow write: if isManager();
     }
+
     match /operational_sales/{itemId} {
       allow read: if isManager();
       allow write: if isManager();
     }
+
     match /operational_meta/{itemId} {
       allow read: if isManager();
       allow write: if isManager();
     }
+
     match /operational_imports/{itemId} {
       allow read: if isManager();
       allow create: if isManager();
       allow update, delete: if isAdmin();
+    }
+
+    // Espelho privado do Mapa de Performance.
+    // O gestor grava os indicadores; cada vendedor lê somente o documento do próprio e-mail.
+    match /seller_performance/{email} {
+      allow read: if isManager() || (isSeller() && request.auth.token.email == email);
+      allow write: if isManager();
+
+      match /history/{snapshotDate} {
+        allow read: if isManager() || (isSeller() && request.auth.token.email == email);
+        allow write: if isManager();
+      }
     }
 
     match /{document=**} {
