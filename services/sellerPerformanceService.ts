@@ -2,7 +2,10 @@ import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'fireb
 import { db } from '../firebase';
 import { OperationalPerformanceSeller, OperationalPerformanceSnapshot, User } from '../types';
 import { normalize } from './operationalDataService';
+import { DEFAULT_COMPANY_ID } from './companyService';
+import { companyScopeService } from './companyScopeService';
 import { DEFAULT_STORE_ID, storeIdForUser } from './storeService';
+import { userService } from './userService';
 
 export type SellerPerformanceRecord = {
   sellerEmail: string;
@@ -11,6 +14,7 @@ export type SellerPerformanceRecord = {
   sheetName: string;
   metrics: OperationalPerformanceSeller;
   storeId?: string;
+  companyId?: string;
 };
 
 const officialClosingRate = (item: OperationalPerformanceSeller) => {
@@ -48,11 +52,14 @@ const findUserForSeller = (seller: OperationalPerformanceSeller, users: User[]) 
 };
 
 export const sellerPerformanceService = {
-  syncFromSnapshot: async (snapshot: OperationalPerformanceSnapshot, storeId = snapshot.storeId || DEFAULT_STORE_ID) => {
-    const usersSnap = await getDocs(collection(db, 'users'));
-    const users = usersSnap.docs
-      .map(d => d.data() as User)
-      .filter(u => u.status === 'active' && storeIdForUser(u) === storeId);
+  syncFromSnapshot: async (
+    snapshot: OperationalPerformanceSnapshot,
+    storeId = snapshot.storeId || DEFAULT_STORE_ID,
+    companyId = snapshot.companyId || companyScopeService.get(),
+  ) => {
+    const tenant = companyId || DEFAULT_COMPANY_ID;
+    const users = (await userService.getAll(tenant))
+      .filter(user => user.status === 'active' && storeIdForUser(user) === storeId);
     let linked = 0;
 
     for (const seller of snapshot.sellers) {
@@ -65,6 +72,7 @@ export const sellerPerformanceService = {
         referenceDate: snapshot.referenceDate,
         sheetName: snapshot.sheetName,
         metrics: normalizeMetrics(seller),
+        companyId: tenant,
         storeId,
       };
 
