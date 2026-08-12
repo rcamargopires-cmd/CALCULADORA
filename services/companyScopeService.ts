@@ -4,18 +4,23 @@ import { companyIdForUser, DEFAULT_COMPANY_ID } from './companyService';
 const STORAGE_KEY = 'dealmaster:selected-company';
 export const COMPANY_SCOPE_EVENT = 'dealmaster:company-scope-changed';
 
+const readStored = () => {
+  try { return window.localStorage.getItem(STORAGE_KEY) || DEFAULT_COMPANY_ID; }
+  catch { return DEFAULT_COMPANY_ID; }
+};
+
 export const companyScopeService = {
   get: (user?: User | null) => {
-    if (!user) return DEFAULT_COMPANY_ID;
+    if (!user) return readStored();
     if (user.role !== 'admin') return companyIdForUser(user);
-    try { return window.localStorage.getItem(STORAGE_KEY) || DEFAULT_COMPANY_ID; }
-    catch { return DEFAULT_COMPANY_ID; }
+    return readStored();
   },
 
   set: (companyId: string) => {
     const next = companyId || DEFAULT_COMPANY_ID;
     try { window.localStorage.setItem(STORAGE_KEY, next); } catch {}
     window.dispatchEvent(new CustomEvent(COMPANY_SCOPE_EVENT, { detail: { companyId: next } }));
+    window.dispatchEvent(new Event('dealmaster:operational-data-updated'));
   },
 
   ensureValid: (companies: Company[], user?: User | null) => {
