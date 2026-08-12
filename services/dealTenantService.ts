@@ -53,19 +53,16 @@ export const dealTenantService = {
 
     const bind = () => {
       unsubscribeSnapshot?.();
-      if (user.role === 'seller' || user.role === 'user') {
-        unsubscribeSnapshot = onSnapshot(doc(db, 'users', user.email), snap => {
-          onData(snap.exists() ? [snap.data() as User] : []);
-        }, error => onError?.(error));
-        return;
-      }
-
       const { companyId, storeId } = contextFor(user);
-      const q = query(collection(db, 'users'), where('companyId', '==', companyId));
+      const q = query(
+        collection(db, 'users'),
+        where('companyId', '==', companyId),
+        where('storeId', '==', storeId),
+      );
       unsubscribeSnapshot = onSnapshot(q, snapshot => {
         const users = snapshot.docs
           .map(item => item.data() as User)
-          .filter(item => item.status === 'active' && item.role !== 'admin' && storeIdForUser(item) === storeId);
+          .filter(item => item.status === 'active' && item.role !== 'admin');
         onData(users);
       }, error => onError?.(error));
     };
