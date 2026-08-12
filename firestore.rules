@@ -17,24 +17,35 @@ service cloud.firestore {
     function dataStore(data) { return ('storeId' in data) ? data.storeId : 'outlet-sorocaba'; }
     function sameCompany(data) { return isActive() && dataCompany(data) == myCompany(); }
     function sameStore(data) { return sameCompany(data) && dataStore(data) == myStore(); }
-    function ownsDeal() { return resource.data.userId == request.auth.token.email || resource.data.userId == request.auth.uid; }
-    function createsOwnDeal() { return request.resource.data.userId == request.auth.token.email || request.resource.data.userId == request.auth.uid; }
+    function ownsDeal() {
+      return resource.data.userId == request.auth.token.email || resource.data.userId == request.auth.uid;
+    }
+    function createsOwnDeal() {
+      return request.resource.data.userId == request.auth.token.email || request.resource.data.userId == request.auth.uid;
+    }
 
     match /users/{email} {
       allow read: if isAuthenticated() && (
         request.auth.token.email == email ||
         isAdmin() ||
-        (role() == 'manager' && sameCompany(resource.data))
+        ((role() == 'manager' || role() == 'seller' || role() == 'user') && sameStore(resource.data))
       );
       allow write: if isAdmin();
     }
 
-    // DealGuard ainda mantém a política atual nesta etapa.
-    // A próxima migração adiciona a consulta tenant-aware do histórico antes de endurecer este bloco.
     match /deals/{dealId} {
-      allow read: if isManager() || (isSeller() && ownsDeal());
-      allow create: if isActive() && createsOwnDeal();
-      allow update: if isManager() || (isSeller() && ownsDeal() && createsOwnDeal());
+      allow read: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data)) ||
+        (isSeller() && ownsDeal() && sameStore(resource.data));
+
+      allow create: if isAdmin() ||
+        (role() == 'manager' && sameStore(request.resource.data)) ||
+        (isSeller() && createsOwnDeal() && sameStore(request.resource.data));
+
+      allow update: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
+        (isSeller() && ownsDeal() && createsOwnDeal() && sameStore(resource.data) && sameStore(request.resource.data));
+
       allow delete: if isAdmin();
     }
 
