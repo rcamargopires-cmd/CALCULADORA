@@ -4,6 +4,7 @@
 button.fixed.left-5.bottom-5.rounded-full,
 button.fixed.left-5.bottom-20.rounded-full,
 button.fixed.left-5.bottom-32.rounded-full,
+button.fixed.left-5.bottom-44.rounded-full,
 button.fixed.right-5.bottom-5.rounded-full,
 button.fixed.right-5.bottom-20.rounded-full,
 button.fixed.right-5.bottom-32.rounded-full {
@@ -33,6 +34,7 @@ button.fixed.right-5.bottom-32.rounded-full {
 button.fixed.left-5.bottom-5.rounded-full > svg,
 button.fixed.left-5.bottom-20.rounded-full > svg,
 button.fixed.left-5.bottom-32.rounded-full > svg,
+button.fixed.left-5.bottom-44.rounded-full > svg,
 button.fixed.right-5.bottom-5.rounded-full > svg,
 button.fixed.right-5.bottom-20.rounded-full > svg,
 button.fixed.right-5.bottom-32.rounded-full > svg {
@@ -54,12 +56,14 @@ button.fixed.right-5.bottom-20.rounded-full > span:last-child {
   button.fixed.left-5.bottom-5.rounded-full:hover,
   button.fixed.left-5.bottom-20.rounded-full:hover,
   button.fixed.left-5.bottom-32.rounded-full:hover,
+  button.fixed.left-5.bottom-44.rounded-full:hover,
   button.fixed.right-5.bottom-5.rounded-full:hover,
   button.fixed.right-5.bottom-20.rounded-full:hover,
   button.fixed.right-5.bottom-32.rounded-full:hover,
   button.fixed.left-5.bottom-5.rounded-full:focus-visible,
   button.fixed.left-5.bottom-20.rounded-full:focus-visible,
   button.fixed.left-5.bottom-32.rounded-full:focus-visible,
+  button.fixed.left-5.bottom-44.rounded-full:focus-visible,
   button.fixed.right-5.bottom-5.rounded-full:focus-visible,
   button.fixed.right-5.bottom-20.rounded-full:focus-visible,
   button.fixed.right-5.bottom-32.rounded-full:focus-visible {
@@ -74,6 +78,7 @@ button.fixed.right-5.bottom-20.rounded-full > span:last-child {
   button.fixed.left-5.bottom-5.rounded-full,
   button.fixed.left-5.bottom-20.rounded-full,
   button.fixed.left-5.bottom-32.rounded-full,
+  button.fixed.left-5.bottom-44.rounded-full,
   button.fixed.right-5.bottom-5.rounded-full,
   button.fixed.right-5.bottom-20.rounded-full,
   button.fixed.right-5.bottom-32.rounded-full {
@@ -86,6 +91,7 @@ button.fixed.right-5.bottom-20.rounded-full > span:last-child {
   button.fixed.left-5.bottom-5.rounded-full,
   button.fixed.left-5.bottom-20.rounded-full,
   button.fixed.left-5.bottom-32.rounded-full,
+  button.fixed.left-5.bottom-44.rounded-full,
   button.fixed.right-5.bottom-5.rounded-full,
   button.fixed.right-5.bottom-20.rounded-full,
   button.fixed.right-5.bottom-32.rounded-full {
