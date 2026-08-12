@@ -2,6 +2,13 @@ export type BankType = 'volks' | 'others';
 export type UserRole = 'admin' | 'manager' | 'seller' | 'user';
 export type UserStatus = 'active' | 'inactive';
 
+export interface Store {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+}
+
 export interface SellerGoals {
   monthly: number;
   firstHalf: number;
@@ -17,6 +24,7 @@ export interface User {
   status: UserStatus;
   createdAt?: string;
   goals?: SellerGoals;
+  storeId?: string;
 }
 
 export interface OperationalStockItem {
@@ -30,6 +38,7 @@ export interface OperationalStockItem {
   askingPrice: number;
   location?: string;
   status?: string;
+  storeId?: string;
 }
 
 export interface OperationalSaleItem {
@@ -42,6 +51,7 @@ export interface OperationalSaleItem {
   marginValue: number;
   marginPercent: number;
   hasTradeIn?: boolean;
+  storeId?: string;
 }
 
 export interface OperationalPerformanceSeller {
@@ -76,6 +86,7 @@ export interface OperationalPerformanceSnapshot {
   storeMetrics: Record<string, number | string>;
   sourceFile?: string;
   importedBy?: string;
+  storeId?: string;
 }
 
 export interface OperationalImportLog {
@@ -86,6 +97,7 @@ export interface OperationalImportLog {
   rows: number;
   fileName: string;
   importedBy?: string;
+  storeId?: string;
 }
 
 export interface FieldVisibility {
