@@ -82,7 +82,7 @@ service cloud.firestore {
     match /seller_performance/{email} {
       allow read: if isAdmin() ||
         (role() == 'manager' && sameStore(resource.data)) ||
-        (isSeller() && request.auth.token.email == email);
+        (isSeller() && request.auth.token.email == email && sameStore(resource.data));
       allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
       allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
       allow delete: if isAdmin();
@@ -90,7 +90,7 @@ service cloud.firestore {
       match /history/{snapshotDate} {
         allow read: if isAdmin() ||
           (role() == 'manager' && sameStore(resource.data)) ||
-          (isSeller() && request.auth.token.email == email);
+          (isSeller() && request.auth.token.email == email && sameStore(resource.data));
         allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
         allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
         allow delete: if isAdmin();
