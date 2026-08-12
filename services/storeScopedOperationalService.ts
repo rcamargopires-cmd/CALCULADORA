@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import { OperationalPerformanceSnapshot, OperationalSaleItem, OperationalStockItem, User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
 import { companyScopeService } from './companyScopeService';
+import { aggregatePerformanceSnapshot, normalizeOfficialSellerMetrics } from './performanceMetrics';
 import { DEFAULT_STORE_ID } from './storeService';
 
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 120);
@@ -23,6 +24,13 @@ export type StoreStockHistoryPoint = {
 const currentId = (storeId: string) => `current_${safeId(storeId)}`;
 const performanceId = (storeId: string, date: string) => `performance_${safeId(storeId)}_${safeId(date)}`;
 const stockSummaryId = (storeId: string, date: string) => `stock_summary_${safeId(storeId)}_${safeId(date)}`;
+
+const normalizeSnapshot = (snapshot: OperationalPerformanceSnapshot, companyId: string, storeId: string): OperationalPerformanceSnapshot => {
+  const sellers = (snapshot.sellers || []).map(normalizeOfficialSellerMetrics);
+  const base = { ...snapshot, companyId, storeId, sellers };
+  const total = aggregatePerformanceSnapshot(base);
+  return { ...base, ...(total ? { total } : {}) };
+};
 
 const getStoreCurrent = async (storeId: string, companyId: string) => {
   const scoped = await getDoc(doc(db, 'operational_meta', currentId(storeId)));
@@ -84,7 +92,7 @@ export const storeScopedOperationalService = {
   ) => {
     if (!snapshot.sellers.length) throw new Error('Nenhum vendedor reconhecido no mapa.');
     const tenant = companyId || DEFAULT_COMPANY_ID;
-    const scoped: OperationalPerformanceSnapshot = { ...snapshot, companyId: tenant, storeId };
+    const scoped = normalizeSnapshot(snapshot, tenant, storeId);
     await setDoc(doc(db, 'operational_meta', performanceId(storeId, snapshot.referenceDate)), {
       ...scoped, sourceFile: fileName, importedBy: user?.email || '', updatedAt: serverTimestamp(),
     }, { merge: true });
@@ -113,7 +121,6 @@ export const storeScopedOperationalService = {
     const rows = scoped.docs.map(item => item.data() as OperationalStockItem).filter(item => item.snapshotDate === latest);
     if (rows.length || tenant !== DEFAULT_COMPANY_ID || storeId !== DEFAULT_STORE_ID) return rows;
 
-    // Compatibilidade temporária antes da migração dos snapshots antigos do Outlet.
     const legacy = await getDocs(query(collection(db, 'operational_stock'), where('snapshotDate', '==', latest)));
     return legacy.docs
       .map(item => item.data() as OperationalStockItem)
@@ -136,10 +143,14 @@ export const storeScopedOperationalService = {
     const latest = String(current?.latestPerformanceDate || '');
     if (!latest) return null;
     const scoped = await getDoc(doc(db, 'operational_meta', performanceId(storeId, latest)));
-    if (scoped.exists() && belongsToCompany(scoped.data(), tenant)) return scoped.data() as OperationalPerformanceSnapshot;
+    if (scoped.exists() && belongsToCompany(scoped.data(), tenant)) {
+      return normalizeSnapshot(scoped.data() as OperationalPerformanceSnapshot, tenant, storeId);
+    }
     if (storeId === DEFAULT_STORE_ID && tenant === DEFAULT_COMPANY_ID) {
       const legacy = await getDoc(doc(db, 'operational_meta', `performance_${safeId(latest)}`));
-      return legacy.exists() ? { ...(legacy.data() as OperationalPerformanceSnapshot), companyId: tenant, storeId } : null;
+      return legacy.exists()
+        ? normalizeSnapshot(legacy.data() as OperationalPerformanceSnapshot, tenant, storeId)
+        : null;
     }
     return null;
   },
@@ -153,21 +164,23 @@ export const storeScopedOperationalService = {
     ));
     const snapshots = scoped.docs
       .map(item => item.data() as OperationalPerformanceSnapshot)
-      .filter(item => !!item.referenceDate && Array.isArray(item.sellers));
+      .filter(item => !!item.referenceDate && Array.isArray(item.sellers))
+      .map(item => normalizeSnapshot(item, tenant, storeId));
 
-    // Durante a migração, o Outlet ainda pode ter pontos antigos sem companyId/storeId.
     if (tenant === DEFAULT_COMPANY_ID && storeId === DEFAULT_STORE_ID) {
       try {
         const legacy = await getDocs(collection(db, 'operational_meta'));
         legacy.docs.forEach(item => {
           const data = item.data() as OperationalPerformanceSnapshot;
-          if (item.id.startsWith('performance_') && data.referenceDate && Array.isArray(data.sellers) && belongsToCompany(data, tenant) && belongsToStore(data, storeId)) snapshots.push({ ...data, companyId: tenant, storeId });
+          if (item.id.startsWith('performance_') && data.referenceDate && Array.isArray(data.sellers) && belongsToCompany(data, tenant) && belongsToStore(data, storeId)) {
+            snapshots.push(normalizeSnapshot(data, tenant, storeId));
+          }
         });
       } catch {}
     }
 
     const unique = new Map<string, OperationalPerformanceSnapshot>();
-    snapshots.forEach(item => unique.set(item.referenceDate, { ...item, companyId: tenant, storeId }));
+    snapshots.forEach(item => unique.set(item.referenceDate, item));
     return Array.from(unique.values()).sort((a, b) => a.referenceDate.localeCompare(b.referenceDate));
   },
 
