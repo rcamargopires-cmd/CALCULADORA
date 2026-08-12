@@ -38,9 +38,6 @@ const normalizeMetrics = (item: OperationalPerformanceSeller): OperationalPerfor
 
 const findUserForSeller = (seller: OperationalPerformanceSeller, users: User[]) => {
   const key = normalize(seller.seller);
-
-  // O My Performance deve ser vinculado somente a uma conta de vendedor.
-  // Isso evita que um administrador/gestor homônimo receba o mapa de um vendedor.
   const sellerUsers = users.filter(user => user.role === 'seller' || user.role === 'user');
 
   const exactMatches = sellerUsers.filter(user => normalize(user.name || '') === key);
@@ -97,5 +94,15 @@ export const sellerPerformanceService = {
     if (!exactEmail) return null;
     const snap = await getDoc(doc(db, 'seller_performance', exactEmail));
     return snap.exists() ? snap.data() as SellerPerformanceRecord : null;
+  },
+
+  getMyHistory: async (email: string): Promise<SellerPerformanceRecord[]> => {
+    const exactEmail = String(email || '').trim();
+    if (!exactEmail) return [];
+    const snap = await getDocs(collection(db, 'seller_performance', exactEmail, 'history'));
+    return snap.docs
+      .map(item => item.data() as SellerPerformanceRecord)
+      .filter(item => !!item.referenceDate && !!item.metrics)
+      .sort((a, b) => a.referenceDate.localeCompare(b.referenceDate));
   },
 };
