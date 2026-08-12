@@ -2,36 +2,46 @@ import { collection, doc, getDoc, getDocs, query, setDoc, deleteDoc, where } fro
 import { auth, db } from '../firebase';
 import { User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
+import { DEFAULT_STORE_ID, storeIdForUser } from './storeService';
 
 const USERS_COLLECTION = 'users';
 const userCompanyId = (user?: Partial<User> | null) => user?.companyId || DEFAULT_COMPANY_ID;
 
 export const userService = {
-  getAll: async (companyId?: string): Promise<User[]> => {
-    if (companyId) {
-      const scoped = await getDocs(query(collection(db, USERS_COLLECTION), where('companyId', '==', companyId)));
-      return scoped.docs.map(item => item.data() as User);
-    }
-
+  getAll: async (companyId?: string, storeId?: string): Promise<User[]> => {
     const email = auth.currentUser?.email;
     if (!email) return [];
+
     const mine = await getDoc(doc(db, USERS_COLLECTION, email));
     const me = mine.exists() ? mine.data() as User : null;
+    const isAdmin = me?.role === 'admin' || email === 'r.camargo.pires@gmail.com';
 
-    if (me?.role === 'admin' || email === 'r.camargo.pires@gmail.com') {
+    if (isAdmin) {
+      if (companyId && storeId) {
+        const scoped = await getDocs(query(
+          collection(db, USERS_COLLECTION),
+          where('companyId', '==', companyId),
+          where('storeId', '==', storeId),
+        ));
+        return scoped.docs.map(item => item.data() as User);
+      }
+      if (companyId) {
+        const scoped = await getDocs(query(collection(db, USERS_COLLECTION), where('companyId', '==', companyId)));
+        return scoped.docs.map(item => item.data() as User);
+      }
       const all = await getDocs(collection(db, USERS_COLLECTION));
       return all.docs.map(item => item.data() as User);
     }
 
+    if (!me) return [];
     const tenant = userCompanyId(me);
-    const scoped = await getDocs(query(collection(db, USERS_COLLECTION), where('companyId', '==', tenant)));
-    if (!scoped.empty || tenant !== DEFAULT_COMPANY_ID) return scoped.docs.map(item => item.data() as User);
-
-    // Compatibilidade temporária até a migração de segurança carimbar os usuários antigos da Abrão Reze.
-    const legacy = await getDocs(collection(db, USERS_COLLECTION));
-    return legacy.docs
-      .map(item => item.data() as User)
-      .filter(item => userCompanyId(item) === DEFAULT_COMPANY_ID);
+    const unit = storeIdForUser(me) || DEFAULT_STORE_ID;
+    const scoped = await getDocs(query(
+      collection(db, USERS_COLLECTION),
+      where('companyId', '==', tenant),
+      where('storeId', '==', unit),
+    ));
+    return scoped.docs.map(item => item.data() as User);
   },
 
   getUser: async (email: string): Promise<User | null> => {
