@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
-import { Store, User } from '../types';
+import { Company, Store, User } from '../types';
 import { userService } from '../services/userService';
-import { DEFAULT_STORE, storeIdForUser, storeService } from '../services/storeService';
+import { companyIdForUser, companyService, DEFAULT_COMPANY } from '../services/companyService';
+import { COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
+import { DEFAULT_STORE, storeCompanyId, storeIdForUser, storeService } from '../services/storeService';
 import { STORE_SCOPE_EVENT, storeScopeService } from '../services/storeScopeService';
 import '../services/storeScopeAdapter';
 import OperationalDataPanel from './OperationalDataPanel';
@@ -14,24 +16,42 @@ import SmartAlerts from './SmartAlerts';
 import ExecutiveInsights from './ExecutiveInsights';
 import MultiStorePanel from './MultiStorePanel';
 import GroupOverview from './GroupOverview';
+import CompaniesPanel from './CompaniesPanel';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([DEFAULT_COMPANY]);
   const [stores, setStores] = useState<Store[]>([DEFAULT_STORE]);
+  const [companyId, setCompanyId] = useState(DEFAULT_COMPANY.id);
   const [storeId, setStoreId] = useState(DEFAULT_STORE.id);
+
+  const resolveContext = async (profile: User) => {
+    const [availableCompanies, availableStores] = await Promise.all([companyService.getAll(), storeService.getAll()]);
+    setCompanies(availableCompanies);
+    setStores(availableStores);
+
+    const resolvedCompany = profile.role === 'admin'
+      ? companyScopeService.ensureValid(availableCompanies, profile)
+      : companyIdForUser(profile);
+    if (profile.role !== 'admin') companyScopeService.set(resolvedCompany);
+    setCompanyId(resolvedCompany);
+
+    const companyStores = availableStores.filter(store => store.active && storeCompanyId(store) === resolvedCompany);
+    const resolvedStore = profile.role === 'admin'
+      ? (companyStores.length ? storeScopeService.ensureValid(companyStores, profile) : '')
+      : storeIdForUser(profile);
+    if (resolvedStore) {
+      if (profile.role !== 'admin') storeScopeService.set(resolvedStore);
+      setStoreId(resolvedStore);
+    }
+  };
 
   useEffect(() => onAuthStateChanged(auth, async firebaseUser => {
     if (!firebaseUser?.email) { setUser(null); return; }
     try {
       const profile = await userService.getUser(firebaseUser.email);
       if (profile?.status !== 'active') { setUser(null); return; }
-      const available = await storeService.getAll();
-      setStores(available);
-      const resolved = profile.role === 'admin'
-        ? storeScopeService.ensureValid(available, profile)
-        : storeIdForUser(profile);
-      if (profile.role !== 'admin') storeScopeService.set(resolved);
-      setStoreId(resolved);
+      await resolveContext(profile);
       setUser(profile);
     } catch {
       setUser(null);
@@ -39,15 +59,31 @@ const OperationalTools: React.FC = () => {
   }), []);
 
   useEffect(() => {
-    const onScope = (event: Event) => {
+    const onCompany = async (event: Event) => {
+      const next = (event as CustomEvent<{ companyId?: string }>).detail?.companyId;
+      if (!next || !user) return;
+      setCompanyId(next);
+      const allStores = await storeService.getAll();
+      setStores(allStores);
+      const companyStores = allStores.filter(store => store.active && storeCompanyId(store) === next);
+      const nextStore = companyStores[0]?.id || '';
+      if (nextStore) { storeScopeService.set(nextStore); setStoreId(nextStore); }
+    };
+    const onStore = (event: Event) => {
       const next = (event as CustomEvent<{ storeId?: string }>).detail?.storeId;
       if (next) setStoreId(next);
     };
-    window.addEventListener(STORE_SCOPE_EVENT, onScope);
-    return () => window.removeEventListener(STORE_SCOPE_EVENT, onScope);
-  }, []);
+    window.addEventListener(COMPANY_SCOPE_EVENT, onCompany);
+    window.addEventListener(STORE_SCOPE_EVENT, onStore);
+    return () => {
+      window.removeEventListener(COMPANY_SCOPE_EVENT, onCompany);
+      window.removeEventListener(STORE_SCOPE_EVENT, onStore);
+    };
+  }, [user]);
 
-  const storeName = useMemo(() => storeService.getName(stores, storeId), [stores, storeId]);
+  const companyName = useMemo(() => companyService.getName(companies, companyId), [companies, companyId]);
+  const companyStores = useMemo(() => stores.filter(store => storeCompanyId(store) === companyId), [stores, companyId]);
+  const storeName = useMemo(() => storeService.getName(companyStores, storeId), [companyStores, storeId]);
 
   if (!user) return null;
   const isManager = user.role === 'admin' || user.role === 'manager';
@@ -55,13 +91,14 @@ const OperationalTools: React.FC = () => {
 
   return <>
     {isSeller && <SellerPrivacyGuard user={user}/>} 
-    {isManager && <OperationalDataPanel currentUser={user} storeId={storeId} storeName={storeName}/>} 
+    {isManager && storeId && <OperationalDataPanel currentUser={user} storeId={storeId} storeName={storeName}/>} 
     {isManager && <ExecutiveInsights/>}
     {isManager && <SmartAlerts/>}
     {isManager && <AIManagerV2/>}
     {user.role === 'admin' && <HierarchyPanel currentUser={user}/>} 
-    {user.role === 'admin' && <MultiStorePanel currentUser={user}/>} 
-    {user.role === 'admin' && <GroupOverview currentUser={user}/>} 
+    {user.role === 'admin' && <MultiStorePanel currentUser={user} companyId={companyId} companyName={companyName}/>} 
+    {user.role === 'admin' && <GroupOverview currentUser={user} companyId={companyId} companyName={companyName}/>} 
+    {user.role === 'admin' && <CompaniesPanel currentUser={user}/>} 
   </>;
 };
 
