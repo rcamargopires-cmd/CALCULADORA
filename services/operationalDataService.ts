@@ -6,6 +6,15 @@ const clean = (value: unknown) => String(value ?? '').trim();
 export const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 120);
 
+export type OperationalStockHistoryPoint = {
+  referenceDate: string;
+  stockCount: number;
+  stockValue: number;
+  aged60: number;
+  critical90: number;
+  critical90Value: number;
+};
+
 export const parseNumber = (value: unknown) => {
   const raw = clean(value).replace(/R\$/gi, '').replace(/%/g, '').replace(/\s/g, '');
   if (!raw || /^#/.test(raw)) return 0;
@@ -198,6 +207,19 @@ export const operationalDataService = {
     if (!items.length) throw new Error('Nenhuma linha de estoque reconhecida no arquivo.');
     for (const item of items) await setDoc(doc(db, 'operational_stock', item.id), item, { merge: true });
     const snapshotDate = items[0].snapshotDate;
+    const stockValue = items.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
+    const aged60 = items.filter(item => Number(item.stockDays) > 60).length;
+    const critical = items.filter(item => Number(item.stockDays) > 90);
+    const critical90Value = critical.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
+    await setDoc(doc(db, 'operational_meta', `stock_summary_${safeId(snapshotDate)}`), {
+      referenceDate: snapshotDate,
+      stockCount: items.length,
+      stockValue,
+      aged60,
+      critical90: critical.length,
+      critical90Value,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
     await setDoc(doc(db, 'operational_meta', 'current'), { latestStockDate: snapshotDate, stockRows: items.length, updatedAt: serverTimestamp() }, { merge: true });
     await addDoc(collection(db, 'operational_imports'), { type: 'stock', referenceDate: snapshotDate, rows: items.length, fileName, importedBy: user?.email || '', importedAt: serverTimestamp() });
     return items.length;
@@ -255,5 +277,23 @@ export const operationalDataService = {
     if (!latest) return null;
     const snap = await getDoc(doc(db, 'operational_meta', `performance_${safeId(latest)}`));
     return snap.exists() ? snap.data() as OperationalPerformanceSnapshot : null;
-  }
+  },
+
+  getPerformanceHistory: async (): Promise<OperationalPerformanceSnapshot[]> => {
+    const snap = await getDocs(collection(db, 'operational_meta'));
+    return snap.docs
+      .filter(item => item.id.startsWith('performance_'))
+      .map(item => item.data() as OperationalPerformanceSnapshot)
+      .filter(item => !!item.referenceDate && Array.isArray(item.sellers))
+      .sort((a, b) => a.referenceDate.localeCompare(b.referenceDate));
+  },
+
+  getStockHistory: async (): Promise<OperationalStockHistoryPoint[]> => {
+    const snap = await getDocs(collection(db, 'operational_meta'));
+    return snap.docs
+      .filter(item => item.id.startsWith('stock_summary_'))
+      .map(item => item.data() as OperationalStockHistoryPoint)
+      .filter(item => !!item.referenceDate)
+      .sort((a, b) => a.referenceDate.localeCompare(b.referenceDate));
+  },
 };
