@@ -11,60 +11,78 @@ service cloud.firestore {
     function isAdmin() { return isActive() && role() == 'admin'; }
     function isManager() { return isActive() && (role() == 'manager' || role() == 'admin'); }
     function isSeller() { return isActive() && (role() == 'seller' || role() == 'user'); }
-    function ownsDeal() {
-      return resource.data.userId == request.auth.token.email || resource.data.userId == request.auth.uid;
-    }
-    function createsOwnDeal() {
-      return request.resource.data.userId == request.auth.token.email || request.resource.data.userId == request.auth.uid;
-    }
+    function myCompany() { return profileExists() && ('companyId' in profile()) ? profile().companyId : 'abrao-reze'; }
+    function myStore() { return profileExists() && ('storeId' in profile()) ? profile().storeId : 'outlet-sorocaba'; }
+    function dataCompany(data) { return ('companyId' in data) ? data.companyId : 'abrao-reze'; }
+    function dataStore(data) { return ('storeId' in data) ? data.storeId : 'outlet-sorocaba'; }
+    function sameCompany(data) { return isActive() && dataCompany(data) == myCompany(); }
+    function sameStore(data) { return sameCompany(data) && dataStore(data) == myStore(); }
+    function ownsDeal() { return resource.data.userId == request.auth.token.email || resource.data.userId == request.auth.uid; }
+    function createsOwnDeal() { return request.resource.data.userId == request.auth.token.email || request.resource.data.userId == request.auth.uid; }
 
     match /users/{email} {
-      allow read: if isAuthenticated() && (request.auth.token.email == email || isManager());
+      allow read: if isAuthenticated() && (
+        request.auth.token.email == email ||
+        isAdmin() ||
+        (role() == 'manager' && sameCompany(resource.data))
+      );
       allow write: if isAdmin();
     }
 
+    // DealGuard ainda mantém a política atual nesta etapa.
+    // A próxima migração adiciona a consulta tenant-aware do histórico antes de endurecer este bloco.
     match /deals/{dealId} {
       allow read: if isManager() || (isSeller() && ownsDeal());
       allow create: if isActive() && createsOwnDeal();
       allow update: if isManager() || (isSeller() && ownsDeal() && createsOwnDeal());
-      allow delete: if isManager() || (isSeller() && ownsDeal());
+      allow delete: if isAdmin();
     }
 
-    match /config/{document=**} {
-      allow read: if isActive();
+    // Metadados globais de clientes/unidades são exclusivos do administrador.
+    match /config/{document} {
+      allow read: if isAdmin() || (isActive() && document != 'companies' && document != 'multistore' && document != 'tenant_security');
       allow write: if isAdmin();
     }
 
     match /operational_stock/{itemId} {
-      allow read: if isManager();
-      allow write: if isManager();
+      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
+      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
     }
 
     match /operational_sales/{itemId} {
-      allow read: if isManager();
-      allow write: if isManager();
+      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
+      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
     }
 
     match /operational_meta/{itemId} {
-      allow read: if isManager();
-      allow write: if isManager();
+      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
+      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
     }
 
     match /operational_imports/{itemId} {
-      allow read: if isManager();
-      allow create: if isManager();
+      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
+      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
       allow update, delete: if isAdmin();
     }
 
-    // Espelho privado do Mapa de Performance.
-    // O gestor grava os indicadores; cada vendedor lê somente o documento do próprio e-mail.
     match /seller_performance/{email} {
-      allow read: if isManager() || (isSeller() && request.auth.token.email == email);
-      allow write: if isManager();
+      allow read: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data)) ||
+        (isSeller() && request.auth.token.email == email);
+      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+      allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+      allow delete: if isAdmin();
 
       match /history/{snapshotDate} {
-        allow read: if isManager() || (isSeller() && request.auth.token.email == email);
-        allow write: if isManager();
+        allow read: if isAdmin() ||
+          (role() == 'manager' && sameStore(resource.data)) ||
+          (isSeller() && request.auth.token.email == email);
+        allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+        allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+        allow delete: if isAdmin();
       }
     }
 
