@@ -20,6 +20,7 @@ export const storeScopeService = {
     const next = storeId || DEFAULT_STORE_ID;
     try { window.localStorage.setItem(STORAGE_KEY, next); } catch {}
     window.dispatchEvent(new CustomEvent(STORE_SCOPE_EVENT, { detail: { storeId: next } }));
+    window.dispatchEvent(new Event('dealmaster:operational-data-updated'));
   },
 
   ensureValid: (stores: Store[], user?: User | null) => {
