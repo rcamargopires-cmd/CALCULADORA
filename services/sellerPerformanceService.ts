@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'fireb
 import { db } from '../firebase';
 import { OperationalPerformanceSeller, OperationalPerformanceSnapshot, User } from '../types';
 import { normalize } from './operationalDataService';
+import { DEFAULT_STORE_ID, storeIdForUser } from './storeService';
 
 export type SellerPerformanceRecord = {
   sellerEmail: string;
@@ -9,6 +10,7 @@ export type SellerPerformanceRecord = {
   referenceDate: string;
   sheetName: string;
   metrics: OperationalPerformanceSeller;
+  storeId?: string;
 };
 
 const officialClosingRate = (item: OperationalPerformanceSeller) => {
@@ -39,27 +41,23 @@ const normalizeMetrics = (item: OperationalPerformanceSeller): OperationalPerfor
 const findUserForSeller = (seller: OperationalPerformanceSeller, users: User[]) => {
   const key = normalize(seller.seller);
   const sellerUsers = users.filter(user => user.role === 'seller' || user.role === 'user');
-
   const exactMatches = sellerUsers.filter(user => normalize(user.name || '') === key);
   if (exactMatches.length === 1) return exactMatches[0];
-
-  const firstNameMatches = sellerUsers.filter(user => {
-    const userKey = normalize(user.name || '');
-    return userKey.split(' ')[0] === key.split(' ')[0];
-  });
+  const firstNameMatches = sellerUsers.filter(user => normalize(user.name || '').split(' ')[0] === key.split(' ')[0]);
   return firstNameMatches.length === 1 ? firstNameMatches[0] : undefined;
 };
 
 export const sellerPerformanceService = {
-  syncFromSnapshot: async (snapshot: OperationalPerformanceSnapshot) => {
+  syncFromSnapshot: async (snapshot: OperationalPerformanceSnapshot, storeId = snapshot.storeId || DEFAULT_STORE_ID) => {
     const usersSnap = await getDocs(collection(db, 'users'));
-    const users = usersSnap.docs.map(d => d.data() as User).filter(u => u.status === 'active');
+    const users = usersSnap.docs
+      .map(d => d.data() as User)
+      .filter(u => u.status === 'active' && storeIdForUser(u) === storeId);
     let linked = 0;
 
     for (const seller of snapshot.sellers) {
       const user = findUserForSeller(seller, users);
       if (!user?.email) continue;
-
       const email = String(user.email).trim();
       const record: SellerPerformanceRecord = {
         sellerEmail: email,
@@ -67,25 +65,18 @@ export const sellerPerformanceService = {
         referenceDate: snapshot.referenceDate,
         sheetName: snapshot.sheetName,
         metrics: normalizeMetrics(seller),
+        storeId,
       };
 
       await setDoc(doc(db, 'seller_performance', email), {
-        ...record,
-        userId: user.id || '',
-        userRole: user.role,
-        updatedAt: serverTimestamp(),
+        ...record, userId: user.id || '', userRole: user.role, updatedAt: serverTimestamp(),
       }, { merge: true });
 
-      await setDoc(doc(db, 'seller_performance', email, 'history', snapshot.referenceDate), {
-        ...record,
-        userId: user.id || '',
-        userRole: user.role,
-        updatedAt: serverTimestamp(),
+      await setDoc(doc(db, 'seller_performance', email, 'history', `${storeId}_${snapshot.referenceDate}`), {
+        ...record, userId: user.id || '', userRole: user.role, updatedAt: serverTimestamp(),
       }, { merge: true });
-
       linked += 1;
     }
-
     return linked;
   },
 
