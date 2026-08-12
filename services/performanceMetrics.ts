@@ -55,29 +55,37 @@ export const officialClosingCount = (item: OperationalPerformanceSeller | null |
 
 export const officialClosingRate = (item: OperationalPerformanceSeller | null | undefined) => {
   if (!item) return 0;
-  const raw = normalizedPercent(item.closingPercent);
-  if (raw >= 0 && raw <= 100) return raw;
   const flow = number(item.flowTotal);
-  return flow > 0 ? officialClosingCount(item) / flow * 100 : 0;
+  const closing = officialClosingCount(item);
+  if (flow > 0 && closing >= 0) return closing / flow * 100;
+  const raw = normalizedPercent(item.closingPercent);
+  return raw >= 0 && raw <= 100 ? raw : 0;
 };
 
-export const normalizeOfficialSellerMetrics = (item: OperationalPerformanceSeller): OperationalPerformanceSeller => ({
-  ...item,
-  closing: officialClosingCount(item),
-  closingPercent: officialClosingRate(item),
-  capturePercent: normalizedPercent(item.capturePercent),
-  marginPercent: normalizedPercent(item.marginPercent),
-  evaluationRate: normalizedPercent(item.evaluationRate),
-  orderPercent: normalizedPercent(item.orderPercent),
-});
+export const normalizeOfficialSellerMetrics = (item: OperationalPerformanceSeller): OperationalPerformanceSeller => {
+  const closing = officialClosingCount(item);
+  const flow = number(item.flowTotal);
+  return {
+    ...item,
+    closing,
+    // Recalcula a taxa a partir do Fechamento oficial. Isso também mantém compatibilidade
+    // com telas antigas que ainda derivam quantidade usando taxa x fluxo.
+    closingPercent: flow > 0 ? closing / flow * 100 : officialClosingRate(item),
+    capturePercent: normalizedPercent(item.capturePercent),
+    marginPercent: normalizedPercent(item.marginPercent),
+    evaluationRate: normalizedPercent(item.evaluationRate),
+    orderPercent: normalizedPercent(item.orderPercent),
+  };
+};
 
 export const aggregatePerformanceSnapshot = (snapshot: OperationalPerformanceSnapshot | null | undefined): OperationalPerformanceSeller | null => {
   if (!snapshot) return null;
   const sellers = snapshot.sellers || [];
   if (!sellers.length) return snapshot.total ? normalizeOfficialSellerMetrics(snapshot.total) : null;
 
-  const sum = (key: keyof OperationalPerformanceSeller) => sellers.reduce((acc, item) => acc + number(item[key]), 0);
-  const closing = sellers.reduce((acc, item) => acc + officialClosingCount(item), 0);
+  const normalized = sellers.map(normalizeOfficialSellerMetrics);
+  const sum = (key: keyof OperationalPerformanceSeller) => normalized.reduce((acc, item) => acc + number(item[key]), 0);
+  const closing = normalized.reduce((acc, item) => acc + number(item.closing), 0);
   const flow = sum('flowTotal');
   const marginTotal = sum('marginTotal');
   const captureQty = sum('captureQty');
@@ -99,7 +107,7 @@ export const aggregatePerformanceSnapshot = (snapshot: OperationalPerformanceSna
     marginPerCar: closing ? marginTotal / closing : 0,
     marginTotal,
     marginPercent: closing
-      ? sellers.reduce((acc, item) => acc + normalizedPercent(item.marginPercent) * officialClosingCount(item), 0) / closing
+      ? normalized.reduce((acc, item) => acc + normalizedPercent(item.marginPercent) * number(item.closing), 0) / closing
       : 0,
     captureQty,
     capturePercent: closing ? captureQty / closing * 100 : 0,
