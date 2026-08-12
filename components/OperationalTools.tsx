@@ -17,6 +17,7 @@ import ExecutiveInsights from './ExecutiveInsights';
 import MultiStorePanel from './MultiStorePanel';
 import GroupOverview from './GroupOverview';
 import CompaniesPanel from './CompaniesPanel';
+import TenantSecurityPanel from './TenantSecurityPanel';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -33,12 +34,8 @@ const OperationalTools: React.FC = () => {
       storeScopeService.set(resolvedStore);
       setCompanyId(resolvedCompany);
       setStoreId(resolvedStore);
-      setCompanies(resolvedCompany === DEFAULT_COMPANY.id ? [DEFAULT_COMPANY] : [{
-        id: resolvedCompany, slug: resolvedCompany, name: 'Minha empresa', plan: 'starter', status: 'active'
-      }]);
-      setStores(resolvedStore === DEFAULT_STORE.id ? [DEFAULT_STORE] : [{
-        id: resolvedStore, code: 'UNIDADE', name: 'Minha unidade', active: true, companyId: resolvedCompany
-      }]);
+      setCompanies(resolvedCompany === DEFAULT_COMPANY.id ? [DEFAULT_COMPANY] : [{ id: resolvedCompany, slug: resolvedCompany, name: 'Minha empresa', plan: 'starter', status: 'active' }]);
+      setStores(resolvedStore === DEFAULT_STORE.id ? [DEFAULT_STORE] : [{ id: resolvedStore, code: 'UNIDADE', name: 'Minha unidade', active: true, companyId: resolvedCompany }]);
       return;
     }
 
@@ -105,6 +102,7 @@ const OperationalTools: React.FC = () => {
     {user.role === 'admin' && <MultiStorePanel currentUser={user} companyId={companyId} companyName={companyName}/>} 
     {user.role === 'admin' && <GroupOverview currentUser={user} companyId={companyId} companyName={companyName}/>} 
     {user.role === 'admin' && <CompaniesPanel currentUser={user}/>} 
+    {user.role === 'admin' && <TenantSecurityPanel currentUser={user}/>} 
   </>;
 };
 
