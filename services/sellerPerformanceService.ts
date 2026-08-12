@@ -1,10 +1,11 @@
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { OperationalPerformanceSeller, OperationalPerformanceSnapshot, User } from '../types';
 import { normalize } from './operationalDataService';
 import { DEFAULT_COMPANY_ID, companyIdForUser } from './companyService';
 import { companyScopeService } from './companyScopeService';
 import { DEFAULT_STORE_ID, storeIdForUser } from './storeService';
+import { storeScopeService } from './storeScopeService';
 import { userService } from './userService';
 
 export type SellerPerformanceRecord = {
@@ -98,8 +99,14 @@ export const sellerPerformanceService = {
   getMyHistory: async (email: string, user?: User | null): Promise<SellerPerformanceRecord[]> => {
     const exactEmail = String(email || '').trim();
     if (!exactEmail) return [];
-    const companyId = user ? companyIdForUser(user) : companyScopeService.get();
-    const storeId = user ? storeIdForUser(user) : DEFAULT_STORE_ID;
+
+    let profile = user || null;
+    if (!profile && auth.currentUser?.email) {
+      try { profile = await userService.getUser(auth.currentUser.email); } catch {}
+    }
+
+    const companyId = profile ? companyIdForUser(profile) : companyScopeService.get();
+    const storeId = profile ? storeIdForUser(profile) : storeScopeService.get();
     const snap = await getDocs(query(
       collection(db, 'seller_performance', exactEmail, 'history'),
       where('companyId', '==', companyId),
