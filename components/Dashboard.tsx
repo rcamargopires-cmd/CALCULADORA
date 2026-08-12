@@ -5,9 +5,10 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { CommissionConfig, OperationalPerformanceSeller, OperationalPerformanceSnapshot, OperationalStockItem, SavedCalculation, User } from '../types';
 import { formatCurrency } from '../utils/currency';
-import { normalize, operationalDataService } from '../services/operationalDataService';
+import { normalize, OperationalStockHistoryPoint, operationalDataService } from '../services/operationalDataService';
 import SellerDashboard from './SellerDashboard';
 import SellerPerformanceDetail from './SellerPerformanceDetail';
+import PerformanceTrends, { PerformanceTrendPoint } from './PerformanceTrends';
 
 interface DashboardProps {
   history: SavedCalculation[];
@@ -51,18 +52,14 @@ const DEFAULTS: PerformanceConfig = {
 
 const isWorkingDay = (date: Date, holidays: string[]) => date.getDay() !== 0 && !holidays.includes(format(date, 'yyyy-MM-dd'));
 const pct = (value: number | null | undefined) => `${Number(value || 0).toFixed(1)}%`;
+const greetingFor = (date: Date) => date.getHours() < 12 ? 'Bom dia' : date.getHours() < 18 ? 'Boa tarde' : 'Boa noite';
 
-// O arquivo do mapa calcula % FECHAMENTO = Fechamento / Fluxo Total.
-// Esta camada também corrige snapshots antigos gravados quando as duas colunas colidiram.
 const officialClosingRate = (item: OperationalPerformanceSeller | null | undefined) => {
   if (!item) return 0;
   const flow = Number(item.flowTotal || 0);
   const rawRate = Number(item.closingPercent || 0);
   const rawClosing = Number(item.closing || 0);
-
-  if (flow > 0 && rawRate > 0 && rawRate <= 2 && Math.abs(rawRate - rawClosing) < 0.000001) {
-    return rawRate * 100;
-  }
+  if (flow > 0 && rawRate > 0 && rawRate <= 2 && Math.abs(rawRate - rawClosing) < 0.000001) return rawRate * 100;
   return rawRate;
 };
 
@@ -78,6 +75,25 @@ const officialClosingCount = (item: OperationalPerformanceSeller | null | undefi
   return Number(item.closing || 0);
 };
 
+const totalFromSnapshot = (snapshot: OperationalPerformanceSnapshot): OperationalPerformanceSeller | null => {
+  if (snapshot.total) return snapshot.total;
+  const sellers = snapshot.sellers || [];
+  if (!sellers.length) return null;
+  const sum = (key: keyof OperationalPerformanceSeller) => sellers.reduce((acc, item) => acc + Number(item[key] || 0), 0);
+  const closingTotal = sellers.reduce((acc, item) => acc + officialClosingCount(item), 0);
+  const flowTotal = sum('flowTotal');
+  const marginBase = closingTotal || 1;
+  return {
+    seller: 'TOTAL', sellerKey: 'total', passages: sum('passages'), orders: sum('orders'), flowTotal, orderPercent: 0,
+    workInPeriod: sum('workInPeriod'), avgContactsPerDay: 0, evaluations: sum('evaluations'), evaluationRate: 0, closing: closingTotal,
+    syonetSales: sum('syonetSales'), closingPercent: flowTotal ? closingTotal / flowTotal * 100 : 0,
+    marginPerCar: sum('marginTotal') / marginBase, marginTotal: sum('marginTotal'),
+    marginPercent: closingTotal ? sellers.reduce((acc, item) => acc + item.marginPercent * officialClosingCount(item), 0) / closingTotal : 0,
+    captureQty: sum('captureQty'), capturePercent: closingTotal ? sum('captureQty') / closingTotal * 100 : 0,
+    pipeline: sum('pipeline'), projection: sum('projection'), additionalPurchase: sum('additionalPurchase'),
+  };
+};
+
 const Dashboard: React.FC<DashboardProps> = (props) => {
   const isSeller = props.currentUser.role === 'seller' || props.currentUser.role === 'user';
   if (isSeller) return <SellerDashboard currentUser={props.currentUser} history={props.history} onStartNewCalculation={props.onStartNewCalculation}/>;
@@ -87,6 +103,8 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
 const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUser, onStartNewCalculation }) => {
   const [stock, setStock] = useState<OperationalStockItem[]>([]);
   const [snapshot, setSnapshot] = useState<OperationalPerformanceSnapshot | null>(null);
+  const [performanceHistory, setPerformanceHistory] = useState<OperationalPerformanceSnapshot[]>([]);
+  const [stockHistory, setStockHistory] = useState<OperationalStockHistoryPoint[]>([]);
   const [performance, setPerformance] = useState<PerformanceConfig>(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [selectedSeller, setSelectedSeller] = useState('all');
@@ -95,13 +113,17 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
   const load = async () => {
     setLoading(true);
     try {
-      const [stockData, performanceData, perf] = await Promise.all([
+      const [stockData, performanceData, historyData, stockHistoryData, perf] = await Promise.all([
         operationalDataService.getLatestStock(),
         operationalDataService.getLatestPerformance(),
+        operationalDataService.getPerformanceHistory(),
+        operationalDataService.getStockHistory(),
         getDoc(doc(db, 'config/performance')),
       ]);
       setStock(stockData);
       setSnapshot(performanceData);
+      setPerformanceHistory(historyData);
+      setStockHistory(stockHistoryData);
       if (perf.exists()) {
         const raw = perf.data() as Partial<PerformanceConfig>;
         setPerformance({ ...DEFAULTS, ...raw, holidays: Array.isArray(raw.holidays) ? raw.holidays : [] });
@@ -121,24 +143,7 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
   const sellers = snapshot?.sellers || [];
   const selected = selectedSeller === 'all' ? null : sellers.find(s => s.sellerKey === selectedSeller) || null;
 
-  const total = useMemo<OperationalPerformanceSeller | null>(() => {
-    if (snapshot?.total) return snapshot.total;
-    if (!sellers.length) return null;
-    const sum = (key: keyof OperationalPerformanceSeller) => sellers.reduce((acc, item) => acc + Number(item[key] || 0), 0);
-    const closingTotal = sellers.reduce((acc, item) => acc + officialClosingCount(item), 0);
-    const flowTotal = sum('flowTotal');
-    const marginBase = closingTotal || 1;
-    return {
-      seller: 'TOTAL', sellerKey: 'total', passages: sum('passages'), orders: sum('orders'), flowTotal, orderPercent: 0,
-      workInPeriod: sum('workInPeriod'), avgContactsPerDay: 0, evaluations: sum('evaluations'), evaluationRate: 0, closing: closingTotal,
-      syonetSales: sum('syonetSales'), closingPercent: flowTotal ? closingTotal / flowTotal * 100 : 0,
-      marginPerCar: sum('marginTotal') / marginBase, marginTotal: sum('marginTotal'),
-      marginPercent: closingTotal ? sellers.reduce((acc, item) => acc + item.marginPercent * officialClosingCount(item), 0) / closingTotal : 0,
-      captureQty: sum('captureQty'), capturePercent: closingTotal ? sum('captureQty') / closingTotal * 100 : 0,
-      pipeline: sum('pipeline'), projection: sum('projection'), additionalPurchase: sum('additionalPurchase'),
-    };
-  }, [snapshot, sellers]);
-
+  const total = useMemo<OperationalPerformanceSeller | null>(() => snapshot ? totalFromSnapshot(snapshot) : null, [snapshot]);
   const current = selected || total;
   const selectedUser = selected ? users.find(u => normalize(u.name || '') === selected.sellerKey) : undefined;
   const goal = selected ? (selectedUser?.goals?.monthly ?? performance.sellerMonthlyGoal) : performance.monthlyGoal;
@@ -146,6 +151,8 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
   const marginGoal = selected ? (selectedUser?.goals?.margin ?? performance.healthyMargin) : performance.healthyMargin;
 
   const now = new Date();
+  const today = format(now, 'yyyy-MM-dd');
+  const greeting = greetingFor(now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = endOfMonth(now);
   const workDays = eachDayOfInterval({ start: monthStart, end: monthEnd }).filter(d => isWorkingDay(d, performance.holidays));
@@ -175,10 +182,44 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
     const sellerCaptureGoal = user?.goals?.capture ?? performance.sellerCaptureGoal;
     const sellerMarginGoal = user?.goals?.margin ?? performance.healthyMargin;
     const sales = officialClosingCount(s);
-    const closingRate = officialClosingRate(s);
+    const rate = officialClosingRate(s);
     const needsAction = s.projection < sellerGoal || s.capturePercent < sellerCaptureGoal || (sales > 0 && s.marginPercent < sellerMarginGoal);
-    return { ...s, officialSales: sales, officialClosingRate: closingRate, sellerGoal, sellerCaptureGoal, sellerMarginGoal, needsAction };
+    return { ...s, officialSales: sales, officialClosingRate: rate, sellerGoal, sellerCaptureGoal, sellerMarginGoal, needsAction };
   }).sort((a, b) => Number(b.needsAction) - Number(a.needsAction) || a.projection - b.projection), [sellers, users, performance]);
+
+  const trendData: PerformanceTrendPoint[] = useMemo(() => performanceHistory
+    .filter(item => item.referenceDate <= today)
+    .map(item => {
+      const metric = selectedSeller === 'all'
+        ? totalFromSnapshot(item)
+        : item.sellers.find(seller => seller.sellerKey === selectedSeller) || null;
+      if (!metric) return null;
+      return {
+        date: item.referenceDate,
+        sales: officialClosingCount(metric),
+        projection: Number(metric.projection || 0),
+        margin: Number(metric.marginPercent || 0),
+        capture: Number(metric.capturePercent || 0),
+        evaluations: Number(metric.evaluations || 0),
+        closingRate: officialClosingRate(metric),
+      } as PerformanceTrendPoint;
+    })
+    .filter(Boolean) as PerformanceTrendPoint[], [performanceHistory, selectedSeller, today]);
+
+  const effectiveStockHistory = useMemo(() => {
+    const historyPoints = stockHistory.filter(item => item.referenceDate <= today);
+    if (!stock.length) return historyPoints;
+    const currentDate = stock[0]?.snapshotDate || today;
+    if (historyPoints.some(item => item.referenceDate === currentDate)) return historyPoints;
+    return [...historyPoints, {
+      referenceDate: currentDate,
+      stockCount: stock.length,
+      stockValue,
+      aged60: aged.length,
+      critical90: critical.length,
+      critical90Value: criticalValue,
+    }].sort((a, b) => a.referenceDate.localeCompare(b.referenceDate));
+  }, [stockHistory, stock, stockValue, aged.length, critical.length, criticalValue, today]);
 
   const sellersNeedingAction = sellerPerformance.filter(s => s.needsAction).length;
   const focusedSeller = focusedSellerKey ? sellerPerformance.find(s => s.sellerKey === focusedSellerKey) || null : null;
@@ -197,51 +238,43 @@ const ManagerDashboard: React.FC<DashboardProps> = ({ history, users, currentUse
 
   const actionItems = useMemo<ActionItem[]>(() => {
     if (!snapshot) return [{ tone: 'attention', title: 'Importar Mapa de Performance', text: 'Sem o mapa, o Action Center não consegue organizar prioridades comerciais.' }];
-
     const items: ActionItem[] = [];
-
-    if (projection < goal) {
-      items.push({ tone: 'critical', title: 'Recuperar o ritmo da loja', text: `Projeção ${projection.toFixed(1)} para meta ${goal}. Faltam ${missing.toFixed(0)} venda(s).`, metric: `${dailyNeeded.toFixed(2)}/dia` });
-    }
-    if (capture < captureGoal) {
-      items.push({ tone: 'attention', title: 'Recuperar captura', text: `A loja está em ${capture.toFixed(1)}% e a meta é ${captureGoal}%. Priorize negócios com troca.`, metric: `${(captureGoal - capture).toFixed(1)} p.p.` });
-    }
-    if (actual > 0 && margin < marginGoal) {
-      items.push({ tone: 'attention', title: 'Proteger margem', text: `MC atual em ${margin.toFixed(1)}% para uma meta de ${marginGoal}%.`, metric: `${(marginGoal - margin).toFixed(1)} p.p.` });
-    }
-    if (critical.length > 0) {
-      items.push({ tone: 'critical', title: 'Atacar estoque +90 dias', text: `${critical.length} veículo(s) somam ${formatCurrency(criticalValue)} na faixa crítica.`, metric: `${critical.length} carros` });
-    }
+    if (projection < goal) items.push({ tone: 'critical', title: 'Recuperar o ritmo da loja', text: `Projeção ${projection.toFixed(1)} para meta ${goal}. Faltam ${missing.toFixed(0)} venda(s).`, metric: `${dailyNeeded.toFixed(2)}/dia` });
+    if (capture < captureGoal) items.push({ tone: 'attention', title: 'Recuperar captura', text: `A loja está em ${capture.toFixed(1)}% e a meta é ${captureGoal}%. Priorize negócios com troca.`, metric: `${(captureGoal - capture).toFixed(1)} p.p.` });
+    if (actual > 0 && margin < marginGoal) items.push({ tone: 'attention', title: 'Proteger margem', text: `MC atual em ${margin.toFixed(1)}% para uma meta de ${marginGoal}%.`, metric: `${(marginGoal - margin).toFixed(1)} p.p.` });
+    if (critical.length > 0) items.push({ tone: 'critical', title: 'Atacar estoque +90 dias', text: `${critical.length} veículo(s) somam ${formatCurrency(criticalValue)} na faixa crítica.`, metric: `${critical.length} carros` });
 
     if (!selected) {
       sellerPerformance.forEach(s => {
-        if (s.projection < s.sellerGoal) {
-          items.push({ tone: 'critical', title: `${s.seller}: recuperar projeção`, text: `${s.officialSales}/${s.sellerGoal} vendas e projeção ${s.projection.toFixed(1)}.`, metric: `${Math.max(s.sellerGoal - s.officialSales, 0)} faltam`, sellerKey: s.sellerKey });
-        } else if (s.capturePercent < s.sellerCaptureGoal) {
-          items.push({ tone: 'attention', title: `${s.seller}: aumentar captura`, text: `Captura em ${s.capturePercent.toFixed(1)}% para meta de ${s.sellerCaptureGoal}%.`, metric: `${(s.sellerCaptureGoal - s.capturePercent).toFixed(1)} p.p.`, sellerKey: s.sellerKey });
-        } else if (s.officialSales > 0 && s.marginPercent < s.sellerMarginGoal) {
-          items.push({ tone: 'attention', title: `${s.seller}: proteger margem`, text: `MC em ${s.marginPercent.toFixed(1)}% para meta de ${s.sellerMarginGoal}%.`, metric: `${(s.sellerMarginGoal - s.marginPercent).toFixed(1)} p.p.`, sellerKey: s.sellerKey });
-        } else if (s.flowTotal > 0 && s.evaluations === 0) {
-          items.push({ tone: 'attention', title: `${s.seller}: gerar avaliações`, text: `${s.flowTotal} oportunidade(s) no fluxo e nenhuma avaliação registrada.`, metric: '0 avaliações', sellerKey: s.sellerKey });
-        }
+        if (s.projection < s.sellerGoal) items.push({ tone: 'critical', title: `${s.seller}: recuperar projeção`, text: `${s.officialSales}/${s.sellerGoal} vendas e projeção ${s.projection.toFixed(1)}.`, metric: `${Math.max(s.sellerGoal - s.officialSales, 0)} faltam`, sellerKey: s.sellerKey });
+        else if (s.capturePercent < s.sellerCaptureGoal) items.push({ tone: 'attention', title: `${s.seller}: aumentar captura`, text: `Captura em ${s.capturePercent.toFixed(1)}% para meta de ${s.sellerCaptureGoal}%.`, metric: `${(s.sellerCaptureGoal - s.capturePercent).toFixed(1)} p.p.`, sellerKey: s.sellerKey });
+        else if (s.officialSales > 0 && s.marginPercent < s.sellerMarginGoal) items.push({ tone: 'attention', title: `${s.seller}: proteger margem`, text: `MC em ${s.marginPercent.toFixed(1)}% para meta de ${s.sellerMarginGoal}%.`, metric: `${(s.sellerMarginGoal - s.marginPercent).toFixed(1)} p.p.`, sellerKey: s.sellerKey });
+        else if (s.flowTotal > 0 && s.evaluations === 0) items.push({ tone: 'attention', title: `${s.seller}: gerar avaliações`, text: `${s.flowTotal} oportunidade(s) no fluxo e nenhuma avaliação registrada.`, metric: '0 avaliações', sellerKey: s.sellerKey });
       });
     }
 
     if (!items.length) items.push({ tone: 'good', title: 'Operação equilibrada', text: 'Os principais indicadores estão dentro das metas. Mantenha ritmo, margem e disciplina comercial.', metric: 'No ritmo' });
-
     const priority: Record<ActionTone, number> = { critical: 0, attention: 1, good: 2 };
     return items.sort((a, b) => priority[a.tone] - priority[b.tone]).slice(0, 5);
   }, [snapshot, projection, goal, missing, dailyNeeded, capture, captureGoal, actual, margin, marginGoal, critical.length, criticalValue, selected, sellerPerformance]);
 
   return <div className="pb-24 md:pb-12 space-y-6 md:space-y-8 animate-fade-in">
     <section className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-      <div><p className="text-sm text-zinc-500">Command Center · {snapshot ? `Mapa ${snapshot.sheetName} · ${snapshot.referenceDate}` : 'sem mapa'}</p><h2 className="mt-1 text-3xl font-semibold tracking-tight text-white md:text-4xl">Bom dia, {currentUser.name.split(' ')[0]}.</h2><p className="mt-2 text-zinc-400">Dados reais de performance, equipe e estoque em uma única leitura.</p></div>
+      <div><p className="text-sm text-zinc-500">Command Center · {snapshot ? `Mapa ${snapshot.sheetName} · ${snapshot.referenceDate}` : 'sem mapa'}</p><h2 className="mt-1 text-3xl font-semibold tracking-tight text-white md:text-4xl">{greeting}, {currentUser.name.split(' ')[0]}.</h2><p className="mt-2 text-zinc-400">Dados reais de performance, equipe e estoque em uma única leitura.</p></div>
       <div className="flex flex-wrap gap-2"><button onClick={load} className="flex h-11 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm text-zinc-300"><RefreshCw size={16} className={loading ? 'animate-spin' : ''}/> Atualizar</button><select value={selectedSeller} onChange={e => setSelectedSeller(e.target.value)} className="h-11 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm text-zinc-200 outline-none"><option value="all" className="bg-zinc-900">Toda equipe</option>{sellers.map(s => <option key={s.sellerKey} value={s.sellerKey} className="bg-zinc-900">{s.seller}</option>)}</select></div>
     </section>
 
     <section className="rounded-[32px] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black p-6 md:p-8"><div className="grid gap-7 lg:grid-cols-[1.25fr_.75fr] lg:items-end"><div><div className="mb-5 flex items-center gap-2 text-sm text-zinc-400"><Target size={16}/> {selected ? `GoalTrack · ${selected.seller}` : 'GoalTrack · Loja'}</div><div className="flex items-end gap-3"><span className="text-6xl font-semibold tracking-[-0.06em] text-white md:text-7xl">{actual}</span><span className="pb-2 text-xl text-zinc-500">de {goal}</span></div><div className="mt-6 h-2.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-white" style={{ width: `${Math.min(actual / Math.max(goal, 1) * 100, 100)}%` }}/></div><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><Mini label="Esperado hoje" value={expected.toFixed(1)}/><Mini label="Projeção do mapa" value={projection.toFixed(1)}/><Mini label="Faltam" value={missing.toFixed(0)}/><Mini label="Ritmo necessário" value={`${dailyNeeded.toFixed(2)}/dia`}/></div></div><button onClick={onStartNewCalculation} className="flex min-h-24 items-center justify-between rounded-[26px] bg-white px-5 py-5 text-left text-black"><div><span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">DealGuard</span><span className="block text-lg font-semibold">Nova negociação</span><span className="mt-1 block text-sm text-zinc-500">Proteja a margem antes de fechar.</span></div><div className="grid h-11 w-11 place-items-center rounded-full bg-black text-white"><ArrowRight size={20}/></div></button></div></section>
 
     <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Metric icon={<TrendingUp size={18}/>} label="Vendas" value={`${actual}`} hint={`Projeção ${projection.toFixed(1)}`}/><Metric icon={<WalletCards size={18}/>} label="Margem MC" value={pct(margin)} hint={formatCurrency(marginValue)}/><Metric icon={<Repeat2 size={18}/>} label="Captura" value={pct(capture)} hint={`${Number(current?.captureQty || 0)} captura(s)`}/><Metric icon={<CarFront size={18}/>} label="Estoque atual" value={`${stock.length}`} hint={`${aged.length} acima de 60 dias`}/></section>
+
+    <PerformanceTrends
+      title={selected ? `Evolução de ${selected.seller}` : 'Evolução da loja'}
+      subtitle="Compare as atualizações diárias e veja a direção da operação."
+      data={trendData}
+      goal={goal}
+      stockHistory={selected ? [] : effectiveStockHistory}
+    />
 
     <section className={`rounded-[30px] border p-6 ${diagnosis.tone === 'good' ? 'border-emerald-500/20 bg-emerald-500/[0.07]' : diagnosis.tone === 'warning' ? 'border-amber-400/20 bg-amber-400/[0.07]' : 'border-white/10 bg-white/[0.04]'}`}><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Prioridade do gestor</p><h3 className="mt-2 text-xl font-semibold text-white">{diagnosis.title}</h3><p className="mt-2 text-sm leading-6 text-zinc-400">{diagnosis.text}</p></section>
 
