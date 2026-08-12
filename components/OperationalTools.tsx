@@ -9,6 +9,7 @@ import HierarchyPanel from './HierarchyPanel';
 import SellerPrivacyGuard from './SellerPrivacyGuard';
 import SmartAlerts from './SmartAlerts';
 import ExecutiveInsights from './ExecutiveInsights';
+import MultiStorePanel from './MultiStorePanel';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -34,6 +35,7 @@ const OperationalTools: React.FC = () => {
     {isManager && <SmartAlerts/>}
     {isManager && <AIManagerV2/>}
     {user.role === 'admin' && <HierarchyPanel currentUser={user}/>} 
+    {user.role === 'admin' && <MultiStorePanel currentUser={user}/>} 
   </>;
 };
 
