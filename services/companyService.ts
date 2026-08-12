@@ -22,15 +22,18 @@ const validPlan = (value: unknown): CompanyPlan => {
 
 const normalizeCompanies = (raw: unknown): Company[] => {
   const list = Array.isArray(raw) ? raw : [];
-  const parsed = list.map((item: any) => ({
-    id: String(item?.id || '').trim(),
-    slug: String(item?.slug || item?.id || '').trim(),
-    name: String(item?.name || '').trim(),
-    plan: validPlan(item?.plan),
-    status: item?.status === 'suspended' ? 'suspended' : item?.status === 'trial' ? 'trial' : 'active',
-    createdAt: String(item?.createdAt || new Date().toISOString()),
-    trialEndsAt: item?.trialEndsAt ? String(item.trialEndsAt) : undefined,
-  })).filter(item => item.id && item.name) as Company[];
+  const parsed = list.map((item: any) => {
+    const trialEndsAt = item?.trialEndsAt ? String(item.trialEndsAt) : '';
+    return {
+      id: String(item?.id || '').trim(),
+      slug: String(item?.slug || item?.id || '').trim(),
+      name: String(item?.name || '').trim(),
+      plan: validPlan(item?.plan),
+      status: item?.status === 'suspended' ? 'suspended' : item?.status === 'trial' ? 'trial' : 'active',
+      createdAt: String(item?.createdAt || new Date().toISOString()),
+      ...(trialEndsAt ? { trialEndsAt } : {}),
+    } as Company;
+  }).filter(item => item.id && item.name) as Company[];
 
   if (!parsed.some(item => item.id === DEFAULT_COMPANY_ID)) parsed.unshift(DEFAULT_COMPANY);
   return parsed;
