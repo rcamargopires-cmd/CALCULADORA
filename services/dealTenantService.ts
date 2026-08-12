@@ -65,7 +65,7 @@ export const dealTenantService = {
       unsubscribeSnapshot = onSnapshot(q, snapshot => {
         const users = snapshot.docs
           .map(item => item.data() as User)
-          .filter(item => item.status === 'active' && (item.role === 'admin' || storeIdForUser(item) === storeId));
+          .filter(item => item.status === 'active' && item.role !== 'admin' && storeIdForUser(item) === storeId);
         onData(users);
       }, error => onError?.(error));
     };
