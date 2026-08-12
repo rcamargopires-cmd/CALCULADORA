@@ -1,12 +1,25 @@
 export type BankType = 'volks' | 'others';
 export type UserRole = 'admin' | 'manager' | 'seller' | 'user';
 export type UserStatus = 'active' | 'inactive';
+export type CompanyPlan = 'starter' | 'pro' | 'enterprise';
+export type CompanyStatus = 'trial' | 'active' | 'suspended';
+
+export interface Company {
+  id: string;
+  slug: string;
+  name: string;
+  plan: CompanyPlan;
+  status: CompanyStatus;
+  createdAt?: string;
+  trialEndsAt?: string;
+}
 
 export interface Store {
   id: string;
   code: string;
   name: string;
   active: boolean;
+  companyId?: string;
 }
 
 export interface SellerGoals {
@@ -25,6 +38,7 @@ export interface User {
   createdAt?: string;
   goals?: SellerGoals;
   storeId?: string;
+  companyId?: string;
 }
 
 export interface OperationalStockItem {
@@ -39,6 +53,7 @@ export interface OperationalStockItem {
   location?: string;
   status?: string;
   storeId?: string;
+  companyId?: string;
 }
 
 export interface OperationalSaleItem {
@@ -52,6 +67,7 @@ export interface OperationalSaleItem {
   marginPercent: number;
   hasTradeIn?: boolean;
   storeId?: string;
+  companyId?: string;
 }
 
 export interface OperationalPerformanceSeller {
@@ -87,6 +103,7 @@ export interface OperationalPerformanceSnapshot {
   sourceFile?: string;
   importedBy?: string;
   storeId?: string;
+  companyId?: string;
 }
 
 export interface OperationalImportLog {
@@ -98,6 +115,7 @@ export interface OperationalImportLog {
   fileName: string;
   importedBy?: string;
   storeId?: string;
+  companyId?: string;
 }
 
 export interface FieldVisibility {
