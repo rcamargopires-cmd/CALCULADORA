@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Store, User } from '../types';
+import { DEFAULT_COMPANY_ID } from './companyService';
 
 export const DEFAULT_STORE_ID = 'outlet-sorocaba';
 
@@ -9,6 +10,7 @@ export const DEFAULT_STORE: Store = {
   code: 'OUTLET',
   name: 'Outlet Sorocaba',
   active: true,
+  companyId: DEFAULT_COMPANY_ID,
 };
 
 const CONFIG_REF = doc(db, 'config', 'multistore');
@@ -21,6 +23,7 @@ const normalizeStores = (raw: unknown): Store[] => {
       code: String(item?.code || '').trim().toUpperCase(),
       name: String(item?.name || '').trim(),
       active: item?.active !== false,
+      companyId: String(item?.companyId || DEFAULT_COMPANY_ID).trim(),
     }))
     .filter(item => item.id && item.name);
 
@@ -29,12 +32,18 @@ const normalizeStores = (raw: unknown): Store[] => {
 };
 
 export const storeIdForUser = (user?: Pick<User, 'storeId'> | null) => user?.storeId || DEFAULT_STORE_ID;
+export const storeCompanyId = (store?: Pick<Store, 'companyId'> | null) => store?.companyId || DEFAULT_COMPANY_ID;
 
 export const storeService = {
   getAll: async (): Promise<Store[]> => {
     const snap = await getDoc(CONFIG_REF);
     if (!snap.exists()) return [DEFAULT_STORE];
     return normalizeStores(snap.data()?.stores);
+  },
+
+  getByCompany: async (companyId: string): Promise<Store[]> => {
+    const stores = await storeService.getAll();
+    return stores.filter(store => storeCompanyId(store) === (companyId || DEFAULT_COMPANY_ID));
   },
 
   saveAll: async (stores: Store[]): Promise<void> => {
