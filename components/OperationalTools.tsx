@@ -7,6 +7,7 @@ import OperationalDataPanel from './OperationalDataPanel';
 import AIManagerV2 from './AIManagerV2';
 import HierarchyPanel from './HierarchyPanel';
 import SellerPrivacyGuard from './SellerPrivacyGuard';
+import SmartAlerts from './SmartAlerts';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -28,6 +29,7 @@ const OperationalTools: React.FC = () => {
   return <>
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isManager && <OperationalDataPanel currentUser={user}/>} 
+    {isManager && <SmartAlerts/>}
     {isManager && <AIManagerV2/>}
     {user.role === 'admin' && <HierarchyPanel currentUser={user}/>} 
   </>;
