@@ -1,8 +1,8 @@
-import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { OperationalPerformanceSeller, OperationalPerformanceSnapshot, User } from '../types';
 import { normalize } from './operationalDataService';
-import { DEFAULT_COMPANY_ID } from './companyService';
+import { DEFAULT_COMPANY_ID, companyIdForUser } from './companyService';
 import { companyScopeService } from './companyScopeService';
 import { DEFAULT_STORE_ID, storeIdForUser } from './storeService';
 import { userService } from './userService';
@@ -58,7 +58,7 @@ export const sellerPerformanceService = {
     companyId = snapshot.companyId || companyScopeService.get(),
   ) => {
     const tenant = companyId || DEFAULT_COMPANY_ID;
-    const users = (await userService.getAll(tenant))
+    const users = (await userService.getAll(tenant, storeId))
       .filter(user => user.status === 'active' && storeIdForUser(user) === storeId);
     let linked = 0;
 
@@ -95,10 +95,16 @@ export const sellerPerformanceService = {
     return snap.exists() ? snap.data() as SellerPerformanceRecord : null;
   },
 
-  getMyHistory: async (email: string): Promise<SellerPerformanceRecord[]> => {
+  getMyHistory: async (email: string, user?: User | null): Promise<SellerPerformanceRecord[]> => {
     const exactEmail = String(email || '').trim();
     if (!exactEmail) return [];
-    const snap = await getDocs(collection(db, 'seller_performance', exactEmail, 'history'));
+    const companyId = user ? companyIdForUser(user) : companyScopeService.get();
+    const storeId = user ? storeIdForUser(user) : DEFAULT_STORE_ID;
+    const snap = await getDocs(query(
+      collection(db, 'seller_performance', exactEmail, 'history'),
+      where('companyId', '==', companyId),
+      where('storeId', '==', storeId),
+    ));
     return snap.docs
       .map(item => item.data() as SellerPerformanceRecord)
       .filter(item => !!item.referenceDate && !!item.metrics)
