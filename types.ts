@@ -191,4 +191,6 @@ export interface SavedCalculation {
   summary: { profit: number; marginPercent: number; };
   userId?: string;
   userName?: string;
+  companyId?: string;
+  storeId?: string;
 }
