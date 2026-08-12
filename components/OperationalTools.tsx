@@ -26,24 +26,30 @@ const OperationalTools: React.FC = () => {
   const [storeId, setStoreId] = useState(DEFAULT_STORE.id);
 
   const resolveContext = async (profile: User) => {
+    if (profile.role !== 'admin') {
+      const resolvedCompany = companyIdForUser(profile);
+      const resolvedStore = storeIdForUser(profile);
+      companyScopeService.set(resolvedCompany);
+      storeScopeService.set(resolvedStore);
+      setCompanyId(resolvedCompany);
+      setStoreId(resolvedStore);
+      setCompanies(resolvedCompany === DEFAULT_COMPANY.id ? [DEFAULT_COMPANY] : [{
+        id: resolvedCompany, slug: resolvedCompany, name: 'Minha empresa', plan: 'starter', status: 'active'
+      }]);
+      setStores(resolvedStore === DEFAULT_STORE.id ? [DEFAULT_STORE] : [{
+        id: resolvedStore, code: 'UNIDADE', name: 'Minha unidade', active: true, companyId: resolvedCompany
+      }]);
+      return;
+    }
+
     const [availableCompanies, availableStores] = await Promise.all([companyService.getAll(), storeService.getAll()]);
     setCompanies(availableCompanies);
     setStores(availableStores);
-
-    const resolvedCompany = profile.role === 'admin'
-      ? companyScopeService.ensureValid(availableCompanies, profile)
-      : companyIdForUser(profile);
-    if (profile.role !== 'admin') companyScopeService.set(resolvedCompany);
+    const resolvedCompany = companyScopeService.ensureValid(availableCompanies, profile);
     setCompanyId(resolvedCompany);
-
     const companyStores = availableStores.filter(store => store.active && storeCompanyId(store) === resolvedCompany);
-    const resolvedStore = profile.role === 'admin'
-      ? (companyStores.length ? storeScopeService.ensureValid(companyStores, profile) : '')
-      : storeIdForUser(profile);
-    if (resolvedStore) {
-      if (profile.role !== 'admin') storeScopeService.set(resolvedStore);
-      setStoreId(resolvedStore);
-    }
+    const resolvedStore = companyStores.length ? storeScopeService.ensureValid(companyStores, profile) : '';
+    if (resolvedStore) setStoreId(resolvedStore);
   };
 
   useEffect(() => onAuthStateChanged(auth, async firebaseUser => {
@@ -61,7 +67,7 @@ const OperationalTools: React.FC = () => {
   useEffect(() => {
     const onCompany = async (event: Event) => {
       const next = (event as CustomEvent<{ companyId?: string }>).detail?.companyId;
-      if (!next || !user) return;
+      if (!next || !user || user.role !== 'admin') return;
       setCompanyId(next);
       const allStores = await storeService.getAll();
       setStores(allStores);
@@ -91,7 +97,7 @@ const OperationalTools: React.FC = () => {
 
   return <>
     {isSeller && <SellerPrivacyGuard user={user}/>} 
-    {isManager && storeId && <OperationalDataPanel currentUser={user} storeId={storeId} storeName={storeName}/>} 
+    {isManager && storeId && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && <ExecutiveInsights/>}
     {isManager && <SmartAlerts/>}
     {isManager && <AIManagerV2/>}
