@@ -4,6 +4,7 @@ import { OperationalPerformanceSeller, OperationalPerformanceSnapshot, User } fr
 import { normalize } from './operationalDataService';
 import { DEFAULT_COMPANY_ID, companyIdForUser } from './companyService';
 import { companyScopeService } from './companyScopeService';
+import { normalizeOfficialSellerMetrics } from './performanceMetrics';
 import { DEFAULT_STORE_ID, storeIdForUser } from './storeService';
 import { storeScopeService } from './storeScopeService';
 import { userService } from './userService';
@@ -17,31 +18,6 @@ export type SellerPerformanceRecord = {
   storeId?: string;
   companyId?: string;
 };
-
-const officialClosingRate = (item: OperationalPerformanceSeller) => {
-  const flow = Number(item.flowTotal || 0);
-  const rawRate = Number(item.closingPercent || 0);
-  const rawClosing = Number(item.closing || 0);
-  if (flow > 0 && rawRate > 0 && rawRate <= 2 && Math.abs(rawRate - rawClosing) < 0.000001) return rawRate * 100;
-  return rawRate;
-};
-
-const officialClosingCount = (item: OperationalPerformanceSeller) => {
-  const flow = Number(item.flowTotal || 0);
-  const rate = officialClosingRate(item);
-  if (flow > 0 && Number.isFinite(rate)) {
-    const derived = (rate / 100) * flow;
-    const rounded = Math.round(derived);
-    return Math.abs(derived - rounded) < 0.02 ? rounded : Number(derived.toFixed(2));
-  }
-  return Number(item.closing || 0);
-};
-
-const normalizeMetrics = (item: OperationalPerformanceSeller): OperationalPerformanceSeller => ({
-  ...item,
-  closing: officialClosingCount(item),
-  closingPercent: officialClosingRate(item),
-});
 
 const findUserForSeller = (seller: OperationalPerformanceSeller, users: User[]) => {
   const key = normalize(seller.seller);
@@ -72,7 +48,7 @@ export const sellerPerformanceService = {
         sellerName: seller.seller,
         referenceDate: snapshot.referenceDate,
         sheetName: snapshot.sheetName,
-        metrics: normalizeMetrics(seller),
+        metrics: normalizeOfficialSellerMetrics(seller),
         companyId: tenant,
         storeId,
       };
@@ -93,7 +69,9 @@ export const sellerPerformanceService = {
     const exactEmail = String(email || '').trim();
     if (!exactEmail) return null;
     const snap = await getDoc(doc(db, 'seller_performance', exactEmail));
-    return snap.exists() ? snap.data() as SellerPerformanceRecord : null;
+    if (!snap.exists()) return null;
+    const record = snap.data() as SellerPerformanceRecord;
+    return { ...record, metrics: normalizeOfficialSellerMetrics(record.metrics) };
   },
 
   getMyHistory: async (email: string, user?: User | null): Promise<SellerPerformanceRecord[]> => {
@@ -115,6 +93,7 @@ export const sellerPerformanceService = {
     return snap.docs
       .map(item => item.data() as SellerPerformanceRecord)
       .filter(item => !!item.referenceDate && !!item.metrics)
+      .map(item => ({ ...item, metrics: normalizeOfficialSellerMetrics(item.metrics) }))
       .sort((a, b) => a.referenceDate.localeCompare(b.referenceDate));
   },
 };
