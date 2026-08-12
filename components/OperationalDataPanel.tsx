@@ -11,6 +11,14 @@ type ImportType = 'stock' | 'performance';
 
 const MONTHS = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
 
+const localDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const toNumber = (value: unknown) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   const raw = String(value ?? '').trim().replace(/R\$/gi, '').replace(/%/g, '').replace(/\s/g, '');
@@ -125,7 +133,7 @@ const readPerformanceMap = async (file: File, referenceDate: string): Promise<Op
 const OperationalDataPanel: React.FC<Props> = ({ currentUser }) => {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<ImportType>('stock');
-  const [referenceDate, setReferenceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [referenceDate, setReferenceDate] = useState(localDate);
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [performance, setPerformance] = useState<OperationalPerformanceSnapshot | null>(null);
