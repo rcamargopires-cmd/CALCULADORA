@@ -4,18 +4,22 @@ import { DEFAULT_STORE_ID, storeIdForUser } from './storeService';
 const STORAGE_KEY = 'dealmaster:selected-store';
 export const STORE_SCOPE_EVENT = 'dealmaster:store-scope-changed';
 
+const readStored = () => {
+  try { return window.localStorage.getItem(STORAGE_KEY) || DEFAULT_STORE_ID; }
+  catch { return DEFAULT_STORE_ID; }
+};
+
 export const storeScopeService = {
   get: (user?: User | null) => {
-    if (!user) return DEFAULT_STORE_ID;
+    if (!user) return readStored();
     if (user.role !== 'admin') return storeIdForUser(user);
-    try { return window.localStorage.getItem(STORAGE_KEY) || DEFAULT_STORE_ID; }
-    catch { return DEFAULT_STORE_ID; }
+    return readStored();
   },
 
   set: (storeId: string) => {
-    try { window.localStorage.setItem(STORAGE_KEY, storeId || DEFAULT_STORE_ID); }
-    catch {}
-    window.dispatchEvent(new CustomEvent(STORE_SCOPE_EVENT, { detail: { storeId: storeId || DEFAULT_STORE_ID } }));
+    const next = storeId || DEFAULT_STORE_ID;
+    try { window.localStorage.setItem(STORAGE_KEY, next); } catch {}
+    window.dispatchEvent(new CustomEvent(STORE_SCOPE_EVENT, { detail: { storeId: next } }));
   },
 
   ensureValid: (stores: Store[], user?: User | null) => {
