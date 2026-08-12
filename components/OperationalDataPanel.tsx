@@ -7,7 +7,7 @@ import { sellerPerformanceService } from '../services/sellerPerformanceService';
 import { stockSnapshotService } from '../services/stockSnapshotService';
 import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
 
-type Props = { currentUser: User; storeId: string; storeName: string };
+type Props = { currentUser: User; companyId: string; storeId: string; storeName: string };
 type ImportType = 'stock' | 'performance';
 
 const MONTHS = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
@@ -88,7 +88,7 @@ const readPerformanceMap = async (file: File, referenceDate: string): Promise<Op
   return { referenceDate, sheetName, sellers, ...(total ? { total } : {}), storeMetrics };
 };
 
-const OperationalDataPanel: React.FC<Props> = ({ currentUser, storeId, storeName }) => {
+const OperationalDataPanel: React.FC<Props> = ({ currentUser, companyId, storeId, storeName }) => {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<ImportType>('stock');
   const [referenceDate, setReferenceDate] = useState(localDate);
@@ -122,14 +122,14 @@ const OperationalDataPanel: React.FC<Props> = ({ currentUser, storeId, storeName
     setBusy(true); setMessage(null);
     try {
       if (type === 'stock') {
-        const count = await stockSnapshotService.replace(mapStockRows(rows, referenceDate), file.name, currentUser, storeId);
+        const count = await stockSnapshotService.replace(mapStockRows(rows, referenceDate), file.name, currentUser, storeId, companyId);
         setMessage({ kind: 'ok', text: `${storeName}: estoque atualizado com ${count} veículos visíveis em ${referenceDate}.` });
       } else {
         if (!performance) throw new Error('Mapa de performance ainda não foi reconhecido.');
-        const scoped = { ...performance, storeId };
-        const count = await storeScopedOperationalService.importPerformance(scoped, file.name, currentUser, storeId);
+        const scoped = { ...performance, companyId, storeId };
+        const count = await storeScopedOperationalService.importPerformance(scoped, file.name, currentUser, storeId, companyId);
         let linked = 0;
-        try { linked = await sellerPerformanceService.syncFromSnapshot(scoped, storeId); }
+        try { linked = await sellerPerformanceService.syncFromSnapshot(scoped, storeId, companyId); }
         catch (syncError: any) {
           setMessage({ kind: 'ok', text: `${storeName}: performance atualizada com ${count} vendedores. My Performance pendente: ${syncError?.message || 'permissão'}.` });
           setFile(null); setRows([]); setPerformance(null); window.dispatchEvent(new Event('dealmaster:operational-data-updated')); return;
