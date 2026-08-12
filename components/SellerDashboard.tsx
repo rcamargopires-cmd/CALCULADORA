@@ -17,6 +17,7 @@ import { db } from '../firebase';
 import { SavedCalculation, User } from '../types';
 import { SellerPerformanceRecord, sellerPerformanceService } from '../services/sellerPerformanceService';
 import { formatCurrency } from '../utils/currency';
+import PerformanceTrends, { PerformanceTrendPoint } from './PerformanceTrends';
 
 type Props = {
   currentUser: User;
@@ -54,17 +55,20 @@ const greetingFor = (date: Date) => {
 
 const SellerDashboard: React.FC<Props> = ({ currentUser, history, onStartNewCalculation }) => {
   const [record, setRecord] = useState<SellerPerformanceRecord | null>(null);
+  const [historyRecords, setHistoryRecords] = useState<SellerPerformanceRecord[]>([]);
   const [performance, setPerformance] = useState<PerformanceConfig>(DEFAULTS);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [mine, perf] = await Promise.all([
+      const [mine, mineHistory, perf] = await Promise.all([
         sellerPerformanceService.getMine(currentUser.email),
+        sellerPerformanceService.getMyHistory(currentUser.email),
         getDoc(doc(db, 'config/performance')),
       ]);
       setRecord(mine);
+      setHistoryRecords(mineHistory);
       if (perf.exists()) {
         const raw = perf.data() as Partial<PerformanceConfig>;
         setPerformance({
@@ -76,6 +80,7 @@ const SellerDashboard: React.FC<Props> = ({ currentUser, history, onStartNewCalc
     } catch (error) {
       console.error('My Performance load error', error);
       setRecord(null);
+      setHistoryRecords([]);
     } finally {
       setLoading(false);
     }
@@ -105,6 +110,7 @@ const SellerDashboard: React.FC<Props> = ({ currentUser, history, onStartNewCalc
   };
 
   const now = new Date();
+  const today = format(now, 'yyyy-MM-dd');
   const greeting = greetingFor(now);
   const firstName = currentUser.name?.split(' ')[0] || 'Vendedor';
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -115,11 +121,24 @@ const SellerDashboard: React.FC<Props> = ({ currentUser, history, onStartNewCalc
   const elapsed = workDays.filter(d => !isAfter(d, now));
   const remaining = workDays.filter(d => isAfter(d, now));
 
+  const validHistory = historyRecords.filter(item => item.referenceDate <= today).sort((a, b) => a.referenceDate.localeCompare(b.referenceDate));
+  const effectiveRecord = validHistory[validHistory.length - 1] || (record?.referenceDate && record.referenceDate <= today ? record : record);
+
+  const trendData: PerformanceTrendPoint[] = validHistory.map(item => ({
+    date: item.referenceDate,
+    sales: Number(item.metrics.closing || 0),
+    projection: Number(item.metrics.projection || 0),
+    margin: Number(item.metrics.marginPercent || 0),
+    capture: Number(item.metrics.capturePercent || 0),
+    evaluations: Number(item.metrics.evaluations || 0),
+    closingRate: Number(item.metrics.closingPercent || 0),
+  }));
+
   if (loading) {
     return <div className="grid min-h-[50vh] place-items-center text-sm text-zinc-500">Carregando seu My Performance...</div>;
   }
 
-  if (!record) {
+  if (!effectiveRecord) {
     return (
       <div className="pb-24 md:pb-12 space-y-6 animate-fade-in">
         <section>
@@ -139,7 +158,7 @@ const SellerDashboard: React.FC<Props> = ({ currentUser, history, onStartNewCalc
     );
   }
 
-  const metrics = record.metrics;
+  const metrics = effectiveRecord.metrics;
   const actual = Number(metrics.closing || 0);
   const goal = goals.monthly;
   const expectedToday = goal * elapsed.length / Math.max(workDays.length, 1);
@@ -149,7 +168,7 @@ const SellerDashboard: React.FC<Props> = ({ currentUser, history, onStartNewCalc
   const capture = Number(metrics.capturePercent || 0);
   const margin = Number(metrics.marginPercent || 0);
   const closingRate = Number(metrics.closingPercent || 0);
-  const refDay = Number(record.referenceDate.slice(8, 10));
+  const refDay = Number(effectiveRecord.referenceDate.slice(8, 10));
   const firstHalfActual = refDay <= 15 ? actual : null;
 
   const actionPlan: string[] = [];
@@ -167,7 +186,7 @@ const SellerDashboard: React.FC<Props> = ({ currentUser, history, onStartNewCalc
     <div className="pb-24 md:pb-12 space-y-6 md:space-y-8 animate-fade-in">
       <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm text-zinc-500">My Performance · mapa {record.sheetName} · {record.referenceDate}</p>
+          <p className="text-sm text-zinc-500">My Performance · mapa {effectiveRecord.sheetName} · {effectiveRecord.referenceDate}</p>
           <h2 className="mt-1 text-3xl font-semibold tracking-tight text-white md:text-4xl">{greeting}, {firstName}.</h2>
           <p className="mt-2 text-zinc-400">Seu ritmo, seus indicadores e o que merece sua atenção hoje.</p>
         </div>
@@ -200,6 +219,13 @@ const SellerDashboard: React.FC<Props> = ({ currentUser, history, onStartNewCalc
         <Metric icon={<WalletCards size={18}/>} label="Margem MC" value={pct(margin)} hint={`${formatCurrency(metrics.marginTotal)} · meta ${goals.margin}%`}/>
         <Metric icon={<BarChart3 size={18}/>} label="Avaliações" value={`${metrics.evaluations}`} hint={`${pct(metrics.evaluationRate)} de taxa de avaliação`}/>
       </section>
+
+      <PerformanceTrends
+        title="Minha evolução no mês"
+        subtitle="Cada atualização do mapa vira um ponto da sua trajetória."
+        data={trendData}
+        goal={goal}
+      />
 
       <section className={`rounded-[30px] border p-6 md:p-7 ${statusGood ? 'border-emerald-500/20 bg-emerald-500/[0.07]' : 'border-amber-400/20 bg-amber-400/[0.07]'}`}>
         <div className="flex items-start gap-4">
