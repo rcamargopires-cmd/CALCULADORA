@@ -18,6 +18,7 @@ import MultiStorePanel from './MultiStorePanel';
 import GroupOverview from './GroupOverview';
 import CompaniesPanel from './CompaniesPanel';
 import TenantSecurityPanel from './TenantSecurityPanel';
+import AssetGuardPanel from './AssetGuardPanel';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -98,6 +99,7 @@ const OperationalTools: React.FC = () => {
     {isManager && <ExecutiveInsights/>}
     {isManager && <SmartAlerts/>}
     {isManager && <AIManagerV2/>}
+    {storeId && <AssetGuardPanel currentUser={user} companyName={companyName} storeName={storeName}/>} 
     {user.role === 'admin' && <HierarchyPanel currentUser={user}/>} 
     {user.role === 'admin' && <MultiStorePanel currentUser={user} companyId={companyId} companyName={companyName}/>} 
     {user.role === 'admin' && <GroupOverview currentUser={user} companyId={companyId} companyName={companyName}/>} 
