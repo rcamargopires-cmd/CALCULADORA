@@ -25,18 +25,18 @@ const AssetGuardPanel: React.FC<Props> = ({ currentUser, companyName, storeName 
   };
 
   return <>
-    <div className="fixed right-3 top-[72%] z-[75] -translate-y-1/2 md:right-5">
+    <div className="fixed bottom-56 right-3 z-[139] md:right-5">
       <button
         onClick={() => setOpen(true)}
         title="AssetGuard"
-        className="group flex h-12 w-12 items-center overflow-hidden rounded-full border border-white/15 bg-zinc-950/90 text-white shadow-2xl backdrop-blur-xl transition-all duration-300 hover:w-40 hover:border-emerald-400/40 hover:bg-zinc-900"
+        className="group flex h-12 w-12 items-center overflow-hidden rounded-full border border-emerald-400/25 bg-zinc-950/95 text-emerald-300 shadow-2xl backdrop-blur-xl transition-all duration-300 hover:w-40 hover:border-emerald-400/50 hover:bg-zinc-900"
       >
         <span className="grid h-12 w-12 shrink-0 place-items-center"><KeyRound size={18}/></span>
         <span className="hidden whitespace-nowrap pr-4 text-sm font-semibold opacity-0 transition-opacity duration-200 group-hover:opacity-100 md:block">AssetGuard</span>
       </button>
     </div>
 
-    {open && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={e => { if (e.currentTarget === e.target) setOpen(false); }}>
+    {open && <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={e => { if (e.currentTarget === e.target) setOpen(false); }}>
       <div className="w-full max-w-3xl overflow-hidden rounded-[32px] border border-white/10 bg-zinc-950 shadow-2xl">
         <div className="flex items-start justify-between border-b border-white/10 p-6 md:p-8">
           <div>
