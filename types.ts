@@ -54,6 +54,9 @@ export interface User {
   goals?: SellerGoals;
   storeId?: string;
   companyId?: string;
+  companyPlan?: CompanyPlan;
+  companyStatus?: CompanyStatus;
+  companyModuleOverrides?: Partial<Record<DealMasterModule, boolean>>;
 }
 
 export interface OperationalStockItem {
