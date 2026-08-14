@@ -1,4 +1,5 @@
-import { Company, CompanyPlan, DealMasterModule } from '../types';
+import { Company, CompanyPlan, DealMasterModule, User } from '../types';
+import { DEFAULT_COMPANY, DEFAULT_COMPANY_ID } from './companyService';
 
 export type ModuleDefinition = {
   id: DealMasterModule;
@@ -45,6 +46,18 @@ export const moduleEnabled = (company: Pick<Company, 'plan' | 'status' | 'module
   return defaultModuleEnabled(company.plan, module);
 };
 
+export const companySnapshotForUser = (user: User): Company => {
+  if (!user.companyId || user.companyId === DEFAULT_COMPANY_ID) return DEFAULT_COMPANY;
+  return {
+    id: user.companyId,
+    slug: user.companyId,
+    name: 'Minha empresa',
+    plan: user.companyPlan || 'starter',
+    status: user.companyStatus || 'active',
+    moduleOverrides: user.companyModuleOverrides,
+  };
+};
+
 export const enabledModules = (company: Pick<Company, 'plan' | 'status' | 'moduleOverrides'> | null | undefined) =>
   MODULES.filter(item => moduleEnabled(company, item.id)).map(item => item.id);
 
@@ -54,6 +67,7 @@ export const entitlementService = {
   moduleEnabled,
   enabledModules,
   planModules,
+  companySnapshotForUser,
   modules: MODULES,
   plans: PLAN_META,
 };
