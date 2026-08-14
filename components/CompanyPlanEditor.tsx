@@ -37,6 +37,7 @@ const CompanyPlanEditor: React.FC<Props> = ({ company, locked = false, saving = 
 
   const save = async () => {
     await onSave({ plan, moduleOverrides: Object.keys(overrides).length ? overrides : undefined });
+    window.dispatchEvent(new CustomEvent('dealmaster:company-entitlements-updated', { detail: { companyId: company.id } }));
     setOpen(false);
   };
 
