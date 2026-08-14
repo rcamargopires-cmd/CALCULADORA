@@ -10,8 +10,8 @@ export type ModuleDefinition = {
 };
 
 export const PLAN_META: Record<CompanyPlan, { label: string; price: number; description: string }> = {
-  starter: { label: 'Starter', price: 497, description: 'Controle comercial essencial para uma operação.' },
-  pro: { label: 'Pro', price: 897, description: 'Gestão, inteligência e automação para a loja.' },
+  starter: { label: 'Starter', price: 497, description: 'Núcleo comercial completo para uma operação.' },
+  pro: { label: 'Pro', price: 897, description: 'Automação, IA, alertas e AssetGuard para acelerar a gestão.' },
   enterprise: { label: 'Enterprise', price: 1497, description: 'Gestão de grupo, multi-store e integrações avançadas.' },
 };
 
@@ -19,9 +19,9 @@ export const MODULES: ModuleDefinition[] = [
   { id: 'dealGuard', label: 'DealGuard', shortLabel: 'DealGuard', description: 'Proteção de margem antes do fechamento.', minimumPlan: 'starter' },
   { id: 'goalTrack', label: 'GoalTrack', shortLabel: 'Metas', description: 'Meta, ritmo, projeção e gap de vendas.', minimumPlan: 'starter' },
   { id: 'myPerformance', label: 'My Performance', shortLabel: 'Vendedor', description: 'Painel privado de desempenho do vendedor.', minimumPlan: 'starter' },
-  { id: 'commandCenter', label: 'Command Center', shortLabel: 'Command Center', description: 'Visão executiva diária da operação.', minimumPlan: 'pro' },
-  { id: 'stockIntelligence', label: 'Stock Intelligence', shortLabel: 'Estoque', description: 'Capital, aging e faixas críticas de estoque.', minimumPlan: 'pro' },
-  { id: 'trends', label: 'Histórico & Tendências', shortLabel: 'Trends', description: 'Evolução de vendas, captura, margem e estoque.', minimumPlan: 'pro' },
+  { id: 'commandCenter', label: 'Command Center', shortLabel: 'Command Center', description: 'Visão executiva diária da operação.', minimumPlan: 'starter' },
+  { id: 'stockIntelligence', label: 'Stock Intelligence', shortLabel: 'Estoque', description: 'Capital, aging e faixas críticas de estoque.', minimumPlan: 'starter' },
+  { id: 'trends', label: 'Histórico & Tendências', shortLabel: 'Trends', description: 'Evolução de vendas, captura, margem e estoque.', minimumPlan: 'starter' },
   { id: 'smartAlerts', label: 'Smart Alerts', shortLabel: 'Alerts', description: 'Alertas automáticos de mudanças e riscos operacionais.', minimumPlan: 'pro' },
   { id: 'executiveInsights', label: 'Executive Insights', shortLabel: 'Insights', description: 'Leitura executiva pronta para reunião e gestão.', minimumPlan: 'pro' },
   { id: 'aiManager', label: 'DealMaster AI', shortLabel: 'AI', description: 'Diagnóstico e briefing executivo assistido por IA.', minimumPlan: 'pro' },
