@@ -29,7 +29,70 @@ export type AssetGuardRadar = {
   vehicles: AssetGuardRadarVehicle[];
 };
 
+export type AssetGuardSlaUnit = {
+  unit: string;
+  requests: number;
+  avgRequestToSendHours: number;
+  avgTransitHours: number;
+  avgTotalHours: number;
+  overdue: number;
+  requestSlaPercent: number;
+  transitSlaPercent: number;
+};
+
+export type AssetGuardSlaCycle = {
+  vehicleId: string;
+  plate: string;
+  model: string;
+  items: string;
+  origin: string;
+  destination: string;
+  requestAt: string;
+  requestToSendHours: number | null;
+  transitHours: number | null;
+  totalHours: number | null;
+  status: 'waiting_send' | 'in_transit' | 'received' | 'delivered';
+  overdue: boolean;
+};
+
+export type AssetGuardSla = {
+  organizationName: string;
+  periodDays: number;
+  slaHours: number;
+  summary: {
+    requests: number;
+    waitingSend: number;
+    inTransit: number;
+    overdue: number;
+    delivered: number;
+    avgRequestToSendHours: number;
+    avgTransitHours: number;
+    avgTotalHours: number;
+    requestSlaPercent: number;
+    transitSlaPercent: number;
+  };
+  units: AssetGuardSlaUnit[];
+  recent: AssetGuardSlaCycle[];
+};
+
 const tokenKey = (companyId: string) => `${TOKEN_PREFIX}${companyId}`;
+
+async function integrationPost<T>(companyId: string, path: string, payload: unknown): Promise<T | null> {
+  const token = assetGuardIntegrationService.getToken(companyId);
+  if (!token) return null;
+  const response = await fetch(`${ASSETGUARD_ORIGIN}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  if (response.status === 401) {
+    assetGuardIntegrationService.clearToken(companyId);
+    throw new Error('Conexão AssetGuard expirada. Conecte novamente.');
+  }
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Não foi possível ler os dados do AssetGuard.');
+  return data as T;
+}
 
 export const assetGuardIntegrationService = {
   origin: ASSETGUARD_ORIGIN,
@@ -49,19 +112,10 @@ export const assetGuardIntegrationService = {
     return `${ASSETGUARD_ORIGIN}/sistema/integrar?origin=${encodeURIComponent(origin)}`;
   },
   async getRadar(companyId: string, plates: string[]): Promise<AssetGuardRadar | null> {
-    const token = this.getToken(companyId);
-    if (!token || !plates.length) return null;
-    const response = await fetch(`${ASSETGUARD_ORIGIN}/api/integration/radar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ plates }),
-    });
-    if (response.status === 401) {
-      this.clearToken(companyId);
-      throw new Error('Conexão AssetGuard expirada. Conecte novamente.');
-    }
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Não foi possível ler o radar do AssetGuard.');
-    return data as AssetGuardRadar;
+    if (!plates.length) return null;
+    return integrationPost<AssetGuardRadar>(companyId, '/api/integration/radar', { plates });
+  },
+  async getSla(companyId: string, days: 7 | 30 | 90 = 30): Promise<AssetGuardSla | null> {
+    return integrationPost<AssetGuardSla>(companyId, '/api/integration/sla', { days });
   },
 };
