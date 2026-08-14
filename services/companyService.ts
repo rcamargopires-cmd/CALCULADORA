@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Company, CompanyPlan, User } from '../types';
+import { Company, CompanyPlan, DealMasterModule, User } from '../types';
 
 export const DEFAULT_COMPANY_ID = 'abrao-reze';
 
@@ -14,16 +14,28 @@ export const DEFAULT_COMPANY: Company = {
 };
 
 const CONFIG_REF = doc(db, 'config', 'companies');
+const MODULE_IDS: DealMasterModule[] = ['dealGuard','goalTrack','myPerformance','commandCenter','stockIntelligence','trends','smartAlerts','executiveInsights','aiManager','assetGuard','multiStore','groupOverview','dmsConnect'];
 
 const validPlan = (value: unknown): CompanyPlan => {
   const raw = String(value || '').toLowerCase();
   return raw === 'starter' || raw === 'pro' || raw === 'enterprise' ? raw : 'starter';
 };
 
+const normalizeOverrides = (value: unknown): Partial<Record<DealMasterModule, boolean>> | undefined => {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const next: Partial<Record<DealMasterModule, boolean>> = {};
+  MODULE_IDS.forEach(module => {
+    if (typeof raw[module] === 'boolean') next[module] = raw[module] as boolean;
+  });
+  return Object.keys(next).length ? next : undefined;
+};
+
 const normalizeCompanies = (raw: unknown): Company[] => {
   const list = Array.isArray(raw) ? raw : [];
   const parsed = list.map((item: any) => {
     const trialEndsAt = item?.trialEndsAt ? String(item.trialEndsAt) : '';
+    const moduleOverrides = normalizeOverrides(item?.moduleOverrides);
     return {
       id: String(item?.id || '').trim(),
       slug: String(item?.slug || item?.id || '').trim(),
@@ -32,6 +44,7 @@ const normalizeCompanies = (raw: unknown): Company[] => {
       status: item?.status === 'suspended' ? 'suspended' : item?.status === 'trial' ? 'trial' : 'active',
       createdAt: String(item?.createdAt || new Date().toISOString()),
       ...(trialEndsAt ? { trialEndsAt } : {}),
+      ...(moduleOverrides ? { moduleOverrides } : {}),
     } as Company;
   }).filter(item => item.id && item.name) as Company[];
 
