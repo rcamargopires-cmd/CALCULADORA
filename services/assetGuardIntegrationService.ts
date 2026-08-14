@@ -1,3 +1,5 @@
+import { AssetGuardSlaThresholds, DEFAULT_ASSETGUARD_SLA } from './assetGuardSlaConfigService';
+
 const ASSETGUARD_ORIGIN = 'https://controle-manuais-chaves.vercel.app';
 const TOKEN_PREFIX = 'dealmaster.assetguard.token.';
 
@@ -32,6 +34,8 @@ export type AssetGuardRadar = {
 export type AssetGuardSlaUnit = {
   unit: string;
   requests: number;
+  waitingSend: number;
+  inTransit: number;
   avgRequestToSendHours: number;
   avgTransitHours: number;
   avgTotalHours: number;
@@ -58,7 +62,7 @@ export type AssetGuardSlaCycle = {
 export type AssetGuardSla = {
   organizationName: string;
   periodDays: number;
-  slaHours: number;
+  thresholds: AssetGuardSlaThresholds;
   summary: {
     requests: number;
     waitingSend: number;
@@ -115,7 +119,7 @@ export const assetGuardIntegrationService = {
     if (!plates.length) return null;
     return integrationPost<AssetGuardRadar>(companyId, '/api/integration/radar', { plates });
   },
-  async getSla(companyId: string, days: 7 | 30 | 90 = 30): Promise<AssetGuardSla | null> {
-    return integrationPost<AssetGuardSla>(companyId, '/api/integration/sla', { days });
+  async getSla(companyId: string, days: 7 | 30 | 90 = 30, thresholds: AssetGuardSlaThresholds = DEFAULT_ASSETGUARD_SLA): Promise<AssetGuardSla | null> {
+    return integrationPost<AssetGuardSla>(companyId, '/api/integration/sla', { days, ...thresholds });
   },
 };
