@@ -3,6 +3,20 @@ export type UserRole = 'admin' | 'manager' | 'seller' | 'user';
 export type UserStatus = 'active' | 'inactive';
 export type CompanyPlan = 'starter' | 'pro' | 'enterprise';
 export type CompanyStatus = 'trial' | 'active' | 'suspended';
+export type DealMasterModule =
+  | 'dealGuard'
+  | 'goalTrack'
+  | 'myPerformance'
+  | 'commandCenter'
+  | 'stockIntelligence'
+  | 'trends'
+  | 'smartAlerts'
+  | 'executiveInsights'
+  | 'aiManager'
+  | 'assetGuard'
+  | 'multiStore'
+  | 'groupOverview'
+  | 'dmsConnect';
 
 export interface Company {
   id: string;
@@ -12,6 +26,7 @@ export interface Company {
   status: CompanyStatus;
   createdAt?: string;
   trialEndsAt?: string;
+  moduleOverrides?: Partial<Record<DealMasterModule, boolean>>;
 }
 
 export interface Store {
