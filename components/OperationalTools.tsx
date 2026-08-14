@@ -68,7 +68,7 @@ const OperationalTools: React.FC = () => {
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isManager && storeId && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && <ExecutiveInsights/>}
-    {isManager && <SmartAlerts/>}
+    {isManager && storeId && <SmartAlerts companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && <AIManagerV2/>}
     {storeId && <AssetGuardPanel currentUser={user} companyId={companyId} storeId={storeId} companyName={companyName} storeName={storeName}/>} 
     {user.role === 'admin' && <HierarchyPanel currentUser={user}/>} 
