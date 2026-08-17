@@ -9,6 +9,8 @@ button.fixed.left-5.bottom-56.rounded-full,
 button.fixed.right-5.bottom-5.rounded-full,
 button.fixed.right-5.bottom-20.rounded-full,
 button.fixed.right-5.bottom-32.rounded-full,
+button.fixed.right-3.bottom-36.rounded-full,
+button.fixed.right-5.bottom-36.rounded-full,
 button.fixed.right-5.bottom-44.rounded-full,
 button.fixed.right-5.bottom-56.rounded-full {
   width: 48px !important;
@@ -42,6 +44,8 @@ button.fixed.left-5.bottom-56.rounded-full > svg,
 button.fixed.right-5.bottom-5.rounded-full > svg,
 button.fixed.right-5.bottom-20.rounded-full > svg,
 button.fixed.right-5.bottom-32.rounded-full > svg,
+button.fixed.right-3.bottom-36.rounded-full > svg,
+button.fixed.right-5.bottom-36.rounded-full > svg,
 button.fixed.right-5.bottom-44.rounded-full > svg,
 button.fixed.right-5.bottom-56.rounded-full > svg {
   width: 18px;
@@ -58,26 +62,25 @@ button.fixed.right-5.bottom-20.rounded-full > span:last-child {
 }
 
 /*
- * Dock vertical real.
- * Tailwind usa saltos de 48 px entre bottom-20/32/44; como os botoes tambem
- * medem 48 px eles ficavam encostados. Aqui damos 60 px por slot:
- * 48 px de botao + 12 px de respiro.
+ * Dock vertical real: 48 px de botao + 12 px de respiro.
+ * Slots da direita, de baixo para cima:
+ * AI, Smart Alerts, Executive, Market Presence, Seguranca, AssetGuard.
  */
 button.fixed.right-5.bottom-5.rounded-full { bottom: 20px !important; right: 20px !important; }
 button.fixed.right-5.bottom-20.rounded-full { bottom: 80px !important; right: 20px !important; }
 button.fixed.right-5.bottom-32.rounded-full { bottom: 140px !important; right: 20px !important; }
-button.fixed.right-5.bottom-44.rounded-full { bottom: 200px !important; right: 20px !important; }
-button.fixed.right-5.bottom-56.rounded-full { bottom: 260px !important; right: 20px !important; }
+button.fixed.right-3.bottom-36.rounded-full,
+button.fixed.right-5.bottom-36.rounded-full { bottom: 200px !important; right: 20px !important; }
+button.fixed.right-5.bottom-44.rounded-full { bottom: 260px !important; right: 20px !important; }
+button.fixed.right-5.bottom-56.rounded-full { bottom: 320px !important; right: 20px !important; }
 
-/* AssetGuard usa um container fixo antes do botao. Alinha o container ao dock. */
+/* AssetGuard usa um container fixo antes do botao. */
 div.fixed.right-3.bottom-56,
 div.fixed.right-5.bottom-56 {
-  bottom: 260px !important;
+  bottom: 320px !important;
   right: 20px !important;
 }
 
-/* Mantem todos os atalhos no mesmo eixo e evita micro-sobreposicao visual. */
-button.fixed.right-5.rounded-full,
 div.fixed.right-3.bottom-56 > button,
 div.fixed.right-5.bottom-56 > button {
   box-sizing: border-box;
@@ -92,6 +95,8 @@ div.fixed.right-5.bottom-56 > button {
   button.fixed.right-5.bottom-5.rounded-full:hover,
   button.fixed.right-5.bottom-20.rounded-full:hover,
   button.fixed.right-5.bottom-32.rounded-full:hover,
+  button.fixed.right-3.bottom-36.rounded-full:hover,
+  button.fixed.right-5.bottom-36.rounded-full:hover,
   button.fixed.right-5.bottom-44.rounded-full:hover,
   button.fixed.right-5.bottom-56.rounded-full:hover,
   button.fixed.left-5.bottom-5.rounded-full:focus-visible,
@@ -102,6 +107,8 @@ div.fixed.right-5.bottom-56 > button {
   button.fixed.right-5.bottom-5.rounded-full:focus-visible,
   button.fixed.right-5.bottom-20.rounded-full:focus-visible,
   button.fixed.right-5.bottom-32.rounded-full:focus-visible,
+  button.fixed.right-3.bottom-36.rounded-full:focus-visible,
+  button.fixed.right-5.bottom-36.rounded-full:focus-visible,
   button.fixed.right-5.bottom-44.rounded-full:focus-visible,
   button.fixed.right-5.bottom-56.rounded-full:focus-visible {
     width: 176px !important;
@@ -119,6 +126,8 @@ div.fixed.right-5.bottom-56 > button {
   button.fixed.right-5.bottom-5.rounded-full,
   button.fixed.right-5.bottom-20.rounded-full,
   button.fixed.right-5.bottom-32.rounded-full,
+  button.fixed.right-3.bottom-36.rounded-full,
+  button.fixed.right-5.bottom-36.rounded-full,
   button.fixed.right-5.bottom-44.rounded-full,
   button.fixed.right-5.bottom-56.rounded-full {
     width: 48px !important;
@@ -126,15 +135,17 @@ div.fixed.right-5.bottom-56 > button {
   }
 }
 
+/* Mesmo em notebook baixo, preserva respiro entre os seis atalhos. */
 @media (max-height: 680px) {
-  /* Em telas baixas o dock sobe menos e ganha rolagem natural da pagina sem cobrir o rodape. */
-  button.fixed.right-5.bottom-5.rounded-full { bottom: 12px !important; }
+  button.fixed.right-5.bottom-5.rounded-full { bottom: 10px !important; }
   button.fixed.right-5.bottom-20.rounded-full { bottom: 68px !important; }
-  button.fixed.right-5.bottom-32.rounded-full { bottom: 124px !important; }
-  button.fixed.right-5.bottom-44.rounded-full { bottom: 180px !important; }
+  button.fixed.right-5.bottom-32.rounded-full { bottom: 126px !important; }
+  button.fixed.right-3.bottom-36.rounded-full,
+  button.fixed.right-5.bottom-36.rounded-full { bottom: 184px !important; }
+  button.fixed.right-5.bottom-44.rounded-full { bottom: 242px !important; }
   button.fixed.right-5.bottom-56.rounded-full,
   div.fixed.right-3.bottom-56,
-  div.fixed.right-5.bottom-56 { bottom: 236px !important; }
+  div.fixed.right-5.bottom-56 { bottom: 300px !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -146,6 +157,8 @@ div.fixed.right-5.bottom-56 > button {
   button.fixed.right-5.bottom-5.rounded-full,
   button.fixed.right-5.bottom-20.rounded-full,
   button.fixed.right-5.bottom-32.rounded-full,
+  button.fixed.right-3.bottom-36.rounded-full,
+  button.fixed.right-5.bottom-36.rounded-full,
   button.fixed.right-5.bottom-44.rounded-full,
   button.fixed.right-5.bottom-56.rounded-full {
     transition: none;
