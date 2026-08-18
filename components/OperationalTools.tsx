@@ -22,6 +22,7 @@ import TenantSecurityPanel from './TenantSecurityPanel';
 import AssetGuardPanel from './AssetGuardPanel';
 import PlanAccessBadge from './PlanAccessBadge';
 import MarketPresencePanel from './MarketPresencePanel';
+import PrepTrackPanel from './PrepTrackPanel';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -58,6 +59,7 @@ const OperationalTools: React.FC = () => {
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {isManager && storeId && has('stockIntelligence') && <PrepTrackPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('executiveInsights') && <ExecutiveInsights/>}
     {isManager && storeId && has('smartAlerts') && <SmartAlerts companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('aiManager') && <AIManagerV2/>}
