@@ -49,6 +49,11 @@ service cloud.firestore {
       allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
       allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
     }
+    match /prep_orders/{itemId} {
+      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
+      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+    }
     match /operational_meta/{itemId} {
       allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
       allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
