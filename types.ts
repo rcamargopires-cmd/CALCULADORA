@@ -27,6 +27,12 @@ export interface OperationalStockItem { id:string; snapshotDate:string; plate:st
 export interface OperationalSaleItem { id:string; saleDate:string; plate:string; vehicle:string; seller:string; invoiceValue:number; marginValue:number; marginPercent:number; hasTradeIn?:boolean; storeId?:string; companyId?:string; }
 export interface MarketPresenceItem { id:string; referenceDate:string; plate:string; vehicle:string; adStatus:'active'|'missing'; photoStatus:'ok'|'insufficient'|'not_validated'|'missing'; photoCount?:number; sitePrice?:number; siteKm?:number; alert?:string; url?:string; auditedAt?:string; storeId?:string; companyId?:string; }
 
+export type PrepServiceStatus='pending'|'approved'|'in_service'|'waiting_part'|'done'|'cancelled';
+export type PrepOrderStatus='triage'|'preparing'|'waiting_approval'|'waiting_part'|'ready'|'showroom'|'delivery'|'delivered';
+export type PrepDestination='showroom'|'delivery';
+export interface PrepService { id:string; type:string; provider:string; status:PrepServiceStatus; estimatedCost:number; finalCost:number; sentAt?:string; dueAt?:string; returnedAt?:string; notes?:string; }
+export interface PrepOrder { id:string; plate:string; vehicle:string; openedAt:string; updatedAt:string; completedAt?:string; status:PrepOrderStatus; sold:boolean; destination:PrepDestination; services:PrepService[]; notes?:string; createdBy?:string; storeId:string; companyId:string; }
+
 export interface OperationalPerformanceSeller { seller:string; sellerKey:string; passages:number; orders:number; flowTotal:number; orderPercent:number; workInPeriod:number; avgContactsPerDay:number; evaluations:number; evaluationRate:number; closing:number; syonetSales:number; closingPercent:number; marginPerCar:number; marginTotal:number; marginPercent:number; captureQty:number; capturePercent:number; pipeline:number; projection:number; additionalPurchase:number; }
 export interface OperationalPerformanceSnapshot { referenceDate:string; sheetName:string; sellers:OperationalPerformanceSeller[]; total?:OperationalPerformanceSeller; storeMetrics:Record<string,number|string>; sourceFile?:string; importedBy?:string; storeId?:string; companyId?:string; }
 export interface OperationalImportLog { id:string; type:'stock'|'sales'|'performance'|'market_presence'; importedAt:string; referenceDate:string; rows:number; fileName:string; importedBy?:string; storeId?:string; companyId?:string; }
