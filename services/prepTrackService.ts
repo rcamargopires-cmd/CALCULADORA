@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PrepOrder, PrepService } from '../types';
 
@@ -21,6 +21,9 @@ export const prepTrackService={
   },
   saveOrder:async(order:PrepOrder):Promise<void>=>{
     await setDoc(doc(db,'prep_orders',order.id),{...order,plate:cleanPlate(order.plate),updatedAt:new Date().toISOString()},{merge:true});
+  },
+  deleteOrder:async(orderId:string):Promise<void>=>{
+    await deleteDoc(doc(db,'prep_orders',orderId));
   },
   addService:async(order:PrepOrder,service:Omit<PrepService,'id'>):Promise<PrepOrder>=>{
     const next={...order,services:[...(order.services||[]),{...service,id:uid()}],updatedAt:new Date().toISOString()};
