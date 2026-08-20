@@ -7,6 +7,18 @@ import { DEFAULT_STORE_ID, storeIdForUser } from './storeService';
 const USERS_COLLECTION = 'users';
 const userCompanyId = (user?: Partial<User> | null) => user?.companyId || DEFAULT_COMPANY_ID;
 
+const stripUndefined = <T,>(value: T): T => {
+  if (Array.isArray(value)) return value.map(item => stripUndefined(item)) as T;
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, stripUndefined(item)])
+    ) as T;
+  }
+  return value;
+};
+
 export const userService = {
   getAll: async (companyId?: string, storeId?: string): Promise<User[]> => {
     const email = auth.currentUser?.email;
@@ -51,7 +63,7 @@ export const userService = {
   },
 
   save: async (user: User): Promise<void> => {
-    const userToSave = { ...user, id: user.email };
+    const userToSave = stripUndefined({ ...user, id: user.email });
     if (!userToSave.createdAt) userToSave.createdAt = new Date().toISOString();
     await setDoc(doc(db, USERS_COLLECTION, user.email), userToSave);
   },
