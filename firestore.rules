@@ -11,6 +11,7 @@ service cloud.firestore {
     function isAdmin() { return isActive() && role() == 'admin'; }
     function isManager() { return isActive() && (role() == 'manager' || role() == 'admin'); }
     function isSeller() { return isActive() && (role() == 'seller' || role() == 'user'); }
+    function isReception() { return isActive() && role() == 'reception'; }
     function myCompany() { return profileExists() && ('companyId' in profile()) ? profile().companyId : 'abrao-reze'; }
     function myStore() { return profileExists() && ('storeId' in profile()) ? profile().storeId : 'outlet-sorocaba'; }
     function dataCompany(data) { return ('companyId' in data) ? data.companyId : 'abrao-reze'; }
@@ -19,6 +20,7 @@ service cloud.firestore {
     function sameStore(data) { return sameCompany(data) && dataStore(data) == myStore(); }
     function ownsDeal() { return resource.data.userId == request.auth.token.email || resource.data.userId == request.auth.uid; }
     function createsOwnDeal() { return request.resource.data.userId == request.auth.token.email || request.resource.data.userId == request.auth.uid; }
+    function assignedPassage(data) { return isSeller() && data.assignedSellerEmail == request.auth.token.email; }
 
     match /users/{email} {
       allow read: if isAuthenticated() && (request.auth.token.email == email || isAdmin() || ((role() == 'manager' || role() == 'seller' || role() == 'user') && sameStore(resource.data)));
@@ -53,6 +55,54 @@ service cloud.firestore {
       allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
       allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
       allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+    }
+    match /showroom_passages/{passageId} {
+      allow read: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data)) ||
+        (isReception() && sameStore(resource.data)) ||
+        (assignedPassage(resource.data) && sameStore(resource.data));
+
+      allow create: if isAdmin() ||
+        (role() == 'manager' && sameStore(request.resource.data)) ||
+        (isReception() && sameStore(request.resource.data));
+
+      allow update: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
+        (
+          assignedPassage(resource.data) &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data) &&
+          request.resource.data.assignedSellerEmail == resource.data.assignedSellerEmail &&
+          request.resource.data.companyId == resource.data.companyId &&
+          request.resource.data.storeId == resource.data.storeId &&
+          request.resource.data.customerName == resource.data.customerName &&
+          request.resource.data.phone == resource.data.phone &&
+          request.resource.data.interestModel == resource.data.interestModel &&
+          request.resource.data.createdAt == resource.data.createdAt
+        );
+
+      allow delete: if isAdmin();
+    }
+    match /showroom_queue/{queueId} {
+      allow read: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data)) ||
+        (isReception() && sameStore(resource.data));
+
+      allow create: if isAdmin() ||
+        (role() == 'manager' && sameStore(request.resource.data));
+
+      allow update: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
+        (
+          isReception() &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data) &&
+          request.resource.data.sellers == resource.data.sellers &&
+          request.resource.data.companyId == resource.data.companyId &&
+          request.resource.data.storeId == resource.data.storeId
+        );
+
+      allow delete: if isAdmin();
     }
     match /operational_meta/{itemId} {
       allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
