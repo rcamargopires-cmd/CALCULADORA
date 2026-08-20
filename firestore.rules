@@ -33,7 +33,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /config/{document} {
-      allow read: if isAdmin() || (isActive() && document != 'companies' && document != 'multistore' && document != 'tenant_security');
+      allow read: if isAdmin() || (isActive() && !isReception() && document != 'companies' && document != 'multistore' && document != 'tenant_security');
       allow write: if isAdmin();
     }
     match /operational_stock/{itemId} {
