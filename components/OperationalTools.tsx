@@ -23,6 +23,7 @@ import AssetGuardPanel from './AssetGuardPanel';
 import PlanAccessBadge from './PlanAccessBadge';
 import MarketPresencePanel from './MarketPresencePanel';
 import PrepTrackPanel from './PrepTrackPanel';
+import ShowroomFlowHub from './ShowroomFlowHub';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -50,12 +51,15 @@ const OperationalTools: React.FC = () => {
   const companyStores = useMemo(() => stores.filter(store => storeCompanyId(store) === companyId), [stores, companyId]);
   const storeName = useMemo(() => storeService.getName(companyStores, storeId), [companyStores, storeId]);
   if (!user) return null;
+  if (user.role === 'reception') return storeId ? <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/> : null;
+
   const isManager = user.role === 'admin' || user.role === 'manager'; const isSeller = user.role === 'seller' || user.role === 'user';
   const has = (module: DealMasterModule) => moduleEnabled(activeCompany, module);
   const hasOperationalData = has('commandCenter') || has('stockIntelligence') || has('smartAlerts') || has('executiveInsights') || has('aiManager');
 
   return <>
     <PlanAccessBadge company={activeCompany}/>
+    {storeId && <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
