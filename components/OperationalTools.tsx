@@ -24,6 +24,7 @@ import PlanAccessBadge from './PlanAccessBadge';
 import MarketPresencePanel from './MarketPresencePanel';
 import PrepTrackPanel from './PrepTrackPanel';
 import ShowroomFlowHub from './ShowroomFlowHub';
+import ShowroomReports from './ShowroomReports';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -60,6 +61,7 @@ const OperationalTools: React.FC = () => {
   return <>
     <PlanAccessBadge company={activeCompany}/>
     {storeId && <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {isManager && storeId && <div className="fixed right-20 z-[139]" style={{bottom:440}}><ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/></div>}
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
