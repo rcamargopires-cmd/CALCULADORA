@@ -34,11 +34,13 @@ export interface PrepService { id:string; type:string; provider:string; status:P
 export interface PrepOrder { id:string; plate:string; vehicle:string; openedAt:string; updatedAt:string; completedAt?:string; status:PrepOrderStatus; sold:boolean; destination:PrepDestination; services:PrepService[]; notes?:string; createdBy?:string; storeId:string; companyId:string; }
 
 export type ShowroomPassageStatus='waiting'|'in_service'|'evaluation'|'proposal'|'follow_up'|'sale'|'no_deal';
+export type ShowroomPassageOrigin='walk_in'|'requested';
 export interface ShowroomPassage {
   id:string;
   customerName:string;
   phone:string;
   interestModel:string;
+  origin:ShowroomPassageOrigin;
   assignedSellerId:string;
   assignedSellerEmail:string;
   assignedSellerName:string;
@@ -56,8 +58,8 @@ export interface ShowroomPassage {
 export interface ShowroomQueueSeller { id:string; email:string; name:string; available:boolean; }
 export type ShowroomQueueReason='busy'|'lunch'|'away'|'other';
 export interface ShowroomQueuePause { email:string; name:string; reason:ShowroomQueueReason; pausedAt:string; pausedBy?:string; pausedByName?:string; }
-export interface ShowroomQueueAudit { id:string; action:'skip_once'|'pause'|'resume'; sellerEmail:string; sellerName:string; reason?:ShowroomQueueReason; at:string; byEmail?:string; byName?:string; }
-export interface ShowroomQueueState { id:string; companyId:string; storeId:string; sellers:ShowroomQueueSeller[]; nextIndex:number; pausedSellers:ShowroomQueuePause[]; auditLog:ShowroomQueueAudit[]; updatedAt:string; }
+export interface ShowroomQueueAudit { id:string; action:'skip_once'|'pause'|'resume'|'remove'; sellerEmail:string; sellerName:string; reason?:ShowroomQueueReason; at:string; byEmail?:string; byName?:string; }
+export interface ShowroomQueueState { id:string; companyId:string; storeId:string; sellers:ShowroomQueueSeller[]; nextIndex:number; turnOrder:string[]; pausedSellers:ShowroomQueuePause[]; excludedSellerEmails:string[]; auditLog:ShowroomQueueAudit[]; updatedAt:string; }
 
 export interface OperationalPerformanceSeller { seller:string; sellerKey:string; passages:number; orders:number; flowTotal:number; orderPercent:number; workInPeriod:number; avgContactsPerDay:number; evaluations:number; evaluationRate:number; closing:number; syonetSales:number; closingPercent:number; marginPerCar:number; marginTotal:number; marginPercent:number; captureQty:number; capturePercent:number; pipeline:number; projection:number; additionalPurchase:number; }
 export interface OperationalPerformanceSnapshot { referenceDate:string; sheetName:string; sellers:OperationalPerformanceSeller[]; total?:OperationalPerformanceSeller; storeMetrics:Record<string,number|string>; sourceFile?:string; importedBy?:string; storeId?:string; companyId?:string; }
