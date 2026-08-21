@@ -25,6 +25,7 @@ import MarketPresencePanel from './MarketPresencePanel';
 import PrepTrackPanel from './PrepTrackPanel';
 import ShowroomFlowHub from './ShowroomFlowHub';
 import ShowroomReports from './ShowroomReports';
+import DirectorPanorama from './DirectorPanorama';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -32,9 +33,24 @@ const OperationalTools: React.FC = () => {
   const [stores, setStores] = useState<Store[]>([DEFAULT_STORE]);
   const [companyId, setCompanyId] = useState(DEFAULT_COMPANY.id);
   const [storeId, setStoreId] = useState(DEFAULT_STORE.id);
+  const [directorOpen, setDirectorOpen] = useState(false);
 
   const resolveContext = async (profile: User) => {
-    if (profile.role !== 'admin') {
+    const role = String(profile.role || '');
+    if (role === 'director') {
+      const resolvedCompany = companyIdForUser(profile);
+      const companySnapshot = companySnapshotForUser(profile);
+      const availableStores = await storeService.getAll();
+      const companyStores = availableStores.filter(store => store.active && storeCompanyId(store) === resolvedCompany);
+      companyScopeService.set(resolvedCompany);
+      setCompanyId(resolvedCompany);
+      setCompanies([companySnapshot]);
+      setStores(companyStores);
+      const firstStore = companyStores[0]?.id || storeIdForUser(profile) || '';
+      if (firstStore) { storeScopeService.set(firstStore); setStoreId(firstStore); }
+      return;
+    }
+    if (role !== 'admin') {
       const resolvedCompany = companyIdForUser(profile); const resolvedStore = storeIdForUser(profile); const companySnapshot = companySnapshotForUser(profile);
       companyScopeService.set(resolvedCompany); storeScopeService.set(resolvedStore); setCompanyId(resolvedCompany); setStoreId(resolvedStore); setCompanies([companySnapshot]);
       setStores(resolvedStore === DEFAULT_STORE.id ? [DEFAULT_STORE] : [{ id: resolvedStore, code: 'UNIDADE', name: 'Minha unidade', active: true, companyId: resolvedCompany }]); return;
@@ -45,16 +61,18 @@ const OperationalTools: React.FC = () => {
   };
 
   useEffect(() => onAuthStateChanged(auth, async firebaseUser => { if (!firebaseUser?.email) { setUser(null); return; } try { const profile = await userService.getUser(firebaseUser.email); if (profile?.status !== 'active') { setUser(null); return; } await resolveContext(profile); setUser(profile); } catch { setUser(null); } }), []);
-  useEffect(() => { const onCompany = async (event: Event) => { const next = (event as CustomEvent<{ companyId?: string }>).detail?.companyId; if (!next || !user || user.role !== 'admin') return; setCompanyId(next); const allStores = await storeService.getAll(); setStores(allStores); const companyStores = allStores.filter(store => store.active && storeCompanyId(store) === next); const nextStore = companyStores[0]?.id || ''; if (nextStore) { storeScopeService.set(nextStore); setStoreId(nextStore); } }; const onStore = (event: Event) => { const next = (event as CustomEvent<{ storeId?: string }>).detail?.storeId; if (next) setStoreId(next); }; const refreshCompanies = async () => { if (!user || user.role !== 'admin') return; setCompanies(await companyService.getAll()); }; window.addEventListener(COMPANY_SCOPE_EVENT, onCompany); window.addEventListener(STORE_SCOPE_EVENT, onStore); window.addEventListener('dealmaster:company-entitlements-updated', refreshCompanies); return () => { window.removeEventListener(COMPANY_SCOPE_EVENT, onCompany); window.removeEventListener(STORE_SCOPE_EVENT, onStore); window.removeEventListener('dealmaster:company-entitlements-updated', refreshCompanies); }; }, [user]);
+  useEffect(() => { const onCompany = async (event: Event) => { const next = (event as CustomEvent<{ companyId?: string }>).detail?.companyId; if (!next || !user || String(user.role) !== 'admin') return; setCompanyId(next); const allStores = await storeService.getAll(); setStores(allStores); const companyStores = allStores.filter(store => store.active && storeCompanyId(store) === next); const nextStore = companyStores[0]?.id || ''; if (nextStore) { storeScopeService.set(nextStore); setStoreId(nextStore); } }; const onStore = (event: Event) => { const next = (event as CustomEvent<{ storeId?: string }>).detail?.storeId; if (next) setStoreId(next); }; const refreshCompanies = async () => { if (!user || String(user.role) !== 'admin') return; setCompanies(await companyService.getAll()); }; window.addEventListener(COMPANY_SCOPE_EVENT, onCompany); window.addEventListener(STORE_SCOPE_EVENT, onStore); window.addEventListener('dealmaster:company-entitlements-updated', refreshCompanies); return () => { window.removeEventListener(COMPANY_SCOPE_EVENT, onCompany); window.removeEventListener(STORE_SCOPE_EVENT, onStore); window.removeEventListener('dealmaster:company-entitlements-updated', refreshCompanies); }; }, [user]);
 
   const activeCompany = useMemo(() => companies.find(company => company.id === companyId) || (user ? companySnapshotForUser(user) : DEFAULT_COMPANY), [companies, companyId, user]);
   const companyName = activeCompany.name || companyService.getName(companies, companyId);
   const companyStores = useMemo(() => stores.filter(store => storeCompanyId(store) === companyId), [stores, companyId]);
   const storeName = useMemo(() => storeService.getName(companyStores, storeId), [companyStores, storeId]);
   if (!user) return null;
-  if (user.role === 'reception') return storeId ? <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/> : null;
+  const role = String(user.role || '');
+  if (role === 'reception') return storeId ? <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/> : null;
+  if (role === 'director') return <DirectorPanorama currentUser={user} companyId={companyId} companyName={companyName}/>;
 
-  const isManager = user.role === 'admin' || user.role === 'manager'; const isSeller = user.role === 'seller' || user.role === 'user';
+  const isManager = role === 'admin' || role === 'manager'; const isSeller = role === 'seller' || role === 'user';
   const has = (module: DealMasterModule) => moduleEnabled(activeCompany, module);
   const hasOperationalData = has('commandCenter') || has('stockIntelligence') || has('smartAlerts') || has('executiveInsights') || has('aiManager');
 
@@ -70,11 +88,13 @@ const OperationalTools: React.FC = () => {
     {isManager && storeId && has('smartAlerts') && <SmartAlerts companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('aiManager') && <AIManagerV2/>}
     {storeId && has('assetGuard') && <AssetGuardPanel currentUser={user} companyId={companyId} storeId={storeId} companyName={companyName} storeName={storeName}/>} 
-    {user.role === 'admin' && <HierarchyPanel currentUser={user}/>} 
-    {user.role === 'admin' && has('multiStore') && <MultiStorePanel currentUser={user} companyId={companyId} companyName={companyName}/>} 
-    {user.role === 'admin' && has('groupOverview') && <GroupOverview currentUser={user} companyId={companyId} companyName={companyName}/>} 
-    {user.role === 'admin' && <CompaniesPanel currentUser={user}/>} 
-    {user.role === 'admin' && <TenantSecurityPanel currentUser={user}/>} 
+    {role === 'admin' && <HierarchyPanel currentUser={user}/>} 
+    {role === 'admin' && has('multiStore') && <MultiStorePanel currentUser={user} companyId={companyId} companyName={companyName}/>} 
+    {role === 'admin' && has('groupOverview') && <GroupOverview currentUser={user} companyId={companyId} companyName={companyName}/>} 
+    {role === 'admin' && <button onClick={()=>setDirectorOpen(true)} className="fixed bottom-28 left-5 z-[144] rounded-full border border-amber-300/20 bg-[#20242c] px-4 py-3 text-sm font-bold text-amber-200 shadow-2xl">Diretoria</button>}
+    {role === 'admin' && directorOpen && <div className="fixed inset-0 z-[519]"><button onClick={()=>setDirectorOpen(false)} className="fixed right-6 top-5 z-[530] rounded-xl border border-white/10 bg-black/40 px-4 py-2 text-xs font-bold text-white">FECHAR</button><DirectorPanorama currentUser={user} companyId={companyId} companyName={companyName}/></div>}
+    {role === 'admin' && <CompaniesPanel currentUser={user}/>} 
+    {role === 'admin' && <TenantSecurityPanel currentUser={user}/>} 
   </>;
 };
 export default OperationalTools;
