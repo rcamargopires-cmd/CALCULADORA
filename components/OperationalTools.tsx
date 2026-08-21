@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Landmark } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { Company, DealMasterModule, Store, User } from '../types';
@@ -79,7 +80,7 @@ const OperationalTools: React.FC = () => {
   return <>
     <PlanAccessBadge company={activeCompany}/>
     {storeId && <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
-    {isManager && storeId && <div className="fixed right-20 z-[139]" style={{bottom:440}}><ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/></div>}
+    {isManager && storeId && <ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
@@ -91,7 +92,7 @@ const OperationalTools: React.FC = () => {
     {role === 'admin' && <HierarchyPanel currentUser={user}/>} 
     {role === 'admin' && has('multiStore') && <MultiStorePanel currentUser={user} companyId={companyId} companyName={companyName}/>} 
     {role === 'admin' && has('groupOverview') && <GroupOverview currentUser={user} companyId={companyId} companyName={companyName}/>} 
-    {role === 'admin' && <button onClick={()=>setDirectorOpen(true)} className="fixed bottom-28 left-5 z-[144] rounded-full border border-amber-300/20 bg-[#20242c] px-4 py-3 text-sm font-bold text-amber-200 shadow-2xl">Diretoria</button>}
+    {role === 'admin' && <button onClick={()=>setDirectorOpen(true)} title="Diretoria · Panorama do Grupo" className="group fixed bottom-28 left-5 z-[144] grid h-12 w-12 place-items-center rounded-full border border-amber-300/25 bg-[#20242c] text-amber-200 shadow-2xl transition hover:border-amber-300/50 hover:bg-[#272c35]"><Landmark size={18}/><span className="pointer-events-none absolute left-14 whitespace-nowrap rounded-lg border border-white/10 bg-[#20242c] px-3 py-2 text-xs font-semibold text-amber-100 opacity-0 shadow-xl transition group-hover:opacity-100">Diretoria</span></button>}
     {role === 'admin' && directorOpen && <div className="fixed inset-0 z-[519]"><button onClick={()=>setDirectorOpen(false)} className="fixed right-6 top-5 z-[530] rounded-xl border border-white/10 bg-black/40 px-4 py-2 text-xs font-bold text-white">FECHAR</button><DirectorPanorama currentUser={user} companyId={companyId} companyName={companyName}/></div>}
     {role === 'admin' && <CompaniesPanel currentUser={user}/>} 
     {role === 'admin' && <TenantSecurityPanel currentUser={user}/>} 
