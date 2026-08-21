@@ -28,20 +28,29 @@ body.dealmaster-graphite {
 
 /* Main application backgrounds */
 body.dealmaster-graphite .bg-zinc-950,
+body.dealmaster-graphite [class*="bg-zinc-950/"],
+body.dealmaster-graphite [class*="bg-neutral-950/"],
+body.dealmaster-graphite [class*="bg-slate-950/"],
 body.dealmaster-graphite [class*="bg-[#070708]"],
 body.dealmaster-graphite [class*="bg-[#09090b]"] {
   background-color: var(--dm-bg) !important;
 }
 
 body.dealmaster-graphite .bg-zinc-900,
+body.dealmaster-graphite [class*="bg-zinc-900/"],
 body.dealmaster-graphite .bg-neutral-900,
-body.dealmaster-graphite .bg-slate-900 {
+body.dealmaster-graphite [class*="bg-neutral-900/"],
+body.dealmaster-graphite .bg-slate-900,
+body.dealmaster-graphite [class*="bg-slate-900/"] {
   background-color: var(--dm-surface) !important;
 }
 
 body.dealmaster-graphite .bg-zinc-800,
+body.dealmaster-graphite [class*="bg-zinc-800/"],
 body.dealmaster-graphite .bg-neutral-800,
-body.dealmaster-graphite .bg-slate-800 {
+body.dealmaster-graphite [class*="bg-neutral-800/"],
+body.dealmaster-graphite .bg-slate-800,
+body.dealmaster-graphite [class*="bg-slate-800/"] {
   background-color: var(--dm-surface-raised) !important;
 }
 
@@ -133,6 +142,15 @@ body.dealmaster-graphite select:focus,
 body.dealmaster-graphite textarea:focus {
   border-color: #667085 !important;
   box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.10);
+}
+
+/* Keep gradients dark-gray too when older screens still use black endpoints. */
+body.dealmaster-graphite [class~="from-black"] {
+  --tw-gradient-from: #171a20 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(23 26 32 / 0) var(--tw-gradient-to-position) !important;
+}
+body.dealmaster-graphite [class~="to-black"] {
+  --tw-gradient-to: #14161a var(--tw-gradient-to-position) !important;
 }
 
 /* Scrollbars stay subtle but visible. */
