@@ -49,6 +49,20 @@ const readMasterStores = async (): Promise<Store[]> => {
   return normalizeStores(snap.data()?.stores);
 };
 
+const readDirectorStores = async (companyId: string): Promise<Store[]> => {
+  const tenant = companyId || DEFAULT_COMPANY_ID;
+  try {
+    const snap = await getDoc(directorScopeRef(tenant));
+    if (!snap.exists()) return tenant === DEFAULT_COMPANY_ID ? [DEFAULT_STORE] : [];
+    const scoped = normalizeStores(snap.data()?.stores, false)
+      .filter(store => storeCompanyId(store) === tenant);
+    if (!scoped.length && tenant === DEFAULT_COMPANY_ID) return [DEFAULT_STORE];
+    return scoped;
+  } catch {
+    return tenant === DEFAULT_COMPANY_ID ? [DEFAULT_STORE] : [];
+  }
+};
+
 const writeDirectorScope = async (companyId: string, stores: Store[]) => {
   const tenant = companyId || DEFAULT_COMPANY_ID;
   const scoped = stores.filter(store => (store.companyId || DEFAULT_COMPANY_ID) === tenant);
@@ -66,22 +80,13 @@ export const storeService = {
   getAll: async (): Promise<Store[]> => {
     const profile = await currentProfile();
     if (profile?.role === 'director') {
-      const tenant = profile.companyId || DEFAULT_COMPANY_ID;
-      try {
-        const snap = await getDoc(directorScopeRef(tenant));
-        if (!snap.exists()) return tenant === DEFAULT_COMPANY_ID ? [DEFAULT_STORE] : [];
-        const scoped = normalizeStores(snap.data()?.stores, false)
-          .filter(store => storeCompanyId(store) === tenant);
-        if (!scoped.length && tenant === DEFAULT_COMPANY_ID) return [DEFAULT_STORE];
-        return scoped;
-      } catch {
-        // If the executive scope has not been created yet (or Firestore denies a
-        // missing document read), keep the default Abrão Reze unit usable.
-        return tenant === DEFAULT_COMPANY_ID ? [DEFAULT_STORE] : [];
-      }
+      return readDirectorStores(profile.companyId || DEFAULT_COMPANY_ID);
     }
     return readMasterStores();
   },
+
+  getDirectorStores: async (companyId: string): Promise<Store[]> =>
+    readDirectorStores(companyId || DEFAULT_COMPANY_ID),
 
   getByCompany: async (companyId: string): Promise<Store[]> => {
     const stores = await storeService.getAll();
