@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Landmark, Plus, UserRoundCheck, X } from 'lucide-react';
 import { Company, User } from '../types';
 import { userService } from '../services/userService';
+import { storeService } from '../services/storeService';
 
 type Props = {
   currentUser: User;
@@ -19,6 +20,7 @@ const DirectorAccessPanel: React.FC<Props> = ({ currentUser, company }) => {
 
   const load = async () => {
     if (currentUser.role !== 'admin') return;
+    await storeService.syncDirectorScope(company.id);
     const all = await userService.getAll(company.id);
     setUsers(all);
   };
@@ -42,6 +44,7 @@ const DirectorAccessPanel: React.FC<Props> = ({ currentUser, company }) => {
     setError('');
     setMessage('');
     try {
+      await storeService.syncDirectorScope(company.id);
       const existing = await userService.getUser(cleanEmail);
       if (existing && existing.companyId && existing.companyId !== company.id) {
         throw new Error('Este e-mail já pertence a outra empresa no DealMaster.');
