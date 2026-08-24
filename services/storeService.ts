@@ -69,8 +69,10 @@ export const storeService = {
       const tenant = profile.companyId || DEFAULT_COMPANY_ID;
       const snap = await getDoc(directorScopeRef(tenant));
       if (!snap.exists()) return tenant === DEFAULT_COMPANY_ID ? [DEFAULT_STORE] : [];
-      return normalizeStores(snap.data()?.stores, false)
+      const scoped = normalizeStores(snap.data()?.stores, false)
         .filter(store => storeCompanyId(store) === tenant);
+      if (!scoped.length && tenant === DEFAULT_COMPANY_ID) return [DEFAULT_STORE];
+      return scoped;
     }
     return readMasterStores();
   },
