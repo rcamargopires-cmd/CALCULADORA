@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, CarFront, CheckCircle2, RefreshCw, ShieldAlert, Sparkles, TrendingUp, UsersRound } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, CalendarClock, CarFront, CheckCircle2, ClipboardCheck, RefreshCw, ShieldAlert, Sparkles, TrendingUp, UsersRound } from 'lucide-react';
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { OperationalPerformanceSeller, OperationalPerformanceSnapshot, PrepOrder, ShowroomPassage, Store, User } from '../types';
@@ -19,6 +19,7 @@ type AlertLevel='critical'|'attention'|'opportunity';
 type ExecutiveAlert={id:string;level:AlertLevel;store:string;title:string;detail:string;score:number};
 type TrendDirection='up'|'flat'|'down'|'none';
 type TrendMetric={label:string;current:number;previous:number;delta:number;direction:TrendDirection;suffix?:string};
+type WeeklyPriority={id:string;title:string;detail:string;owner:string;deadline:string;status:'Crítica'|'Em andamento'|'Monitorar';score:number};
 type Props={currentUser:User;companyId:string;stores:Store[]};
 
 const currentMonthKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;};
@@ -28,6 +29,13 @@ const isOverdue=(order:PrepOrder)=>order.services.some(service=>{
   if(!service.dueAt||['done','cancelled'].includes(service.status))return false;
   return new Date(service.dueAt).getTime()<Date.now();
 });
+const weekDeadline=()=>{
+  const d=new Date();
+  const day=d.getDay();
+  const add=day<=5?5-day:12-day;
+  d.setDate(d.getDate()+add);
+  return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+};
 
 const calculateShowroom=(items:ShowroomPassage[])=>{
   const month=currentMonthKey();
@@ -194,6 +202,22 @@ const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=
     return 'Os principais indicadores estão estáveis nos últimos registros.';
   },[trendMetrics]);
 
+  const priorities=useMemo(()=>{
+    const deadline=weekDeadline();
+    const list:WeeklyPriority[]=[];
+    const metric=(label:string)=>trendMetrics.find(item=>item.label===label);
+    const projection=metric('Projeção'),margin=metric('Margem MC'),capture=metric('Captura');
+    if(group.prep.overdue>0)list.push({id:'prep-overdue',title:'Zerar preparação atrasada',detail:`Resolver ${group.prep.overdue} veículo(s) com serviço vencido e liberar o fluxo da preparação.`,owner:'Gestor + PrepTrack',deadline,status:group.prep.overdue>=2?'Crítica':'Em andamento',score:120+group.prep.overdue});
+    if(group.prep.soldPriority>0)list.push({id:'sold-priority',title:'Liberar vendidos prioritários',detail:`Acelerar ${group.prep.soldPriority} veículo(s) vendidos que ainda dependem da preparação.`,owner:'Gestor + Preparação',deadline,status:group.prep.soldPriority>=2?'Crítica':'Em andamento',score:115+group.prep.soldPriority});
+    if(capture&&capture.current<60)list.push({id:'capture',title:'Elevar captura para pelo menos 60%',detail:`Captura atual em ${capture.current.toFixed(1)}%. Foco em avaliação e compra de troca durante os atendimentos.`,owner:'Gerência comercial',deadline,status:capture.current<50?'Crítica':'Em andamento',score:100+(60-capture.current)});
+    if(margin&&margin.current<8)list.push({id:'margin',title:'Proteger margem acima de 8%',detail:`Margem atual em ${margin.current.toFixed(1)}%. Revisar descontos, custo e qualidade das negociações.`,owner:'Gestor da unidade',deadline,status:margin.current<7?'Crítica':'Em andamento',score:95+(8-margin.current)*10});
+    if(projection&&projection.direction==='down')list.push({id:'projection',title:'Recuperar ritmo da projeção',detail:`Projeção caiu ${Math.abs(projection.delta).toFixed(1)} ponto(s) no último registro. Atacar pipeline e follow-up da semana.`,owner:'Gerência comercial',deadline,status:'Em andamento',score:90+Math.abs(projection.delta)});
+    if(group.showroom.total>=10&&group.showroom.conversion<10)list.push({id:'conversion',title:'Reagir à conversão do showroom',detail:`Conversão em ${group.showroom.conversion.toFixed(1)}% para ${group.showroom.total} atendimentos. Revisar abordagem, proposta e follow-up.`,owner:'Gestor + equipe de vendas',deadline,status:group.showroom.sales===0?'Crítica':'Em andamento',score:105+(10-group.showroom.conversion)});
+    if(group.showroom.proposals>=3&&group.showroom.sales===0)list.push({id:'proposals',title:'Converter propostas abertas',detail:`Há ${group.showroom.proposals} proposta(s) no mês sem venda registrada. Fazer rodada de recuperação.`,owner:'Equipe comercial',deadline,status:'Em andamento',score:82+group.showroom.proposals});
+    if(!list.length)list.push({id:'maintain',title:'Manter operação dentro das faixas',detail:'Nenhum desvio relevante exige plano corretivo nesta semana. Preservar ritmo e acompanhar tendência.',owner:'Gestores das unidades',deadline,status:'Monitorar',score:10});
+    return list.sort((a,b)=>b.score-a.score).slice(0,5);
+  },[group,trendMetrics]);
+
   return <>
     <section className="mt-5 grid gap-4 lg:grid-cols-2">
       <div className="rounded-[28px] border border-white/10 bg-[#20242c] p-5">
@@ -222,6 +246,12 @@ const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=
       {alerts.length?<div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{alerts.map(alert=><AlertCard key={alert.id} alert={alert}/>)}</div>:<div className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/[.04] p-4"><CheckCircle2 size={18} className="text-emerald-300"/><div><p className="text-sm font-semibold text-emerald-200">Nenhum alerta operacional relevante agora.</p><p className="mt-1 text-xs text-zinc-500">O radar evita alertar conversão com amostra pequena e prioriza riscos reais de atendimento e entrega.</p></div></div>}
       <p className="mt-4 text-[11px] text-zinc-600">Critérios usam volume mínimo para conversão e prioridade imediata para atrasos de preparação e veículos vendidos.</p>
     </section>
+
+    <section className="mt-5 rounded-[28px] border border-white/10 bg-[#20242c] p-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-fuchsia-300/10 text-fuchsia-300"><ClipboardCheck size={18}/></div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-zinc-500">Prioridades da semana</p><h2 className="mt-1 text-xl font-semibold">O que fazer agora</h2></div></div><div className="flex items-center gap-2 text-xs text-zinc-500"><CalendarClock size={14}/> ciclo até {weekDeadline()}</div></div>
+      <div className="mt-5 grid gap-3 lg:grid-cols-2">{priorities.map((item,index)=><PriorityCard key={item.id} item={item} index={index}/>)}</div>
+      <p className="mt-4 text-[11px] text-zinc-600">Gerado automaticamente pelos indicadores atuais e limitado às 5 ações de maior impacto.</p>
+    </section>
   </>;
 };
 
@@ -235,6 +265,10 @@ const TrendCard=({item}:{item:TrendMetric})=>{
 const AlertCard=({alert}:{alert:ExecutiveAlert})=>{
   const critical=alert.level==='critical',opportunity=alert.level==='opportunity';
   return <div className={`rounded-2xl border p-4 ${critical?'border-red-400/20 bg-red-400/[.035]':opportunity?'border-emerald-400/20 bg-emerald-400/[.035]':'border-amber-300/20 bg-amber-300/[.035]'}`}><div className="flex items-start gap-3">{critical?<ShieldAlert size={17} className="mt-0.5 shrink-0 text-red-300"/>:opportunity?<Sparkles size={17} className="mt-0.5 shrink-0 text-emerald-300"/>:<AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-300"/>}<div><div className="flex flex-wrap items-center gap-2"><span className={`text-[9px] font-black uppercase tracking-wide ${critical?'text-red-300':opportunity?'text-emerald-300':'text-amber-300'}`}>{critical?'Crítico':opportunity?'Destaque':'Atenção'}</span><span className="text-[10px] text-zinc-600">{alert.store}</span></div><p className="mt-1 text-sm font-semibold text-white">{alert.title}</p><p className="mt-2 text-xs leading-5 text-zinc-400">{alert.detail}</p></div></div></div>;
+};
+const PriorityCard=({item,index}:{item:WeeklyPriority;index:number})=>{
+  const critical=item.status==='Crítica',monitor=item.status==='Monitorar';
+  return <div className={`rounded-2xl border p-4 ${critical?'border-red-400/20 bg-red-400/[.035]':monitor?'border-emerald-400/15 bg-emerald-400/[.03]':'border-fuchsia-300/15 bg-fuchsia-300/[.025]'}`}><div className="flex items-start gap-3"><div className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-black ${critical?'bg-red-400/10 text-red-300':monitor?'bg-emerald-400/10 text-emerald-300':'bg-fuchsia-300/10 text-fuchsia-200'}`}>{index+1}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-white">{item.title}</p><span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase ${critical?'bg-red-400/10 text-red-300':monitor?'bg-emerald-400/10 text-emerald-300':'bg-amber-300/10 text-amber-200'}`}>{item.status}</span></div><p className="mt-2 text-xs leading-5 text-zinc-400">{item.detail}</p><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/10 pt-3 text-[10px] text-zinc-500"><span><b className="text-zinc-400">Responsável:</b> {item.owner}</span><span><b className="text-zinc-400">Prazo:</b> {item.deadline}</span></div></div></div></div>;
 };
 const Metric=({label,value,danger=false,attention=false}:{label:string;value:string|number;danger?:boolean;attention?:boolean})=><div className={`rounded-2xl border p-4 ${danger?'border-red-400/20 bg-red-400/[.035]':attention?'border-amber-300/20 bg-amber-300/[.035]':'border-white/10 bg-black/15'}`}><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{value}</p></div>;
 const Mini=({label,value}:{label:string;value:number})=><div className="rounded-xl bg-black/15 p-3"><p className="text-[9px] font-bold uppercase tracking-wide text-zinc-600">{label}</p><p className="mt-1 text-base font-semibold text-zinc-200">{value}</p></div>;
