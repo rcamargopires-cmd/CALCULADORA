@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, CarFront, RefreshCw, UsersRound } from 'lucide-react';
+import { Activity, AlertTriangle, CarFront, CheckCircle2, RefreshCw, ShieldAlert, Sparkles, UsersRound } from 'lucide-react';
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PrepOrder, ShowroomPassage, Store, User } from '../types';
@@ -14,6 +14,8 @@ type StoreSummary = {
   prep:{active:number;overdue:number;soldPriority:number;ready:number;delivery:number};
 };
 
+type AlertLevel='critical'|'attention'|'opportunity';
+type ExecutiveAlert={id:string;level:AlertLevel;store:string;title:string;detail:string;score:number};
 type Props={currentUser:User;companyId:string;stores:Store[]};
 
 const currentMonthKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;};
@@ -48,6 +50,21 @@ const calculatePrep=(items:PrepOrder[])=>({
   ready:items.filter(item=>item.status==='ready'||item.status==='showroom').length,
   delivery:items.filter(item=>item.destination==='delivery'&&item.status!=='delivered').length,
 });
+
+const alertsFromSummary=(item:StoreSummary):ExecutiveAlert[]=>{
+  const alerts:ExecutiveAlert[]=[];
+  const s=item.showroom,p=item.prep;
+  if(s.total>=10&&s.sales===0)alerts.push({id:`${item.id}-no-sales`,level:'critical',store:item.storeName,title:'Fluxo sem conversão',detail:`${s.total} atendimentos no mês e nenhuma venda registrada.`,score:100+s.total});
+  else if(s.total>=10&&s.conversion<10)alerts.push({id:`${item.id}-low-conv`,level:'attention',store:item.storeName,title:'Conversão abaixo de 10%',detail:`${s.total} atendimentos com conversão de ${s.conversion.toFixed(1)}%.`,score:70+(10-s.conversion)});
+  if(s.waiting>=3)alerts.push({id:`${item.id}-waiting`,level:'attention',store:item.storeName,title:'Fila de atendimento pressionada',detail:`${s.waiting} clientes aguardando ou em atendimento.`,score:55+s.waiting});
+  if(s.proposals>=3&&s.sales===0)alerts.push({id:`${item.id}-proposals`,level:'attention',store:item.storeName,title:'Propostas sem fechamento',detail:`${s.proposals} propostas no mês ainda sem venda registrada.`,score:60+s.proposals});
+  if(p.overdue>=2)alerts.push({id:`${item.id}-prep-overdue`,level:'critical',store:item.storeName,title:'Preparação com atraso crítico',detail:`${p.overdue} veículos têm serviço vencido.`,score:110+p.overdue});
+  else if(p.overdue===1)alerts.push({id:`${item.id}-prep-overdue`,level:'attention',store:item.storeName,title:'Veículo atrasado na preparação',detail:'1 veículo está com serviço vencido e exige acompanhamento.',score:75});
+  if(p.soldPriority>=2)alerts.push({id:`${item.id}-sold-priority`,level:'critical',store:item.storeName,title:'Vendidos aguardando preparação',detail:`${p.soldPriority} veículos vendidos ainda dependem da preparação.`,score:105+p.soldPriority});
+  else if(p.soldPriority===1)alerts.push({id:`${item.id}-sold-priority`,level:'attention',store:item.storeName,title:'Vendido prioritário',detail:'1 veículo vendido ainda está na fila de preparação.',score:72});
+  if(s.total>=5&&s.conversion>=20)alerts.push({id:`${item.id}-good-conv`,level:'opportunity',store:item.storeName,title:'Boa conversão de showroom',detail:`Conversão de ${s.conversion.toFixed(1)}% em ${s.total} atendimentos.`,score:30+s.conversion});
+  return alerts;
+};
 
 const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=>{
   const[summaries,setSummaries]=useState<StoreSummary[]>([]);
@@ -98,23 +115,41 @@ const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=
     return{showroom:{...showroom,conversion:showroom.total?showroom.sales/showroom.total*100:0},prep};
   },[summaries]);
 
-  return <section className="mt-5 grid gap-4 lg:grid-cols-2">
-    <div className="rounded-[28px] border border-white/10 bg-[#20242c] p-5">
-      <div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-violet-300/10 text-violet-300"><UsersRound size={18}/></div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-zinc-500">ShowroomFlow executivo</p><h2 className="mt-1 text-xl font-semibold">Fluxo e conversão</h2></div></div><button onClick={load} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-zinc-400"><RefreshCw size={15} className={loading?'animate-spin':''}/></button></div>
-      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Passagens" value={group.showroom.passages}/><Metric label="Pedidos" value={group.showroom.requests}/><Metric label="Vendas" value={group.showroom.sales}/><Metric label="Conversão" value={`${group.showroom.conversion.toFixed(1)}%`}/></div>
-      <div className="mt-4 grid grid-cols-3 gap-2"><Mini label="Avaliações" value={group.showroom.evaluations}/><Mini label="Propostas" value={group.showroom.proposals}/><Mini label="Em atendimento" value={group.showroom.waiting}/></div>
-      <p className="mt-4 text-xs text-zinc-500">Mês atual. Apenas números agregados, sem dados de clientes.</p>
-    </div>
+  const alerts=useMemo(()=>summaries.flatMap(alertsFromSummary).sort((a,b)=>{
+    const order={critical:3,attention:2,opportunity:1};
+    return order[b.level]-order[a.level]||b.score-a.score;
+  }).slice(0,6),[summaries]);
+  const riskCount=alerts.filter(a=>a.level!=='opportunity').length;
 
-    <div className="rounded-[28px] border border-white/10 bg-[#20242c] p-5">
-      <div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-300/10 text-cyan-300"><CarFront size={18}/></div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-zinc-500">PrepTrack executivo</p><h2 className="mt-1 text-xl font-semibold">Preparação e risco de entrega</h2></div></div>
-      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Em preparação" value={group.prep.active}/><Metric label="Atrasados" value={group.prep.overdue} danger={group.prep.overdue>0}/><Metric label="Vendidos prioritários" value={group.prep.soldPriority} attention={group.prep.soldPriority>0}/><Metric label="Para entrega" value={group.prep.delivery}/></div>
-      <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-4"><div className="flex items-center gap-2"><Activity size={15} className="text-zinc-500"/><p className="text-xs font-semibold text-zinc-300">{group.prep.overdue>0?`${group.prep.overdue} veículo(s) com serviço vencido exigem atenção.`:group.prep.soldPriority>0?`${group.prep.soldPriority} veículo(s) vendidos estão na fila de preparação.`:'Nenhum risco operacional crítico de preparação neste momento.'}</p></div></div>
-      <p className="mt-4 text-xs text-zinc-500">Resumo executivo. Prestadores, custos e observações continuam restritos à operação.</p>
-    </div>
-  </section>;
+  return <>
+    <section className="mt-5 grid gap-4 lg:grid-cols-2">
+      <div className="rounded-[28px] border border-white/10 bg-[#20242c] p-5">
+        <div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-violet-300/10 text-violet-300"><UsersRound size={18}/></div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-zinc-500">ShowroomFlow executivo</p><h2 className="mt-1 text-xl font-semibold">Fluxo e conversão</h2></div></div><button onClick={load} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-zinc-400"><RefreshCw size={15} className={loading?'animate-spin':''}/></button></div>
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Passagens" value={group.showroom.passages}/><Metric label="Pedidos" value={group.showroom.requests}/><Metric label="Vendas" value={group.showroom.sales}/><Metric label="Conversão" value={`${group.showroom.conversion.toFixed(1)}%`}/></div>
+        <div className="mt-4 grid grid-cols-3 gap-2"><Mini label="Avaliações" value={group.showroom.evaluations}/><Mini label="Propostas" value={group.showroom.proposals}/><Mini label="Em atendimento" value={group.showroom.waiting}/></div>
+        <p className="mt-4 text-xs text-zinc-500">Mês atual. Apenas números agregados, sem dados de clientes.</p>
+      </div>
+
+      <div className="rounded-[28px] border border-white/10 bg-[#20242c] p-5">
+        <div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-300/10 text-cyan-300"><CarFront size={18}/></div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-zinc-500">PrepTrack executivo</p><h2 className="mt-1 text-xl font-semibold">Preparação e risco de entrega</h2></div></div>
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Em preparação" value={group.prep.active}/><Metric label="Atrasados" value={group.prep.overdue} danger={group.prep.overdue>0}/><Metric label="Vendidos prioritários" value={group.prep.soldPriority} attention={group.prep.soldPriority>0}/><Metric label="Para entrega" value={group.prep.delivery}/></div>
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-4"><div className="flex items-center gap-2"><Activity size={15} className="text-zinc-500"/><p className="text-xs font-semibold text-zinc-300">{group.prep.overdue>0?`${group.prep.overdue} veículo(s) com serviço vencido exigem atenção.`:group.prep.soldPriority>0?`${group.prep.soldPriority} veículo(s) vendidos estão na fila de preparação.`:'Nenhum risco operacional crítico de preparação neste momento.'}</p></div></div>
+        <p className="mt-4 text-xs text-zinc-500">Resumo executivo. Prestadores, custos e observações continuam restritos à operação.</p>
+      </div>
+    </section>
+
+    <section className="mt-5 rounded-[28px] border border-white/10 bg-[#20242c] p-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="flex items-center gap-3"><div className={`grid h-10 w-10 place-items-center rounded-xl ${riskCount?'bg-amber-300/10 text-amber-300':'bg-emerald-300/10 text-emerald-300'}`}>{riskCount?<ShieldAlert size={18}/>:<Sparkles size={18}/>}</div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-zinc-500">Alertas executivos inteligentes</p><h2 className="mt-1 text-xl font-semibold">Radar operacional</h2></div></div><div className="text-xs text-zinc-500">{riskCount?`${riskCount} ponto(s) exigem leitura`:'Operação sem alerta relevante'}</div></div>
+      {alerts.length?<div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{alerts.map(alert=><AlertCard key={alert.id} alert={alert}/>)}</div>:<div className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/[.04] p-4"><CheckCircle2 size={18} className="text-emerald-300"/><div><p className="text-sm font-semibold text-emerald-200">Nenhum alerta operacional relevante agora.</p><p className="mt-1 text-xs text-zinc-500">O radar evita alertar conversão com amostra pequena e prioriza riscos reais de atendimento e entrega.</p></div></div>}
+      <p className="mt-4 text-[11px] text-zinc-600">Critérios usam volume mínimo para conversão e prioridade imediata para atrasos de preparação e veículos vendidos.</p>
+    </section>
+  </>;
 };
 
+const AlertCard=({alert}:{alert:ExecutiveAlert})=>{
+  const critical=alert.level==='critical',opportunity=alert.level==='opportunity';
+  return <div className={`rounded-2xl border p-4 ${critical?'border-red-400/20 bg-red-400/[.035]':opportunity?'border-emerald-400/20 bg-emerald-400/[.035]':'border-amber-300/20 bg-amber-300/[.035]'}`}><div className="flex items-start gap-3">{critical?<ShieldAlert size={17} className="mt-0.5 shrink-0 text-red-300"/>:opportunity?<Sparkles size={17} className="mt-0.5 shrink-0 text-emerald-300"/>:<AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-300"/>}<div><div className="flex flex-wrap items-center gap-2"><span className={`text-[9px] font-black uppercase tracking-wide ${critical?'text-red-300':opportunity?'text-emerald-300':'text-amber-300'}`}>{critical?'Crítico':opportunity?'Destaque':'Atenção'}</span><span className="text-[10px] text-zinc-600">{alert.store}</span></div><p className="mt-1 text-sm font-semibold text-white">{alert.title}</p><p className="mt-2 text-xs leading-5 text-zinc-400">{alert.detail}</p></div></div></div>;
+};
 const Metric=({label,value,danger=false,attention=false}:{label:string;value:string|number;danger?:boolean;attention?:boolean})=><div className={`rounded-2xl border p-4 ${danger?'border-red-400/20 bg-red-400/[.035]':attention?'border-amber-300/20 bg-amber-300/[.035]':'border-white/10 bg-black/15'}`}><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{value}</p></div>;
 const Mini=({label,value}:{label:string;value:number})=><div className="rounded-xl bg-black/15 p-3"><p className="text-[9px] font-bold uppercase tracking-wide text-zinc-600">{label}</p><p className="mt-1 text-base font-semibold text-zinc-200">{value}</p></div>;
 
