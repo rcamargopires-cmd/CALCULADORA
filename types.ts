@@ -1,5 +1,5 @@
 export type BankType = 'volks' | 'others';
-export type UserRole = 'admin' | 'manager' | 'seller' | 'user' | 'reception';
+export type UserRole = 'admin' | 'manager' | 'director' | 'seller' | 'user' | 'reception';
 export type UserStatus = 'active' | 'inactive';
 export type CompanyPlan = 'starter' | 'pro' | 'enterprise';
 export type CompanyStatus = 'trial' | 'active' | 'suspended';
