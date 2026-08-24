@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, AlertTriangle, CarFront, CheckCircle2, RefreshCw, ShieldAlert, Sparkles, UsersRound } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, CarFront, CheckCircle2, RefreshCw, ShieldAlert, Sparkles, TrendingUp, UsersRound } from 'lucide-react';
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { PrepOrder, ShowroomPassage, Store, User } from '../types';
+import { OperationalPerformanceSeller, OperationalPerformanceSnapshot, PrepOrder, ShowroomPassage, Store, User } from '../types';
+import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
 
 type StoreSummary = {
   id:string;
@@ -16,6 +17,8 @@ type StoreSummary = {
 
 type AlertLevel='critical'|'attention'|'opportunity';
 type ExecutiveAlert={id:string;level:AlertLevel;store:string;title:string;detail:string;score:number};
+type TrendDirection='up'|'flat'|'down'|'none';
+type TrendMetric={label:string;current:number;previous:number;delta:number;direction:TrendDirection;suffix?:string};
 type Props={currentUser:User;companyId:string;stores:Store[]};
 
 const currentMonthKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;};
@@ -51,6 +54,31 @@ const calculatePrep=(items:PrepOrder[])=>({
   delivery:items.filter(item=>item.destination==='delivery'&&item.status!=='delivered').length,
 });
 
+const officialClosingRate=(item:OperationalPerformanceSeller|null|undefined)=>{
+  if(!item)return 0;
+  const flow=Number(item.flowTotal||0),rawRate=Number(item.closingPercent||0),rawClosing=Number(item.closing||0);
+  if(flow>0&&rawRate>0&&rawRate<=2&&Math.abs(rawRate-rawClosing)<0.000001)return rawRate*100;
+  return rawRate;
+};
+const officialClosingCount=(item:OperationalPerformanceSeller|null|undefined)=>{
+  if(!item)return 0;
+  const flow=Number(item.flowTotal||0),rate=officialClosingRate(item);
+  if(flow>0&&Number.isFinite(rate)){
+    const derived=rate/100*flow,rounded=Math.round(derived);
+    return Math.abs(derived-rounded)<0.02?rounded:Number(derived.toFixed(2));
+  }
+  return Number(item.closing||0);
+};
+const totalFromSnapshot=(snapshot:OperationalPerformanceSnapshot|null):OperationalPerformanceSeller|null=>{
+  if(!snapshot)return null;
+  if(snapshot.total)return snapshot.total;
+  const sellers=snapshot.sellers||[];
+  if(!sellers.length)return null;
+  const sum=(key:keyof OperationalPerformanceSeller)=>sellers.reduce((acc,item)=>acc+Number(item[key]||0),0);
+  const closing=sellers.reduce((acc,item)=>acc+officialClosingCount(item),0),flow=sum('flowTotal');
+  return {seller:'TOTAL',sellerKey:'total',passages:sum('passages'),orders:sum('orders'),flowTotal:flow,orderPercent:0,workInPeriod:sum('workInPeriod'),avgContactsPerDay:0,evaluations:sum('evaluations'),evaluationRate:0,closing,syonetSales:sum('syonetSales'),closingPercent:flow?closing/flow*100:0,marginPerCar:closing?sum('marginTotal')/closing:0,marginTotal:sum('marginTotal'),marginPercent:closing?sellers.reduce((acc,item)=>acc+Number(item.marginPercent||0)*officialClosingCount(item),0)/closing:0,captureQty:sum('captureQty'),capturePercent:closing?sum('captureQty')/closing*100:0,pipeline:sum('pipeline'),projection:sum('projection'),additionalPurchase:sum('additionalPurchase')};
+};
+
 const alertsFromSummary=(item:StoreSummary):ExecutiveAlert[]=>{
   const alerts:ExecutiveAlert[]=[];
   const s=item.showroom,p=item.prep;
@@ -69,6 +97,8 @@ const alertsFromSummary=(item:StoreSummary):ExecutiveAlert[]=>{
 const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=>{
   const[summaries,setSummaries]=useState<StoreSummary[]>([]);
   const[loading,setLoading]=useState(false);
+  const[trendMetrics,setTrendMetrics]=useState<TrendMetric[]>([]);
+  const[trendLoading,setTrendLoading]=useState(false);
   const role=String(currentUser.role||'');
 
   const readSummary=async(store:Store)=>{
@@ -104,7 +134,40 @@ const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=
     }finally{setLoading(false);}
   };
 
-  useEffect(()=>{if(stores.length)load();else setSummaries([]);},[companyId,stores.map(s=>s.id).join('|')]);
+  const loadTrend=async()=>{
+    setTrendLoading(true);
+    try{
+      const pairs:{current:OperationalPerformanceSeller;previous:OperationalPerformanceSeller}[]=[];
+      for(const store of stores){
+        try{
+          const history=await storeScopedOperationalService.getPerformanceHistory(store.id,companyId);
+          const sorted=[...history].sort((a,b)=>a.referenceDate.localeCompare(b.referenceDate));
+          if(sorted.length<2)continue;
+          const current=totalFromSnapshot(sorted[sorted.length-1]);
+          const previous=totalFromSnapshot(sorted[sorted.length-2]);
+          if(current&&previous)pairs.push({current,previous});
+        }catch{}
+      }
+      if(!pairs.length){setTrendMetrics([]);return;}
+      const sum=(side:'current'|'previous',key:keyof OperationalPerformanceSeller)=>pairs.reduce((acc,item)=>acc+Number(item[side][key]||0),0);
+      const currentSales=pairs.reduce((acc,item)=>acc+officialClosingCount(item.current),0);
+      const previousSales=pairs.reduce((acc,item)=>acc+officialClosingCount(item.previous),0);
+      const currentProjection=sum('current','projection'),previousProjection=sum('previous','projection');
+      const currentMargin=currentSales?pairs.reduce((acc,item)=>acc+Number(item.current.marginPercent||0)*officialClosingCount(item.current),0)/currentSales:0;
+      const previousMargin=previousSales?pairs.reduce((acc,item)=>acc+Number(item.previous.marginPercent||0)*officialClosingCount(item.previous),0)/previousSales:0;
+      const currentCapture=currentSales?sum('current','captureQty')/currentSales*100:0;
+      const previousCapture=previousSales?sum('previous','captureQty')/previousSales*100:0;
+      const dir=(delta:number,threshold:number):TrendDirection=>delta>=threshold?'up':delta<=-threshold?'down':'flat';
+      setTrendMetrics([
+        {label:'Vendas',current:currentSales,previous:previousSales,delta:currentSales-previousSales,direction:dir(currentSales-previousSales,1)},
+        {label:'Projeção',current:currentProjection,previous:previousProjection,delta:currentProjection-previousProjection,direction:dir(currentProjection-previousProjection,2)},
+        {label:'Margem MC',current:currentMargin,previous:previousMargin,delta:currentMargin-previousMargin,direction:dir(currentMargin-previousMargin,0.3),suffix:' p.p.'},
+        {label:'Captura',current:currentCapture,previous:previousCapture,delta:currentCapture-previousCapture,direction:dir(currentCapture-previousCapture,2),suffix:' p.p.'},
+      ]);
+    }finally{setTrendLoading(false);}
+  };
+
+  useEffect(()=>{if(stores.length){load();loadTrend();}else{setSummaries([]);setTrendMetrics([]);}},[companyId,stores.map(s=>s.id).join('|')]);
 
   const group=useMemo(()=>{
     const showroom=summaries.reduce((acc,item)=>({
@@ -120,6 +183,16 @@ const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=
     return order[b.level]-order[a.level]||b.score-a.score;
   }).slice(0,6),[summaries]);
   const riskCount=alerts.filter(a=>a.level!=='opportunity').length;
+
+  const trendSummary=useMemo(()=>{
+    if(!trendMetrics.length)return 'Histórico ainda insuficiente para leitura de tendência.';
+    const up=trendMetrics.filter(item=>item.direction==='up').map(item=>item.label);
+    const down=trendMetrics.filter(item=>item.direction==='down').map(item=>item.label);
+    if(up.length&&down.length)return `${up.join(' e ')} melhorando, enquanto ${down.join(' e ')} exigem atenção.`;
+    if(up.length)return `${up.join(' e ')} mostram aceleração recente.`;
+    if(down.length)return `${down.join(' e ')} perderam ritmo nos últimos registros.`;
+    return 'Os principais indicadores estão estáveis nos últimos registros.';
+  },[trendMetrics]);
 
   return <>
     <section className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -139,6 +212,12 @@ const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=
     </section>
 
     <section className="mt-5 rounded-[28px] border border-white/10 bg-[#20242c] p-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-300/10 text-blue-300"><TrendingUp size={18}/></div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-zinc-500">Tendência executiva</p><h2 className="mt-1 text-xl font-semibold">Para onde o grupo está indo</h2></div></div><button onClick={loadTrend} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-zinc-400"><RefreshCw size={15} className={trendLoading?'animate-spin':''}/></button></div>
+      {trendMetrics.length?<><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{trendMetrics.map(item=><TrendCard key={item.label} item={item}/>)}</div><div className="mt-4 rounded-2xl border border-blue-300/10 bg-blue-300/[.035] p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-blue-200/70">Leitura automática</p><p className="mt-2 text-sm font-semibold text-zinc-200">{trendSummary}</p></div></>:<div className="mt-5 rounded-2xl border border-white/10 bg-black/15 p-5 text-sm text-zinc-500">{trendLoading?'Lendo histórico das unidades...':'Ainda não há histórico suficiente para comparar os últimos registros.'}</div>}
+      <p className="mt-4 text-[11px] text-zinc-600">Comparação entre os dois snapshots operacionais mais recentes disponíveis em cada unidade.</p>
+    </section>
+
+    <section className="mt-5 rounded-[28px] border border-white/10 bg-[#20242c] p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="flex items-center gap-3"><div className={`grid h-10 w-10 place-items-center rounded-xl ${riskCount?'bg-amber-300/10 text-amber-300':'bg-emerald-300/10 text-emerald-300'}`}>{riskCount?<ShieldAlert size={18}/>:<Sparkles size={18}/>}</div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-zinc-500">Alertas executivos inteligentes</p><h2 className="mt-1 text-xl font-semibold">Radar operacional</h2></div></div><div className="text-xs text-zinc-500">{riskCount?`${riskCount} ponto(s) exigem leitura`:'Operação sem alerta relevante'}</div></div>
       {alerts.length?<div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{alerts.map(alert=><AlertCard key={alert.id} alert={alert}/>)}</div>:<div className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/[.04] p-4"><CheckCircle2 size={18} className="text-emerald-300"/><div><p className="text-sm font-semibold text-emerald-200">Nenhum alerta operacional relevante agora.</p><p className="mt-1 text-xs text-zinc-500">O radar evita alertar conversão com amostra pequena e prioriza riscos reais de atendimento e entrega.</p></div></div>}
       <p className="mt-4 text-[11px] text-zinc-600">Critérios usam volume mínimo para conversão e prioridade imediata para atrasos de preparação e veículos vendidos.</p>
@@ -146,6 +225,13 @@ const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=
   </>;
 };
 
+const TrendCard=({item}:{item:TrendMetric})=>{
+  const up=item.direction==='up',down=item.direction==='down';
+  const Icon=up?ArrowUpRight:down?ArrowDownRight:ArrowRight;
+  const value=item.label==='Vendas'?item.current.toFixed(0):item.current.toFixed(1)+(item.suffix?'%':'');
+  const deltaPrefix=item.delta>0?'+':'';
+  return <div className={`rounded-2xl border p-4 ${up?'border-emerald-400/20 bg-emerald-400/[.035]':down?'border-red-400/20 bg-red-400/[.035]':'border-white/10 bg-black/15'}`}><div className="flex items-center justify-between gap-2"><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">{item.label}</p><Icon size={16} className={up?'text-emerald-300':down?'text-red-300':'text-zinc-500'}/></div><p className="mt-2 text-2xl font-semibold text-white">{value}</p><p className={`mt-1 text-xs font-semibold ${up?'text-emerald-300':down?'text-red-300':'text-zinc-500'}`}>{deltaPrefix}{item.delta.toFixed(1)}{item.suffix||''} vs. último registro</p></div>;
+};
 const AlertCard=({alert}:{alert:ExecutiveAlert})=>{
   const critical=alert.level==='critical',opportunity=alert.level==='opportunity';
   return <div className={`rounded-2xl border p-4 ${critical?'border-red-400/20 bg-red-400/[.035]':opportunity?'border-emerald-400/20 bg-emerald-400/[.035]':'border-amber-300/20 bg-amber-300/[.035]'}`}><div className="flex items-start gap-3">{critical?<ShieldAlert size={17} className="mt-0.5 shrink-0 text-red-300"/>:opportunity?<Sparkles size={17} className="mt-0.5 shrink-0 text-emerald-300"/>:<AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-300"/>}<div><div className="flex flex-wrap items-center gap-2"><span className={`text-[9px] font-black uppercase tracking-wide ${critical?'text-red-300':opportunity?'text-emerald-300':'text-amber-300'}`}>{critical?'Crítico':opportunity?'Destaque':'Atenção'}</span><span className="text-[10px] text-zinc-600">{alert.store}</span></div><p className="mt-1 text-sm font-semibold text-white">{alert.title}</p><p className="mt-2 text-xs leading-5 text-zinc-400">{alert.detail}</p></div></div></div>;
