@@ -44,9 +44,13 @@ const currentProfile = async (): Promise<User | null> => {
 };
 
 const readMasterStores = async (): Promise<Store[]> => {
-  const snap = await getDoc(CONFIG_REF);
-  if (!snap.exists()) return [DEFAULT_STORE];
-  return normalizeStores(snap.data()?.stores);
+  try {
+    const snap = await getDoc(CONFIG_REF);
+    if (!snap.exists()) return [DEFAULT_STORE];
+    return normalizeStores(snap.data()?.stores);
+  } catch {
+    return [DEFAULT_STORE];
+  }
 };
 
 const readDirectorStores = async (companyId: string): Promise<Store[]> => {
