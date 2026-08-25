@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 130" role="img" aria-label="Motyq">
+  <defs>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.45" stop-color="#d9dee6"/>
+      <stop offset="1" stop-color="#8d97a6"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00c2ff"/>
+      <stop offset="1" stop-color="#255cff"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g fill="none" stroke-linejoin="round" stroke-linecap="square">
+    <path d="M43 21 L91 62 L139 21 L139 38 L91 79 L43 38 Z" stroke="url(#silver)" stroke-width="10"/>
+    <path d="M43 37 L73 63 L73 98 L58 85 L58 69 L43 56 Z" stroke="url(#silver)" stroke-width="9"/>
+    <path d="M139 56 L139 98" stroke="url(#silver)" stroke-width="10"/>
+    <path d="M92 102 C104 89 109 75 126 63" stroke="url(#silver)" stroke-width="3.5"/>
+    <path d="M105 104 C113 90 118 76 130 66" stroke="url(#silver)" stroke-width="3.5"/>
+    <path d="M118 105 C123 91 126 79 133 70" stroke="url(#silver)" stroke-width="3.5"/>
+    <path d="M7 66 H43" stroke="url(#blue)" stroke-width="4" filter="url(#glow)"/>
+    <path d="M15 77 H51" stroke="url(#blue)" stroke-width="4" filter="url(#glow)"/>
+    <path d="M24 88 H58" stroke="url(#blue)" stroke-width="4" filter="url(#glow)"/>
+    <g fill="#179cff" filter="url(#glow)" stroke="none">
+      <rect x="145" y="66" width="4" height="4" rx="1"/>
+      <rect x="145" y="76" width="4" height="4" rx="1"/>
+      <rect x="145" y="86" width="4" height="4" rx="1"/>
+      <rect x="145" y="96" width="4" height="4" rx="1"/>
+    </g>
+  </g>
+</svg>
