@@ -84,7 +84,7 @@ const AIManagerV2: React.FC = () => {
       }
       setLoadedOnce(true);
     } catch (error) {
-      console.error('DealMaster AI V3: erro ao carregar dados', error);
+      console.error('MOTYQ AI V3: erro ao carregar dados', error);
       setLoadedOnce(true);
     } finally {
       setLoading(false);
@@ -138,10 +138,10 @@ const AIManagerV2: React.FC = () => {
     try {
       setAiText(await generateManagerAiBrief(brief));
     } catch (error: any) {
-      console.error('DealMaster AI V3 briefing error', error);
+      console.error('MOTYQ AI V3 briefing error', error);
       setAiError(error?.message?.includes('GEMINI_API_KEY')
-        ? 'A IA generativa ainda não está configurada neste ambiente. O motor analítico do DealMaster continua funcionando normalmente.'
-        : 'Não consegui gerar o briefing agora. Os sinais e recomendações do motor DealMaster continuam válidos.');
+        ? 'A IA generativa ainda não está configurada neste ambiente. O motor analítico do MOTYQ continua funcionando normalmente.'
+        : 'Não consegui gerar o briefing agora. Os sinais e recomendações do motor MOTYQ continuam válidos.');
     } finally {
       setAiLoading(false);
     }
@@ -159,7 +159,7 @@ const AIManagerV2: React.FC = () => {
       className="fixed bottom-5 right-5 z-[140] flex items-center gap-2 rounded-full border border-white/10 bg-white px-4 py-3 text-sm font-semibold text-black shadow-2xl shadow-black/50 transition active:scale-95"
     >
       <BrainCircuit size={18}/>
-      DealMaster AI
+      MOTYQ AI
       <span className={`h-2 w-2 rounded-full ${health.dot}`}/>
     </button>
 
@@ -170,7 +170,7 @@ const AIManagerV2: React.FC = () => {
             <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-black"><BrainCircuit size={21}/></div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">DealMaster AI · V3</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">MOTYQ AI · V3</p>
                 <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${health.chip}`}>{health.label}</span>
               </div>
               <h3 className="mt-1 text-xl font-semibold text-white">Copiloto da operação</h3>
@@ -189,7 +189,7 @@ const AIManagerV2: React.FC = () => {
             <section className="rounded-[28px] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black p-5 md:p-7">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="max-w-3xl">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Leitura executiva do motor DealMaster</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Leitura executiva do motor MOTYQ</p>
                   <h4 className="mt-2 text-2xl font-semibold tracking-tight text-white">{brief.headline}</h4>
                   <p className="mt-3 text-sm leading-6 text-zinc-400">{brief.summary}</p>
                 </div>
@@ -240,7 +240,7 @@ const AIManagerV2: React.FC = () => {
 
                 <section className="rounded-[28px] border border-violet-400/15 bg-violet-400/[0.055] p-5 md:p-6">
                   <div className="flex items-center gap-2 text-violet-300"><Sparkles size={15}/><p className="text-xs font-semibold uppercase tracking-[0.14em]">Briefing executivo IA</p></div>
-                  {aiText ? <p className="mt-4 whitespace-pre-line text-sm leading-6 text-zinc-200">{aiText}</p> : aiError ? <p className="mt-4 text-sm leading-6 text-amber-200">{aiError}</p> : <p className="mt-4 text-sm leading-6 text-zinc-500">O motor DealMaster já fez o diagnóstico. Clique em “Gerar briefing IA” para transformar os sinais em uma leitura curta para a reunião diária.</p>}
+                  {aiText ? <p className="mt-4 whitespace-pre-line text-sm leading-6 text-zinc-200">{aiText}</p> : aiError ? <p className="mt-4 text-sm leading-6 text-amber-200">{aiError}</p> : <p className="mt-4 text-sm leading-6 text-zinc-500">O motor MOTYQ já fez o diagnóstico. Clique em “Gerar briefing IA” para transformar os sinais em uma leitura curta para a reunião diária.</p>}
                 </section>
               </div>
             </div>
