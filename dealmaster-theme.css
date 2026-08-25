@@ -172,3 +172,46 @@ body.dealmaster-graphite *::-webkit-scrollbar-thumb {
   border: 2px solid #1b1f26;
   border-radius: 999px;
 }
+
+/* MOTYQ brand layer: visual only. No auth or data behavior is changed. */
+body.dealmaster-graphite div[class*="h-16"][class*="w-16"][class*="place-items-center"][class*="rounded-[22px]"] {
+  background: #151922 url('/motyq-icon.svg') center/cover no-repeat !important;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.35), 0 0 28px rgba(20, 140, 255, 0.08);
+  color: transparent !important;
+}
+
+body.dealmaster-graphite div[class*="h-16"][class*="w-16"][class*="place-items-center"][class*="rounded-[22px]"] > span {
+  visibility: hidden;
+}
+
+body.dealmaster-graphite header div:has(> h1.text-3xl) {
+  gap: 10px !important;
+}
+
+body.dealmaster-graphite header div:has(> h1.text-3xl)::before {
+  content: '';
+  width: 54px;
+  height: 40px;
+  flex: 0 0 54px;
+  background: url('/motyq-mark.svg') center/contain no-repeat;
+  filter: drop-shadow(0 0 8px rgba(40, 120, 255, 0.12));
+}
+
+body.dealmaster-graphite header div:has(> h1.text-3xl) > svg {
+  display: none !important;
+}
+
+body.dealmaster-graphite header h1.text-3xl {
+  font-size: 0 !important;
+  letter-spacing: 0.18em;
+}
+
+body.dealmaster-graphite header h1.text-3xl::after {
+  content: 'MOTYQ';
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #f8fafc;
+  text-shadow: 0 0 20px rgba(37, 92, 255, 0.12);
+}
