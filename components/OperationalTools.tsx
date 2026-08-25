@@ -144,7 +144,7 @@ const OperationalTools: React.FC = () => {
       <DirectorPanorama currentUser={user} companyId={companyId} companyName={companyName}/>
       <button
         onClick={() => signOut(auth)}
-        title="Sair do DealMaster"
+        title="Sair do MOTYQ"
         className="fixed right-6 top-5 z-[540] flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-[#20242c] px-3 text-xs font-bold text-zinc-200 shadow-xl transition hover:bg-[#2a2f38]"
       >
         <LogOut size={15}/>
