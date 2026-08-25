@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Motyq">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c222b"/>
+      <stop offset="1" stop-color="#0d1015"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.48" stop-color="#d8dee7"/>
+      <stop offset="1" stop-color="#87919f"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00c2ff"/>
+      <stop offset="1" stop-color="#285cff"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="5" width="118" height="118" rx="27" fill="url(#bg)" stroke="#95a0af" stroke-width="3"/>
+  <path d="M31 31 L64 58 L97 31 L97 44 L64 72 L31 44 Z" fill="none" stroke="url(#silver)" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M31 44 L51 61 L51 87 L40 78 L40 67 L31 59 Z" fill="none" stroke="url(#silver)" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M97 58 L97 88" fill="none" stroke="url(#silver)" stroke-width="8"/>
+  <path d="M65 92 C73 83 77 71 89 61" fill="none" stroke="url(#silver)" stroke-width="2.8"/>
+  <path d="M74 94 C79 84 83 73 91 64" fill="none" stroke="url(#silver)" stroke-width="2.8"/>
+  <path d="M83 95 C87 85 89 76 93 68" fill="none" stroke="url(#silver)" stroke-width="2.8"/>
+  <path d="M13 61 H34" stroke="url(#blue)" stroke-width="4"/>
+  <path d="M17 70 H39" stroke="url(#blue)" stroke-width="4"/>
+  <path d="M22 79 H43" stroke="url(#blue)" stroke-width="4"/>
+  <g fill="#149dff">
+    <rect x="102" y="63" width="4" height="4" rx="1"/>
+    <rect x="102" y="72" width="4" height="4" rx="1"/>
+    <rect x="102" y="81" width="4" height="4" rx="1"/>
+  </g>
+</svg>
