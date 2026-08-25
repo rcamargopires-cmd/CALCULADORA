@@ -47,10 +47,10 @@ const DealMasterAI: React.FC<Props> = ({ context, onOpenSeller }) => {
       const text = await generateManagerAiBrief(brief);
       setAiText(text);
     } catch (err: any) {
-      console.error('DealMaster AI V3 error', err);
+      console.error('MOTYQ AI V3 error', err);
       setError(err?.message?.includes('GEMINI_API_KEY')
-        ? 'A IA generativa ainda não está configurada neste ambiente. O diagnóstico do motor DealMaster continua disponível acima.'
-        : 'Não consegui gerar o briefing agora. O diagnóstico do motor DealMaster continua válido.');
+        ? 'A IA generativa ainda não está configurada neste ambiente. O diagnóstico do motor MOTYQ continua disponível acima.'
+        : 'Não consegui gerar o briefing agora. O diagnóstico do motor MOTYQ continua válido.');
     } finally {
       setLoading(false);
     }
@@ -70,7 +70,7 @@ const DealMasterAI: React.FC<Props> = ({ context, onOpenSeller }) => {
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 text-zinc-500">
               <BrainCircuit size={17}/>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em]">DealMaster AI · V3</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em]">MOTYQ AI · V3</p>
               <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass}`}>{statusLabel}</span>
             </div>
             <h3 className="mt-3 text-2xl font-semibold tracking-tight text-white">{brief.headline}</h3>
@@ -136,7 +136,7 @@ const DealMasterAI: React.FC<Props> = ({ context, onOpenSeller }) => {
             ) : error ? (
               <p className="mt-3 text-sm leading-6 text-amber-200">{error}</p>
             ) : (
-              <p className="mt-3 text-sm leading-6 text-zinc-500">Clique em “Gerar briefing IA”. A IA recebe somente o resumo analítico do DealMaster e transforma os sinais em uma leitura executiva para a reunião diária.</p>
+              <p className="mt-3 text-sm leading-6 text-zinc-500">Clique em “Gerar briefing IA”. A IA recebe somente o resumo analítico do MOTYQ e transforma os sinais em uma leitura executiva para a reunião diária.</p>
             )}
           </div>
         </div>
