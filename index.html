@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DealMaster</title>
+    <meta name="application-name" content="Motyq" />
+    <meta name="description" content="Motyq — inteligência para operação automotiva." />
+    <title>Motyq | Inteligência para operação automotiva</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
@@ -15,8 +17,8 @@
             },
             colors: {
               excel: {
-                yellow: '#FFFF00', // The bright excel yellow
-                header: '#FFD700', // A slightly nicer gold for UI
+                yellow: '#FFFF00',
+                header: '#FFD700',
               }
             },
             keyframes: {
@@ -31,6 +33,54 @@
           },
         },
       }
+    </script>
+    <script>
+      (() => {
+        const replacements = [
+          ['DealMaster', 'Motyq'],
+          ['DEALMASTER', 'MOTYQ'],
+          ['dealmaster', 'motyq']
+        ];
+
+        const replaceValue = (value) => {
+          if (!value) return value;
+          return replacements.reduce((text, [from, to]) => text.split(from).join(to), value);
+        };
+
+        const replaceTextNodes = (root) => {
+          if (!root) return;
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          const nodes = [];
+          while (walker.nextNode()) nodes.push(walker.currentNode);
+          nodes.forEach((node) => {
+            const next = replaceValue(node.nodeValue || '');
+            if (next !== node.nodeValue) node.nodeValue = next;
+          });
+        };
+
+        const startBrandBridge = () => {
+          document.title = 'Motyq | Inteligência para operação automotiva';
+          replaceTextNodes(document.body);
+          const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+              if (mutation.type === 'characterData') {
+                const node = mutation.target;
+                const next = replaceValue(node.nodeValue || '');
+                if (next !== node.nodeValue) node.nodeValue = next;
+                return;
+              }
+              mutation.addedNodes.forEach((node) => replaceTextNodes(node));
+            });
+          });
+          observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+        };
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', startBrandBridge, { once: true });
+        } else {
+          startBrandBridge();
+        }
+      })();
     </script>
   <script type="importmap">
 {

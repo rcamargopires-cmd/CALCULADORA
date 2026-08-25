@@ -142,16 +142,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <div className="p-7 md:p-8">
           <div className="mb-8 flex flex-col items-center text-center">
             <div className="mb-4 grid h-16 w-16 place-items-center rounded-[22px] bg-white text-black shadow-xl">
-              <Lock className="h-7 w-7" />
+              <span className="text-2xl font-black tracking-[-0.08em]">M</span>
             </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">DealMaster</p>
-            <h1 className="mt-2 text-2xl font-semibold text-white">
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-white">Motyq</p>
+            <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-600">Inteligência para operação automotiva</p>
+            <h1 className="mt-4 text-2xl font-semibold text-white">
               {mode === 'login' ? 'Bem-vindo de volta' : 'Crie sua senha'}
             </h1>
             <p className="mt-2 max-w-xs text-sm leading-5 text-zinc-500">
               {mode === 'login'
                 ? 'Entre com o e-mail cadastrado pela sua empresa.'
-                : 'Use exatamente o e-mail que o administrador cadastrou no DealMaster.'}
+                : 'Use exatamente o e-mail que o administrador cadastrou no Motyq.'}
             </p>
           </div>
 
@@ -251,7 +252,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         </div>
 
         <div className="border-t border-white/10 bg-black/20 px-7 py-4 text-center text-[11px] leading-5 text-zinc-600">
-          O acesso continua restrito aos usuários cadastrados pelo administrador do DealMaster.
+          O acesso continua restrito aos usuários cadastrados pelo administrador do Motyq.
         </div>
       </div>
     </div>
