@@ -5,7 +5,6 @@ import {
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
-  signOut,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
@@ -15,12 +14,15 @@ interface LoginScreenProps {
 
 type Mode = 'login' | 'first-access';
 
-const friendlyError = (code?: string) => {
+const friendlyError = (err: any) => {
+  const code = String(err?.code || '');
   switch (code) {
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
       return 'E-mail ou senha incorretos.';
+    case 'auth/user-disabled':
+      return 'Este usuário está desativado no Firebase Authentication.';
     case 'auth/email-already-in-use':
       return 'Este e-mail já possui senha cadastrada. Use Entrar ou Esqueci minha senha.';
     case 'auth/weak-password':
@@ -30,11 +32,24 @@ const friendlyError = (code?: string) => {
     case 'auth/too-many-requests':
       return 'Muitas tentativas. Aguarde um pouco e tente novamente.';
     case 'auth/operation-not-allowed':
-      return 'Login por e-mail ainda não foi habilitado no Firebase.';
+      return 'O acesso por e-mail e senha não está habilitado no Firebase Authentication.';
+    case 'auth/network-request-failed':
+      return 'Não foi possível conectar ao Firebase. Verifique a internet, VPN, bloqueador ou firewall e tente novamente. [auth/network-request-failed]';
+    case 'auth/unauthorized-domain':
+    case 'auth/app-not-authorized':
+      return `Este endereço do Motyq ainda não está autorizado no Firebase. [${code}]`;
+    case 'auth/configuration-not-found':
+      return 'A configuração de autenticação do Firebase não foi encontrada. [auth/configuration-not-found]';
+    case 'auth/invalid-api-key':
+      return 'A chave do Firebase usada pelo Motyq não foi aceita. [auth/invalid-api-key]';
+    case 'auth/internal-error':
+      return 'O Firebase retornou um erro interno. Tente novamente. [auth/internal-error]';
     case 'auth/popup-closed-by-user':
       return 'Login com Google cancelado.';
+    case 'auth/popup-blocked':
+      return 'O navegador bloqueou a janela de login do Google. Libere pop-ups para este endereço.';
     default:
-      return 'Não foi possível concluir o acesso. Tente novamente.';
+      return `Não foi possível concluir o acesso. Código: ${code || 'erro-desconhecido'}.`;
   }
 };
 
@@ -65,7 +80,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
       onLoginSuccess();
     } catch (err: any) {
-      setError(friendlyError(err?.code));
+      console.error('Motyq email login error:', err?.code, err?.message);
+      setError(friendlyError(err));
     } finally {
       setIsLoading(false);
     }
@@ -89,11 +105,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
     try {
       await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
-      // App.tsx valida em seguida se o e-mail está autorizado na coleção users.
-      // Quem não estiver previamente cadastrado é automaticamente desconectado.
       onLoginSuccess();
     } catch (err: any) {
-      setError(friendlyError(err?.code));
+      console.error('Motyq first access error:', err?.code, err?.message);
+      setError(friendlyError(err));
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +125,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       await sendPasswordResetEmail(auth, email.trim().toLowerCase());
       setMessage('Se o e-mail estiver cadastrado, você receberá as instruções para criar uma nova senha.');
     } catch (err: any) {
-      setError(friendlyError(err?.code));
+      console.error('Motyq password reset error:', err?.code, err?.message);
+      setError(friendlyError(err));
     } finally {
       setIsLoading(false);
     }
@@ -123,7 +139,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       await signInWithPopup(auth, googleProvider);
       onLoginSuccess();
     } catch (err: any) {
-      setError(friendlyError(err?.code));
+      console.error('Motyq Google login error:', err?.code, err?.message);
+      setError(friendlyError(err));
     } finally {
       setIsLoading(false);
     }
