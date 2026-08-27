@@ -102,7 +102,7 @@ const CompaniesPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     companyScopeService.set(company.id);
     if (fallbackStore) storeScopeService.set(fallbackStore);
     setSelectedCompanyId(company.id);
-    setMessage(`Agora o DealMaster está no ambiente ${company.name}.`);
+    setMessage(`Agora o Motyq está no ambiente ${company.name}.`);
   };
 
   const assignUser = async (user: User, companyId: string) => {
