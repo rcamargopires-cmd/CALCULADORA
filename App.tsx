@@ -233,7 +233,7 @@ const App: React.FC = () => {
 
         <header className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2"><Calculator className="w-8 h-8 text-amber-400" /><h1 className="text-3xl font-black text-white">DealMaster</h1></div>
+            <div className="flex items-center gap-2"><Calculator className="w-8 h-8 text-amber-400" /><h1 className="text-3xl font-black text-white">MOTYQ</h1></div>
             <nav className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-lg ml-4">
               <button onClick={() => setActiveView('dashboard')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'dashboard' ? 'bg-amber-400 text-black shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}><LayoutDashboard size={14} /> DASHBOARD</button>
               <button onClick={() => setActiveView('calculator')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'calculator' ? 'bg-amber-400 text-black shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}><CalcIcon size={14} /> NOVA NEGOCIAÇÃO</button>
