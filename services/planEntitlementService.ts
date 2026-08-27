@@ -24,7 +24,7 @@ export const MODULES: ModuleDefinition[] = [
   { id: 'trends', label: 'Histórico & Tendências', shortLabel: 'Trends', description: 'Evolução de vendas, captura, margem e estoque.', minimumPlan: 'starter' },
   { id: 'smartAlerts', label: 'Smart Alerts', shortLabel: 'Alerts', description: 'Alertas automáticos de mudanças e riscos operacionais.', minimumPlan: 'pro' },
   { id: 'executiveInsights', label: 'Executive Insights', shortLabel: 'Insights', description: 'Leitura executiva pronta para reunião e gestão.', minimumPlan: 'pro' },
-  { id: 'aiManager', label: 'DealMaster AI', shortLabel: 'AI', description: 'Diagnóstico e briefing executivo assistido por IA.', minimumPlan: 'pro' },
+  { id: 'aiManager', label: 'Motyq AI', shortLabel: 'AI', description: 'Diagnóstico e briefing executivo assistido por IA.', minimumPlan: 'pro' },
   { id: 'assetGuard', label: 'AssetGuard', shortLabel: 'AssetGuard', description: 'Custódia, logística, alertas e SLA de manuais e chaves.', minimumPlan: 'pro' },
   { id: 'multiStore', label: 'Multi-Store', shortLabel: 'Multi-Store', description: 'Gestão de múltiplas unidades do mesmo grupo.', minimumPlan: 'enterprise' },
   { id: 'groupOverview', label: 'Group Command Center', shortLabel: 'Grupo', description: 'Visão consolidada de lojas e grupo.', minimumPlan: 'enterprise' },
