@@ -47,7 +47,7 @@ const DirectorAccessPanel: React.FC<Props> = ({ currentUser, company }) => {
       await storeService.syncDirectorScope(company.id);
       const existing = await userService.getUser(cleanEmail);
       if (existing && existing.companyId && existing.companyId !== company.id) {
-        throw new Error('Este e-mail já pertence a outra empresa no DealMaster.');
+        throw new Error('Este e-mail já pertence a outra empresa no Motyq.');
       }
 
       const next: User = {
