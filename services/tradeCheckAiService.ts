@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { auth } from '../firebase';
 
 export type TradeCheckExtractedData = {
   ownerName: string;
@@ -39,49 +39,43 @@ const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reje
   reader.readAsDataURL(file);
 });
 
-const inlinePart = async (label: string, file: File) => ({
-  textPart: { text: `ARQUIVO: ${label} | nome: ${file.name}` },
-  filePart: { inlineData: { mimeType: file.type || 'application/octet-stream', data: await fileToBase64(file) } }
+const serializeFile = async (file: File) => ({
+  name: file.name,
+  mimeType: file.type || 'application/octet-stream',
+  data: await fileToBase64(file),
 });
 
-const cleanJson = (raw: string) => {
-  const cleaned = raw.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  return start >= 0 && end > start ? cleaned.slice(start, end + 1) : cleaned;
-};
-
 export const extractTradeCheckDocuments = async (files: TradeCheckFiles): Promise<TradeCheckExtractedData> => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('A leitura automática não está configurada no Motyq.');
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Sua sessão expirou. Entre novamente no Motyq.');
 
-  const ai = new GoogleGenAI({ apiKey });
-  const [cnh, crlv, cadastro] = await Promise.all([
-    inlinePart('CNH DO PROPRIETÁRIO', files.cnh),
-    inlinePart('CRLV-E DO VEÍCULO', files.crlv),
-    inlinePart('PRINT DO CADASTRO DO CLIENTE', files.cadastro),
+  const totalBytes = files.cnh.size + files.crlv.size + files.cadastro.size;
+  if (totalBytes > 3_000_000) {
+    throw new Error('Os 3 arquivos juntos estão muito grandes para leitura automática. Use PDFs/imagens menores que totalizem até 3 MB.');
+  }
+
+  const [cnh, crlv, cadastro, idToken] = await Promise.all([
+    serializeFile(files.cnh),
+    serializeFile(files.crlv),
+    serializeFile(files.cadastro),
+    currentUser.getIdToken(),
   ]);
 
-  const prompt = `Você está lendo documentos fornecidos pelo próprio usuário para montar um dossiê de troca de veículo.
-Extraia somente informações claramente visíveis nos três arquivos. Não invente, não complete por contexto e não faça inferências.
-Prioridade de fonte: dados pessoais podem vir da CNH e do cadastro; dados do veículo devem vir do CRLV-e; telefone e endereço podem vir do cadastro.
-Retorne APENAS um objeto JSON válido com exatamente estas chaves, todas como string:
-ownerName, cpf, rg, birthDate, address, cep, city, phone, brand, model, yearFab, yearModel, color, plate, chassis, renavam.
-Se um valor não estiver legível ou não existir, use string vazia. Preserve CPF/RG/CEP/telefone de forma legível. Placa e chassi em maiúsculas. birthDate preferencialmente DD/MM/AAAA.`;
-
-  const parts: any[] = [
-    { text: prompt },
-    cnh.textPart, cnh.filePart,
-    crlv.textPart, crlv.filePart,
-    cadastro.textPart, cadastro.filePart,
-  ];
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: [{ role: 'user', parts }] as any,
+  const response = await fetch('/api/tradecheck-extract', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ files: { cnh, crlv, cadastro } }),
   });
 
-  const parsed = JSON.parse(cleanJson(String(response.text || '{}'))) as Partial<TradeCheckExtractedData>;
+  const payload = await response.json().catch(() => ({})) as any;
+  if (!response.ok) {
+    throw new Error(String(payload?.error || 'Não foi possível ler os documentos automaticamente.'));
+  }
+
+  const parsed = (payload?.data || {}) as Partial<TradeCheckExtractedData>;
   const result = {} as TradeCheckExtractedData;
   keys.forEach(key => { result[key] = String(parsed[key] || '').trim(); });
   result.plate = result.plate.toUpperCase();
