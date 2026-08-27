@@ -28,6 +28,7 @@ import ShowroomFlowHub from './ShowroomFlowHub';
 import ShowroomReports from './ShowroomReports';
 import DirectorPanorama from './DirectorPanorama';
 import DirectorAccessPanel from './DirectorAccessPanel';
+import ActionCenter from './ActionCenter';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -163,6 +164,7 @@ const OperationalTools: React.FC = () => {
     {storeId && <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isSeller && <SellerPrivacyGuard user={user}/>} 
+    {isManager && storeId && <ActionCenter currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <PrepTrackPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
