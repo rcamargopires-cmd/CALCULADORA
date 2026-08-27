@@ -138,7 +138,7 @@ export const buildManagerIntelligence = (context: ManagerAiContext): ManagerAiBr
     signals.push({
       tone: 'critical', priority: 0,
       title: 'Mapa de Performance ausente',
-      evidence: 'Sem o mapa atual, o DealMaster não consegue interpretar ritmo, margem, captura e equipe.',
+      evidence: 'Sem o mapa atual, o Motyq não consegue interpretar ritmo, margem, captura e equipe.',
       action: 'Importe o Mapa de Performance do dia antes de tomar decisões comerciais pelo painel.',
     });
   } else {
@@ -294,7 +294,7 @@ export const generateManagerAiBrief = async (brief: ManagerAiBrief): Promise<str
     : '- Nenhum vendedor em atenção prioritária.';
 
   const prompt = `
-Você é o DealMaster AI, um copiloto de gestão comercial para concessionárias e lojas de seminovos.
+Você é o Motyq AI, um copiloto de gestão comercial para concessionárias e lojas de seminovos.
 Sua função é interpretar APENAS os dados e sinais fornecidos. Não invente números, causas, metas ou acontecimentos.
 
 OBJETIVO:
@@ -310,7 +310,7 @@ REGRAS:
 - Termine com "Prioridade de hoje:" e UMA ação principal.
 - Use apenas texto simples, sem tabelas e sem títulos em Markdown com #.
 
-RESUMO DO MOTOR DEALMASTER:
+RESUMO DO MOTOR MOTYQ:
 ${brief.summary}
 
 SINAIS PRIORIZADOS:
