@@ -5,7 +5,7 @@ import { User } from '../types';
 import { userService } from '../services/userService';
 import TradeCheckPanel from './TradeCheckPanel';
 
-const allowedRoles = new Set(['admin', 'manager', 'seller', 'user']);
+const sellerRoles = new Set(['seller', 'user']);
 
 const TradeCheckShell: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -17,7 +17,7 @@ const TradeCheckShell: React.FC = () => {
     }
     try {
       const profile = await userService.getUser(firebaseUser.email);
-      if (profile?.status === 'active' && allowedRoles.has(String(profile.role))) setUser(profile);
+      if (profile?.status === 'active' && sellerRoles.has(String(profile.role))) setUser(profile);
       else setUser(null);
     } catch {
       setUser(null);
