@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import OperationalTools from './components/OperationalTools';
+import TradeCheckShell from './components/TradeCheckShell';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -13,5 +14,6 @@ root.render(
   <React.StrictMode>
     <App />
     <OperationalTools />
+    <TradeCheckShell />
   </React.StrictMode>
 );
