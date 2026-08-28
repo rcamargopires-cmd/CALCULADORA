@@ -40,7 +40,7 @@ const SellerActionInbox: React.FC<Props> = ({ currentUser, companyId, storeId, s
     } catch (error: any) {
       console.error('Seller action inbox load error', error);
       if (String(error?.code || '').includes('permission-denied')) {
-        setFeedback('A Minha Agenda está pronta, mas a permissão do Firebase ainda precisa ser publicada pelo administrador.');
+        setFeedback('Sua agenda ainda está sendo ativada. Tente novamente em instantes.');
       } else {
         setFeedback('Não consegui carregar suas ações agora.');
       }
