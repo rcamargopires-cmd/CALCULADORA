@@ -21,6 +21,11 @@ service cloud.firestore {
     function ownsDeal() { return resource.data.userId == request.auth.token.email || resource.data.userId == request.auth.uid; }
     function createsOwnDeal() { return request.resource.data.userId == request.auth.token.email || request.resource.data.userId == request.auth.uid; }
     function assignedPassage(data) { return isSeller() && data.assignedSellerEmail == request.auth.token.email; }
+    function assignedAction(data) {
+      return isSeller() &&
+        ('kind' in data) && data.kind == 'action_task' &&
+        ('assignedToEmail' in data) && data.assignedToEmail == request.auth.token.email;
+    }
 
     match /users/{email} {
       allow read: if isAuthenticated() && (request.auth.token.email == email || isAdmin() || ((role() == 'manager' || role() == 'seller' || role() == 'user') && sameStore(resource.data)));
@@ -105,9 +110,24 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /operational_meta/{itemId} {
-      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
-      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+      allow read: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data)) ||
+        assignedAction(resource.data);
+
+      allow create: if isAdmin() ||
+        (role() == 'manager' && sameStore(request.resource.data));
+
+      allow update: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
+        (
+          assignedAction(resource.data) &&
+          assignedAction(request.resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'result', 'updatedAt', 'completedAt']) &&
+          request.resource.data.status in ['open', 'in_progress', 'done']
+        );
+
+      allow delete: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data));
     }
     match /operational_imports/{itemId} {
       allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
