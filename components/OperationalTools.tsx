@@ -14,6 +14,7 @@ import OperationalDataPanel from './OperationalDataPanel';
 import AIManagerV2 from './AIManagerV2';
 import HierarchyPanel from './HierarchyPanel';
 import SellerPrivacyGuard from './SellerPrivacyGuard';
+import SellerActionInbox from './SellerActionInbox';
 import SmartAlerts from './SmartAlerts';
 import ExecutiveInsights from './ExecutiveInsights';
 import MultiStorePanel from './MultiStorePanel';
@@ -164,6 +165,7 @@ const OperationalTools: React.FC = () => {
     {storeId && <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isSeller && <SellerPrivacyGuard user={user}/>} 
+    {isSeller && storeId && <SellerActionInbox currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <ActionCenter currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
