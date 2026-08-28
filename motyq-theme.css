@@ -318,3 +318,93 @@ body.motyq-graphite button[title="Minha Agenda Motyq"] > div > span {
     width: 118px !important;
   }
 }
+
+/* Force the manager/admin launcher to remain readable even when other shortcut styles are present. */
+body.motyq-graphite button[title="Centro de Ação Motyq"] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  position: fixed !important;
+  top: 72px !important;
+  right: 18px !important;
+  bottom: auto !important;
+  width: 220px !important;
+  min-width: 220px !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  padding: 0 14px !important;
+  overflow: visible !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(125, 211, 252, 0.35) !important;
+  background: linear-gradient(135deg, rgba(14, 28, 44, 0.99), rgba(29, 36, 48, 0.99)) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.40), 0 0 28px rgba(56, 189, 248, 0.08) !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  z-index: 180 !important;
+}
+
+body.motyq-graphite button[title="Centro de Ação Motyq"]::before {
+  content: 'GESTÃO HOJE';
+  position: absolute;
+  left: 50px;
+  top: 13px;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: #7dd3fc;
+}
+
+body.motyq-graphite button[title="Centro de Ação Motyq"]::after {
+  content: 'Centro de Ação';
+  position: absolute;
+  left: 50px;
+  top: 30px;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: #f8fafc;
+}
+
+body.motyq-graphite button[title="Centro de Ação Motyq"] > svg {
+  width: 22px !important;
+  height: 22px !important;
+  margin: 0 !important;
+  color: #7dd3fc !important;
+  flex: 0 0 auto !important;
+}
+
+body.motyq-graphite button[title="Centro de Ação Motyq"] > span {
+  position: absolute !important;
+  right: 12px !important;
+  top: 20px !important;
+  margin: 0 !important;
+  min-width: 24px !important;
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+  color: inherit !important;
+}
+
+@media (max-width: 900px) {
+  body.motyq-graphite button[title="Centro de Ação Motyq"] {
+    top: auto !important;
+    right: 12px !important;
+    bottom: 18px !important;
+    width: 184px !important;
+    min-width: 184px !important;
+    height: 56px !important;
+    min-height: 56px !important;
+  }
+
+  body.motyq-graphite button[title="Centro de Ação Motyq"]::before {
+    left: 46px;
+    top: 11px;
+  }
+
+  body.motyq-graphite button[title="Centro de Ação Motyq"]::after {
+    left: 46px;
+    top: 27px;
+    font-size: 12px;
+  }
+}
