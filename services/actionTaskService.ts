@@ -56,10 +56,26 @@ export const actionTaskService = {
       .sort((a, b) => String(b.sourceDate || '').localeCompare(String(a.sourceDate || '')));
   },
 
+  listAssigned: async (email: string, companyId?: string, storeId?: string): Promise<ActionTask[]> => {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail) return [];
+    const snap = await getDocs(query(
+      collection(db, 'operational_meta'),
+      where('assignedToEmail', '==', normalizedEmail),
+    ));
+    return snap.docs
+      .map(item => ({ id: item.id, ...item.data() } as ActionTask))
+      .filter(item => item.kind === 'action_task')
+      .filter(item => !companyId || item.companyId === companyId)
+      .filter(item => !storeId || item.storeId === storeId)
+      .sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
+  },
+
   create: async (task: NewActionTask): Promise<string> => {
     const id = taskId(task);
     await setDoc(doc(db, 'operational_meta', id), {
       ...task,
+      assignedToEmail: String(task.assignedToEmail || '').trim().toLowerCase(),
       id,
       kind: 'action_task',
       status: 'open',
@@ -67,6 +83,7 @@ export const actionTaskService = {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    window.dispatchEvent(new CustomEvent('motyq:action-task-updated'));
     return id;
   },
 
@@ -77,9 +94,11 @@ export const actionTaskService = {
       updatedAt: serverTimestamp(),
       ...(patch.status === 'done' ? { completedAt: serverTimestamp() } : {}),
     });
+    window.dispatchEvent(new CustomEvent('motyq:action-task-updated'));
   },
 
   remove: async (id: string): Promise<void> => {
     await deleteDoc(doc(db, 'operational_meta', id));
+    window.dispatchEvent(new CustomEvent('motyq:action-task-updated'));
   },
 };
