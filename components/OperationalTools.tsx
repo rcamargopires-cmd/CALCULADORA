@@ -30,6 +30,7 @@ import ShowroomReports from './ShowroomReports';
 import DirectorPanorama from './DirectorPanorama';
 import DirectorAccessPanel from './DirectorAccessPanel';
 import ActionCenter from './ActionCenter';
+import MotyqImpact from './MotyqImpact';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -167,6 +168,7 @@ const OperationalTools: React.FC = () => {
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isSeller && storeId && <SellerActionInbox currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <ActionCenter currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {isManager && storeId && <MotyqImpact currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <PrepTrackPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
