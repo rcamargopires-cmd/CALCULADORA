@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import ManagerTopNav from './components/ManagerTopNav';
 import OperationalTools from './components/OperationalTools';
 import TradeCheckShell from './components/TradeCheckShell';
 
@@ -13,6 +14,7 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <App />
+    <ManagerTopNav />
     <OperationalTools />
     <TradeCheckShell />
   </React.StrictMode>
