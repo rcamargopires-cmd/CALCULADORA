@@ -58,16 +58,20 @@ export const actionTaskService = {
 
   listAssigned: async (email: string, companyId?: string, storeId?: string): Promise<ActionTask[]> => {
     const normalizedEmail = String(email || '').trim().toLowerCase();
-    if (!normalizedEmail) return [];
+    const normalizedCompany = String(companyId || '').trim();
+    const normalizedStore = String(storeId || '').trim();
+    if (!normalizedEmail || !normalizedCompany || !normalizedStore) return [];
+
     const snap = await getDocs(query(
       collection(db, 'operational_meta'),
+      where('kind', '==', 'action_task'),
       where('assignedToEmail', '==', normalizedEmail),
+      where('companyId', '==', normalizedCompany),
+      where('storeId', '==', normalizedStore),
     ));
+
     return snap.docs
       .map(item => ({ id: item.id, ...item.data() } as ActionTask))
-      .filter(item => item.kind === 'action_task')
-      .filter(item => !companyId || item.companyId === companyId)
-      .filter(item => !storeId || item.storeId === storeId)
       .sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
   },
 
