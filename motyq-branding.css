@@ -29,6 +29,11 @@ body.motyq-graphite header div:has(> h1.text-3xl) + nav {
   margin-left: 6px !important;
 }
 
+/* Remove the legacy Análise IA CTA from every main-app access. */
+body.motyq-graphite header > div.flex.gap-3.flex-wrap > button[class*="bg-amber-400"][class*="text-black"] {
+  display: none !important;
+}
+
 /* LOGIN */
 body.motyq-graphite div:has(> img[src="/motyq-mark.svg"]) {
   position: relative !important;
