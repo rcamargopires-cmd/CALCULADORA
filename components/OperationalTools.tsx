@@ -27,6 +27,7 @@ import MarketPresencePanel from './MarketPresencePanel';
 import PrepTrackPanel from './PrepTrackPanel';
 import ShowroomFlowHub from './ShowroomFlowHub';
 import ShowroomReports from './ShowroomReports';
+import ReceptionHistoryPanel from './ReceptionHistoryPanel';
 import DirectorPanorama from './DirectorPanorama';
 import DirectorAccessPanel from './DirectorAccessPanel';
 import ActionCenter from './ActionCenter';
@@ -139,7 +140,10 @@ const OperationalTools: React.FC = () => {
   const role = String(user.role || '');
 
   if (role === 'reception') {
-    return storeId ? <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/> : null;
+    return storeId ? <>
+      <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>
+      <ReceptionHistoryPanel companyId={companyId} storeId={storeId} storeName={storeName}/>
+    </> : null;
   }
 
   if (role === 'director') {
