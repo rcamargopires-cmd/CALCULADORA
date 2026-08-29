@@ -1,0 +1,130 @@
+/* Motyq full-brand lockup
+   Keeps the compact symbol for tiny UI surfaces while using the complete
+   symbol + wordmark + slogan in the main application shells. */
+
+/* MAIN APP HEADER */
+body.motyq-graphite header div:has(> h1.text-3xl) {
+  width: 270px !important;
+  min-width: 270px !important;
+  height: 74px !important;
+  flex: 0 0 270px !important;
+  gap: 0 !important;
+  position: relative !important;
+  background: url('/motyq-brand.svg') left center / contain no-repeat !important;
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,.36)) drop-shadow(0 0 10px rgba(20,156,255,.10));
+}
+
+body.motyq-graphite header div:has(> h1.text-3xl)::before,
+body.motyq-graphite header div:has(> h1.text-3xl)::after {
+  display: none !important;
+  content: none !important;
+}
+
+body.motyq-graphite header div:has(> h1.text-3xl) > svg,
+body.motyq-graphite header div:has(> h1.text-3xl) > h1 {
+  display: none !important;
+}
+
+body.motyq-graphite header div:has(> h1.text-3xl) + nav {
+  margin-left: 6px !important;
+}
+
+/* LOGIN */
+body.motyq-graphite div:has(> img[src="/motyq-mark.svg"]) {
+  position: relative !important;
+}
+
+body.motyq-graphite div:has(> img[src="/motyq-mark.svg"])::before {
+  content: '' !important;
+  display: block !important;
+  width: min(350px, 88vw) !important;
+  height: 108px !important;
+  margin: 0 auto 16px !important;
+  background: url('/motyq-brand.svg') center / contain no-repeat !important;
+  filter: drop-shadow(0 12px 24px rgba(0,0,0,.42)) drop-shadow(0 0 16px rgba(20,156,255,.11));
+}
+
+body.motyq-graphite div:has(> img[src="/motyq-mark.svg"]) > img,
+body.motyq-graphite div:has(> img[src="/motyq-mark.svg"]) > p:first-of-type,
+body.motyq-graphite div:has(> img[src="/motyq-mark.svg"]) > p:nth-of-type(2) {
+  display: none !important;
+}
+
+body.motyq-graphite div:has(> img[src="/motyq-mark.svg"]) > h1 {
+  margin-top: 2px !important;
+}
+
+/* RECEPTION FULL-SCREEN SHELL */
+body.motyq-graphite div[class*="z-[500]"] > header > div:first-child {
+  gap: 16px !important;
+}
+
+body.motyq-graphite div[class*="z-[500]"] > header > div:first-child::before {
+  content: '' !important;
+  display: block !important;
+  width: 235px !important;
+  height: 62px !important;
+  flex: 0 0 235px !important;
+  background: url('/motyq-brand.svg') left center / contain no-repeat !important;
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,.36)) drop-shadow(0 0 10px rgba(20,156,255,.10));
+}
+
+body.motyq-graphite div[class*="z-[500]"] > header > div:first-child > div:first-child {
+  display: none !important;
+}
+
+/* DIRECTOR FULL-SCREEN SHELL */
+body.motyq-graphite div[class*="z-[520]"] > div > header::before {
+  content: '' !important;
+  display: block !important;
+  width: 230px !important;
+  height: 62px !important;
+  flex: 0 0 230px !important;
+  background: url('/motyq-brand.svg') left center / contain no-repeat !important;
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,.34)) drop-shadow(0 0 10px rgba(20,156,255,.09));
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  body.motyq-graphite header div:has(> h1.text-3xl) {
+    width: 225px !important;
+    min-width: 225px !important;
+    height: 64px !important;
+    flex-basis: 225px !important;
+  }
+
+  body.motyq-graphite div[class*="z-[500]"] > header {
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  body.motyq-graphite div[class*="z-[500]"] > header > div:first-child::before {
+    width: 185px !important;
+    height: 52px !important;
+    flex-basis: 185px !important;
+  }
+
+  body.motyq-graphite div[class*="z-[520]"] > div > header::before {
+    width: 190px !important;
+    height: 52px !important;
+    flex-basis: 190px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  body.motyq-graphite header div:has(> h1.text-3xl) {
+    width: 190px !important;
+    min-width: 190px !important;
+    height: 56px !important;
+    flex-basis: 190px !important;
+  }
+
+  body.motyq-graphite div:has(> img[src="/motyq-mark.svg"])::before {
+    width: min(300px, 86vw) !important;
+    height: 96px !important;
+  }
+
+  body.motyq-graphite div[class*="z-[500]"] > header > div:first-child {
+    flex-wrap: wrap !important;
+  }
+}
