@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-label="Motyq — Inteligência para operação automotiva">
+  <defs>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.42" stop-color="#e8edf4"/>
+      <stop offset="0.72" stop-color="#b9c2cf"/>
+      <stop offset="1" stop-color="#7d8998"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00c8ff"/>
+      <stop offset="0.55" stop-color="#149cff"/>
+      <stop offset="1" stop-color="#365cff"/>
+    </linearGradient>
+    <linearGradient id="blueFade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#149cff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#149cff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#149cff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <g transform="translate(8 11) scale(1.14)" fill="none" stroke-linejoin="round" stroke-linecap="square" filter="url(#softShadow)">
+    <path d="M43 21 L91 62 L139 21 L139 38 L91 79 L43 38 Z" stroke="url(#silver)" stroke-width="10"/>
+    <path d="M43 37 L73 63 L73 98 L58 85 L58 69 L43 56 Z" stroke="url(#silver)" stroke-width="9"/>
+    <path d="M139 56 L139 98" stroke="url(#silver)" stroke-width="10"/>
+    <path d="M92 102 C104 89 109 75 126 63" stroke="url(#silver)" stroke-width="3.5"/>
+    <path d="M105 104 C113 90 118 76 130 66" stroke="url(#silver)" stroke-width="3.5"/>
+    <path d="M118 105 C123 91 126 79 133 70" stroke="url(#silver)" stroke-width="3.5"/>
+    <path d="M7 66 H43" stroke="url(#blue)" stroke-width="4" filter="url(#glow)"/>
+    <path d="M15 77 H51" stroke="url(#blue)" stroke-width="4" filter="url(#glow)"/>
+    <path d="M24 88 H58" stroke="url(#blue)" stroke-width="4" filter="url(#glow)"/>
+    <g fill="#179cff" filter="url(#glow)" stroke="none">
+      <rect x="145" y="66" width="4" height="4" rx="1"/>
+      <rect x="145" y="76" width="4" height="4" rx="1"/>
+      <rect x="145" y="86" width="4" height="4" rx="1"/>
+      <rect x="145" y="96" width="4" height="4" rx="1"/>
+    </g>
+  </g>
+
+  <g transform="translate(205 0)">
+    <text x="0" y="93" fill="url(#silver)" font-family="Inter, Arial, sans-serif" font-size="56" font-weight="520" letter-spacing="15">MOTYQ</text>
+    <text x="3" y="128" fill="#c5ccd6" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" letter-spacing="4.1">INTELIGÊNCIA PARA OPERAÇÃO AUTOMOTIVA</text>
+    <rect x="160" y="146" width="250" height="2" rx="1" fill="url(#blueFade)" filter="url(#glow)"/>
+  </g>
+</svg>
