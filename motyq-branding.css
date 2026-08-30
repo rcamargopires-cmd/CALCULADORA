@@ -132,4 +132,31 @@ body.motyq-graphite div[class*="z-[520]"] > div > header::before {
   body.motyq-graphite div[class*="z-[500]"] > header > div:first-child {
     flex-wrap: wrap !important;
   }
+
+  /* Mobile safety: logout must never be pushed outside the viewport. */
+  body.motyq-graphite button:has(svg.lucide-log-out) {
+    position: fixed !important;
+    top: max(12px, env(safe-area-inset-top)) !important;
+    right: max(12px, env(safe-area-inset-right)) !important;
+    z-index: 9999 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    min-height: 40px !important;
+    padding: 9px 12px !important;
+    border: 1px solid rgba(248,113,113,.28) !important;
+    border-radius: 12px !important;
+    background: rgba(24,24,27,.94) !important;
+    color: #fca5a5 !important;
+    box-shadow: 0 10px 28px rgba(0,0,0,.38) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    white-space: nowrap !important;
+  }
+
+  body.motyq-graphite button:has(svg.lucide-log-out) svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
 }
