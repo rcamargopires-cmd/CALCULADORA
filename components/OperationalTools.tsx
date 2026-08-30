@@ -166,7 +166,7 @@ const OperationalTools: React.FC = () => {
   const hasOperationalData = has('commandCenter') || has('stockIntelligence') || has('smartAlerts') || has('executiveInsights') || has('aiManager');
 
   return <>
-    <PlanAccessBadge company={activeCompany}/>
+    {role === 'admin' && <PlanAccessBadge company={activeCompany}/>} 
     {storeId && <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isSeller && <SellerPrivacyGuard user={user}/>} 
