@@ -109,10 +109,22 @@ body.motyq-graphite div[class*="z-[520]"] > div > header::before {
     flex-basis: 185px !important;
   }
 
+  /* Director mobile: reserve a real brand row above the title. */
+  body.motyq-graphite div[class*="z-[520]"] > div > header {
+    position: relative !important;
+    padding-top: 68px !important;
+  }
+
   body.motyq-graphite div[class*="z-[520]"] > div > header::before {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
     width: 190px !important;
     height: 52px !important;
-    flex-basis: 190px !important;
+    flex: none !important;
+    background-position: left center !important;
+    background-size: contain !important;
+    background-repeat: no-repeat !important;
   }
 }
 
@@ -131,6 +143,15 @@ body.motyq-graphite div[class*="z-[520]"] > div > header::before {
 
   body.motyq-graphite div[class*="z-[500]"] > header > div:first-child {
     flex-wrap: wrap !important;
+  }
+
+  body.motyq-graphite div[class*="z-[520]"] > div > header {
+    padding-top: 62px !important;
+  }
+
+  body.motyq-graphite div[class*="z-[520]"] > div > header::before {
+    width: 165px !important;
+    height: 46px !important;
   }
 
   /* Mobile safety: logout must never be pushed outside the viewport. */
