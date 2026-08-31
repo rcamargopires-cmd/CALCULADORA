@@ -181,3 +181,38 @@ body.motyq-graphite div[class*="z-[520]"] > div > header::before {
     height: 16px !important;
   }
 }
+
+/* DIRECTOR FIX
+   The DirectorPanorama header has its own h1.text-3xl. The generic main-header
+   brand rule must not turn that title container into a logo. The director view
+   already sits inside the branded app shell, so keep only the regular app logo. */
+body.motyq-graphite div[class*="z-[520]"] > div > header::before {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+}
+
+body.motyq-graphite div[class*="z-[520]"] > div > header {
+  padding-top: 0 !important;
+}
+
+body.motyq-graphite div[class*="z-[520]"] > div > header > div:has(> h1.text-3xl) {
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  flex: 1 1 auto !important;
+  gap: initial !important;
+  position: static !important;
+  background: none !important;
+  filter: none !important;
+}
+
+body.motyq-graphite div[class*="z-[520]"] > div > header > div:has(> h1.text-3xl) > h1 {
+  display: block !important;
+}
+
+body.motyq-graphite div[class*="z-[520]"] > div > header > div:has(> h1.text-3xl)::before,
+body.motyq-graphite div[class*="z-[520]"] > div > header > div:has(> h1.text-3xl)::after {
+  display: none !important;
+  content: none !important;
+}
