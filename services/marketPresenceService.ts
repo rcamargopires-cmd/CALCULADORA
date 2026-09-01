@@ -5,6 +5,10 @@ import { MarketPresenceItem, OperationalStockItem, User } from '../types';
 const safe=(v:string)=>v.replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,120);
 const cleanPlate=(v:unknown)=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 
+export type MarketPresenceCorrection = Partial<Pick<MarketPresenceItem,
+  'adStatus'|'photoStatus'|'photoCount'|'sitePrice'|'siteKm'|'alert'|'url'
+>> & { note?: string };
+
 export const marketPresenceService={
  importAudit:async(items:MarketPresenceItem[],fileName:string,user:User|undefined,storeId:string,companyId:string)=>{
   const valid=items.filter(item=>/^[A-Z0-9]{7}$/.test(cleanPlate(item.plate))).map(item=>({...item,plate:cleanPlate(item.plate),storeId,companyId}));
@@ -15,10 +19,51 @@ export const marketPresenceService={
  },
  getLatest:async(storeId:string,companyId:string):Promise<MarketPresenceItem[]>=>{
   const snap=await getDocs(query(collection(db,'market_presence'),where('companyId','==',companyId),where('storeId','==',storeId)));
-  const all=snap.docs.map(d=>d.data() as MarketPresenceItem);
+  const all=snap.docs.map(d=>({...d.data(),id:d.id}) as MarketPresenceItem);
   if(!all.length)return[];
   const latest=all.reduce((max,item)=>item.referenceDate>max?item.referenceDate:max,'');
   return all.filter(item=>item.referenceDate===latest);
+ },
+ correct:async(args:{
+  stock:OperationalStockItem;
+  audit?:MarketPresenceItem;
+  latestReferenceDate?:string;
+  patch:MarketPresenceCorrection;
+  user?:User;
+  storeId:string;
+  companyId:string;
+ })=>{
+  const plate=cleanPlate(args.stock.plate);
+  if(!/^[A-Z0-9]{7}$/.test(plate))throw new Error('Placa inválida para correção.');
+  const referenceDate=args.audit?.referenceDate||args.latestReferenceDate||new Date().toISOString().slice(0,10);
+  const id=args.audit?.id||safe(`${args.companyId}_${args.storeId}_${referenceDate}_${plate}`);
+  const current:MarketPresenceItem=args.audit||{
+   id,referenceDate,plate,vehicle:args.stock.vehicle||'',adStatus:'missing',photoStatus:'missing',storeId:args.storeId,companyId:args.companyId,
+  };
+  const nextAd=args.patch.adStatus??current.adStatus;
+  let nextPhoto=args.patch.photoStatus??current.photoStatus;
+  if(nextAd==='missing')nextPhoto='missing';
+  if(nextAd==='active'&&nextPhoto==='missing')nextPhoto='not_validated';
+  const correctedAt=new Date().toISOString();
+  const next={
+   ...current,
+   ...args.patch,
+   id,
+   referenceDate,
+   plate,
+   vehicle:current.vehicle||args.stock.vehicle||'',
+   adStatus:nextAd,
+   photoStatus:nextPhoto,
+   storeId:args.storeId,
+   companyId:args.companyId,
+   manualCorrectedAt:correctedAt,
+   manualCorrectedBy:args.user?.email||'',
+   manualCorrectionNote:String(args.patch.note||'').trim(),
+   auditedAt:correctedAt,
+  };
+  delete (next as any).note;
+  await setDoc(doc(db,'market_presence',id),next,{merge:true});
+  return next as MarketPresenceItem;
  },
  summarize:(stock:OperationalStockItem[],audit:MarketPresenceItem[])=>{
   const byPlate=new Map(audit.map(item=>[cleanPlate(item.plate),item]));
