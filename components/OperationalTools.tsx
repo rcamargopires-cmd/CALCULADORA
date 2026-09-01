@@ -32,6 +32,7 @@ import DirectorPanorama from './DirectorPanorama';
 import DirectorAccessPanel from './DirectorAccessPanel';
 import ActionCenter from './ActionCenter';
 import MotyqImpact from './MotyqImpact';
+import OperationHub from './OperationHub';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -171,6 +172,14 @@ const OperationalTools: React.FC = () => {
     {isManager && storeId && <ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isSeller && storeId && <SellerActionInbox currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+
+    {isManager && storeId && <OperationHub
+      storeName={storeName}
+      canAlerts={has('smartAlerts')}
+      canAi={has('aiManager')}
+      canReports={has('executiveInsights')}
+    />}
+
     {isManager && storeId && <ActionCenter currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <MotyqImpact currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
