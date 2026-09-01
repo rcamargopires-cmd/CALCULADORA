@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './services/storeScopeAdapter';
+import './services/stockBatchAdapter';
 import './services/monthCycleAdapter';
 import App from './App';
 import ManagerTopNav from './components/ManagerTopNav';
