@@ -33,6 +33,7 @@ import ActionCenter from './ActionCenter';
 import MotyqImpact from './MotyqImpact';
 import OperationHub from './OperationHub';
 import AdministrationHub from './AdministrationHub';
+import StockHub from './StockHub';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -178,6 +179,11 @@ const OperationalTools: React.FC = () => {
       canAlerts={has('smartAlerts')}
       canAi={has('aiManager')}
       canReports={has('executiveInsights')}
+    />}
+    {isManager && storeId && <StockHub
+      storeName={storeName}
+      canStockIntelligence={has('stockIntelligence')}
+      canAssetGuard={has('assetGuard')}
     />}
     {role === 'admin' && <AdministrationHub/>}
 
