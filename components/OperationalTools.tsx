@@ -15,6 +15,7 @@ import AIManagerV2 from './AIManagerV2';
 import HierarchyPanel from './HierarchyPanel';
 import SellerPrivacyGuard from './SellerPrivacyGuard';
 import SellerActionInbox from './SellerActionInbox';
+import SellerClosingHistory from './SellerClosingHistory';
 import SmartAlerts from './SmartAlerts';
 import ExecutiveInsights from './ExecutiveInsights';
 import MultiStorePanel from './MultiStorePanel';
@@ -173,6 +174,7 @@ const OperationalTools: React.FC = () => {
     {isManager && storeId && <ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isSeller && storeId && <SellerActionInbox currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {isSeller && storeId && <SellerClosingHistory currentUser={user} storeName={storeName}/>} 
 
     {isManager && storeId && <OperationHub
       storeName={storeName}
