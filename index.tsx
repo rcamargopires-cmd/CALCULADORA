@@ -6,6 +6,7 @@ import App from './App';
 import ManagerTopNav from './components/ManagerTopNav';
 import OperationalTools from './components/OperationalTools';
 import TradeCheckShell from './components/TradeCheckShell';
+import MarketPresenceCorrectionShell from './components/MarketPresenceCorrectionShell';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -19,5 +20,6 @@ root.render(
     <ManagerTopNav />
     <OperationalTools />
     <TradeCheckShell />
+    <MarketPresenceCorrectionShell />
   </React.StrictMode>
 );
