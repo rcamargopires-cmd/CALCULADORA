@@ -28,6 +28,33 @@ const findUserForSeller = (seller: OperationalPerformanceSeller, users: User[]) 
   return firstNameMatches.length === 1 ? firstNameMatches[0] : undefined;
 };
 
+const resolveHistoryScope = async (user?: User | null) => {
+  let profile = user || null;
+  if (!profile && auth.currentUser?.email) {
+    try { profile = await userService.getUser(auth.currentUser.email); } catch {}
+  }
+  return {
+    companyId: profile ? companyIdForUser(profile) : companyScopeService.get(),
+    storeId: profile ? storeIdForUser(profile) : storeScopeService.get(),
+  };
+};
+
+const readHistory = async (email: string, user?: User | null): Promise<SellerPerformanceRecord[]> => {
+  const exactEmail = String(email || '').trim();
+  if (!exactEmail) return [];
+  const { companyId, storeId } = await resolveHistoryScope(user);
+  const snap = await getDocs(query(
+    collection(db, 'seller_performance', exactEmail, 'history'),
+    where('companyId', '==', companyId),
+    where('storeId', '==', storeId),
+  ));
+  return snap.docs
+    .map(item => item.data() as SellerPerformanceRecord)
+    .filter(item => !!item.referenceDate && !!item.metrics)
+    .map(item => ({ ...item, metrics: normalizeOfficialSellerMetrics(item.metrics) }))
+    .sort((a, b) => a.referenceDate.localeCompare(b.referenceDate));
+};
+
 export const sellerPerformanceService = {
   syncFromSnapshot: async (
     snapshot: OperationalPerformanceSnapshot,
@@ -74,26 +101,11 @@ export const sellerPerformanceService = {
     return { ...record, metrics: normalizeOfficialSellerMetrics(record.metrics) };
   },
 
-  getMyHistory: async (email: string, user?: User | null): Promise<SellerPerformanceRecord[]> => {
-    const exactEmail = String(email || '').trim();
-    if (!exactEmail) return [];
+  getMyHistory: async (email: string, user?: User | null): Promise<SellerPerformanceRecord[]> =>
+    readHistory(email, user),
 
-    let profile = user || null;
-    if (!profile && auth.currentUser?.email) {
-      try { profile = await userService.getUser(auth.currentUser.email); } catch {}
-    }
-
-    const companyId = profile ? companyIdForUser(profile) : companyScopeService.get();
-    const storeId = profile ? storeIdForUser(profile) : storeScopeService.get();
-    const snap = await getDocs(query(
-      collection(db, 'seller_performance', exactEmail, 'history'),
-      where('companyId', '==', companyId),
-      where('storeId', '==', storeId),
-    ));
-    return snap.docs
-      .map(item => item.data() as SellerPerformanceRecord)
-      .filter(item => !!item.referenceDate && !!item.metrics)
-      .map(item => ({ ...item, metrics: normalizeOfficialSellerMetrics(item.metrics) }))
-      .sort((a, b) => a.referenceDate.localeCompare(b.referenceDate));
-  },
+  // Archive intentionally bypasses the live current-month adapter. It is used by
+  // the seller's Closing History so previous months remain available forever.
+  getMyHistoryArchive: async (email: string, user?: User | null): Promise<SellerPerformanceRecord[]> =>
+    readHistory(email, user),
 };
