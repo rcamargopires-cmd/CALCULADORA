@@ -10,6 +10,7 @@ import OperationalTools from './components/OperationalTools';
 import TradeCheckShell from './components/TradeCheckShell';
 import MarketPresenceCorrectionShell from './components/MarketPresenceCorrectionShell';
 import UnifiedStockAuditNotice from './components/UnifiedStockAuditNotice';
+import EnvironmentHeaderBadge from './components/EnvironmentHeaderBadge';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -25,5 +26,6 @@ root.render(
     <TradeCheckShell />
     <MarketPresenceCorrectionShell />
     <UnifiedStockAuditNotice />
+    <EnvironmentHeaderBadge />
   </React.StrictMode>
 );
