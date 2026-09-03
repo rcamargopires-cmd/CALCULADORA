@@ -15,6 +15,7 @@ import SellerShowroomSoundAlert from './components/SellerShowroomSoundAlert';
 import ShowroomDealLinkBridge from './components/ShowroomDealLinkBridge';
 import GroupStockModule from './components/GroupStockModule';
 import GroupStockHostRepair from './components/GroupStockHostRepair';
+import ManagerShowroomProposalsShell from './components/ManagerShowroomProposalsShell';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -35,5 +36,6 @@ root.render(
     <ShowroomDealLinkBridge />
     <GroupStockModule />
     <GroupStockHostRepair />
+    <ManagerShowroomProposalsShell />
   </React.StrictMode>
 );
