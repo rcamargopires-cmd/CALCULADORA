@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 interface NumberInputProps {
   label: string;
@@ -9,20 +9,37 @@ interface NumberInputProps {
   min?: number;
 }
 
-const NumberInput: React.FC<NumberInputProps> = ({ 
-  label, 
-  value, 
-  onChange, 
+const normalizeLabel = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const NumberInput: React.FC<NumberInputProps> = ({
+  label,
+  value,
+  onChange,
   className = "",
   placeholder = "0",
   min = 0
 }) => {
-  
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, '');
     const numericValue = parseInt(rawValue, 10);
     onChange(isNaN(numericValue) ? 0 : numericValue);
   };
+
+  useEffect(() => {
+    if (normalizeLabel(label) !== 'dias de estoque') return;
+    const fill = (event: Event) => {
+      const next = Number((event as CustomEvent<{ stockDays?: number }>).detail?.stockDays);
+      if (Number.isFinite(next)) onChange(Math.max(min, next));
+    };
+    const clear = () => onChange(0);
+    window.addEventListener('motyq:group-stock-fill', fill);
+    window.addEventListener('motyq:group-stock-clear', clear);
+    return () => {
+      window.removeEventListener('motyq:group-stock-fill', fill);
+      window.removeEventListener('motyq:group-stock-clear', clear);
+    };
+  }, [label, min, onChange]);
 
   return (
     <div className={`flex flex-col ${className}`}>
