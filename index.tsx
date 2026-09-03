@@ -11,6 +11,7 @@ import TradeCheckShell from './components/TradeCheckShell';
 import MarketPresenceCorrectionShell from './components/MarketPresenceCorrectionShell';
 import UnifiedStockAuditNotice from './components/UnifiedStockAuditNotice';
 import EnvironmentHeaderBadge from './components/EnvironmentHeaderBadge';
+import SellerShowroomSoundAlert from './components/SellerShowroomSoundAlert';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -27,5 +28,6 @@ root.render(
     <MarketPresenceCorrectionShell />
     <UnifiedStockAuditNotice />
     <EnvironmentHeaderBadge />
+    <SellerShowroomSoundAlert />
   </React.StrictMode>
 );
