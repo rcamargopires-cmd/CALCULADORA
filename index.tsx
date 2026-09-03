@@ -14,6 +14,7 @@ import EnvironmentHeaderBadge from './components/EnvironmentHeaderBadge';
 import SellerShowroomSoundAlert from './components/SellerShowroomSoundAlert';
 import ShowroomDealLinkBridge from './components/ShowroomDealLinkBridge';
 import GroupStockModule from './components/GroupStockModule';
+import GroupStockCardDock from './components/GroupStockCardDock';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -33,5 +34,6 @@ root.render(
     <SellerShowroomSoundAlert />
     <ShowroomDealLinkBridge />
     <GroupStockModule />
+    <GroupStockCardDock />
   </React.StrictMode>
 );
