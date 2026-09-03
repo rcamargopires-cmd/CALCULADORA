@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 interface CurrencyInputProps {
   label: string;
@@ -7,24 +7,41 @@ interface CurrencyInputProps {
   disabled?: boolean;
   className?: string;
   placeholder?: string;
-  textColor?: string; // Custom text color class
+  textColor?: string;
 }
 
-const CurrencyInput: React.FC<CurrencyInputProps> = ({ 
-  label, 
-  value, 
-  onChange, 
+const normalizeLabel = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const CurrencyInput: React.FC<CurrencyInputProps> = ({
+  label,
+  value,
+  onChange,
   disabled = false,
   className = "",
   placeholder = "R$ 0,00",
   textColor
 }) => {
-  
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, '');
     const numericValue = Number(rawValue) / 100;
     onChange(numericValue);
   };
+
+  useEffect(() => {
+    if (normalizeLabel(label) !== 'custo do veiculo') return;
+    const fill = (event: Event) => {
+      const next = Number((event as CustomEvent<{ vehicleCost?: number }>).detail?.vehicleCost);
+      if (Number.isFinite(next)) onChange(Math.max(0, next));
+    };
+    const clear = () => onChange(0);
+    window.addEventListener('motyq:group-stock-fill', fill);
+    window.addEventListener('motyq:group-stock-clear', clear);
+    return () => {
+      window.removeEventListener('motyq:group-stock-fill', fill);
+      window.removeEventListener('motyq:group-stock-clear', clear);
+    };
+  }, [label, onChange]);
 
   const formattedValue = value.toLocaleString('pt-BR', {
     style: 'currency',
@@ -32,7 +49,6 @@ const CurrencyInput: React.FC<CurrencyInputProps> = ({
     minimumFractionDigits: 2
   });
 
-  // Default to white if no color provided, otherwise use provided color
   const inputTextColor = textColor || "text-white";
 
   return (
