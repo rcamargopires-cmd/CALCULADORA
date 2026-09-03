@@ -12,6 +12,7 @@ import MarketPresenceCorrectionShell from './components/MarketPresenceCorrection
 import UnifiedStockAuditNotice from './components/UnifiedStockAuditNotice';
 import EnvironmentHeaderBadge from './components/EnvironmentHeaderBadge';
 import SellerShowroomSoundAlert from './components/SellerShowroomSoundAlert';
+import ShowroomDealLinkBridge from './components/ShowroomDealLinkBridge';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -29,5 +30,6 @@ root.render(
     <UnifiedStockAuditNotice />
     <EnvironmentHeaderBadge />
     <SellerShowroomSoundAlert />
+    <ShowroomDealLinkBridge />
   </React.StrictMode>
 );
