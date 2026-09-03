@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Landmark, Settings2, ShieldCheck, Store, Users, X } from 'lucide-react';
+import { Building2, CarFront, Landmark, Settings2, ShieldCheck, Store, Users, X } from 'lucide-react';
 
 const findButton = (predicate: (button: HTMLButtonElement) => boolean) =>
   Array.from(document.querySelectorAll('button')).find(button => predicate(button as HTMLButtonElement)) as HTMLButtonElement | undefined;
@@ -22,11 +22,12 @@ const AdministrationHub: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
 
-  const launch = (key: 'companies' | 'stores' | 'team' | 'executive' | 'security') => {
+  const launch = (key: 'companies' | 'stores' | 'team' | 'groupStock' | 'executive' | 'security') => {
     let found = false;
     if (key === 'companies') found = clickText('Empresas');
     if (key === 'stores') found = clickText('Unidades');
     if (key === 'team') found = clickText('Hierarquia');
+    if (key === 'groupStock') found = clickTitle('Estoque Compartilhado do Grupo');
     if (key === 'executive') found = clickTitle('Diretoria · Panorama do Grupo');
     if (key === 'security') found = clickText('Segurança');
     if (!found) {
@@ -41,13 +42,13 @@ const AdministrationHub: React.FC = () => {
     { key: 'companies' as const, icon: <Building2 size={19}/>, eyebrow: 'Clientes SaaS', title: 'Empresas & Planos', text: 'Clientes, trial, plano, módulos e ambiente demo.' },
     { key: 'stores' as const, icon: <Store size={19}/>, eyebrow: 'Estrutura', title: 'Unidades', text: 'Lojas, vínculo de usuários e unidade visualizada.' },
     { key: 'team' as const, icon: <Users size={19}/>, eyebrow: 'Pessoas', title: 'Usuários & Metas', text: 'Papéis, hierarquia e objetivos individuais da equipe.' },
+    { key: 'groupStock' as const, icon: <CarFront size={19}/>, eyebrow: 'Comercial', title: 'Estoque Compartilhado', text: 'Base de consulta do grupo para localizar veículos e preencher custo e aging na calculadora.' },
     { key: 'executive' as const, icon: <Landmark size={19}/>, eyebrow: 'Grupo', title: 'Visão Executiva', text: 'Panorama consolidado das unidades. Substitui o antigo Grupo + Diretoria.' },
     { key: 'security' as const, icon: <ShieldCheck size={19}/>, eyebrow: 'Avançado', title: 'Segurança & Migração', text: 'Ferramentas técnicas de tenant e preparação de dados antigos.' },
   ];
 
   return <>
     <style>{`
-      /* Admin tools now live inside one administration workspace. */
       body.motyq-graphite button[title="Diretoria · Panorama do Grupo"],
       body.motyq-graphite button.fixed.bottom-56.left-5,
       body.motyq-graphite button.fixed.bottom-32.left-5,
