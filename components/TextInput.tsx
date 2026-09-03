@@ -11,16 +11,18 @@ interface TextInputProps {
   isValid?: boolean | null;
 }
 
-const TextInput: React.FC<TextInputProps> = ({ 
-  label, 
-  value, 
-  onChange, 
+const normalizeLabel = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const TextInput: React.FC<TextInputProps> = ({
+  label,
+  value,
+  onChange,
   className = "",
   placeholder = "",
   maxLength,
   isValid = null
 }) => {
-  
+
   let borderColor = "border-zinc-700";
   let ringColor = "focus:ring-amber-400";
   let icon = null;
@@ -35,6 +37,13 @@ const TextInput: React.FC<TextInputProps> = ({
     icon = <AlertCircle size={16} className="text-red-500" />;
   }
 
+  const handleChange = (next: string) => {
+    onChange(next);
+    if (normalizeLabel(label) === 'placa do veiculo') {
+      window.dispatchEvent(new CustomEvent('motyq:calculator-plate-changed', { detail: { plate: next } }));
+    }
+  };
+
   return (
     <div className={`flex flex-col ${className}`}>
       <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1 flex justify-between items-center">
@@ -45,7 +54,7 @@ const TextInput: React.FC<TextInputProps> = ({
         <input
           type="text"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}
           maxLength={maxLength}
           className={`w-full border ${borderColor} bg-zinc-800 rounded px-3 py-2 text-left font-mono text-white focus:outline-none focus:ring-2 ${ringColor} shadow-sm transition-all placeholder-zinc-600 uppercase pr-10`}
