@@ -13,6 +13,7 @@ import UnifiedStockAuditNotice from './components/UnifiedStockAuditNotice';
 import EnvironmentHeaderBadge from './components/EnvironmentHeaderBadge';
 import SellerShowroomSoundAlert from './components/SellerShowroomSoundAlert';
 import ShowroomDealLinkBridge from './components/ShowroomDealLinkBridge';
+import GroupStockModule from './components/GroupStockModule';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -31,5 +32,6 @@ root.render(
     <EnvironmentHeaderBadge />
     <SellerShowroomSoundAlert />
     <ShowroomDealLinkBridge />
+    <GroupStockModule />
   </React.StrictMode>
 );
