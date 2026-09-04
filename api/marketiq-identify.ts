@@ -1,12 +1,52 @@
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const cleanRenavam=(value:string)=>String(value||'').replace(/\D/g,'').slice(0,11);
 const num=(value:any)=>Number(String(value??'').replace(/[^0-9,.-]/g,'').replace(',','.'))||0;
+const first=(...values:any[])=>values.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='');
+
+const normalizedVehicle=(raw:any)=>{
+  const root=raw?.veiculo||raw?.vehicle||raw?.data?.veiculo||raw?.data?.vehicle||raw?.data||raw||{};
+  return {
+    brand:String(first(root.marca,root.brand,root.marcaModeloVersao?.marca,root.marca_modelo_versao?.marca)||''),
+    model:String(first(root.versao,root.modeloVersao,root.modelo_versao,root.modelo,root.model,root.marcaModeloVersao?.versao,root.marca_modelo_versao?.versao)||''),
+    registryModel:String(first(root.modelo,root.model,root.marcaModeloVersao?.modelo,root.marca_modelo_versao?.modelo)||''),
+    year:String(first(root.anoModelo,root.ano_modelo,root.modelYear,root.ano)||''),
+    manufactureYear:String(first(root.anoFabricacao,root.ano_fabricacao,root.manufactureYear)||''),
+    color:String(first(root.cor,root.color)||''),
+    fuel:String(first(root.combustivel,root.fuel)||''),
+    fipeValue:num(first(root.valorFipe,root.valor_fipe,root.fipe,root.fipeValue)),
+    fipeCode:String(first(root.codigoFipe,root.codigo_fipe,root.fipeCode)||''),
+    referenceMonth:String(first(root.mesReferencia,root.mes_referencia,root.referenceMonth)||''),
+  };
+};
 
 export default async function handler(req:any,res:any){
   if(req.method!=='POST')return res.status(405).json({error:'method_not_allowed'});
   const plate=cleanPlate(req.body?.plate);
   const renavam=cleanRenavam(req.body?.renavam);
   if(!/^[A-Z0-9]{7}$/.test(plate)||renavam.length<9)return res.status(400).json({error:'invalid_vehicle_keys'});
+
+  // Official DETRAN-SP / PRODESP provider. The production URL and token are supplied
+  // only after the company is formally enabled by PRODESP, so nothing is hard-coded.
+  const prodespUrl=String(process.env.PRODESP_CRLVE_URL||'').trim();
+  const prodespToken=String(process.env.PRODESP_ACCESS_TOKEN||'').trim();
+  if(prodespUrl&&prodespToken){
+    try{
+      const response=await fetch(prodespUrl,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'application/json','Authorization':`Bearer ${prodespToken}`},
+        body:JSON.stringify({placa:plate,renavam}),
+      });
+      const raw:any=await response.json().catch(()=>null);
+      if(response.ok&&raw){
+        const vehicle=normalizedVehicle(raw);
+        if(vehicle.model||vehicle.registryModel){
+          return res.status(200).json({plate,renavam,...vehicle,source:'prodesp-detran-sp'});
+        }
+      } else {
+        console.error('MarketIQ PRODESP identify failed',response.status);
+      }
+    }catch(error){console.error('MarketIQ PRODESP identify failed',error);}
+  }
 
   const dadosApiKey=process.env.DADOS_API_KEY;
   if(dadosApiKey){
@@ -18,22 +58,8 @@ export default async function handler(req:any,res:any){
       });
       const raw:any=await response.json().catch(()=>null);
       if(response.ok&&raw){
-        const vehicle=raw.veiculo||raw.data||raw;
-        return res.status(200).json({
-          plate,
-          renavam,
-          brand:String(vehicle.marca||vehicle.brand||''),
-          model:String(vehicle.modelo||vehicle.model||''),
-          registryModel:String(vehicle.modelo||vehicle.model||''),
-          year:String(vehicle.ano_modelo||vehicle.anoModelo||vehicle.modelYear||vehicle.ano||''),
-          manufactureYear:String(vehicle.ano_fabricacao||vehicle.anoFabricacao||vehicle.manufactureYear||''),
-          color:String(vehicle.cor||vehicle.color||''),
-          fuel:String(vehicle.combustivel||vehicle.fuel||''),
-          fipeValue:num(vehicle.valor_fipe||vehicle.valorFipe||vehicle.fipe||vehicle.fipeValue),
-          fipeCode:String(vehicle.codigo_fipe||vehicle.codigoFipe||vehicle.fipeCode||''),
-          referenceMonth:String(vehicle.mes_referencia||vehicle.mesReferencia||vehicle.referenceMonth||''),
-          source:'dadosapi',
-        });
+        const vehicle=normalizedVehicle(raw);
+        return res.status(200).json({plate,renavam,...vehicle,source:'dadosapi'});
       }
     }catch(error){console.error('MarketIQ DadosAPI identify failed',error);}
   }
@@ -68,5 +94,8 @@ export default async function handler(req:any,res:any){
     }catch(error){console.error('MarketIQ PlacaFIPE identify failed',error);}
   }
 
-  return res.status(503).json({error:'vehicle_provider_not_configured'});
+  return res.status(503).json({
+    error:'vehicle_provider_not_configured',
+    configured:{prodesp:Boolean(prodespUrl&&prodespToken),dadosapi:Boolean(dadosApiKey),placafipe:Boolean(placaFipeToken)},
+  });
 }
