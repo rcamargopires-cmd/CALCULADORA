@@ -7,6 +7,7 @@ import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companySco
 import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../services/groupStockService';
 
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
+const cleanRenavam=(value:string)=>String(value||'').replace(/\D/g,'').slice(0,11);
 const moneyInput=(value:number)=>value?value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
 const marketRoot=()=>Array.from(document.querySelectorAll('div.fixed.inset-0')).find(el=>String(el.textContent||'').includes('MOTYQ MARKETIQ')) as HTMLElement|undefined;
 const field=(label:string)=>{
@@ -40,7 +41,7 @@ const lookupFipe=async(input:{brand:string;model:string;year:string;fuel?:string
 };
 
 type Notice={kind:'ok'|'warn'|'loading';text:string}|null;
-type ExternalVehicle={plate:string;brand:string;model:string;year:string;fuel:string};
+type ExternalVehicle={plate:string;renavam:string};
 
 const MarketIQLookupBridge:React.FC=()=>{
   const[user,setUser]=useState<User|null>(null);
@@ -70,32 +71,37 @@ const MarketIQLookupBridge:React.FC=()=>{
   },[user]);
 
   const showExternal=(plate:string)=>{
-    const currentModel=field('Modelo / versão')?.value||'';
-    const currentYear=field('Ano/modelo')?.value||'';
-    setExternal({plate,brand:'',model:currentModel,year:currentYear,fuel:''});
-    setNotice({kind:'warn',text:'Veículo fora do estoque do grupo. Complete os dados abaixo para eu localizar a FIPE.'});
+    setExternal({plate,renavam:''});
+    setNotice({kind:'warn',text:'Veículo fora do estoque do grupo. Informe o RENAVAM para identificar o veículo automaticamente.'});
   };
 
   const resolveExternal=async()=>{
     if(!external)return;
-    const brand=external.brand.trim(), model=external.model.trim(), year=external.year.trim();
-    if(!brand||!model||!year){
-      setNotice({kind:'warn',text:'Informe marca, modelo/versão e ano/modelo para buscar a FIPE.'});
+    const renavam=cleanRenavam(external.renavam);
+    if(renavam.length<9){
+      setNotice({kind:'warn',text:'Informe um RENAVAM válido para consultar o veículo.'});
       return;
     }
     setResolvingExternal(true);
-    setNotice({kind:'loading',text:`Localizando a FIPE do ${model}...`});
+    setNotice({kind:'loading',text:`Identificando ${external.plate} pela placa + RENAVAM...`});
     try{
-      const result=await lookupFipe({brand,model,year,fuel:external.fuel});
-      if(result?.value){
-        fill({model:result.model||model,year:String(result.year||year),fipe:Number(result.value)||0});
-        setNotice({kind:'ok',text:`FIPE ${result.referenceMonth||'atual'} localizada e preenchida automaticamente.`});
+      const response=await fetch('/api/marketiq-identify',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({plate:external.plate,renavam}),
+      });
+      const data=await response.json().catch(()=>null);
+      if(response.ok&&data){
+        fill({model:data.model||data.registryModel,year:String(data.year||''),fipe:Number(data.fipeValue)||0});
+        setNotice({kind:'ok',text:`${data.model||data.registryModel||'Veículo'} identificado. FIPE ${data.referenceMonth||'atual'} preenchida automaticamente.`});
         setExternal(null);
+      }else if(response.status===503){
+        setNotice({kind:'warn',text:'A identificação por placa + RENAVAM está pronta no Motyq, mas a fonte veicular externa ainda precisa ser habilitada.'});
       }else{
-        setNotice({kind:'warn',text:'Não consegui confirmar essa versão na FIPE. Confira marca, versão e ano/modelo.'});
+        setNotice({kind:'warn',text:'Não consegui identificar esse veículo com placa + RENAVAM. Confira os números informados.'});
       }
     }catch{
-      setNotice({kind:'warn',text:'Não foi possível consultar a FIPE agora. Tente novamente em instantes.'});
+      setNotice({kind:'warn',text:'Não foi possível consultar o veículo agora. Tente novamente em instantes.'});
     }finally{
       setResolvingExternal(false);
     }
@@ -124,34 +130,10 @@ const MarketIQLookupBridge:React.FC=()=>{
             setNotice({kind:'ok',text:`FIPE ${result.referenceMonth||'atual'} preenchida automaticamente.`});
           }else setNotice({kind:'warn',text:'Veículo localizado, mas a versão FIPE precisa ser confirmada.'});
         });
+        return;
       }
 
-      void fetch('/api/marketiq-plate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plate})}).then(async response=>{
-        if(currentRequest!==requestId.current)return null;
-        if(response.status===503)return null;
-        if(!response.ok)throw new Error('lookup_failed');
-        return response.json();
-      }).then(data=>{
-        if(!data||currentRequest!==requestId.current)return;
-        fill({model:data.model||data.registryModel,year:data.year,fipe:Number(data.fipeValue)||0});
-        const suffix=data.referenceMonth?` · ${data.referenceMonth}`:'';
-        setExternal(null);
-        setNotice({kind:'ok',text:`Placa identificada${suffix}. FIPE preenchida automaticamente.`});
-      }).catch(()=>{
-        if(currentRequest!==requestId.current)return;
-        if(!stockItem)showExternal(plate);
-      });
-
-      if(!stockItem){
-        window.setTimeout(()=>{
-          if(currentRequest===requestId.current&&lastPlate.current===plate){
-            setNotice(prev=>{
-              if(prev?.kind==='loading')showExternal(plate);
-              return prev;
-            });
-          }
-        },1800);
-      }
+      showExternal(plate);
     };
     document.addEventListener('input',onInput,true);
     return()=>document.removeEventListener('input',onInput,true);
@@ -161,14 +143,9 @@ const MarketIQLookupBridge:React.FC=()=>{
   return <div className="fixed right-5 top-24 z-[615] w-[min(92vw,390px)] space-y-3">
     {notice&&<div className={`rounded-2xl border px-4 py-3 text-xs shadow-2xl backdrop-blur-xl ${notice.kind==='ok'?'border-emerald-300/25 bg-emerald-950/90 text-emerald-100':notice.kind==='warn'?'border-amber-300/25 bg-amber-950/90 text-amber-100':'border-cyan-300/20 bg-cyan-950/90 text-cyan-100'}`}>{notice.text}</div>}
     {external&&<div className="rounded-2xl border border-white/10 bg-[#11191b]/95 p-4 text-white shadow-2xl backdrop-blur-xl">
-      <div className="mb-3"><p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VEÍCULO FORA DO ESTOQUE</p><p className="mt-1 text-sm font-semibold">{external.plate} · identificar FIPE</p><p className="mt-1 text-[11px] leading-4 text-zinc-500">Informe apenas o necessário. O MarketIQ cruza a versão na base FIPE pública e preenche o valor automaticamente.</p></div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="block"><span className="mb-1 block text-[9px] uppercase text-zinc-500">Marca</span><input value={external.brand} onChange={e=>setExternal(v=>v?{...v,brand:e.target.value}:v)} placeholder="Ex.: Volkswagen" className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs outline-none focus:border-cyan-300/40"/></label>
-        <label className="block"><span className="mb-1 block text-[9px] uppercase text-zinc-500">Ano/modelo</span><input value={external.year} onChange={e=>setExternal(v=>v?{...v,year:e.target.value}:v)} placeholder="Ex.: 2024" className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs outline-none focus:border-cyan-300/40"/></label>
-        <label className="block sm:col-span-2"><span className="mb-1 block text-[9px] uppercase text-zinc-500">Modelo / versão</span><input value={external.model} onChange={e=>setExternal(v=>v?{...v,model:e.target.value}:v)} placeholder="Ex.: T-Cross Comfortline 1.0 TSI" className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs outline-none focus:border-cyan-300/40"/></label>
-        <label className="block sm:col-span-2"><span className="mb-1 block text-[9px] uppercase text-zinc-500">Combustível (opcional)</span><input value={external.fuel} onChange={e=>setExternal(v=>v?{...v,fuel:e.target.value}:v)} placeholder="Flex, gasolina, diesel, híbrido..." className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs outline-none focus:border-cyan-300/40"/></label>
-      </div>
-      <button onClick={()=>void resolveExternal()} disabled={resolvingExternal} className="mt-3 h-10 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] disabled:opacity-50">{resolvingExternal?'BUSCANDO FIPE...':'LOCALIZAR FIPE'}</button>
+      <div className="mb-3"><p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VEÍCULO FORA DO ESTOQUE</p><p className="mt-1 text-sm font-semibold">{external.plate} · identificar veículo</p><p className="mt-1 text-[11px] leading-4 text-zinc-500">Informe somente o RENAVAM. Marca, modelo, versão, ano, combustível e FIPE serão preenchidos pelo Motyq.</p></div>
+      <label className="block"><span className="mb-1 block text-[9px] uppercase text-zinc-500">RENAVAM</span><input value={external.renavam} onChange={e=>setExternal(v=>v?{...v,renavam:cleanRenavam(e.target.value)}:v)} inputMode="numeric" placeholder="Digite o RENAVAM" className="h-10 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-sm tracking-[.08em] outline-none focus:border-cyan-300/40"/></label>
+      <button onClick={()=>void resolveExternal()} disabled={resolvingExternal} className="mt-3 h-10 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] disabled:opacity-50">{resolvingExternal?'CONSULTANDO VEÍCULO...':'CONSULTAR VEÍCULO'}</button>
     </div>}
   </div>;
 };
