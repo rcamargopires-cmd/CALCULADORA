@@ -31,9 +31,10 @@ const fill=(data:{model?:string;year?:string;km?:number;fipe?:number})=>{
 };
 
 const lookupFipe=async(input:{brand:string;model:string;year:string;fuel?:string})=>{
-  const response=await fetch('/api/marketiq-fipe',{
-    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input),
-  });
+  const params=new URLSearchParams({brand:input.brand,model:input.model,year:input.year});
+  if(input.fuel)params.set('fuel',input.fuel);
+  params.set('_ts',String(Date.now()));
+  const response=await fetch(`/api/marketiq-fipe?${params.toString()}`,{method:'GET',cache:'no-store'});
   if(!response.ok)return null;
   return response.json();
 };
