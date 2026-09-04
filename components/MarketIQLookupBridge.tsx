@@ -9,6 +9,13 @@ import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../servic
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const moneyInput=(value:number)=>value?value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
 const marketRoot=()=>Array.from(document.querySelectorAll('div.fixed.inset-0')).find(el=>String(el.textContent||'').includes('MOTYQ MARKETIQ')) as HTMLElement|undefined;
+const marketVisible=()=>{
+  const root=marketRoot();
+  if(!root)return false;
+  const style=window.getComputedStyle(root);
+  const rect=root.getBoundingClientRect();
+  return style.display!=='none'&&style.visibility!=='hidden'&&Number(style.opacity||'1')!==0&&rect.width>0&&rect.height>0;
+};
 const field=(label:string)=>{
   const root=marketRoot(); if(!root)return null;
   const wanted=label.toLowerCase();
@@ -56,6 +63,7 @@ const MarketIQLookupBridge:React.FC=()=>{
   const[readingCrlv,setReadingCrlv]=useState(false);
   const lastPlate=useRef('');
   const requestId=useRef(0);
+  const wasMarketVisible=useRef(false);
 
   useEffect(()=>onAuthStateChanged(auth,async firebaseUser=>{
     if(!firebaseUser?.email){setUser(null);return;}
@@ -74,6 +82,21 @@ const MarketIQLookupBridge:React.FC=()=>{
     window.addEventListener(COMPANY_SCOPE_EVENT,subscribe);
     return()=>{unsub();window.removeEventListener(COMPANY_SCOPE_EVENT,subscribe);};
   },[user]);
+
+  useEffect(()=>{
+    const timer=window.setInterval(()=>{
+      const visible=marketVisible();
+      if(wasMarketVisible.current&&!visible){
+        requestId.current+=1;
+        lastPlate.current='';
+        setNotice(null);
+        setExternal(null);
+        setReadingCrlv(false);
+      }
+      wasMarketVisible.current=visible;
+    },150);
+    return()=>window.clearInterval(timer);
+  },[]);
 
   const showExternal=(plate:string)=>{
     setExternal({plate});
@@ -154,7 +177,7 @@ const MarketIQLookupBridge:React.FC=()=>{
     return()=>document.removeEventListener('input',onInput,true);
   },[snapshot]);
 
-  if((!notice&&!external)||!marketRoot())return null;
+  if((!notice&&!external)||!marketVisible())return null;
   return <div className="fixed right-5 top-24 z-[615] w-[min(92vw,390px)] space-y-3">
     {notice&&<div className={`rounded-2xl border px-4 py-3 text-xs shadow-2xl backdrop-blur-xl ${notice.kind==='ok'?'border-emerald-300/25 bg-emerald-950/90 text-emerald-100':notice.kind==='warn'?'border-amber-300/25 bg-amber-950/90 text-amber-100':'border-cyan-300/20 bg-cyan-950/90 text-cyan-100'}`}>{notice.text}</div>}
     {external&&<div className="rounded-2xl border border-white/10 bg-[#11191b]/95 p-4 text-white shadow-2xl backdrop-blur-xl">
