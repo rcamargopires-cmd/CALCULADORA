@@ -32,11 +32,14 @@ const fill=(data:{model?:string;year?:string;km?:number;fipe?:number})=>{
 };
 
 type Notice={kind:'ok'|'warn'|'loading';text:string}|null;
+type ExternalVehicle={plate:string;brand:string;model:string;year:string;fuel:string};
 
 const MarketIQLookupBridge:React.FC=()=>{
   const[user,setUser]=useState<User|null>(null);
   const[snapshot,setSnapshot]=useState<GroupStockSnapshot|null>(null);
   const[notice,setNotice]=useState<Notice>(null);
+  const[external,setExternal]=useState<ExternalVehicle|null>(null);
+  const[resolvingExternal,setResolvingExternal]=useState(false);
   const lastPlate=useRef('');
   const requestId=useRef(0);
 
@@ -58,14 +61,47 @@ const MarketIQLookupBridge:React.FC=()=>{
     return()=>{unsub();window.removeEventListener(COMPANY_SCOPE_EVENT,subscribe);};
   },[user]);
 
+  const showExternal=(plate:string)=>{
+    const currentModel=field('Modelo / versão')?.value||'';
+    const currentYear=field('Ano/modelo')?.value||'';
+    setExternal({plate,brand:'',model:currentModel,year:currentYear,fuel:''});
+    setNotice({kind:'warn',text:'Veículo fora do estoque do grupo. Complete os dados abaixo para eu localizar a FIPE.'});
+  };
+
+  const resolveExternal=async()=>{
+    if(!external)return;
+    const brand=external.brand.trim(), model=external.model.trim(), year=external.year.trim();
+    if(!brand||!model||!year){
+      setNotice({kind:'warn',text:'Informe marca, modelo/versão e ano/modelo para buscar a FIPE.'});
+      return;
+    }
+    setResolvingExternal(true);
+    setNotice({kind:'loading',text:`Localizando a FIPE do ${model}...`});
+    try{
+      const result=await marketIqFipeResolver.resolve({brand,model,year,fuel:external.fuel});
+      if(result?.value){
+        fill({model:result.model||model,year:String(result.year||year),fipe:result.value});
+        setNotice({kind:'ok',text:`FIPE ${result.referenceMonth||'atual'} localizada e preenchida automaticamente.`});
+        setExternal(null);
+      }else{
+        setNotice({kind:'warn',text:'Não consegui confirmar essa versão na FIPE. Confira marca, versão e ano/modelo.'});
+      }
+    }catch{
+      setNotice({kind:'warn',text:'Não foi possível consultar a FIPE agora. Tente novamente em instantes.'});
+    }finally{
+      setResolvingExternal(false);
+    }
+  };
+
   useEffect(()=>{
     const onInput=(event:Event)=>{
       const target=event.target as HTMLInputElement|null;
       if(!target||target!==field('Placa'))return;
       const plate=cleanPlate(target.value);
-      if(plate.length!==7){lastPlate.current='';setNotice(null);return;}
+      if(plate.length!==7){lastPlate.current='';setNotice(null);setExternal(null);return;}
       if(plate===lastPlate.current)return;
       lastPlate.current=plate;
+      setExternal(null);
       const currentRequest=++requestId.current;
       setNotice({kind:'loading',text:`Consultando ${plate}...`});
 
@@ -91,15 +127,21 @@ const MarketIQLookupBridge:React.FC=()=>{
         if(!data||currentRequest!==requestId.current)return;
         fill({model:data.model||data.registryModel,year:data.year,fipe:Number(data.fipeValue)||0});
         const suffix=data.referenceMonth?` · ${data.referenceMonth}`:'';
+        setExternal(null);
         setNotice({kind:'ok',text:`Placa identificada${suffix}. FIPE preenchida automaticamente.`});
       }).catch(()=>{
         if(currentRequest!==requestId.current)return;
-        if(!stockItem)setNotice({kind:'warn',text:'Placa fora do estoque compartilhado. Consulta externa ainda não está habilitada.'});
+        if(!stockItem)showExternal(plate);
       });
 
       if(!stockItem){
         window.setTimeout(()=>{
-          if(currentRequest===requestId.current&&lastPlate.current===plate)setNotice(prev=>prev?.kind==='loading'?{kind:'warn',text:'Placa fora do estoque compartilhado. Consulta externa ainda não está habilitada.'}:prev);
+          if(currentRequest===requestId.current&&lastPlate.current===plate){
+            setNotice(prev=>{
+              if(prev?.kind==='loading')showExternal(plate);
+              return prev;
+            });
+          }
         },1800);
       }
     };
@@ -107,8 +149,20 @@ const MarketIQLookupBridge:React.FC=()=>{
     return()=>document.removeEventListener('input',onInput,true);
   },[snapshot]);
 
-  if(!notice||!marketRoot())return null;
-  return <div className={`fixed right-5 top-24 z-[615] max-w-sm rounded-2xl border px-4 py-3 text-xs shadow-2xl backdrop-blur-xl ${notice.kind==='ok'?'border-emerald-300/25 bg-emerald-950/90 text-emerald-100':notice.kind==='warn'?'border-amber-300/25 bg-amber-950/90 text-amber-100':'border-cyan-300/20 bg-cyan-950/90 text-cyan-100'}`}>{notice.text}</div>;
+  if((!notice&&!external)||!marketRoot())return null;
+  return <div className="fixed right-5 top-24 z-[615] w-[min(92vw,390px)] space-y-3">
+    {notice&&<div className={`rounded-2xl border px-4 py-3 text-xs shadow-2xl backdrop-blur-xl ${notice.kind==='ok'?'border-emerald-300/25 bg-emerald-950/90 text-emerald-100':notice.kind==='warn'?'border-amber-300/25 bg-amber-950/90 text-amber-100':'border-cyan-300/20 bg-cyan-950/90 text-cyan-100'}`}>{notice.text}</div>}
+    {external&&<div className="rounded-2xl border border-white/10 bg-[#11191b]/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+      <div className="mb-3"><p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VEÍCULO FORA DO ESTOQUE</p><p className="mt-1 text-sm font-semibold">{external.plate} · identificar FIPE</p><p className="mt-1 text-[11px] leading-4 text-zinc-500">Informe apenas o necessário. O MarketIQ cruza a versão na base FIPE pública e preenche o valor automaticamente.</p></div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block"><span className="mb-1 block text-[9px] uppercase text-zinc-500">Marca</span><input value={external.brand} onChange={e=>setExternal(v=>v?{...v,brand:e.target.value}:v)} placeholder="Ex.: Volkswagen" className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs outline-none focus:border-cyan-300/40"/></label>
+        <label className="block"><span className="mb-1 block text-[9px] uppercase text-zinc-500">Ano/modelo</span><input value={external.year} onChange={e=>setExternal(v=>v?{...v,year:e.target.value}:v)} placeholder="Ex.: 2024" className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs outline-none focus:border-cyan-300/40"/></label>
+        <label className="block sm:col-span-2"><span className="mb-1 block text-[9px] uppercase text-zinc-500">Modelo / versão</span><input value={external.model} onChange={e=>setExternal(v=>v?{...v,model:e.target.value}:v)} placeholder="Ex.: T-Cross Comfortline 1.0 TSI" className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs outline-none focus:border-cyan-300/40"/></label>
+        <label className="block sm:col-span-2"><span className="mb-1 block text-[9px] uppercase text-zinc-500">Combustível (opcional)</span><input value={external.fuel} onChange={e=>setExternal(v=>v?{...v,fuel:e.target.value}:v)} placeholder="Flex, gasolina, diesel, híbrido..." className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs outline-none focus:border-cyan-300/40"/></label>
+      </div>
+      <button onClick={()=>void resolveExternal()} disabled={resolvingExternal} className="mt-3 h-10 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] disabled:opacity-50">{resolvingExternal?'BUSCANDO FIPE...':'LOCALIZAR FIPE'}</button>
+    </div>}
+  </div>;
 };
 
 export default MarketIQLookupBridge;
