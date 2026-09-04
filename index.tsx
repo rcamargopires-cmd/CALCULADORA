@@ -19,6 +19,7 @@ import ManagerShowroomProposalsShell from './components/ManagerShowroomProposals
 import SellerShowroomAutoReset from './components/SellerShowroomAutoReset';
 import MarketIQShell from './components/MarketIQShell';
 import MarketIQLookupBridge from './components/MarketIQLookupBridge';
+import MarketIQSessionReset from './components/MarketIQSessionReset';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -43,5 +44,6 @@ root.render(
     <SellerShowroomAutoReset />
     <MarketIQShell />
     <MarketIQLookupBridge />
+    <MarketIQSessionReset />
   </React.StrictMode>
 );
