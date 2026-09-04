@@ -18,6 +18,7 @@ import GroupStockHostRepair from './components/GroupStockHostRepair';
 import ManagerShowroomProposalsShell from './components/ManagerShowroomProposalsShell';
 import SellerShowroomAutoReset from './components/SellerShowroomAutoReset';
 import MarketIQShell from './components/MarketIQShell';
+import MarketIQLookupBridge from './components/MarketIQLookupBridge';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -41,5 +42,6 @@ root.render(
     <ManagerShowroomProposalsShell />
     <SellerShowroomAutoReset />
     <MarketIQShell />
+    <MarketIQLookupBridge />
   </React.StrictMode>
 );
