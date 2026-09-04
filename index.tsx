@@ -17,6 +17,7 @@ import GroupStockModule from './components/GroupStockModule';
 import GroupStockHostRepair from './components/GroupStockHostRepair';
 import ManagerShowroomProposalsShell from './components/ManagerShowroomProposalsShell';
 import SellerShowroomAutoReset from './components/SellerShowroomAutoReset';
+import MarketIQShell from './components/MarketIQShell';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -39,5 +40,6 @@ root.render(
     <GroupStockHostRepair />
     <ManagerShowroomProposalsShell />
     <SellerShowroomAutoReset />
+    <MarketIQShell />
   </React.StrictMode>
 );
