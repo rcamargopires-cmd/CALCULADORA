@@ -14,7 +14,14 @@ const scoreText=(target:string,candidate:string)=>{
  let score=0;for(const t of a){if(b.includes(t))score+=/^\d/.test(t)?1.4:1;else if(b.some(x=>x.includes(t)||t.includes(x)))score+=0.4;}
  const denom=a.reduce((s,t)=>s+( /^\d/.test(t)?1.4:1),0);return Math.min(1,score/Math.max(1,denom));
 };
-const getJson=async(url:string)=>{const response=await fetch(url,{headers:{'Accept':'application/json','User-Agent':'Motyq-MarketIQ/1.0'}});if(!response.ok)throw new Error(`FIPE HTTP ${response.status} ${url}`);return response.json();};
+const getJson=async(url:string)=>{
+ const token=process.env.FIPE_API_TOKEN||process.env.FIPE_SUBSCRIPTION_TOKEN||'';
+ const headers:Record<string,string>={'Accept':'application/json','User-Agent':'Motyq-MarketIQ/1.0'};
+ if(token)headers['X-Subscription-Token']=token;
+ const response=await fetch(url,{headers});
+ if(!response.ok)throw new Error(`FIPE HTTP ${response.status} ${url}`);
+ return response.json();
+};
 const parseValue=(value:string)=>Number(String(value||'').replace(/[^0-9,]/g,'').replace(',','.'))||0;
 const yearsFrom=(value:string)=>((String(value||'').match(/(?:19|20)\d{2}/g)||[]).map(Number));
 const getCode=(item:NamedCode)=>String(item.code??item.codigo??'');
