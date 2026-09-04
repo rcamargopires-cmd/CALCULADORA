@@ -5,7 +5,6 @@ import { User } from '../types';
 import { userService } from '../services/userService';
 import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companyScopeService';
 import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../services/groupStockService';
-import { marketIqFipeResolver } from '../services/marketIqFipeResolver';
 
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const moneyInput=(value:number)=>value?value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
@@ -29,6 +28,14 @@ const fill=(data:{model?:string;year?:string;km?:number;fipe?:number})=>{
   if(data.year)setInput(field('Ano/modelo'),String(data.year));
   if(data.km)setInput(field('KM atual'),String(data.km));
   if(data.fipe)setInput(field('FIPE'),moneyInput(data.fipe));
+};
+
+const lookupFipe=async(input:{brand:string;model:string;year:string;fuel?:string})=>{
+  const response=await fetch('/api/marketiq-fipe',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input),
+  });
+  if(!response.ok)return null;
+  return response.json();
 };
 
 type Notice={kind:'ok'|'warn'|'loading';text:string}|null;
@@ -78,9 +85,9 @@ const MarketIQLookupBridge:React.FC=()=>{
     setResolvingExternal(true);
     setNotice({kind:'loading',text:`Localizando a FIPE do ${model}...`});
     try{
-      const result=await marketIqFipeResolver.resolve({brand,model,year,fuel:external.fuel});
+      const result=await lookupFipe({brand,model,year,fuel:external.fuel});
       if(result?.value){
-        fill({model:result.model||model,year:String(result.year||year),fipe:result.value});
+        fill({model:result.model||model,year:String(result.year||year),fipe:Number(result.value)||0});
         setNotice({kind:'ok',text:`FIPE ${result.referenceMonth||'atual'} localizada e preenchida automaticamente.`});
         setExternal(null);
       }else{
@@ -109,10 +116,10 @@ const MarketIQLookupBridge:React.FC=()=>{
       if(stockItem){
         fill({model:stockItem.model,year:stockItem.year,km:stockItem.km});
         setNotice({kind:'loading',text:`${stockItem.model} localizado. Buscando FIPE...`});
-        void marketIqFipeResolver.resolve({brand:stockItem.brand,model:stockItem.model,year:stockItem.year,fuel:stockItem.fuel}).then(result=>{
+        void lookupFipe({brand:stockItem.brand,model:stockItem.model,year:stockItem.year,fuel:stockItem.fuel}).then(result=>{
           if(currentRequest!==requestId.current)return;
           if(result?.value){
-            fill({model:stockItem.model||result.model,year:stockItem.year||String(result.year),km:stockItem.km,fipe:result.value});
+            fill({model:stockItem.model||result.model,year:stockItem.year||String(result.year),km:stockItem.km,fipe:Number(result.value)||0});
             setNotice({kind:'ok',text:`FIPE ${result.referenceMonth||'atual'} preenchida automaticamente.`});
           }else setNotice({kind:'warn',text:'Veículo localizado, mas a versão FIPE precisa ser confirmada.'});
         });
