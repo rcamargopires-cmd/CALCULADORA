@@ -7,7 +7,6 @@ import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companySco
 import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../services/groupStockService';
 
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
-const cleanRenavam=(value:string)=>String(value||'').replace(/\D/g,'').slice(0,11);
 const moneyInput=(value:number)=>value?value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
 const marketRoot=()=>Array.from(document.querySelectorAll('div.fixed.inset-0')).find(el=>String(el.textContent||'').includes('MOTYQ MARKETIQ')) as HTMLElement|undefined;
 const field=(label:string)=>{
@@ -30,6 +29,12 @@ const fill=(data:{model?:string;year?:string;km?:number;fipe?:number})=>{
   if(data.km)setInput(field('KM atual'),String(data.km));
   if(data.fipe)setInput(field('FIPE'),moneyInput(data.fipe));
 };
+const fileToBase64=(file:File)=>new Promise<string>((resolve,reject)=>{
+  const reader=new FileReader();
+  reader.onload=()=>resolve(String(reader.result||'').split(',')[1]||'');
+  reader.onerror=()=>reject(reader.error);
+  reader.readAsDataURL(file);
+});
 
 const lookupFipe=async(input:{brand:string;model:string;year:string;fuel?:string})=>{
   const params=new URLSearchParams({brand:input.brand,model:input.model,year:input.year});
@@ -41,14 +46,14 @@ const lookupFipe=async(input:{brand:string;model:string;year:string;fuel?:string
 };
 
 type Notice={kind:'ok'|'warn'|'loading';text:string}|null;
-type ExternalVehicle={plate:string;renavam:string};
+type ExternalVehicle={plate:string};
 
 const MarketIQLookupBridge:React.FC=()=>{
   const[user,setUser]=useState<User|null>(null);
   const[snapshot,setSnapshot]=useState<GroupStockSnapshot|null>(null);
   const[notice,setNotice]=useState<Notice>(null);
   const[external,setExternal]=useState<ExternalVehicle|null>(null);
-  const[resolvingExternal,setResolvingExternal]=useState(false);
+  const[readingCrlv,setReadingCrlv]=useState(false);
   const lastPlate=useRef('');
   const requestId=useRef(0);
 
@@ -71,39 +76,50 @@ const MarketIQLookupBridge:React.FC=()=>{
   },[user]);
 
   const showExternal=(plate:string)=>{
-    setExternal({plate,renavam:''});
-    setNotice({kind:'warn',text:'Veículo fora do estoque do grupo. Informe o RENAVAM para identificar o veículo automaticamente.'});
+    setExternal({plate});
+    setNotice({kind:'warn',text:'Veículo fora do estoque. Envie o CRLV-e para o Motyq identificar o carro sem consulta veicular paga.'});
   };
 
-  const resolveExternal=async()=>{
+  const readCrlv=async(file:File)=>{
     if(!external)return;
-    const renavam=cleanRenavam(external.renavam);
-    if(renavam.length<9){
-      setNotice({kind:'warn',text:'Informe um RENAVAM válido para consultar o veículo.'});
-      return;
-    }
-    setResolvingExternal(true);
-    setNotice({kind:'loading',text:`Identificando ${external.plate} pela placa + RENAVAM...`});
+    if(file.size>12*1024*1024){setNotice({kind:'warn',text:'O CRLV-e deve ter no máximo 12 MB.'});return;}
+    setReadingCrlv(true);
+    setNotice({kind:'loading',text:`Lendo o CRLV-e de ${external.plate}...`});
     try{
-      const response=await fetch('/api/marketiq-identify',{
+      const currentUser=auth.currentUser;
+      if(!currentUser)throw new Error('no_session');
+      const token=await currentUser.getIdToken();
+      const data64=await fileToBase64(file);
+      const response=await fetch('/api/marketiq-crlv',{
         method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({plate:external.plate,renavam}),
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+        body:JSON.stringify({file:{name:file.name,mimeType:file.type||'application/octet-stream',data:data64}}),
       });
-      const data=await response.json().catch(()=>null);
-      if(response.ok&&data){
-        fill({model:data.model||data.registryModel,year:String(data.year||''),fipe:Number(data.fipeValue)||0});
-        setNotice({kind:'ok',text:`${data.model||data.registryModel||'Veículo'} identificado. FIPE ${data.referenceMonth||'atual'} preenchida automaticamente.`});
-        setExternal(null);
-      }else if(response.status===503){
-        setNotice({kind:'warn',text:'A identificação por placa + RENAVAM está pronta no Motyq, mas a fonte veicular externa ainda precisa ser habilitada.'});
-      }else{
-        setNotice({kind:'warn',text:'Não consegui identificar esse veículo com placa + RENAVAM. Confira os números informados.'});
+      const payload=await response.json().catch(()=>null);
+      if(!response.ok||!payload?.data)throw new Error(payload?.error||'crlv_failed');
+      const vehicle=payload.data;
+      const readPlate=cleanPlate(vehicle.plate||'');
+      if(readPlate&&readPlate!==external.plate){
+        setNotice({kind:'warn',text:`O CRLV-e enviado é da placa ${readPlate}, diferente de ${external.plate}.`});
+        return;
       }
-    }catch{
-      setNotice({kind:'warn',text:'Não foi possível consultar o veículo agora. Tente novamente em instantes.'});
+      const brand=String(vehicle.brand||String(vehicle.model||'').split('/')[0]||'').trim();
+      const model=String(vehicle.model||'').trim();
+      const year=String(vehicle.yearModel||vehicle.yearFab||'').trim();
+      fill({model,year});
+      setNotice({kind:'loading',text:`${model} identificado. Buscando FIPE...`});
+      const fipe=await lookupFipe({brand,model,year,fuel:String(vehicle.fuel||'')});
+      if(fipe?.value){
+        fill({model:fipe.model||model,year:String(fipe.year||year),fipe:Number(fipe.value)||0});
+        setNotice({kind:'ok',text:`${fipe.model||model} identificado pelo CRLV-e. FIPE ${fipe.referenceMonth||'atual'} preenchida automaticamente.`});
+        setExternal(null);
+      }else{
+        setNotice({kind:'warn',text:`${model} foi identificado pelo CRLV-e, mas não consegui vincular a versão à FIPE automaticamente.`});
+      }
+    }catch(error:any){
+      setNotice({kind:'warn',text:String(error?.message||'').includes('Sessão')?'Sua sessão expirou. Entre novamente no Motyq.':'Não consegui ler esse CRLV-e. Tente uma foto/PDF mais nítido.'});
     }finally{
-      setResolvingExternal(false);
+      setReadingCrlv(false);
     }
   };
 
@@ -132,7 +148,6 @@ const MarketIQLookupBridge:React.FC=()=>{
         });
         return;
       }
-
       showExternal(plate);
     };
     document.addEventListener('input',onInput,true);
@@ -143,9 +158,16 @@ const MarketIQLookupBridge:React.FC=()=>{
   return <div className="fixed right-5 top-24 z-[615] w-[min(92vw,390px)] space-y-3">
     {notice&&<div className={`rounded-2xl border px-4 py-3 text-xs shadow-2xl backdrop-blur-xl ${notice.kind==='ok'?'border-emerald-300/25 bg-emerald-950/90 text-emerald-100':notice.kind==='warn'?'border-amber-300/25 bg-amber-950/90 text-amber-100':'border-cyan-300/20 bg-cyan-950/90 text-cyan-100'}`}>{notice.text}</div>}
     {external&&<div className="rounded-2xl border border-white/10 bg-[#11191b]/95 p-4 text-white shadow-2xl backdrop-blur-xl">
-      <div className="mb-3"><p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VEÍCULO FORA DO ESTOQUE</p><p className="mt-1 text-sm font-semibold">{external.plate} · identificar veículo</p><p className="mt-1 text-[11px] leading-4 text-zinc-500">Informe somente o RENAVAM. Marca, modelo, versão, ano, combustível e FIPE serão preenchidos pelo Motyq.</p></div>
-      <label className="block"><span className="mb-1 block text-[9px] uppercase text-zinc-500">RENAVAM</span><input value={external.renavam} onChange={e=>setExternal(v=>v?{...v,renavam:cleanRenavam(e.target.value)}:v)} inputMode="numeric" placeholder="Digite o RENAVAM" className="h-10 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-sm tracking-[.08em] outline-none focus:border-cyan-300/40"/></label>
-      <button onClick={()=>void resolveExternal()} disabled={resolvingExternal} className="mt-3 h-10 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] disabled:opacity-50">{resolvingExternal?'CONSULTANDO VEÍCULO...':'CONSULTAR VEÍCULO'}</button>
+      <div className="mb-3">
+        <p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VEÍCULO FORA DO ESTOQUE</p>
+        <p className="mt-1 text-sm font-semibold">{external.plate} · identificação pelo CRLV-e</p>
+        <p className="mt-1 text-[11px] leading-4 text-zinc-500">Sem API veicular paga. Envie uma foto ou PDF do CRLV-e e o Motyq lê marca, modelo, versão e ano; depois cruza automaticamente com a FIPE.</p>
+      </div>
+      <label className={`flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] ${readingCrlv?'pointer-events-none opacity-50':''}`}>
+        {readingCrlv?'LENDO CRLV-E...':'ENVIAR CRLV-E'}
+        <input type="file" accept="image/*,application/pdf" className="hidden" disabled={readingCrlv} onChange={e=>{const file=e.target.files?.[0];if(file)void readCrlv(file);e.currentTarget.value='';}}/>
+      </label>
+      <p className="mt-2 text-center text-[10px] text-zinc-600">Foto, print ou PDF · até 12 MB</p>
     </div>}
   </div>;
 };
