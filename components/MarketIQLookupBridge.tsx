@@ -4,7 +4,9 @@ import { auth } from '../firebase';
 import { User } from '../types';
 import { userService } from '../services/userService';
 import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companyScopeService';
+import { storeScopeService } from '../services/storeScopeService';
 import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../services/groupStockService';
+import { marketIqVehicleCacheService } from '../services/marketIqVehicleCacheService';
 
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const moneyInput=(value:number)=>value?value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
@@ -104,7 +106,7 @@ const MarketIQLookupBridge:React.FC=()=>{
   };
 
   const readCrlv=async(file:File)=>{
-    if(!external)return;
+    if(!external||!user)return;
     if(file.size>12*1024*1024){setNotice({kind:'warn',text:'O CRLV-e deve ter no máximo 12 MB.'});return;}
     setReadingCrlv(true);
     setNotice({kind:'loading',text:`Lendo o CRLV-e de ${external.plate}...`});
@@ -126,18 +128,55 @@ const MarketIQLookupBridge:React.FC=()=>{
         setNotice({kind:'warn',text:`O CRLV-e enviado é da placa ${readPlate}, diferente de ${external.plate}.`});
         return;
       }
+      const companyId=companyScopeService.get(user);
+      const storeId=storeScopeService.get(user);
       const brand=String(vehicle.brand||String(vehicle.model||'').split('/')[0]||'').trim();
       const model=String(vehicle.model||'').trim();
       const year=String(vehicle.yearModel||vehicle.yearFab||'').trim();
+      const fuel=String(vehicle.fuel||'').trim();
+      const renavam=String(vehicle.renavam||'').replace(/\D/g,'');
       fill({model,year});
+      await marketIqVehicleCacheService.save({
+        plate: external.plate,
+        brand,
+        model,
+        year,
+        fuel,
+        renavam,
+        source:'crlv',
+        companyId,
+        storeId,
+        identifiedAt:new Date().toISOString(),
+        identifiedBy:currentUser.email||currentUser.uid,
+      }).catch(()=>undefined);
       setNotice({kind:'loading',text:`${model} identificado. Buscando FIPE...`});
-      const fipe=await lookupFipe({brand,model,year,fuel:String(vehicle.fuel||'')});
+      const fipe=await lookupFipe({brand,model,year,fuel});
       if(fipe?.value){
-        fill({model:fipe.model||model,year:String(fipe.year||year),fipe:Number(fipe.value)||0});
-        setNotice({kind:'ok',text:`${fipe.model||model} identificado pelo CRLV-e. FIPE ${fipe.referenceMonth||'atual'} preenchida automaticamente.`});
+        const resolvedModel=String(fipe.model||model);
+        const resolvedYear=String(fipe.year||year);
+        const value=Number(fipe.value)||0;
+        fill({model:resolvedModel,year:resolvedYear,fipe:value});
+        await marketIqVehicleCacheService.save({
+          plate: external.plate,
+          brand,
+          model:resolvedModel,
+          year:resolvedYear,
+          fuel,
+          renavam,
+          fipeCode:String(fipe.fipeCode||''),
+          lastFipeValue:value,
+          lastFipeReference:String(fipe.referenceMonth||''),
+          source:'crlv',
+          companyId,
+          storeId,
+          identifiedAt:new Date().toISOString(),
+          identifiedBy:currentUser.email||currentUser.uid,
+        }).catch(()=>undefined);
+        setNotice({kind:'ok',text:`${resolvedModel} identificado pelo CRLV-e e salvo no Motyq. FIPE ${fipe.referenceMonth||'atual'} preenchida automaticamente.`});
         setExternal(null);
       }else{
-        setNotice({kind:'warn',text:`${model} foi identificado pelo CRLV-e, mas não consegui vincular a versão à FIPE automaticamente.`});
+        setNotice({kind:'warn',text:`${model} foi identificado e salvo no Motyq, mas não consegui vincular a versão à FIPE automaticamente.`});
+        setExternal(null);
       }
     }catch(error:any){
       setNotice({kind:'warn',text:String(error?.message||'').includes('Sessão')?'Sua sessão expirou. Entre novamente no Motyq.':'Não consegui ler esse CRLV-e. Tente uma foto/PDF mais nítido.'});
@@ -149,7 +188,7 @@ const MarketIQLookupBridge:React.FC=()=>{
   useEffect(()=>{
     const onInput=(event:Event)=>{
       const target=event.target as HTMLInputElement|null;
-      if(!target||target!==field('Placa'))return;
+      if(!target||target!==field('Placa')||!user)return;
       const plate=cleanPlate(target.value);
       if(plate.length!==7){lastPlate.current='';setNotice(null);setExternal(null);return;}
       if(plate===lastPlate.current)return;
@@ -171,11 +210,40 @@ const MarketIQLookupBridge:React.FC=()=>{
         });
         return;
       }
-      showExternal(plate);
+
+      const companyId=companyScopeService.get(user);
+      const storeId=storeScopeService.get(user);
+      void marketIqVehicleCacheService.get(companyId,storeId,plate).then(async cached=>{
+        if(currentRequest!==requestId.current)return;
+        if(!cached){showExternal(plate);return;}
+        fill({model:cached.model,year:cached.year});
+        setNotice({kind:'loading',text:`${cached.model} reconhecido pelo Motyq. Atualizando FIPE...`});
+        const fipe=await lookupFipe({brand:cached.brand,model:cached.model,year:cached.year,fuel:cached.fuel});
+        if(currentRequest!==requestId.current)return;
+        if(fipe?.value){
+          const resolvedModel=String(fipe.model||cached.model);
+          const resolvedYear=String(fipe.year||cached.year);
+          const value=Number(fipe.value)||0;
+          fill({model:resolvedModel,year:resolvedYear,fipe:value});
+          setNotice({kind:'ok',text:`${resolvedModel} reconhecido pela placa. FIPE ${fipe.referenceMonth||'atual'} atualizada sem reler o CRLV-e.`});
+          void marketIqVehicleCacheService.save({
+            ...cached,
+            model:resolvedModel,
+            year:resolvedYear,
+            fipeCode:String(fipe.fipeCode||cached.fipeCode||''),
+            lastFipeValue:value,
+            lastFipeReference:String(fipe.referenceMonth||''),
+            companyId,
+            storeId,
+          }).catch(()=>undefined);
+        }else{
+          setNotice({kind:'warn',text:`${cached.model} reconhecido pela placa, mas a FIPE precisa ser confirmada.`});
+        }
+      }).catch(()=>showExternal(plate));
     };
     document.addEventListener('input',onInput,true);
     return()=>document.removeEventListener('input',onInput,true);
-  },[snapshot]);
+  },[snapshot,user]);
 
   if((!notice&&!external)||!marketVisible())return null;
   return <div className="fixed right-5 top-24 z-[615] w-[min(92vw,390px)] space-y-3">
@@ -184,7 +252,7 @@ const MarketIQLookupBridge:React.FC=()=>{
       <div className="mb-3">
         <p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VEÍCULO FORA DO ESTOQUE</p>
         <p className="mt-1 text-sm font-semibold">{external.plate} · identificação pelo CRLV-e</p>
-        <p className="mt-1 text-[11px] leading-4 text-zinc-500">Sem API veicular paga. Envie uma foto ou PDF do CRLV-e e o Motyq lê marca, modelo, versão e ano; depois cruza automaticamente com a FIPE.</p>
+        <p className="mt-1 text-[11px] leading-4 text-zinc-500">Sem API veicular paga. Envie uma foto ou PDF do CRLV-e e o Motyq lê marca, modelo, versão e ano; depois cruza automaticamente com a FIPE. Após a primeira leitura, essa placa fica salva para as próximas avaliações.</p>
       </div>
       <label className={`flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] ${readingCrlv?'pointer-events-none opacity-50':''}`}>
         {readingCrlv?'LENDO CRLV-E...':'ENVIAR CRLV-E'}
