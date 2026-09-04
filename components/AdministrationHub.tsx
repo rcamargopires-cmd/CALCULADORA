@@ -61,10 +61,13 @@ const AdministrationHub: React.FC = () => {
     <button
       onClick={() => setOpen(true)}
       title="Administração Motyq"
-      className="fixed bottom-4 left-4 z-[156] flex items-center gap-3 rounded-2xl border border-violet-300/20 bg-[#17151d]/95 px-4 py-3 text-left text-white shadow-2xl shadow-black/45 backdrop-blur-xl transition hover:border-violet-300/40 hover:bg-[#1d1924] active:scale-[.98]"
+      className="fixed bottom-[238px] right-4 z-[156] flex h-[60px] w-[136px] max-w-[calc(100vw-32px)] items-center gap-2 overflow-hidden rounded-2xl border border-violet-300/20 bg-[#17151d]/95 px-3 py-2 text-left text-white shadow-2xl shadow-black/45 backdrop-blur-xl transition hover:border-violet-300/40 hover:bg-[#1d1924] active:scale-[.98]"
     >
-      <span className="grid h-10 w-10 place-items-center rounded-xl border border-violet-300/15 bg-violet-300/[.07] text-violet-300"><Settings2 size={20}/></span>
-      <span className="hidden sm:block"><span className="block text-[9px] font-black uppercase tracking-[.17em] text-violet-300">ADMINISTRAÇÃO</span><span className="mt-0.5 block text-sm font-semibold">Central SaaS</span></span>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-violet-300/15 bg-violet-300/[.07] text-violet-300"><Settings2 size={17}/></span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[8px] font-black uppercase tracking-[.11em] text-violet-300">ADMINISTRAÇÃO</span>
+        <span className="mt-0.5 block truncate text-[12px] font-semibold leading-4">Central SaaS</span>
+      </span>
     </button>
 
     {open && <div className="fixed inset-0 z-[565] h-[100dvh] overflow-hidden bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)}>
