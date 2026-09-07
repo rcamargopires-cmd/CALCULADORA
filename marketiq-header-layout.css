@@ -1,30 +1,29 @@
-/* MarketIQ header action layout
-   One clean action row: Vincular Atendimento + Fotos & Avarias + Histórico.
-   All three actions share the same height, border, background and shadow.
-   The close button stays isolated on the far right. */
+/* MarketIQ header actions
+   Keep Vincular Atendimento in the native header flow and align the two
+   auxiliary actions to the same visual baseline. All three share one clean
+   daylight style, with a deliberate gap before the close control. */
 
 :root {
   --marketiq-modal-edge: max(20px, calc((100vw - 1500px) / 2));
-  --marketiq-action-top: 26px;
-  --marketiq-action-height: 38px;
+  --marketiq-action-height: 40px;
   --marketiq-action-border: #d7e0ea;
   --marketiq-action-text: #344054;
-  --marketiq-action-shadow: 0 2px 8px rgba(15, 23, 42, .06);
 }
 
-/* Vincular Atendimento uses the same fixed action lane as the other two buttons,
-   so it can never sit lower than Photos/History. */
+/* Vincular Atendimento stays inside the header instead of using fixed
+   positioning. This avoids the backdrop-filter/fixed-position offset that
+   made it sit lower than the other actions. */
 [data-marketiq-showroom-link-host] {
-  position: fixed !important;
-  top: var(--marketiq-action-top) !important;
-  right: calc(var(--marketiq-modal-edge) + 370px) !important;
-  z-index: 625 !important;
-  width: 220px !important;
-  min-width: 220px !important;
-  max-width: 220px !important;
+  position: static !important;
+  display: flex !important;
+  align-items: center !important;
+  flex: 0 0 auto !important;
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
   height: var(--marketiq-action-height) !important;
-  margin: 0 !important;
-  flex: none !important;
+  margin-left: auto !important;
+  margin-right: 270px !important;
 }
 
 [data-marketiq-showroom-link-host] > button,
@@ -42,7 +41,7 @@ button[class*="top-[27px]"][class*="z-[625]"] {
   background: #ffffff !important;
   background-image: none !important;
   color: var(--marketiq-action-text) !important;
-  box-shadow: var(--marketiq-action-shadow) !important;
+  box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   font-size: 11px !important;
@@ -63,22 +62,22 @@ button[class*="top-[27px]"][class*="z-[625]"]:hover {
   background: #f8fafc !important;
   border-color: #bfcbd9 !important;
   color: #172033 !important;
-  box-shadow: var(--marketiq-action-shadow) !important;
+  box-shadow: none !important;
 }
 
-/* Photos & Avarias */
+/* Header top = overlay padding (20px) + header padding (20px).
+   These two floating actions therefore align to the native header buttons. */
 button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
-  top: var(--marketiq-action-top) !important;
-  right: calc(var(--marketiq-modal-edge) + 205px) !important;
+  top: 40px !important;
+  right: calc(var(--marketiq-modal-edge) + 195px) !important;
 }
 
-/* Histórico */
 button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
-  top: var(--marketiq-action-top) !important;
-  right: calc(var(--marketiq-modal-edge) + 74px) !important;
+  top: 40px !important;
+  right: calc(var(--marketiq-modal-edge) + 84px) !important;
 }
 
-/* Keep icons visually consistent too. */
+/* Unified icon language. */
 [data-marketiq-showroom-link-host] > button svg,
 button[class*="top-[27px]"][class*="z-[625]"] svg {
   width: 14px !important;
@@ -91,14 +90,14 @@ button[class*="top-[27px]"][class*="z-[625]"] svg {
 @media (max-width: 1180px) {
   :root {
     --marketiq-modal-edge: 16px;
-    --marketiq-action-height: 36px;
+    --marketiq-action-height: 38px;
   }
 
   [data-marketiq-showroom-link-host] {
-    right: calc(var(--marketiq-modal-edge) + 332px) !important;
-    width: 185px !important;
-    min-width: 185px !important;
-    max-width: 185px !important;
+    width: 178px !important;
+    min-width: 178px !important;
+    max-width: 178px !important;
+    margin-right: 242px !important;
   }
 
   [data-marketiq-showroom-link-host] > button,
@@ -109,42 +108,29 @@ button[class*="top-[27px]"][class*="z-[625]"] svg {
   }
 
   button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
-    right: calc(var(--marketiq-modal-edge) + 182px) !important;
+    top: 39px !important;
+    right: calc(var(--marketiq-modal-edge) + 174px) !important;
   }
 
   button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
-    right: calc(var(--marketiq-modal-edge) + 68px) !important;
+    top: 39px !important;
+    right: calc(var(--marketiq-modal-edge) + 76px) !important;
   }
 }
 
-/* Smaller screens stay on one compact row. */
-@media (max-width: 760px) {
-  :root {
-    --marketiq-modal-edge: 10px;
-    --marketiq-action-top: 24px;
-    --marketiq-action-height: 34px;
-  }
-
+@media (max-width: 900px) {
   [data-marketiq-showroom-link-host] {
-    right: calc(var(--marketiq-modal-edge) + 275px) !important;
-    width: 145px !important;
-    min-width: 145px !important;
-    max-width: 145px !important;
+    width: 158px !important;
+    min-width: 158px !important;
+    max-width: 158px !important;
+    margin-right: 222px !important;
   }
 
   [data-marketiq-showroom-link-host] > button,
   button[class*="top-[27px]"][class*="z-[625]"] {
     gap: 5px !important;
-    padding-left: 7px !important;
-    padding-right: 7px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
     font-size: 9px !important;
-  }
-
-  button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
-    right: calc(var(--marketiq-modal-edge) + 136px) !important;
-  }
-
-  button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
-    right: calc(var(--marketiq-modal-edge) + 48px) !important;
   }
 }
