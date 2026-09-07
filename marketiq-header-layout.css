@@ -1,0 +1,40 @@
+/* MarketIQ header action layout
+   Keep the showroom link and close control on the first row.
+   Photos & Damages and History use a dedicated second row inside the header area. */
+
+[data-marketiq-showroom-link-host] {
+  min-width: 0;
+  max-width: 220px;
+  flex: 0 1 220px;
+}
+
+[data-marketiq-showroom-link-host] > button {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
+  top: 72px !important;
+  right: 152px !important;
+}
+
+button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
+  top: 72px !important;
+  right: 16px !important;
+}
+
+@media (max-width: 640px) {
+  [data-marketiq-showroom-link-host] {
+    max-width: 178px;
+    flex-basis: 178px;
+  }
+
+  button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
+    right: 145px !important;
+  }
+
+  button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
+    right: 12px !important;
+  }
+}
