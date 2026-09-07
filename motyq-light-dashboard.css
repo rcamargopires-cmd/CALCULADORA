@@ -54,3 +54,90 @@ body.motyq-graphite button.bg-white.text-black {
 body.motyq-graphite button.bg-white.text-black:hover {
   background-color: #f7f9fc !important;
 }
+
+/* -------------------------------------------------------------------------
+ * GoalTrack · MOTYQ daylight card
+ * The legacy graphite hero looked muddy after the light-theme migration.
+ * Keep the dashboard bright, calm and operational instead of decorative.
+ * ---------------------------------------------------------------------- */
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black {
+  background: #ffffff !important;
+  background-image: none !important;
+  border-color: #dbe3ec !important;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, .07) !important;
+}
+
+/* GoalTrack identity and headline. */
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black .text-zinc-400 {
+  color: #667085 !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black .text-6xl,
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black .md\:text-7xl {
+  color: #172033 !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black .text-xl.text-zinc-500 {
+  color: #98a2b3 !important;
+}
+
+/* Progress track: visible, but not visually louder than the KPI. */
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black .h-2\.5.bg-white\/10 {
+  background-color: #e9eef5 !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black .h-full.rounded-full.bg-white {
+  background: linear-gradient(90deg, #147ee8 0%, #3b97f3 100%) !important;
+  box-shadow: 0 0 0 1px rgba(20, 126, 232, .08) !important;
+}
+
+/* Four supporting KPIs become individual daylight tiles. */
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black [class*="bg-white/[0.055]"] {
+  background-color: #f7f9fc !important;
+  border: 1px solid #e4e9f0 !important;
+  box-shadow: none !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black [class*="bg-white/[0.055]"] p:first-child {
+  color: #7a8494 !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black [class*="bg-white/[0.055]"] p:last-child {
+  color: #172033 !important;
+}
+
+/* DealGuard becomes an integrated action tile, not a pasted white card. */
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black button.bg-white.text-black {
+  background: #f8fbff !important;
+  border: 1px solid #cfe0f2 !important;
+  box-shadow: none !important;
+  transition: border-color .18s ease, background-color .18s ease, transform .18s ease !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black button.bg-white.text-black:hover {
+  background: #f1f7fd !important;
+  border-color: #a9caeb !important;
+  transform: translateY(-1px);
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black button.bg-white.text-black > div:last-child {
+  background-color: #147ee8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 14px rgba(20, 126, 232, .22) !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black button.bg-white.text-black > div:last-child svg {
+  color: #ffffff !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black button.bg-white.text-black span:first-child {
+  color: #55708f !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black button.bg-white.text-black span.block.text-lg {
+  color: #172033 !important;
+}
+
+body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black button.bg-white.text-black span.block.text-sm {
+  color: #667085 !important;
+}
