@@ -19,28 +19,35 @@ export interface MarketIqVehicleIdentity {
   identifiedBy?: string;
 }
 
+const MIN_TRUSTED_CRLV_PARSER_VERSION = 3;
 const cleanPlate = (value: string) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
 const safeId = (value: string) => String(value || 'scope').replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 100);
 const refFor = (companyId: string, storeId: string, plate: string) =>
   doc(db, 'operational_meta', `marketiq_vehicle_${safeId(companyId)}_${safeId(storeId)}_${cleanPlate(plate)}`);
 
-const normalize = (data: Partial<MarketIqVehicleIdentity>, companyId: string, storeId: string, plate: string): MarketIqVehicleIdentity => ({
-  plate: cleanPlate(data.plate || plate),
-  brand: String(data.brand || '').trim(),
-  model: String(data.model || '').trim(),
-  year: String(data.year || '').trim(),
-  fuel: String(data.fuel || '').trim(),
-  renavam: String(data.renavam || '').replace(/\D/g, ''),
-  fipeCode: String(data.fipeCode || '').trim(),
-  lastFipeValue: Number(data.lastFipeValue) || 0,
-  lastFipeReference: String(data.lastFipeReference || '').trim(),
-  source: data.source === 'stock' || data.source === 'manual' ? data.source : 'crlv',
-  parserVersion: Number(data.parserVersion) || 0,
-  companyId,
-  storeId,
-  identifiedAt: String(data.identifiedAt || ''),
-  identifiedBy: String(data.identifiedBy || ''),
-});
+const normalize = (data: Partial<MarketIqVehicleIdentity>, companyId: string, storeId: string, plate: string): MarketIqVehicleIdentity => {
+  const source: MarketIqVehicleIdentity['source'] = data.source === 'stock' || data.source === 'manual' ? data.source : 'crlv';
+  const rawParserVersion = Number(data.parserVersion) || 0;
+  const parserVersion = source === 'crlv' && rawParserVersion < MIN_TRUSTED_CRLV_PARSER_VERSION ? 0 : rawParserVersion;
+
+  return {
+    plate: cleanPlate(data.plate || plate),
+    brand: String(data.brand || '').trim(),
+    model: String(data.model || '').trim(),
+    year: String(data.year || '').trim(),
+    fuel: String(data.fuel || '').trim(),
+    renavam: String(data.renavam || '').replace(/\D/g, ''),
+    fipeCode: String(data.fipeCode || '').trim(),
+    lastFipeValue: Number(data.lastFipeValue) || 0,
+    lastFipeReference: String(data.lastFipeReference || '').trim(),
+    source,
+    parserVersion,
+    companyId,
+    storeId,
+    identifiedAt: String(data.identifiedAt || ''),
+    identifiedBy: String(data.identifiedBy || ''),
+  };
+};
 
 export const marketIqVehicleCacheService = {
   get: async (companyId: string, storeId: string, plate: string): Promise<MarketIqVehicleIdentity | null> => {
