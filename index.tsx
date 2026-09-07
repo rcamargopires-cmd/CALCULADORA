@@ -28,6 +28,7 @@ import MarketIQLookupBridge from './components/MarketIQLookupBridge';
 import MarketIQSessionReset from './components/MarketIQSessionReset';
 import EvaluationRequestMarketIQBridge from './components/EvaluationRequestMarketIQBridge';
 import EvaluationRequestFlowShell from './components/EvaluationRequestFlowShell';
+import EvaluationRequestVehicleLookupBridge from './components/EvaluationRequestVehicleLookupBridge';
 
 // Stable pre-theme baseline. This comment intentionally triggers a clean production deploy.
 const rootElement = document.getElementById('root');
@@ -53,6 +54,7 @@ root.render(
     <SellerShowroomAutoReset />
     <EvaluationRequestMarketIQBridge />
     <EvaluationRequestFlowShell />
+    <EvaluationRequestVehicleLookupBridge />
     <MarketIQShell />
     <MarketIQLookupBridge />
     <MarketIQSessionReset />
