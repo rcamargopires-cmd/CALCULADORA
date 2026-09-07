@@ -19,6 +19,14 @@ export type MarketIQEvaluation = {
   status: MarketIQEvaluationStatus;
   createdByEmail: string;
   createdByName: string;
+  showroomPassageId?: string;
+  dealId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  interestModel?: string;
+  sellerName?: string;
+  sellerEmail?: string;
+  linkedAt?: string;
   createdAt?: any;
   updatedAt?: any;
   decidedAt?: any;
@@ -26,6 +34,11 @@ export type MarketIQEvaluation = {
 
 const cleanPlate = (value: string) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 180);
+const sortNewest = (items: MarketIQEvaluation[]) => items.sort((a, b) => {
+  const ta = Number((a.createdAt as any)?.seconds || 0);
+  const tb = Number((b.createdAt as any)?.seconds || 0);
+  return tb - ta;
+});
 
 export const marketIqEvaluationService = {
   create: async (input: Omit<MarketIQEvaluation, 'id' | 'kind' | 'status' | 'createdAt' | 'updatedAt'>): Promise<string> => {
@@ -54,13 +67,24 @@ export const marketIqEvaluationService = {
       where('storeId', '==', storeId),
       where('plate', '==', plate),
     ));
-    return snap.docs
-      .map(item => ({ id: item.id, ...item.data() } as MarketIQEvaluation))
-      .sort((a, b) => {
-        const ta = Number((a.createdAt as any)?.seconds || 0);
-        const tb = Number((b.createdAt as any)?.seconds || 0);
-        return tb - ta;
-      });
+    return sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() } as MarketIQEvaluation)));
+  },
+
+  listByStore: async (companyId: string, storeId: string): Promise<MarketIQEvaluation[]> => {
+    if (!companyId || !storeId) return [];
+    const snap = await getDocs(query(
+      collection(db, 'operational_meta'),
+      where('kind', '==', 'marketiq_evaluation'),
+      where('companyId', '==', companyId),
+      where('storeId', '==', storeId),
+    ));
+    return sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() } as MarketIQEvaluation)));
+  },
+
+  listByPassage: async (companyId: string, storeId: string, passageId: string): Promise<MarketIQEvaluation[]> => {
+    if (!companyId || !storeId || !passageId) return [];
+    const all = await marketIqEvaluationService.listByStore(companyId, storeId);
+    return all.filter(item => item.showroomPassageId === passageId);
   },
 
   getLatestByPlate: async (companyId: string, storeId: string, plate: string): Promise<MarketIQEvaluation | null> => {
