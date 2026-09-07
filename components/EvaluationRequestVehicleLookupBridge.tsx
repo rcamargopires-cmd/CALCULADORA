@@ -202,11 +202,10 @@ const EvaluationRequestVehicleLookupBridge: React.FC = () => {
 
       setVehicleDetails(null);
       setNotice({ kind: 'loading', text: renavam.length === 11 ? `Validando ${plate} + RENAVAM...` : `Localizando ${plate}...` });
-      void marketIqEvaluationService.getLatestByPlate(companyId, storeId, plate).then(item => {
-        if (currentRequest === requestRef.current) setLastEvaluation(item);
-      }).catch(() => {
-        if (currentRequest === requestRef.current) setLastEvaluation(null);
-      });
+
+      const previousEvaluation = await marketIqEvaluationService.getLatestByPlate(companyId, storeId, plate).catch(() => null);
+      if (currentRequest !== requestRef.current) return;
+      setLastEvaluation(previousEvaluation);
 
       try {
         const cached = await marketIqVehicleCacheService.get(companyId, storeId, plate).catch(() => null);
@@ -336,15 +335,42 @@ const EvaluationRequestVehicleLookupBridge: React.FC = () => {
           return;
         }
 
+        if (previousEvaluation?.vehicle) {
+          const model = String(previousEvaluation.vehicle || '').trim();
+          const year = String(previousEvaluation.year || '').trim();
+          const km = String(previousEvaluation.km || '').trim();
+          setInput(field('Modelo / versão'), model);
+          if (year) setInput(field('Ano/modelo'), year);
+          if (km) setInput(field('KM atual'), km.replace(/\D/g, ''));
+          setVehicleDetails({
+            plate,
+            renavam,
+            model,
+            year,
+            source: 'history',
+          });
+          setNotice({ kind: 'ok', text: `${model}${year ? ` · ${year}` : ''} localizado pela última avaliação do MOTYQ.` });
+          return;
+        }
+
         setNotice({
           kind: 'warn',
           text: renavam.length === 11
-            ? 'Não consegui localizar este veículo automaticamente. Confira placa e RENAVAM antes de solicitar a avaliação.'
+            ? 'Veículo ainda não identificado automaticamente. Você pode enviar a solicitação; o avaliador concluirá a identificação.'
             : 'Placa não encontrada no MOTYQ. Informe também o RENAVAM para tentar a identificação automática.',
         });
       } catch {
         if (currentRequest !== requestRef.current) return;
-        setNotice({ kind: 'warn', text: 'Não foi possível consultar o veículo agora. Confira placa e RENAVAM e tente novamente.' });
+        if (previousEvaluation?.vehicle) {
+          const model = String(previousEvaluation.vehicle || '').trim();
+          setInput(field('Modelo / versão'), model);
+          if (previousEvaluation.year) setInput(field('Ano/modelo'), String(previousEvaluation.year));
+          if (previousEvaluation.km) setInput(field('KM atual'), String(previousEvaluation.km).replace(/\D/g, ''));
+          setVehicleDetails({ plate, renavam, model, year: String(previousEvaluation.year || ''), source: 'history' });
+          setNotice({ kind: 'ok', text: `${model} recuperado pela última avaliação do MOTYQ.` });
+          return;
+        }
+        setNotice({ kind: 'warn', text: 'A consulta automática está indisponível agora. A solicitação ainda pode ser enviada ao avaliador.' });
       }
     };
 
@@ -364,6 +390,26 @@ const EvaluationRequestVehicleLookupBridge: React.FC = () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
     };
   }, [user, snapshot]);
+
+  useEffect(() => {
+    if (!user) return;
+    const onClick = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      const button = target?.closest('button') as HTMLButtonElement | null;
+      const root = requestRoot();
+      if (!button || !root || !root.contains(button) || !String(button.textContent || '').includes('SOLICITAR AVALIAÇÃO')) return;
+
+      const vehicleInput = field('Modelo / versão');
+      if (vehicleInput && !vehicleInput.value.trim()) {
+        setInput(vehicleInput, lastEvaluation?.vehicle?.trim() || 'Veículo a identificar');
+      }
+      if (lastEvaluation?.year) setInput(field('Ano/modelo'), String(lastEvaluation.year));
+      if (lastEvaluation?.km) setInput(field('KM atual'), String(lastEvaluation.km).replace(/\D/g, ''));
+    };
+
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [user, lastEvaluation]);
 
   if (!user || !requestRoot()) return null;
 
