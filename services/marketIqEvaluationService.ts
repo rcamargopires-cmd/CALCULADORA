@@ -2,6 +2,9 @@ import { collection, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, wh
 import { db } from '../firebase';
 
 export type MarketIQEvaluationStatus = 'draft' | 'approved' | 'rejected';
+export type MarketIQMediaCategory = 'front' | 'rear' | 'left' | 'right' | 'interior' | 'dashboard' | 'tires' | 'damage' | 'document';
+export type MarketIQMediaItem = { id: string; category: MarketIQMediaCategory; url: string; path: string; name: string; contentType?: string; createdAt?: string };
+export type MarketIQDamageItem = { id: string; description: string; cost: number; mediaId?: string };
 
 export type MarketIQEvaluation = {
   id: string;
@@ -27,6 +30,9 @@ export type MarketIQEvaluation = {
   sellerName?: string;
   sellerEmail?: string;
   linkedAt?: string;
+  photos?: MarketIQMediaItem[];
+  damages?: MarketIQDamageItem[];
+  damageTotal?: number;
   createdAt?: any;
   updatedAt?: any;
   decidedAt?: any;
@@ -98,6 +104,17 @@ export const marketIqEvaluationService = {
       ...(recommendedBuy !== undefined ? { recommendedBuy } : {}),
       updatedAt: serverTimestamp(),
       decidedAt: serverTimestamp(),
+    });
+    window.dispatchEvent(new CustomEvent('motyq:marketiq-history-updated'));
+  },
+
+  attachMedia: async (id: string, photos: MarketIQMediaItem[], damages: MarketIQDamageItem[]): Promise<void> => {
+    const damageTotal = damages.reduce((sum, item) => sum + Math.max(0, Number(item.cost || 0)), 0);
+    await updateDoc(doc(db, 'operational_meta', id), {
+      photos,
+      damages,
+      damageTotal,
+      updatedAt: serverTimestamp(),
     });
     window.dispatchEvent(new CustomEvent('motyq:marketiq-history-updated'));
   },
