@@ -141,3 +141,10 @@ body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black button.bg-white.
 body.motyq-graphite section.from-zinc-800.via-zinc-900.to-black button.bg-white.text-black span.block.text-sm {
   color: #667085 !important;
 }
+
+/* Hide only the Commission Estimated strip in Margem & Resultados.
+ * The commission engine and modal remain untouched and can be restored later.
+ */
+body.motyq-graphite .divide-y > div[class~="bg-amber-900/10"][class~="border-amber-900/30"] {
+  display: none !important;
+}
