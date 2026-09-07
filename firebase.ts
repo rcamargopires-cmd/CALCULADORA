@@ -7,5 +7,7 @@ import firebaseConfig from './firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const storage = getStorage(app, firebaseConfig.storageBucket);
+// Use the storage bucket declared in firebaseConfig. Passing the bare bucket name
+// as the optional bucketUrl can create an invalid Storage reference in some SDK flows.
+export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
