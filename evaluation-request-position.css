@@ -1,0 +1,25 @@
+/* MOTYQ · Evaluation request launcher positioning
+ * Keeps evaluator/admin shortcut aligned with the existing right-side dock.
+ */
+
+body.motyq-graphite button[title="Avaliações pendentes"] {
+  right: 1.75rem !important;
+  bottom: 18rem !important;
+  width: 122px !important;
+  min-width: 122px !important;
+  height: 48px !important;
+  padding-left: .75rem !important;
+  padding-right: .75rem !important;
+  justify-content: center !important;
+  gap: .45rem !important;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .08) !important;
+}
+
+@media (max-width: 640px) {
+  body.motyq-graphite button[title="Avaliações pendentes"] {
+    right: 1rem !important;
+    width: 48px !important;
+    min-width: 48px !important;
+    padding: 0 !important;
+  }
+}
