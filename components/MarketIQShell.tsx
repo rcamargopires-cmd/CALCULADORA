@@ -11,6 +11,7 @@ import MarketIQ from './MarketIQ';
 import MarketIQPersistenceBridge from './MarketIQPersistenceBridge';
 import MarketIQHistoryPanel from './MarketIQHistoryPanel';
 import MarketIQShowroomLinkBridge from './MarketIQShowroomLinkBridge';
+import MarketIQMediaPanel from './MarketIQMediaPanel';
 
 const MarketIQShell:React.FC=()=>{
  const[user,setUser]=useState<User|null>(null);const[companyId,setCompanyId]=useState('');const[storeId,setStoreId]=useState('');const[storeName,setStoreName]=useState('');
@@ -30,6 +31,7 @@ const MarketIQShell:React.FC=()=>{
    <MarketIQPersistenceBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQHistoryPanel companyId={companyId} storeId={storeId}/>
    <MarketIQShowroomLinkBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
+   <MarketIQMediaPanel companyId={companyId} storeId={storeId}/>
  </>;
 };
 export default MarketIQShell;
