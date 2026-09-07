@@ -32,7 +32,7 @@ const MarketIQShell:React.FC=()=>{
    <MarketIQ currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQPersistenceBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQSaveNotice/>
-   <MarketIQHistoryPanel companyId={companyId} storeId={storeId}/>
+   <MarketIQHistoryPanel currentUser={user} companyId={companyId} storeId={storeId}/>
    <MarketIQShowroomLinkBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQMediaPanel companyId={companyId} storeId={storeId}/>
    <MarketIQMarketScanBridge storeName={activeStoreName}/>
