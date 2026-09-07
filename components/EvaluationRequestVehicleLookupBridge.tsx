@@ -46,6 +46,31 @@ const setInput = (input: HTMLInputElement | null, value: string) => {
   input.dispatchEvent(new Event('change', { bubbles: true }));
 };
 
+const simplifySellerVehicleFields = () => {
+  const root = requestRoot();
+  if (!root) return;
+  const labels = Array.from(root.querySelectorAll('label')) as HTMLLabelElement[];
+  const autoLabels = ['ano/modelo', 'modelo / versão', 'km atual'];
+  labels.forEach(label => {
+    const text = String(label.textContent || '').trim().toLowerCase();
+    if (autoLabels.some(item => text.startsWith(item))) {
+      label.style.display = 'none';
+      label.setAttribute('data-motyq-auto-vehicle-field', 'true');
+    }
+  });
+
+  const sections = Array.from(root.querySelectorAll('section')) as HTMLElement[];
+  const vehicleSection = sections.find(section => String(section.textContent || '').includes('Veículo para avaliação'));
+  if (!vehicleSection || vehicleSection.querySelector('[data-motyq-auto-vehicle-hint]')) return;
+  const grid = vehicleSection.querySelector('.grid');
+  if (!grid) return;
+  const hint = document.createElement('div');
+  hint.setAttribute('data-motyq-auto-vehicle-hint', 'true');
+  hint.className = 'sm:col-span-2 lg:col-span-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700';
+  hint.textContent = 'Ano, modelo/versão e KM são preenchidos automaticamente pelo MOTYQ quando o veículo é localizado.';
+  grid.appendChild(hint);
+};
+
 const ensureVehicleDataHost = () => {
   const root = requestRoot();
   if (!root) return null;
@@ -129,6 +154,7 @@ const EvaluationRequestVehicleLookupBridge: React.FC = () => {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
+      simplifySellerVehicleFields();
       const next = ensureVehicleDataHost();
       setHost(current => current === next ? current : next);
       if (!requestRoot()) {
@@ -313,12 +339,12 @@ const EvaluationRequestVehicleLookupBridge: React.FC = () => {
         setNotice({
           kind: 'warn',
           text: renavam.length === 11
-            ? 'Não consegui localizar este veículo automaticamente. Confira placa/RENAVAM ou preencha os dados manualmente.'
+            ? 'Não consegui localizar este veículo automaticamente. Confira placa e RENAVAM antes de solicitar a avaliação.'
             : 'Placa não encontrada no MOTYQ. Informe também o RENAVAM para tentar a identificação automática.',
         });
       } catch {
         if (currentRequest !== requestRef.current) return;
-        setNotice({ kind: 'warn', text: 'Não foi possível consultar o veículo agora. Você ainda pode preencher os dados manualmente.' });
+        setNotice({ kind: 'warn', text: 'Não foi possível consultar o veículo agora. Confira placa e RENAVAM e tente novamente.' });
       }
     };
 
