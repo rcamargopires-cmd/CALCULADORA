@@ -1,0 +1,251 @@
+/*
+ * Motyq Light Theme
+ * Static theme foundation. No runtime DOM mutation or observers.
+ * Goal: comfortable all-day operational UI with white surfaces,
+ * soft gray canvas and preserved semantic action colors.
+ */
+
+:root {
+  color-scheme: light;
+  --motyq-canvas: #f6f8fb;
+  --motyq-surface: #ffffff;
+  --motyq-surface-soft: #f1f4f8;
+  --motyq-surface-muted: #e9eef5;
+  --motyq-text: #172033;
+  --motyq-text-2: #344054;
+  --motyq-text-3: #667085;
+  --motyq-border: #dbe3ec;
+  --motyq-border-strong: #cbd5e1;
+  --motyq-shadow: 0 8px 24px rgba(30, 41, 59, .07);
+}
+
+html,
+body,
+#root {
+  background: var(--motyq-canvas) !important;
+  color: var(--motyq-text) !important;
+}
+
+body {
+  min-height: 100vh;
+}
+
+/* Core dark Tailwind surfaces become native light surfaces. */
+.bg-zinc-950,
+.bg-zinc-900,
+.bg-slate-950,
+.bg-slate-900,
+.bg-gray-950,
+.bg-gray-900 {
+  background-color: var(--motyq-surface) !important;
+}
+
+.bg-zinc-800,
+.bg-slate-800,
+.bg-gray-800,
+.bg-zinc-800\/50,
+.bg-zinc-800\/60,
+.bg-zinc-800\/70,
+.bg-white\/\[\.025\],
+.bg-white\/\[\.03\],
+.bg-white\/\[\.04\],
+.bg-white\/\[\.05\],
+.bg-white\/5 {
+  background-color: var(--motyq-surface-soft) !important;
+}
+
+.bg-zinc-700,
+.bg-slate-700,
+.bg-gray-700 {
+  background-color: var(--motyq-surface-muted) !important;
+}
+
+/* Known custom dark Motyq panels. */
+[class*="bg-[#101315]"],
+[class*="bg-[#111416]"],
+[class*="bg-[#11191b]"],
+[class*="bg-[#15181e]"],
+[class*="bg-[#151411]"],
+[class*="bg-[#17151d]"],
+[class*="bg-[#1b1914]"],
+[class*="bg-[#1d1924]"],
+[class*="bg-[#18212a]"],
+[class*="bg-[#20242c]"],
+[class*="bg-[#211e17]"],
+[class*="bg-[#272c35]"],
+[class*="bg-[#2a2f38]"] {
+  background-color: var(--motyq-surface) !important;
+}
+
+/* Text hierarchy. */
+.text-white,
+.text-zinc-100,
+.text-zinc-200 {
+  color: var(--motyq-text) !important;
+}
+
+.text-zinc-300,
+.text-slate-300,
+.text-gray-300 {
+  color: var(--motyq-text-2) !important;
+}
+
+.text-zinc-400,
+.text-zinc-500,
+.text-slate-400,
+.text-slate-500,
+.text-gray-400,
+.text-gray-500 {
+  color: var(--motyq-text-3) !important;
+}
+
+.text-zinc-600,
+.text-zinc-700 {
+  color: #7a8494 !important;
+}
+
+/* Borders and separators. */
+.border-zinc-800,
+.border-zinc-700,
+.border-zinc-600,
+.border-slate-800,
+.border-slate-700,
+.border-gray-800,
+.border-gray-700,
+.border-white\/5,
+.border-white\/10,
+.border-white\/15,
+.border-white\/20 {
+  border-color: var(--motyq-border) !important;
+}
+
+/* Standard cards get a restrained daylight shadow. */
+.shadow-lg,
+.shadow-xl,
+.shadow-2xl,
+.shadow-sm {
+  --tw-shadow-color: rgba(30, 41, 59, .08) !important;
+}
+
+/* Forms. */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  background-color: #ffffff !important;
+  color: var(--motyq-text) !important;
+  border-color: var(--motyq-border-strong) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #98a2b3 !important;
+}
+
+select option {
+  background: #ffffff !important;
+  color: var(--motyq-text) !important;
+}
+
+/* Tables and list rows. */
+thead,
+[class*="divide-zinc"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--motyq-border) !important;
+}
+
+tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* Preserve dark translucent backdrop only for overlays. */
+.fixed.inset-0.bg-black\/80,
+.fixed.inset-0.bg-black\/75,
+.fixed.inset-0.bg-black\/70,
+.fixed.inset-0.bg-black\/60,
+.fixed.inset-0.bg-black\/50 {
+  background-color: rgba(15, 23, 42, .38) !important;
+}
+
+/* Colored actions/statuses keep white text. */
+.bg-blue-500,
+.bg-blue-600,
+.bg-blue-700,
+.bg-green-500,
+.bg-green-600,
+.bg-green-700,
+.bg-emerald-500,
+.bg-emerald-600,
+.bg-red-500,
+.bg-red-600,
+.bg-red-700,
+.bg-red-900\/90,
+.bg-purple-500,
+.bg-purple-600,
+.bg-orange-500,
+.bg-cyan-500,
+.bg-cyan-600 {
+  color: #ffffff !important;
+}
+
+.bg-blue-500 .text-white,
+.bg-blue-600 .text-white,
+.bg-green-500 .text-white,
+.bg-green-600 .text-white,
+.bg-emerald-500 .text-white,
+.bg-emerald-600 .text-white,
+.bg-red-500 .text-white,
+.bg-red-600 .text-white,
+.bg-purple-600 .text-white,
+.bg-orange-500 .text-white,
+.bg-cyan-500 .text-white,
+.bg-cyan-600 .text-white {
+  color: #ffffff !important;
+}
+
+.bg-amber-300,
+.bg-amber-400,
+.bg-amber-500,
+.bg-yellow-400,
+.bg-yellow-500 {
+  color: #111827 !important;
+}
+
+/* Buttons that used dark neutral fills become clean secondary actions. */
+button.bg-zinc-800,
+button.bg-zinc-900,
+button[class*="bg-white/[.04]"],
+button[class*="bg-white/[.025]"] {
+  background-color: #ffffff !important;
+  border-color: var(--motyq-border-strong) !important;
+  color: var(--motyq-text-2) !important;
+}
+
+button.bg-zinc-800:hover,
+button.bg-zinc-900:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Soft neutral panels previously expressed as translucent black. */
+.bg-black\/20,
+.bg-black\/25,
+.bg-black\/30 {
+  background-color: #f8fafc !important;
+}
+
+/* Do not flatten modal backdrops or semantic strong-colored cards. */
+.fixed.inset-0[class*="bg-black/"] {
+  color: inherit;
+}
+
+/* Scrollbars fit the daylight UI. */
+* {
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+/* Mobile keeps the same visual language without harsh contrast. */
+@media (max-width: 640px) {
+  html,
+  body,
+  #root {
+    background: #f4f6f9 !important;
+  }
+}
