@@ -1,0 +1,56 @@
+/* MOTYQ LIGHT THEME · DASHBOARD/GRADIENT FINISH
+ * Static Tailwind gradient token overrides for legacy dark dashboards.
+ */
+
+body.motyq-graphite .from-zinc-950,
+body.motyq-graphite .from-zinc-900,
+body.motyq-graphite .from-zinc-800,
+body.motyq-graphite .from-neutral-950,
+body.motyq-graphite .from-neutral-900,
+body.motyq-graphite .from-neutral-800,
+body.motyq-graphite .from-slate-950,
+body.motyq-graphite .from-slate-900,
+body.motyq-graphite .from-slate-800 {
+  --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position) !important;
+}
+
+body.motyq-graphite .via-zinc-950,
+body.motyq-graphite .via-zinc-900,
+body.motyq-graphite .via-zinc-800,
+body.motyq-graphite .via-neutral-950,
+body.motyq-graphite .via-neutral-900,
+body.motyq-graphite .via-neutral-800,
+body.motyq-graphite .via-slate-950,
+body.motyq-graphite .via-slate-900,
+body.motyq-graphite .via-slate-800 {
+  --tw-gradient-via: #f7f9fc var(--tw-gradient-via-position) !important;
+}
+
+body.motyq-graphite .to-zinc-950,
+body.motyq-graphite .to-zinc-900,
+body.motyq-graphite .to-zinc-800,
+body.motyq-graphite .to-neutral-950,
+body.motyq-graphite .to-neutral-900,
+body.motyq-graphite .to-neutral-800,
+body.motyq-graphite .to-slate-950,
+body.motyq-graphite .to-slate-900,
+body.motyq-graphite .to-slate-800,
+body.motyq-graphite .to-black {
+  --tw-gradient-to: #eef3f8 var(--tw-gradient-to-position) !important;
+}
+
+/* GoalTrack progress needs a visible fill once its card becomes white. */
+body.motyq-graphite div.h-full.rounded-full.bg-white {
+  background-color: #147ee8 !important;
+}
+
+/* White primary cards inside white dashboard panels need a boundary. */
+body.motyq-graphite button.bg-white.text-black {
+  border: 1px solid #dbe3ec !important;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .07) !important;
+}
+
+body.motyq-graphite button.bg-white.text-black:hover {
+  background-color: #f7f9fc !important;
+}
