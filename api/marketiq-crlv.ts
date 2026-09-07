@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 
 const FIREBASE_API_KEY = 'AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
-const CRLV_PARSER_VERSION = 2;
+const CRLV_PARSER_VERSION = 3;
 
 type IncomingFile = { name:string; mimeType:string; data:string };
 type Payload = { file?: IncomingFile };
@@ -20,6 +20,11 @@ const plausibleYear=(value:string)=>{
   const year=Number(value);
   const max=new Date().getFullYear()+1;
   return Number.isInteger(year)&&year>=1950&&year<=max;
+};
+const coherentVehicleYears=(yearFab:string,yearModel:string)=>{
+  if(!plausibleYear(yearFab)||!plausibleYear(yearModel))return false;
+  const fab=Number(yearFab),model=Number(yearModel);
+  return model===fab||model===fab+1;
 };
 
 const verifyFirebaseToken=async(idToken:string)=>{
@@ -47,43 +52,74 @@ export default async function handler(req:any,res:any){
     if(!file?.data)return res.status(400).json({error:'Envie o CRLV-e do veículo.'});
 
     const ai=new GoogleGenAI({apiKey});
-    const prompt=`Leia SOMENTE o CRLV-e fornecido e extraia os dados do veículo claramente visíveis. Não invente e não complete por contexto.
+    const filePart={inlineData:{mimeType:file.mimeType||'application/octet-stream',data:file.data}};
 
-ATENÇÃO ESPECIAL AOS ANOS:
-- yearFab deve vir EXCLUSIVAMENTE do campo rotulado "ANO FABRICAÇÃO".
-- yearModel deve vir EXCLUSIVAMENTE do campo rotulado "ANO MODELO" ou "ANO/MODELO".
-- IGNORE completamente "EXERCÍCIO", ano de licenciamento, data de emissão, data do documento, validade, datas de assinatura e qualquer outro ano.
-- Não transforme EXERCÍCIO em ano/modelo.
-- Se os campos de ano não estiverem legíveis, retorne string vazia em vez de adivinhar.
+    const identityPrompt=`Leia SOMENTE o CRLV-e fornecido e extraia os dados claramente visíveis do veículo. Não invente e não complete por contexto.
 
-Retorne APENAS JSON válido com exatamente estas chaves, todas string: brand, model, yearFab, yearModel, fuel, color, plate, chassis, renavam. Em model preserve a descrição/versão mais completa disponível no documento. Placa e chassi em maiúsculas. Se algo não estiver legível, use string vazia.`;
-    const response=await ai.models.generateContent({
+Retorne APENAS JSON válido com exatamente estas chaves, todas string: brand, model, fuel, color, plate, chassis, renavam.
+- Em model preserve a descrição/versão mais completa disponível no campo MARCA / MODELO / VERSÃO.
+- Placa e chassi em maiúsculas.
+- Se algo não estiver legível, use string vazia.
+- NÃO retorne nem tente inferir ano neste passo.`;
+
+    const identityResponse=await ai.models.generateContent({
       model:'gemini-2.5-flash',
       contents:[{role:'user',parts:[
-        {text:prompt},
+        {text:identityPrompt},
         {text:`ARQUIVO: CRLV-E DO VEÍCULO | nome: ${file.name}`},
-        {inlineData:{mimeType:file.mimeType||'application/octet-stream',data:file.data}},
+        filePart,
       ]}] as any,
       config:{responseMimeType:'application/json'},
     });
-    const raw=JSON.parse(cleanJson(String(response.text||'{}'))) as Record<string,unknown>;
-    const yearFab=cleanYear(raw.yearFab);
-    const yearModel=cleanYear(raw.yearModel);
+    const identityRaw=JSON.parse(cleanJson(String(identityResponse.text||'{}'))) as Record<string,unknown>;
+
+    // Segunda leitura exclusiva dos anos. O objetivo é impedir que EXERCÍCIO, emissão ou licenciamento
+    // sejam confundidos com ANO FABRICAÇÃO / ANO MODELO.
+    const yearPrompt=`Observe SOMENTE os campos de identificação de ano do CRLV-e.
+Retorne APENAS JSON válido com exatamente estas duas chaves string: yearFab, yearModel.
+
+REGRAS OBRIGATÓRIAS:
+1. yearFab = os 4 dígitos impressos ao lado/abaixo do rótulo "ANO FABRICAÇÃO".
+2. yearModel = os 4 dígitos impressos ao lado/abaixo do rótulo "ANO MODELO" ou "ANO/MODELO".
+3. IGNORE COMPLETAMENTE o campo "EXERCÍCIO", ano de licenciamento, data de emissão, data de assinatura, validade e qualquer outra data.
+4. Em CRLV brasileiro, normalmente os campos aparecem próximos de "PLACA / EXERCÍCIO" e logo abaixo "ANO FABRICAÇÃO / ANO MODELO". Não troque as linhas.
+5. Não use conhecimento do veículo nem ano atual para completar. Leia somente os números impressos nesses dois campos.
+6. Se qualquer um dos dois não estiver legível, retorne string vazia.`;
+
+    const yearResponse=await ai.models.generateContent({
+      model:'gemini-2.5-flash',
+      contents:[{role:'user',parts:[
+        {text:yearPrompt},
+        {text:`ARQUIVO: CRLV-E DO VEÍCULO | nome: ${file.name}`},
+        filePart,
+      ]}] as any,
+      config:{responseMimeType:'application/json'},
+    });
+    const yearRaw=JSON.parse(cleanJson(String(yearResponse.text||'{}'))) as Record<string,unknown>;
+    const yearFab=cleanYear(yearRaw.yearFab);
+    const yearModel=cleanYear(yearRaw.yearModel);
+
+    if(!yearFab||!yearModel){
+      return res.status(422).json({error:'Não consegui ler com segurança ANO FABRICAÇÃO e ANO MODELO. Envie uma imagem/PDF mais nítido.'});
+    }
+    if(!coherentVehicleYears(yearFab,yearModel)){
+      return res.status(422).json({error:`Leitura de ano inconsistente (${yearFab}/${yearModel}). O Motyq recusou salvar para não confundir EXERCÍCIO com ano/modelo.`});
+    }
+
     const data={
-      brand:String(raw.brand||'').trim(),
-      model:String(raw.model||'').trim(),
+      brand:String(identityRaw.brand||'').trim(),
+      model:String(identityRaw.model||'').trim(),
       yearFab,
       yearModel,
-      fuel:String(raw.fuel||'').trim(),
-      color:String(raw.color||'').trim(),
-      plate:cleanPlate(String(raw.plate||'')),
-      chassis:String(raw.chassis||'').trim().toUpperCase(),
-      renavam:String(raw.renavam||'').replace(/\D/g,'').slice(0,11),
+      fuel:String(identityRaw.fuel||'').trim(),
+      color:String(identityRaw.color||'').trim(),
+      plate:cleanPlate(String(identityRaw.plate||'')),
+      chassis:String(identityRaw.chassis||'').trim().toUpperCase(),
+      renavam:String(identityRaw.renavam||'').replace(/\D/g,'').slice(0,11),
       parserVersion:CRLV_PARSER_VERSION,
     };
-    if(!data.model||!data.yearModel)return res.status(422).json({error:'Não consegui ler modelo e ano/modelo no CRLV-e.'});
-    if(!plausibleYear(data.yearModel)||(data.yearFab&&!plausibleYear(data.yearFab)))return res.status(422).json({error:'Os anos do CRLV-e não ficaram confiáveis. Envie uma imagem mais nítida.'});
-    if(data.yearFab&&Math.abs(Number(data.yearModel)-Number(data.yearFab))>2)return res.status(422).json({error:'Ano fabricação e ano/modelo ficaram inconsistentes. O Motyq não vai salvar essa leitura.'});
+
+    if(!data.model)return res.status(422).json({error:'Não consegui ler o modelo do veículo no CRLV-e.'});
     return res.status(200).json({data});
   }catch(error:any){
     console.error('MarketIQ CRLV extraction error:',error?.message||error);
