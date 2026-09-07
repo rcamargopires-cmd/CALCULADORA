@@ -1,251 +1,360 @@
 /*
- * Motyq Light Theme
- * Static theme foundation. No runtime DOM mutation or observers.
- * Goal: comfortable all-day operational UI with white surfaces,
- * soft gray canvas and preserved semantic action colors.
+ * MOTYQ LIGHT THEME
+ * Static CSS only. No runtime DOM scans or MutationObservers.
+ * This file intentionally loads after the legacy graphite stylesheet and
+ * matches its selector specificity so daylight colors win safely.
  */
 
 :root {
   color-scheme: light;
   --motyq-canvas: #f6f8fb;
   --motyq-surface: #ffffff;
-  --motyq-surface-soft: #f1f4f8;
+  --motyq-surface-soft: #f3f6fa;
   --motyq-surface-muted: #e9eef5;
+  --motyq-border: #dbe3ec;
+  --motyq-border-strong: #cbd5e1;
   --motyq-text: #172033;
   --motyq-text-2: #344054;
   --motyq-text-3: #667085;
-  --motyq-border: #dbe3ec;
-  --motyq-border-strong: #cbd5e1;
-  --motyq-shadow: 0 8px 24px rgba(30, 41, 59, .07);
+  --motyq-text-4: #7a8494;
 }
 
 html,
-body,
-#root {
+body.motyq-graphite,
+body.motyq-graphite #root {
+  min-height: 100%;
   background: var(--motyq-canvas) !important;
   color: var(--motyq-text) !important;
 }
 
-body {
-  min-height: 100vh;
+body.motyq-graphite {
+  color-scheme: light !important;
 }
 
-/* Core dark Tailwind surfaces become native light surfaces. */
-.bg-zinc-950,
-.bg-zinc-900,
-.bg-slate-950,
-.bg-slate-900,
-.bg-gray-950,
-.bg-gray-900 {
+/* Main application surfaces. */
+body.motyq-graphite .bg-zinc-950,
+body.motyq-graphite [class*="bg-zinc-950/"],
+body.motyq-graphite .bg-neutral-950,
+body.motyq-graphite [class*="bg-neutral-950/"],
+body.motyq-graphite .bg-slate-950,
+body.motyq-graphite [class*="bg-slate-950/"],
+body.motyq-graphite .bg-gray-950,
+body.motyq-graphite .bg-zinc-900,
+body.motyq-graphite [class*="bg-zinc-900/"],
+body.motyq-graphite .bg-neutral-900,
+body.motyq-graphite [class*="bg-neutral-900/"],
+body.motyq-graphite .bg-slate-900,
+body.motyq-graphite [class*="bg-slate-900/"],
+body.motyq-graphite .bg-gray-900,
+body.motyq-graphite [class*="bg-[#070708]"],
+body.motyq-graphite [class*="bg-[#09090b]"] {
   background-color: var(--motyq-surface) !important;
 }
 
-.bg-zinc-800,
-.bg-slate-800,
-.bg-gray-800,
-.bg-zinc-800\/50,
-.bg-zinc-800\/60,
-.bg-zinc-800\/70,
-.bg-white\/\[\.025\],
-.bg-white\/\[\.03\],
-.bg-white\/\[\.04\],
-.bg-white\/\[\.05\],
-.bg-white\/5 {
+body.motyq-graphite .bg-zinc-800,
+body.motyq-graphite [class*="bg-zinc-800/"],
+body.motyq-graphite .bg-neutral-800,
+body.motyq-graphite [class*="bg-neutral-800/"],
+body.motyq-graphite .bg-slate-800,
+body.motyq-graphite [class*="bg-slate-800/"],
+body.motyq-graphite .bg-gray-800 {
   background-color: var(--motyq-surface-soft) !important;
 }
 
-.bg-zinc-700,
-.bg-slate-700,
-.bg-gray-700 {
+body.motyq-graphite .bg-zinc-700,
+body.motyq-graphite .bg-neutral-700,
+body.motyq-graphite .bg-slate-700,
+body.motyq-graphite .bg-gray-700 {
   background-color: var(--motyq-surface-muted) !important;
 }
 
-/* Known custom dark Motyq panels. */
-[class*="bg-[#101315]"],
-[class*="bg-[#111416]"],
-[class*="bg-[#11191b]"],
-[class*="bg-[#15181e]"],
-[class*="bg-[#151411]"],
-[class*="bg-[#17151d]"],
-[class*="bg-[#1b1914]"],
-[class*="bg-[#1d1924]"],
-[class*="bg-[#18212a]"],
-[class*="bg-[#20242c]"],
-[class*="bg-[#211e17]"],
-[class*="bg-[#272c35]"],
-[class*="bg-[#2a2f38]"] {
+/* Former black cards and neutral translucent layers. */
+body.motyq-graphite .bg-black,
+body.motyq-graphite [class~="bg-black/10"],
+body.motyq-graphite [class~="bg-black/20"],
+body.motyq-graphite [class~="bg-black/25"],
+body.motyq-graphite [class~="bg-black/30"],
+body.motyq-graphite [class~="bg-black/40"],
+body.motyq-graphite [class~="bg-black/50"] {
+  background-color: #f8fafc !important;
+}
+
+/* Modal backdrops remain translucent but much softer than the old graphite UI. */
+body.motyq-graphite [class~="bg-black/60"],
+body.motyq-graphite [class~="bg-black/70"],
+body.motyq-graphite [class~="bg-black/75"],
+body.motyq-graphite [class~="bg-black/80"],
+body.motyq-graphite [class~="bg-black/90"] {
+  background-color: rgba(15, 23, 42, .38) !important;
+}
+
+body.motyq-graphite [class~="bg-white/[.015]"],
+body.motyq-graphite [class~="bg-white/[.02]"],
+body.motyq-graphite [class~="bg-white/[.025]"],
+body.motyq-graphite [class~="bg-white/[.03]"],
+body.motyq-graphite [class~="bg-white/[.04]"],
+body.motyq-graphite [class~="bg-white/[0.04]"],
+body.motyq-graphite [class~="bg-white/[.05]"],
+body.motyq-graphite [class~="bg-white/[0.05]"],
+body.motyq-graphite [class~="bg-white/[.06]"],
+body.motyq-graphite [class~="bg-white/[.08]"],
+body.motyq-graphite [class~="bg-white/[0.08]"],
+body.motyq-graphite [class~="bg-white/10"] {
+  background-color: var(--motyq-surface-soft) !important;
+}
+
+/* Known custom dark panels used by MarketIQ, ShowroomFlow and management hubs. */
+body.motyq-graphite [class*="bg-[#101315]"],
+body.motyq-graphite [class*="bg-[#111416]"],
+body.motyq-graphite [class*="bg-[#11191b]"],
+body.motyq-graphite [class*="bg-[#15181e]"],
+body.motyq-graphite [class*="bg-[#151411]"],
+body.motyq-graphite [class*="bg-[#17151d]"],
+body.motyq-graphite [class*="bg-[#1b1914]"],
+body.motyq-graphite [class*="bg-[#1d1924]"],
+body.motyq-graphite [class*="bg-[#18212a]"],
+body.motyq-graphite [class*="bg-[#20242c]"],
+body.motyq-graphite [class*="bg-[#211e17]"],
+body.motyq-graphite [class*="bg-[#272c35]"],
+body.motyq-graphite [class*="bg-[#2a2f38]"] {
   background-color: var(--motyq-surface) !important;
+  background-image: none !important;
 }
 
 /* Text hierarchy. */
-.text-white,
-.text-zinc-100,
-.text-zinc-200 {
+body.motyq-graphite .text-white,
+body.motyq-graphite .text-zinc-100,
+body.motyq-graphite .text-zinc-200,
+body.motyq-graphite .text-slate-100,
+body.motyq-graphite .text-slate-200 {
   color: var(--motyq-text) !important;
 }
 
-.text-zinc-300,
-.text-slate-300,
-.text-gray-300 {
+body.motyq-graphite .text-zinc-300,
+body.motyq-graphite .text-slate-300,
+body.motyq-graphite .text-neutral-300,
+body.motyq-graphite .text-gray-300 {
   color: var(--motyq-text-2) !important;
 }
 
-.text-zinc-400,
-.text-zinc-500,
-.text-slate-400,
-.text-slate-500,
-.text-gray-400,
-.text-gray-500 {
+body.motyq-graphite .text-zinc-400,
+body.motyq-graphite .text-zinc-500,
+body.motyq-graphite .text-slate-400,
+body.motyq-graphite .text-slate-500,
+body.motyq-graphite .text-neutral-400,
+body.motyq-graphite .text-neutral-500,
+body.motyq-graphite .text-gray-400,
+body.motyq-graphite .text-gray-500 {
   color: var(--motyq-text-3) !important;
 }
 
-.text-zinc-600,
-.text-zinc-700 {
-  color: #7a8494 !important;
+body.motyq-graphite .text-zinc-600,
+body.motyq-graphite .text-zinc-700,
+body.motyq-graphite .text-slate-600,
+body.motyq-graphite .text-neutral-600 {
+  color: var(--motyq-text-4) !important;
 }
 
 /* Borders and separators. */
-.border-zinc-800,
-.border-zinc-700,
-.border-zinc-600,
-.border-slate-800,
-.border-slate-700,
-.border-gray-800,
-.border-gray-700,
-.border-white\/5,
-.border-white\/10,
-.border-white\/15,
-.border-white\/20 {
+body.motyq-graphite .border-zinc-800,
+body.motyq-graphite .border-zinc-700,
+body.motyq-graphite .border-zinc-600,
+body.motyq-graphite .border-slate-800,
+body.motyq-graphite .border-slate-700,
+body.motyq-graphite .border-gray-800,
+body.motyq-graphite .border-gray-700,
+body.motyq-graphite [class~="border-white/5"],
+body.motyq-graphite [class~="border-white/[.05]"],
+body.motyq-graphite [class~="border-white/10"],
+body.motyq-graphite [class~="border-white/[.10]"],
+body.motyq-graphite [class~="border-white/15"],
+body.motyq-graphite [class~="border-white/20"] {
   border-color: var(--motyq-border) !important;
 }
 
-/* Standard cards get a restrained daylight shadow. */
-.shadow-lg,
-.shadow-xl,
-.shadow-2xl,
-.shadow-sm {
-  --tw-shadow-color: rgba(30, 41, 59, .08) !important;
-}
-
 /* Forms. */
-input:not([type="checkbox"]):not([type="radio"]),
-select,
-textarea {
+body.motyq-graphite input:not([type="checkbox"]):not([type="radio"]),
+body.motyq-graphite select,
+body.motyq-graphite textarea {
   background-color: #ffffff !important;
   color: var(--motyq-text) !important;
   border-color: var(--motyq-border-strong) !important;
 }
 
-input::placeholder,
-textarea::placeholder {
+body.motyq-graphite input::placeholder,
+body.motyq-graphite textarea::placeholder {
   color: #98a2b3 !important;
+  opacity: 1;
 }
 
-select option {
+body.motyq-graphite select option {
   background: #ffffff !important;
   color: var(--motyq-text) !important;
 }
 
-/* Tables and list rows. */
-thead,
-[class*="divide-zinc"] > :not([hidden]) ~ :not([hidden]) {
-  border-color: var(--motyq-border) !important;
+body.motyq-graphite input:focus,
+body.motyq-graphite select:focus,
+body.motyq-graphite textarea:focus {
+  border-color: #7ea8d8 !important;
+  box-shadow: 0 0 0 3px rgba(20, 126, 232, .10) !important;
 }
 
-tbody tr:hover {
-  background-color: #f8fafc;
+/* Light equivalents for legacy gradients. */
+body.motyq-graphite [class~="from-black"] {
+  --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position) !important;
+}
+body.motyq-graphite [class~="to-black"] {
+  --tw-gradient-to: #f3f6fa var(--tw-gradient-to-position) !important;
 }
 
-/* Preserve dark translucent backdrop only for overlays. */
-.fixed.inset-0.bg-black\/80,
-.fixed.inset-0.bg-black\/75,
-.fixed.inset-0.bg-black\/70,
-.fixed.inset-0.bg-black\/60,
-.fixed.inset-0.bg-black\/50 {
-  background-color: rgba(15, 23, 42, .38) !important;
-}
-
-/* Colored actions/statuses keep white text. */
-.bg-blue-500,
-.bg-blue-600,
-.bg-blue-700,
-.bg-green-500,
-.bg-green-600,
-.bg-green-700,
-.bg-emerald-500,
-.bg-emerald-600,
-.bg-red-500,
-.bg-red-600,
-.bg-red-700,
-.bg-red-900\/90,
-.bg-purple-500,
-.bg-purple-600,
-.bg-orange-500,
-.bg-cyan-500,
-.bg-cyan-600 {
+/* Semantic action colors remain strong and legible. */
+body.motyq-graphite .bg-blue-500,
+body.motyq-graphite .bg-blue-600,
+body.motyq-graphite .bg-blue-700,
+body.motyq-graphite .bg-green-500,
+body.motyq-graphite .bg-green-600,
+body.motyq-graphite .bg-green-700,
+body.motyq-graphite .bg-emerald-500,
+body.motyq-graphite .bg-emerald-600,
+body.motyq-graphite .bg-red-500,
+body.motyq-graphite .bg-red-600,
+body.motyq-graphite .bg-red-700,
+body.motyq-graphite .bg-purple-500,
+body.motyq-graphite .bg-purple-600,
+body.motyq-graphite .bg-orange-500,
+body.motyq-graphite .bg-cyan-500,
+body.motyq-graphite .bg-cyan-600 {
   color: #ffffff !important;
 }
 
-.bg-blue-500 .text-white,
-.bg-blue-600 .text-white,
-.bg-green-500 .text-white,
-.bg-green-600 .text-white,
-.bg-emerald-500 .text-white,
-.bg-emerald-600 .text-white,
-.bg-red-500 .text-white,
-.bg-red-600 .text-white,
-.bg-purple-600 .text-white,
-.bg-orange-500 .text-white,
-.bg-cyan-500 .text-white,
-.bg-cyan-600 .text-white {
+body.motyq-graphite .bg-blue-500.text-white,
+body.motyq-graphite .bg-blue-600.text-white,
+body.motyq-graphite .bg-blue-700.text-white,
+body.motyq-graphite .bg-green-500.text-white,
+body.motyq-graphite .bg-green-600.text-white,
+body.motyq-graphite .bg-green-700.text-white,
+body.motyq-graphite .bg-emerald-500.text-white,
+body.motyq-graphite .bg-emerald-600.text-white,
+body.motyq-graphite .bg-red-500.text-white,
+body.motyq-graphite .bg-red-600.text-white,
+body.motyq-graphite .bg-red-700.text-white,
+body.motyq-graphite .bg-purple-600.text-white,
+body.motyq-graphite .bg-orange-500.text-white,
+body.motyq-graphite .bg-cyan-500.text-white,
+body.motyq-graphite .bg-cyan-600.text-white,
+body.motyq-graphite .bg-blue-500 .text-white,
+body.motyq-graphite .bg-blue-600 .text-white,
+body.motyq-graphite .bg-green-600 .text-white,
+body.motyq-graphite .bg-red-600 .text-white,
+body.motyq-graphite .bg-purple-600 .text-white,
+body.motyq-graphite .bg-orange-500 .text-white {
   color: #ffffff !important;
 }
 
-.bg-amber-300,
-.bg-amber-400,
-.bg-amber-500,
-.bg-yellow-400,
-.bg-yellow-500 {
+body.motyq-graphite .bg-amber-300,
+body.motyq-graphite .bg-amber-400,
+body.motyq-graphite .bg-amber-500,
+body.motyq-graphite .bg-yellow-400,
+body.motyq-graphite .bg-yellow-500 {
   color: #111827 !important;
 }
 
-/* Buttons that used dark neutral fills become clean secondary actions. */
-button.bg-zinc-800,
-button.bg-zinc-900,
-button[class*="bg-white/[.04]"],
-button[class*="bg-white/[.025]"] {
+/* Secondary actions. */
+body.motyq-graphite button.bg-zinc-800,
+body.motyq-graphite button.bg-zinc-900,
+body.motyq-graphite button[class*="bg-white/[.04]"],
+body.motyq-graphite button[class*="bg-white/[.025]"] {
   background-color: #ffffff !important;
   border-color: var(--motyq-border-strong) !important;
   color: var(--motyq-text-2) !important;
 }
 
-button.bg-zinc-800:hover,
-button.bg-zinc-900:hover {
-  background-color: #f1f5f9 !important;
+body.motyq-graphite button.bg-zinc-800:hover,
+body.motyq-graphite button.bg-zinc-900:hover {
+  background-color: #eef2f7 !important;
 }
 
-/* Soft neutral panels previously expressed as translucent black. */
-.bg-black\/20,
-.bg-black\/25,
-.bg-black\/30 {
-  background-color: #f8fafc !important;
+/* Brand assets adapted for daylight backgrounds. */
+body.motyq-graphite header div:has(> h1.text-3xl) {
+  background-image: url('/motyq-brand-light.svg') !important;
+  filter: drop-shadow(0 6px 14px rgba(15, 23, 42, .10)) !important;
 }
 
-/* Do not flatten modal backdrops or semantic strong-colored cards. */
-.fixed.inset-0[class*="bg-black/"] {
-  color: inherit;
+body.motyq-graphite div:has(> img[src="/motyq-mark.svg"])::before,
+body.motyq-graphite div[class*="z-[500]"] > header > div:first-child::before {
+  background-image: url('/motyq-brand-light.svg') !important;
+  filter: drop-shadow(0 6px 14px rgba(15, 23, 42, .10)) !important;
 }
 
-/* Scrollbars fit the daylight UI. */
-* {
-  scrollbar-color: #cbd5e1 #f8fafc;
+body.motyq-graphite div[class*="h-16"][class*="w-16"][class*="place-items-center"][class*="rounded-[22px]"] {
+  background: #ffffff url('/motyq-mark-light.svg') center/82% no-repeat !important;
+  border-color: var(--motyq-border) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .10) !important;
 }
 
-/* Mobile keeps the same visual language without harsh contrast. */
+body.motyq-graphite header h1.text-3xl::after {
+  color: var(--motyq-text) !important;
+  text-shadow: none !important;
+}
+
+/* Management launchers that had explicit graphite backgrounds. */
+body.motyq-graphite button[title="Centro de Ação Motyq"] {
+  background: linear-gradient(135deg, #ffffff, #f4f8fc) !important;
+  border-color: #b9d9ee !important;
+  box-shadow: 0 12px 30px rgba(30, 64, 100, .10) !important;
+}
+
+body.motyq-graphite button[title="Centro de Ação Motyq"]::before {
+  color: #1579b8 !important;
+}
+
+body.motyq-graphite button[title="Centro de Ação Motyq"]::after {
+  color: var(--motyq-text) !important;
+}
+
+body.motyq-graphite button[title="Centro de Ação Motyq"] > svg {
+  color: #1579b8 !important;
+}
+
+body.motyq-graphite button[title="Minha Agenda Motyq"] {
+  background: rgba(255, 255, 255, .98) !important;
+  border-color: #c9ddec !important;
+  box-shadow: 0 10px 24px rgba(30, 64, 100, .10) !important;
+}
+
+body.motyq-graphite button[title="Minha Agenda Motyq"] > div > div:nth-child(2) > p:nth-child(2)::after {
+  color: var(--motyq-text) !important;
+}
+
+/* Mobile logout stays visible without becoming a dark island. */
+@media (max-width: 640px) {
+  body.motyq-graphite button:has(svg.lucide-log-out) {
+    background: rgba(255,255,255,.98) !important;
+    border-color: rgba(220,38,38,.20) !important;
+    color: #b42318 !important;
+    box-shadow: 0 8px 20px rgba(15,23,42,.10) !important;
+  }
+}
+
+/* Scrollbars. */
+body.motyq-graphite * {
+  scrollbar-color: #cbd5e1 #f8fafc !important;
+}
+body.motyq-graphite *::-webkit-scrollbar-track {
+  background: #f8fafc !important;
+}
+body.motyq-graphite *::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border: 2px solid #f8fafc !important;
+  border-radius: 999px;
+}
+
+/* Small screens retain the same soft canvas. */
 @media (max-width: 640px) {
   html,
-  body,
-  #root {
+  body.motyq-graphite,
+  body.motyq-graphite #root {
     background: #f4f6f9 !important;
   }
 }
