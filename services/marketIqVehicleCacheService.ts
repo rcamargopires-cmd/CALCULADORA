@@ -12,6 +12,7 @@ export interface MarketIqVehicleIdentity {
   lastFipeValue?: number;
   lastFipeReference?: string;
   source: 'crlv' | 'stock' | 'manual';
+  parserVersion?: number;
   companyId: string;
   storeId: string;
   identifiedAt?: string;
@@ -34,6 +35,7 @@ const normalize = (data: Partial<MarketIqVehicleIdentity>, companyId: string, st
   lastFipeValue: Number(data.lastFipeValue) || 0,
   lastFipeReference: String(data.lastFipeReference || '').trim(),
   source: data.source === 'stock' || data.source === 'manual' ? data.source : 'crlv',
+  parserVersion: Number(data.parserVersion) || 0,
   companyId,
   storeId,
   identifiedAt: String(data.identifiedAt || ''),
