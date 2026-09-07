@@ -1,0 +1,149 @@
+/*
+ * MOTYQ LIGHT THEME · REFINEMENTS
+ * Static CSS only. Loaded after motyq-light.css.
+ * Covers special module surfaces and daylight contrast details.
+ */
+
+body.motyq-graphite [class*="bg-[#11151b]"],
+body.motyq-graphite [class*="bg-[#121117]"],
+body.motyq-graphite [class*="bg-[#141a20]"],
+body.motyq-graphite [class*="bg-[#142025]"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+/* Keep special hub hover states light instead of snapping back to graphite. */
+body.motyq-graphite [class*="hover:bg-[#142025]"]:hover,
+body.motyq-graphite [class*="hover:bg-[#18212a]"]:hover,
+body.motyq-graphite [class*="hover:bg-[#1d1924]"]:hover,
+body.motyq-graphite [class*="hover:bg-[#211e17]"]:hover {
+  background-color: #eef3f8 !important;
+}
+
+/* Neutral launchers and raised cards get a restrained daylight shadow. */
+body.motyq-graphite [class*="shadow-black/"] {
+  --tw-shadow-color: rgba(15, 23, 42, .12) !important;
+}
+
+body.motyq-graphite .shadow-lg,
+body.motyq-graphite .shadow-xl,
+body.motyq-graphite .shadow-2xl {
+  --tw-shadow-color: rgba(15, 23, 42, .10) !important;
+}
+
+/* Daylight accent text. Pale dark-theme colors become readable on white. */
+body.motyq-graphite .text-cyan-100,
+body.motyq-graphite .text-cyan-200,
+body.motyq-graphite .text-cyan-300 {
+  color: #0e7490 !important;
+}
+
+body.motyq-graphite .text-sky-100,
+body.motyq-graphite .text-sky-200,
+body.motyq-graphite .text-sky-300 {
+  color: #0369a1 !important;
+}
+
+body.motyq-graphite .text-blue-100,
+body.motyq-graphite .text-blue-200,
+body.motyq-graphite .text-blue-300 {
+  color: #1d4ed8 !important;
+}
+
+body.motyq-graphite .text-emerald-100,
+body.motyq-graphite .text-emerald-200,
+body.motyq-graphite .text-emerald-300,
+body.motyq-graphite .text-green-100,
+body.motyq-graphite .text-green-200,
+body.motyq-graphite .text-green-300 {
+  color: #047857 !important;
+}
+
+body.motyq-graphite .text-amber-100,
+body.motyq-graphite .text-amber-200,
+body.motyq-graphite .text-amber-300,
+body.motyq-graphite .text-yellow-100,
+body.motyq-graphite .text-yellow-200,
+body.motyq-graphite .text-yellow-300 {
+  color: #a15c07 !important;
+}
+
+body.motyq-graphite .text-violet-100,
+body.motyq-graphite .text-violet-200,
+body.motyq-graphite .text-violet-300,
+body.motyq-graphite .text-purple-100,
+body.motyq-graphite .text-purple-200,
+body.motyq-graphite .text-purple-300 {
+  color: #6d28d9 !important;
+}
+
+body.motyq-graphite .text-red-100,
+body.motyq-graphite .text-red-200,
+body.motyq-graphite .text-red-300,
+body.motyq-graphite .text-rose-100,
+body.motyq-graphite .text-rose-200,
+body.motyq-graphite .text-rose-300 {
+  color: #b42318 !important;
+}
+
+/* Strong semantic buttons/cards still keep white text. */
+body.motyq-graphite .bg-blue-500 .text-blue-100,
+body.motyq-graphite .bg-blue-600 .text-blue-100,
+body.motyq-graphite .bg-green-500 .text-green-100,
+body.motyq-graphite .bg-green-600 .text-green-100,
+body.motyq-graphite .bg-emerald-500 .text-emerald-100,
+body.motyq-graphite .bg-emerald-600 .text-emerald-100,
+body.motyq-graphite .bg-red-500 .text-red-100,
+body.motyq-graphite .bg-red-600 .text-red-100 {
+  color: #ffffff !important;
+}
+
+/* Tables and rows read more like a productivity app than a dashboard terminal. */
+body.motyq-graphite table {
+  color: #172033 !important;
+}
+
+body.motyq-graphite thead {
+  background-color: #f8fafc !important;
+  color: #475467 !important;
+}
+
+body.motyq-graphite tbody tr {
+  border-color: #e4e9f0 !important;
+}
+
+body.motyq-graphite tbody tr:hover {
+  background-color: #f5f8fb !important;
+}
+
+/* Cards/panels get subtle separation on the light canvas. */
+body.motyq-graphite section[class*="border"],
+body.motyq-graphite aside[class*="border"],
+body.motyq-graphite div[class*="rounded-2xl"][class*="border-white/10"],
+body.motyq-graphite div[class*="rounded-[22px]"][class*="border-white/10"] {
+  border-color: #dbe3ec !important;
+}
+
+/* Header surfaces stay crisp white when sticky/frosted. */
+body.motyq-graphite header[class*="sticky"][class*="bg-[#"] {
+  background-color: rgba(255, 255, 255, .96) !important;
+  background-image: none !important;
+  border-color: #e1e7ef !important;
+}
+
+/* Secondary icon wells should be visible without looking dirty. */
+body.motyq-graphite [class~="bg-white/[.055]"],
+body.motyq-graphite [class~="bg-white/[.07]"] {
+  background-color: #eef3f8 !important;
+}
+
+/* Disabled cards remain clearly disabled, but not nearly black. */
+body.motyq-graphite .opacity-45 {
+  opacity: .58 !important;
+}
+
+/* Keep the overall impression close to a clean productivity application. */
+body.motyq-graphite main,
+body.motyq-graphite [role="main"] {
+  color: #172033;
+}
