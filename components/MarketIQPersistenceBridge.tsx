@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { arrayUnion, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { arrayUnion, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { User } from '../types';
 import { marketIqEvaluationService } from '../services/marketIqEvaluationService';
@@ -36,6 +36,10 @@ const linkFields = (link: MarketIQShowroomLink | null) => link ? {
 
 const MarketIQPersistenceBridge: React.FC<Props> = ({ currentUser, companyId, storeId, storeName }) => {
   useEffect(() => {
+    let saveInFlight = false;
+    let lastSaveSignature = '';
+    let lastSavedAt = 0;
+
     const linkBack = async (evaluationId: string, link: MarketIQShowroomLink | null) => {
       if (!link?.passageId) return;
       const now = new Date().toISOString();
@@ -64,30 +68,92 @@ const MarketIQPersistenceBridge: React.FC<Props> = ({ currentUser, companyId, st
       const detail = (event as CustomEvent).detail || {};
       const plate = normalize(detail.plate).toUpperCase();
       if (!plate) {
-        window.dispatchEvent(new CustomEvent('motyq:marketiq-persistence-error', { detail: { message: 'Informe a placa antes de salvar.' } }));
+        window.dispatchEvent(new CustomEvent('motyq:marketiq-persistence-error', { detail: { action: 'save', message: 'Informe a placa antes de salvar.' } }));
         return;
       }
+
+      const signature = JSON.stringify([
+        plate,
+        normalize(detail.vehicle),
+        normalize(detail.year),
+        normalize(detail.km),
+        normalize(detail.fipe),
+        normalize(detail.notes),
+      ]);
+      const nowMs = Date.now();
+      if (saveInFlight || (signature === lastSaveSignature && nowMs - lastSavedAt < 8000)) {
+        window.dispatchEvent(new CustomEvent('motyq:marketiq-persisted', {
+          detail: { action: 'save', plate, status: 'draft', duplicatePrevented: true, message: 'Esta avaliação já foi salva.' },
+        }));
+        return;
+      }
+
+      saveInFlight = true;
       const link = readLink();
       try {
-        const id = await marketIqEvaluationService.create({
-          companyId,
-          storeId,
-          storeName,
-          plate,
-          vehicle: normalize(detail.vehicle),
-          year: normalize(detail.year),
-          km: normalize(detail.km),
-          fipe: normalize(detail.fipe),
-          notes: normalize(detail.notes),
-          ...linkFields(link),
-          createdByEmail: normalize((currentUser as any)?.email).toLowerCase(),
-          createdByName: normalize((currentUser as any)?.name || (currentUser as any)?.displayName || (currentUser as any)?.email),
-        });
+        const vehicle = normalize(detail.vehicle);
+        const year = normalize(detail.year);
+        const km = normalize(detail.km);
+        const fipe = normalize(detail.fipe);
+        const notes = normalize(detail.notes);
+        const createdByEmail = normalize((currentUser as any)?.email).toLowerCase();
+        const createdByName = normalize((currentUser as any)?.name || (currentUser as any)?.displayName || (currentUser as any)?.email);
+
+        const latest = await marketIqEvaluationService.getLatestByPlate(companyId, storeId, plate);
+        let id = '';
+        let updatedExisting = false;
+
+        if (latest?.status === 'draft') {
+          id = latest.id;
+          updatedExisting = true;
+          await updateDoc(doc(db, 'operational_meta', id), {
+            vehicle,
+            year,
+            km,
+            fipe,
+            notes,
+            ...linkFields(link),
+            updatedByEmail: createdByEmail,
+            updatedByName: createdByName,
+            updatedAt: serverTimestamp(),
+          });
+          window.dispatchEvent(new CustomEvent('motyq:marketiq-history-updated', { detail: { plate } }));
+        } else {
+          id = await marketIqEvaluationService.create({
+            companyId,
+            storeId,
+            storeName,
+            plate,
+            vehicle,
+            year,
+            km,
+            fipe,
+            notes,
+            ...linkFields(link),
+            createdByEmail,
+            createdByName,
+          });
+        }
+
         await linkBack(id, link);
-        window.dispatchEvent(new CustomEvent('motyq:marketiq-persisted', { detail: { id, plate, status: 'draft', showroomPassageId: link?.passageId || '', dealId: link?.dealId || '' } }));
+        lastSaveSignature = signature;
+        lastSavedAt = Date.now();
+        window.dispatchEvent(new CustomEvent('motyq:marketiq-persisted', {
+          detail: {
+            action: 'save',
+            id,
+            plate,
+            status: 'draft',
+            updatedExisting,
+            showroomPassageId: link?.passageId || '',
+            dealId: link?.dealId || '',
+          },
+        }));
       } catch (error) {
         console.error('MarketIQ save failed', error);
-        window.dispatchEvent(new CustomEvent('motyq:marketiq-persistence-error', { detail: { message: 'Não foi possível salvar a avaliação.' } }));
+        window.dispatchEvent(new CustomEvent('motyq:marketiq-persistence-error', { detail: { action: 'save', message: 'Não foi possível salvar a avaliação.' } }));
+      } finally {
+        saveInFlight = false;
       }
     };
 
@@ -121,10 +187,10 @@ const MarketIQPersistenceBridge: React.FC<Props> = ({ currentUser, companyId, st
         if (!latest) return;
         await marketIqEvaluationService.setStatus(latest.id, status, typeof detail.value === 'number' ? detail.value : undefined);
         if (link?.passageId) await linkBack(latest.id, link);
-        window.dispatchEvent(new CustomEvent('motyq:marketiq-persisted', { detail: { id: latest.id, plate, status, showroomPassageId: link?.passageId || latest.showroomPassageId || '', dealId: link?.dealId || latest.dealId || '' } }));
+        window.dispatchEvent(new CustomEvent('motyq:marketiq-persisted', { detail: { action: 'decision', id: latest.id, plate, status, showroomPassageId: link?.passageId || latest.showroomPassageId || '', dealId: link?.dealId || latest.dealId || '' } }));
       } catch (error) {
         console.error('MarketIQ decision failed', error);
-        window.dispatchEvent(new CustomEvent('motyq:marketiq-persistence-error', { detail: { message: 'Não foi possível atualizar o status da avaliação.' } }));
+        window.dispatchEvent(new CustomEvent('motyq:marketiq-persistence-error', { detail: { action: 'decision', message: 'Não foi possível atualizar o status da avaliação.' } }));
       }
     };
 
