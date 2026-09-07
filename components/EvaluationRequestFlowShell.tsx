@@ -204,7 +204,6 @@ const EvaluationRequestFlowShell: React.FC = () => {
     setSuccess('');
     const plate = cleanPlate(form.plate);
     if (!plate) { setError('Informe a placa do veículo que será avaliado.'); return; }
-    if (!form.vehicle.trim()) { setError('Informe o veículo/modelo que será avaliado.'); return; }
     const evaluator = evaluators.find(item => item.email.toLowerCase() === form.evaluatorEmail.toLowerCase());
     setSaving(true);
     try {
@@ -222,7 +221,7 @@ const EvaluationRequestFlowShell: React.FC = () => {
         interestModel: form.interestModel.trim(),
         plate,
         renavam: form.renavam.trim(),
-        vehicle: form.vehicle.trim(),
+        vehicle: form.vehicle.trim() || 'Veículo a identificar',
         year: form.year.trim(),
         km: form.km.trim(),
         hasSpareKey: form.hasSpareKey,
