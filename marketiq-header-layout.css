@@ -1,6 +1,12 @@
 /* MarketIQ header action layout
    Keep the showroom link and close control on the first row.
-   Photos & Damages and History use a dedicated second row inside the header area. */
+   Photos & Damages and History use a dedicated second row inside the header area.
+   The floating actions are anchored to the MarketIQ modal edge, not the viewport,
+   so browser zoom and wide screens never push them outside the shell. */
+
+:root {
+  --marketiq-modal-edge: max(20px, calc((100vw - 1500px) / 2));
+}
 
 [data-marketiq-showroom-link-host] {
   min-width: 0;
@@ -14,27 +20,57 @@
   min-width: 0;
 }
 
+/* Second row: Photos on the left, History on the right. */
 button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
   top: 72px !important;
-  right: 152px !important;
+  right: calc(var(--marketiq-modal-edge) + 154px) !important;
 }
 
 button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
   top: 72px !important;
-  right: 16px !important;
+  right: calc(var(--marketiq-modal-edge) + 24px) !important;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --marketiq-modal-edge: 12px;
+  }
+
+  [data-marketiq-showroom-link-host] {
+    max-width: 190px;
+    flex-basis: 190px;
+  }
+
+  button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
+    right: calc(var(--marketiq-modal-edge) + 146px) !important;
+  }
+
+  button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
+    right: calc(var(--marketiq-modal-edge) + 18px) !important;
+  }
 }
 
 @media (max-width: 640px) {
   [data-marketiq-showroom-link-host] {
-    max-width: 178px;
-    flex-basis: 178px;
+    max-width: 165px;
+    flex-basis: 165px;
   }
 
   button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
-    right: 145px !important;
+    top: 78px !important;
+    right: 142px !important;
+    height: 36px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 10px !important;
   }
 
   button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
-    right: 12px !important;
+    top: 78px !important;
+    right: 14px !important;
+    height: 36px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 10px !important;
   }
 }
