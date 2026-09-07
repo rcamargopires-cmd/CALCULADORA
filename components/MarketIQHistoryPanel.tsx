@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Eye, History, X } from 'lucide-react';
+import { Eye, History, Trash2, X } from 'lucide-react';
+import { User } from '../types';
 import { MarketIQEvaluation, marketIqEvaluationService } from '../services/marketIqEvaluationService';
 
-type Props = { companyId: string; storeId: string };
+type Props = { companyId: string; storeId: string; currentUser: User };
 
 const money = (value?: number | string) => {
   const n = typeof value === 'number' ? value : Number(String(value || '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
@@ -42,7 +43,7 @@ const readCurrentPlate = () => {
 
 const isMarketIqOpen = () => Array.from(document.querySelectorAll('p')).some(node => String(node.textContent || '').includes('MOTYQ MARKETIQ · V2'));
 
-const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId }) => {
+const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId, currentUser }) => {
   const [visible, setVisible] = useState(false);
   const [open, setOpen] = useState(false);
   const [plate, setPlate] = useState('');
@@ -50,6 +51,9 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId }) => {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<MarketIQEvaluation | null>(null);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState('');
+  const [notice, setNotice] = useState('');
+  const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
     const refreshVisibility = () => setVisible(isMarketIqOpen());
@@ -78,6 +82,28 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId }) => {
       setError('Não foi possível carregar o histórico desta placa.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const removeItem = async (item: MarketIQEvaluation) => {
+    if (!isAdmin || deletingId) return;
+    const label = `${item.vehicle || 'Veículo'} · ${statusLabel(item.status)} · ${dateLabel(item.createdAt)}`;
+    const confirmed = window.confirm(`Excluir esta avaliação do histórico?\n\n${label}\n\nEsta ação não pode ser desfeita.`);
+    if (!confirmed) return;
+    setDeletingId(item.id);
+    setNotice('');
+    setError('');
+    try {
+      await marketIqEvaluationService.remove(item.id, item.plate);
+      setItems(current => current.filter(entry => entry.id !== item.id));
+      if (selected?.id === item.id) setSelected(null);
+      setNotice('Avaliação excluída do histórico.');
+      window.setTimeout(() => setNotice(''), 3500);
+    } catch (e) {
+      console.error('MarketIQ history delete failed', e);
+      setError('Não foi possível excluir esta avaliação. Verifique sua permissão de administrador.');
+    } finally {
+      setDeletingId('');
     }
   };
 
@@ -117,12 +143,13 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId }) => {
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.18em] text-cyan-300">MOTYQ MARKETIQ · HISTÓRICO</p>
             <h3 className="mt-1 text-xl font-semibold">Avaliações da placa {plate || '—'}</h3>
-            <p className="mt-1 text-sm text-zinc-500">Histórico permanente da unidade ativa</p>
+            <p className="mt-1 text-sm text-zinc-500">Histórico permanente da unidade ativa{isAdmin ? ' · administrador pode excluir registros' : ''}</p>
           </div>
           <button onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 text-zinc-400 hover:text-white"><X size={18}/></button>
         </header>
 
         <div className="p-4 md:p-6">
+          {!!notice && <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[.06] px-4 py-3 text-sm font-semibold text-emerald-200">{notice}</div>}
           {loading && <div className="rounded-2xl border border-white/10 bg-white/[.025] p-5 text-sm text-zinc-400">Carregando avaliações...</div>}
           {!loading && error && <div className="rounded-2xl border border-amber-300/15 bg-amber-300/[.04] p-5 text-sm text-amber-100">{error}</div>}
           {!loading && !error && !items.length && <div className="rounded-2xl border border-white/10 bg-white/[.025] p-5 text-sm text-zinc-400">Ainda não existe avaliação salva para esta placa.</div>}
@@ -140,7 +167,15 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId }) => {
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">{dateLabel(item.createdAt)} · {item.createdByName || item.createdByEmail || 'Avaliador não identificado'}</p>
                 </div>
-                <button onClick={() => setSelected(item)} className="flex h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-semibold text-zinc-300 hover:border-cyan-300/30 hover:text-cyan-200"><Eye size={14}/>VER DETALHES</button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelected(item)} className="flex h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-semibold text-zinc-300 hover:border-cyan-300/30 hover:text-cyan-200"><Eye size={14}/>VER DETALHES</button>
+                  {isAdmin && <button
+                    onClick={() => void removeItem(item)}
+                    disabled={deletingId === item.id}
+                    className="flex h-9 items-center gap-2 rounded-xl border border-red-300/20 bg-red-300/[.04] px-3 text-xs font-semibold text-red-300 transition hover:border-red-300/40 hover:bg-red-300/[.08] disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Excluir esta avaliação"
+                  ><Trash2 size={14}/>{deletingId === item.id ? 'EXCLUINDO...' : 'EXCLUIR'}</button>}
+                </div>
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -175,7 +210,14 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId }) => {
         {!!selected.damages?.length && <div className="mt-4"><p className="text-[10px] font-black uppercase tracking-[.13em] text-zinc-500">Avarias registradas</p><div className="mt-2 space-y-2">{selected.damages.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-sm text-zinc-300">{item.description}</span><strong className="shrink-0 text-sm text-amber-200">{money(item.cost)}</strong></div>)}</div></div>}
 
         <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Observações do avaliador</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{selected.notes || 'Sem observações registradas.'}</p></div>
-        <div className="mt-3 text-xs text-zinc-500">Avaliado por {selected.createdByName || selected.createdByEmail || '—'}</div>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="text-xs text-zinc-500">Avaliado por {selected.createdByName || selected.createdByEmail || '—'}</div>
+          {isAdmin && <button
+            onClick={() => void removeItem(selected)}
+            disabled={deletingId === selected.id}
+            className="flex h-9 items-center gap-2 rounded-xl border border-red-300/20 bg-red-300/[.04] px-3 text-xs font-semibold text-red-300 hover:border-red-300/40 hover:bg-red-300/[.08] disabled:cursor-not-allowed disabled:opacity-50"
+          ><Trash2 size={14}/>{deletingId === selected.id ? 'EXCLUINDO...' : 'EXCLUIR AVALIAÇÃO'}</button>}
+        </div>
       </div>
     </div>}
   </>;
