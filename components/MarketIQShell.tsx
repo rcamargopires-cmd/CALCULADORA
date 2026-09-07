@@ -10,6 +10,7 @@ import { storeScopeService, STORE_SCOPE_EVENT } from '../services/storeScopeServ
 import MarketIQ from './MarketIQ';
 import MarketIQPersistenceBridge from './MarketIQPersistenceBridge';
 import MarketIQHistoryPanel from './MarketIQHistoryPanel';
+import MarketIQShowroomLinkBridge from './MarketIQShowroomLinkBridge';
 
 const MarketIQShell:React.FC=()=>{
  const[user,setUser]=useState<User|null>(null);const[companyId,setCompanyId]=useState('');const[storeId,setStoreId]=useState('');const[storeName,setStoreName]=useState('');
@@ -28,6 +29,7 @@ const MarketIQShell:React.FC=()=>{
    <MarketIQ currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQPersistenceBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQHistoryPanel companyId={companyId} storeId={storeId}/>
+   <MarketIQShowroomLinkBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
  </>;
 };
 export default MarketIQShell;
