@@ -5,6 +5,7 @@ import './marketiq-lookup-light.css';
 import './motyq-light.css';
 import './motyq-light-refinements.css';
 import './motyq-light-dashboard.css';
+import './evaluation-request-position.css';
 import './services/storeScopeAdapter';
 import './services/stockBatchAdapter';
 import './services/unifiedStockAuditAdapter';
