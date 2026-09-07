@@ -268,3 +268,10 @@ body.motyq-graphite div[class*="z-[600]"] [class*="bg-emerald-400/10"] {
 body.motyq-graphite div[class*="z-[600]"] [class*="bg-emerald-400/[0.05]"] {
   background-color: #f0fdf4 !important;
 }
+
+/* Seller quick actions · stack cleanly on the same right rail. */
+body.motyq-graphite button[title="Histórico de Fechamentos"] {
+  left: auto !important;
+  right: 1.25rem !important;
+  bottom: 5.75rem !important;
+}
