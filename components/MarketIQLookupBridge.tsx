@@ -8,6 +8,7 @@ import { storeScopeService } from '../services/storeScopeService';
 import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../services/groupStockService';
 import { marketIqVehicleCacheService } from '../services/marketIqVehicleCacheService';
 
+const CRLV_PARSER_VERSION=2;
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const moneyInput=(value:number)=>value?value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
 const marketRoot=()=>Array.from(document.querySelectorAll('div.fixed.inset-0')).find(el=>String(el.textContent||'').includes('MOTYQ MARKETIQ')) as HTMLElement|undefined;
@@ -100,9 +101,9 @@ const MarketIQLookupBridge:React.FC=()=>{
     return()=>window.clearInterval(timer);
   },[]);
 
-  const showExternal=(plate:string)=>{
+  const showExternal=(plate:string,text='Veículo fora do estoque. Envie o CRLV-e para o Motyq identificar o carro sem consulta veicular paga.')=>{
     setExternal({plate});
-    setNotice({kind:'warn',text:'Veículo fora do estoque. Envie o CRLV-e para o Motyq identificar o carro sem consulta veicular paga.'});
+    setNotice({kind:'warn',text});
   };
 
   const readCrlv=async(file:File)=>{
@@ -135,6 +136,7 @@ const MarketIQLookupBridge:React.FC=()=>{
       const year=String(vehicle.yearModel||vehicle.yearFab||'').trim();
       const fuel=String(vehicle.fuel||'').trim();
       const renavam=String(vehicle.renavam||'').replace(/\D/g,'');
+      const parserVersion=Number(vehicle.parserVersion)||CRLV_PARSER_VERSION;
       fill({model,year});
       await marketIqVehicleCacheService.save({
         plate: external.plate,
@@ -143,13 +145,14 @@ const MarketIQLookupBridge:React.FC=()=>{
         year,
         fuel,
         renavam,
+        parserVersion,
         source:'crlv',
         companyId,
         storeId,
         identifiedAt:new Date().toISOString(),
         identifiedBy:currentUser.email||currentUser.uid,
       }).catch(()=>undefined);
-      setNotice({kind:'loading',text:`${model} identificado. Buscando FIPE...`});
+      setNotice({kind:'loading',text:`${model} ${year} identificado. Buscando FIPE...`});
       const fipe=await lookupFipe({brand,model,year,fuel});
       if(fipe?.value){
         const resolvedModel=String(fipe.model||model);
@@ -163,6 +166,7 @@ const MarketIQLookupBridge:React.FC=()=>{
           year:resolvedYear,
           fuel,
           renavam,
+          parserVersion,
           fipeCode:String(fipe.fipeCode||''),
           lastFipeValue:value,
           lastFipeReference:String(fipe.referenceMonth||''),
@@ -172,14 +176,15 @@ const MarketIQLookupBridge:React.FC=()=>{
           identifiedAt:new Date().toISOString(),
           identifiedBy:currentUser.email||currentUser.uid,
         }).catch(()=>undefined);
-        setNotice({kind:'ok',text:`${resolvedModel} identificado pelo CRLV-e e salvo no Motyq. FIPE ${fipe.referenceMonth||'atual'} preenchida automaticamente.`});
+        setNotice({kind:'ok',text:`${resolvedModel} · ano/modelo ${resolvedYear}. CRLV-e validado e FIPE ${fipe.referenceMonth||'atual'} preenchida automaticamente.`});
         setExternal(null);
       }else{
-        setNotice({kind:'warn',text:`${model} foi identificado e salvo no Motyq, mas não consegui vincular a versão à FIPE automaticamente.`});
+        setNotice({kind:'warn',text:`${model} · ano/modelo ${year} foi identificado e salvo, mas não consegui vincular a versão à FIPE automaticamente.`});
         setExternal(null);
       }
     }catch(error:any){
-      setNotice({kind:'warn',text:String(error?.message||'').includes('Sessão')?'Sua sessão expirou. Entre novamente no Motyq.':'Não consegui ler esse CRLV-e. Tente uma foto/PDF mais nítido.'});
+      const message=String(error?.message||'');
+      setNotice({kind:'warn',text:message.includes('Sessão')?'Sua sessão expirou. Entre novamente no Motyq.':message&&!message.includes('crlv_failed')?message:'Não consegui ler esse CRLV-e. Tente uma foto/PDF mais nítido.'});
     }finally{
       setReadingCrlv(false);
     }
@@ -216,8 +221,12 @@ const MarketIQLookupBridge:React.FC=()=>{
       void marketIqVehicleCacheService.get(companyId,storeId,plate).then(async cached=>{
         if(currentRequest!==requestId.current)return;
         if(!cached){showExternal(plate);return;}
+        if(cached.source==='crlv'&&Number(cached.parserVersion||0)<CRLV_PARSER_VERSION){
+          showExternal(plate,'Esta placa foi identificada por uma versão antiga do leitor de CRLV. Para evitar ano/modelo incorreto, envie o CRLV-e uma vez para revalidar e substituir o cadastro antigo.');
+          return;
+        }
         fill({model:cached.model,year:cached.year});
-        setNotice({kind:'loading',text:`${cached.model} reconhecido pelo Motyq. Atualizando FIPE...`});
+        setNotice({kind:'loading',text:`${cached.model} ${cached.year} reconhecido pelo Motyq. Atualizando FIPE...`});
         const fipe=await lookupFipe({brand:cached.brand,model:cached.model,year:cached.year,fuel:cached.fuel});
         if(currentRequest!==requestId.current)return;
         if(fipe?.value){
@@ -225,7 +234,7 @@ const MarketIQLookupBridge:React.FC=()=>{
           const resolvedYear=String(fipe.year||cached.year);
           const value=Number(fipe.value)||0;
           fill({model:resolvedModel,year:resolvedYear,fipe:value});
-          setNotice({kind:'ok',text:`${resolvedModel} reconhecido pela placa. FIPE ${fipe.referenceMonth||'atual'} atualizada sem reler o CRLV-e.`});
+          setNotice({kind:'ok',text:`${resolvedModel} · ano/modelo ${resolvedYear}. FIPE ${fipe.referenceMonth||'atual'} atualizada sem reler o CRLV-e.`});
           void marketIqVehicleCacheService.save({
             ...cached,
             model:resolvedModel,
@@ -252,7 +261,7 @@ const MarketIQLookupBridge:React.FC=()=>{
       <div className="mb-3">
         <p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VEÍCULO FORA DO ESTOQUE</p>
         <p className="mt-1 text-sm font-semibold">{external.plate} · identificação pelo CRLV-e</p>
-        <p className="mt-1 text-[11px] leading-4 text-zinc-500">Sem API veicular paga. Envie uma foto ou PDF do CRLV-e e o Motyq lê marca, modelo, versão e ano; depois cruza automaticamente com a FIPE. Após a primeira leitura, essa placa fica salva para as próximas avaliações.</p>
+        <p className="mt-1 text-[11px] leading-4 text-zinc-500">Envie uma foto ou PDF do CRLV-e. O Motyq lê marca, modelo, versão e ano/modelo; depois cruza automaticamente com a FIPE. A leitura validada substitui qualquer identificação antiga dessa placa.</p>
       </div>
       <label className={`flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] ${readingCrlv?'pointer-events-none opacity-50':''}`}>
         {readingCrlv?'LENDO CRLV-E...':'ENVIAR CRLV-E'}
