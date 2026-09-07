@@ -316,3 +316,109 @@ body.motyq-graphite button[title="Histórico de Fechamentos"]:hover {
   background: #eff6ff !important;
   border-color: #93c5fd !important;
 }
+
+/* -------------------------------------------------------------------------
+ * Seller agenda · daylight treatment
+ * ---------------------------------------------------------------------- */
+body.motyq-graphite button[title="Minha Agenda Motyq"] {
+  background: #ffffff !important;
+  background-image: none !important;
+  border-color: #bfdbfe !important;
+  color: #172033 !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, .10) !important;
+}
+
+body.motyq-graphite button[title="Minha Agenda Motyq"]:hover {
+  background: #f0f9ff !important;
+  border-color: #93c5fd !important;
+}
+
+body.motyq-graphite button[title="Minha Agenda Motyq"] .text-white {
+  color: #172033 !important;
+}
+
+body.motyq-graphite button[title="Minha Agenda Motyq"] .text-zinc-400 {
+  color: #667085 !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"][class*="bg-black/80"] {
+  background-color: rgba(15, 23, 42, .30) !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] > div[class*="max-w-4xl"][class*="bg-[#171a20]"] {
+  background: #f8fafc !important;
+  color: #172033 !important;
+  border-color: #dbe3ec !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .18) !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] > div[class*="max-w-4xl"] > header {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] .text-white {
+  color: #172033 !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] .text-zinc-300,
+body.motyq-graphite div[class*="z-[280]"] .text-zinc-400 {
+  color: #475467 !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] .text-zinc-500 {
+  color: #667085 !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] .text-zinc-600,
+body.motyq-graphite div[class*="z-[280]"] .text-zinc-700 {
+  color: #7a8494 !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] [class*="border-white/10"],
+body.motyq-graphite div[class*="z-[280]"] [class*="border-white/[0.07]"] {
+  border-color: #dbe3ec !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] [class*="bg-white/[0.035]"],
+body.motyq-graphite div[class*="z-[280]"] [class*="bg-white/[0.025]"] {
+  background-color: #ffffff !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] [class*="bg-black/15"] {
+  background-color: #f8fafc !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] article[class*="bg-emerald-400/[0.035]"] {
+  background-color: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] article[class*="bg-red-400/[0.04]"] {
+  background-color: #fff7f7 !important;
+  border-color: #fecaca !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] textarea {
+  background: #ffffff !important;
+  color: #172033 !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, .04) !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] textarea:focus {
+  border-color: #7dd3fc !important;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, .10) !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] button[class*="bg-white/[0.04]"] {
+  background: #ffffff !important;
+  color: #475467 !important;
+  border-color: #dbe3ec !important;
+}
+
+body.motyq-graphite div[class*="z-[280]"] button[class*="border-white/10"] {
+  background: #ffffff !important;
+  color: #475467 !important;
+  border-color: #dbe3ec !important;
+}
