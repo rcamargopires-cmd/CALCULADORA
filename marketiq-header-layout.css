@@ -86,6 +86,29 @@ button[class*="top-[27px]"][class*="z-[625]"] svg {
   stroke-width: 2 !important;
 }
 
+/* MarketIQ · Estado do veículo
+   Keep the long "Histórico/Manutenção" label inside its own column and keep
+   every select aligned on the same baseline. */
+div[class*="lg:grid-cols-5"] > label {
+  min-width: 0 !important;
+}
+
+div[class*="lg:grid-cols-5"] > label > span {
+  display: block !important;
+  min-height: 28px !important;
+  margin-bottom: 6px !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  line-height: 1.25 !important;
+  letter-spacing: .07em !important;
+}
+
+div[class*="lg:grid-cols-5"] > label > select {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
 /* Medium desktop / browser zoom. */
 @media (max-width: 1180px) {
   :root {
