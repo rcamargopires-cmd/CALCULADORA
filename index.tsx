@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './marketiq-header-layout.css';
 import './services/storeScopeAdapter';
 import './services/stockBatchAdapter';
 import './services/unifiedStockAuditAdapter';
