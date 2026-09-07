@@ -1,57 +1,104 @@
 /* MarketIQ header action layout
-   Keep Vincular Atendimento + Fotos & Avarias + Histórico on the same row.
-   The close control remains isolated on the far right.
-   Floating actions are anchored to the MarketIQ modal edge, not the viewport,
-   so browser zoom and wide screens never push them outside the shell. */
+   One clean action row: Vincular Atendimento + Fotos & Avarias + Histórico.
+   All three actions share the same height, border, background and shadow.
+   The close button stays isolated on the far right. */
 
 :root {
   --marketiq-modal-edge: max(20px, calc((100vw - 1500px) / 2));
+  --marketiq-action-top: 26px;
+  --marketiq-action-height: 38px;
+  --marketiq-action-border: #d7e0ea;
+  --marketiq-action-text: #344054;
+  --marketiq-action-shadow: 0 2px 8px rgba(15, 23, 42, .06);
 }
 
-/* The showroom link lives inside the header. Reserve the action lane between
-   it and the close button so the two floating actions never overlap it. */
+/* Vincular Atendimento uses the same fixed action lane as the other two buttons,
+   so it can never sit lower than Photos/History. */
 [data-marketiq-showroom-link-host] {
-  min-width: 0;
-  max-width: 220px;
-  flex: 0 1 220px;
-  margin-left: auto !important;
-  margin-right: 340px !important;
+  position: fixed !important;
+  top: var(--marketiq-action-top) !important;
+  right: calc(var(--marketiq-modal-edge) + 370px) !important;
+  z-index: 625 !important;
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+  height: var(--marketiq-action-height) !important;
+  margin: 0 !important;
+  flex: none !important;
+}
+
+[data-marketiq-showroom-link-host] > button,
+button[class*="top-[27px]"][class*="z-[625]"] {
+  height: var(--marketiq-action-height) !important;
+  min-height: var(--marketiq-action-height) !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  padding: 0 13px !important;
+  border: 1px solid var(--marketiq-action-border) !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  color: var(--marketiq-action-text) !important;
+  box-shadow: var(--marketiq-action-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  transform: none !important;
 }
 
 [data-marketiq-showroom-link-host] > button {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  height: 40px !important;
-  white-space: nowrap;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
 }
 
-/* Same row as Vincular Atendimento. */
+[data-marketiq-showroom-link-host] > button:hover,
+button[class*="top-[27px]"][class*="z-[625]"]:hover {
+  background: #f8fafc !important;
+  border-color: #bfcbd9 !important;
+  color: #172033 !important;
+  box-shadow: var(--marketiq-action-shadow) !important;
+}
+
+/* Photos & Avarias */
 button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
-  top: 27px !important;
+  top: var(--marketiq-action-top) !important;
   right: calc(var(--marketiq-modal-edge) + 205px) !important;
-  height: 40px !important;
-  white-space: nowrap;
 }
 
+/* Histórico */
 button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
-  top: 27px !important;
+  top: var(--marketiq-action-top) !important;
   right: calc(var(--marketiq-modal-edge) + 74px) !important;
-  height: 40px !important;
-  white-space: nowrap;
 }
 
-/* Medium desktop / browser zoom: compact the whole action cluster but keep
-   the three actions on one row. */
+/* Keep icons visually consistent too. */
+[data-marketiq-showroom-link-host] > button svg,
+button[class*="top-[27px]"][class*="z-[625]"] svg {
+  width: 14px !important;
+  height: 14px !important;
+  color: #667085 !important;
+  stroke-width: 2 !important;
+}
+
+/* Medium desktop / browser zoom. */
 @media (max-width: 1180px) {
   :root {
     --marketiq-modal-edge: 16px;
+    --marketiq-action-height: 36px;
   }
 
   [data-marketiq-showroom-link-host] {
-    max-width: 185px;
-    flex-basis: 185px;
-    margin-right: 302px !important;
+    right: calc(var(--marketiq-modal-edge) + 332px) !important;
+    width: 185px !important;
+    min-width: 185px !important;
+    max-width: 185px !important;
   }
 
   [data-marketiq-showroom-link-host] > button,
@@ -62,41 +109,42 @@ button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
   }
 
   button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
-    right: calc(var(--marketiq-modal-edge) + 186px) !important;
+    right: calc(var(--marketiq-modal-edge) + 182px) !important;
   }
 
   button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
-    right: calc(var(--marketiq-modal-edge) + 70px) !important;
+    right: calc(var(--marketiq-modal-edge) + 68px) !important;
   }
 }
 
-/* Small screens still keep one compact action row. */
+/* Smaller screens stay on one compact row. */
 @media (max-width: 760px) {
   :root {
-    --marketiq-modal-edge: 12px;
+    --marketiq-modal-edge: 10px;
+    --marketiq-action-top: 24px;
+    --marketiq-action-height: 34px;
   }
 
   [data-marketiq-showroom-link-host] {
-    max-width: 150px;
-    flex-basis: 150px;
-    margin-right: 250px !important;
+    right: calc(var(--marketiq-modal-edge) + 275px) !important;
+    width: 145px !important;
+    min-width: 145px !important;
+    max-width: 145px !important;
   }
 
   [data-marketiq-showroom-link-host] > button,
   button[class*="top-[27px]"][class*="z-[625]"] {
-    height: 36px !important;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
+    gap: 5px !important;
+    padding-left: 7px !important;
+    padding-right: 7px !important;
     font-size: 9px !important;
   }
 
   button[class*="top-[27px]"][class*="z-[625]"][class*="right-[205px]"] {
-    top: 29px !important;
-    right: calc(var(--marketiq-modal-edge) + 154px) !important;
+    right: calc(var(--marketiq-modal-edge) + 136px) !important;
   }
 
   button[class*="top-[27px]"][class*="z-[625]"][class*="right-[74px]"] {
-    top: 29px !important;
-    right: calc(var(--marketiq-modal-edge) + 62px) !important;
+    right: calc(var(--marketiq-modal-edge) + 48px) !important;
   }
 }
