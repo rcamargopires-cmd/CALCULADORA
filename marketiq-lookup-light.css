@@ -1,0 +1,56 @@
+/* MarketIQ lookup / CRLV notices · native light theme */
+
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] > div {
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .10) !important;
+}
+
+/* Success notice */
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] > div[class*="bg-emerald-950"] {
+  background: rgba(236, 253, 245, .98) !important;
+  border-color: #a7f3d0 !important;
+  color: #047857 !important;
+}
+
+/* Warning notice */
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] > div[class*="bg-amber-950"] {
+  background: rgba(255, 251, 235, .98) !important;
+  border-color: #fde68a !important;
+  color: #a15c07 !important;
+}
+
+/* Loading / information notice */
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] > div[class*="bg-cyan-950"] {
+  background: rgba(236, 254, 255, .98) !important;
+  border-color: #a5f3fc !important;
+  color: #0e7490 !important;
+}
+
+/* External vehicle / CRLV card */
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] > div[class*="bg-[#11191b]"] {
+  background: rgba(255, 255, 255, .98) !important;
+  border-color: #dbe3ec !important;
+  color: #172033 !important;
+}
+
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] > div[class*="bg-[#11191b]"] .text-cyan-300,
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] > div[class*="bg-[#11191b]"] .text-cyan-200 {
+  color: #0e7490 !important;
+}
+
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] > div[class*="bg-[#11191b]"] .text-zinc-500,
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] > div[class*="bg-[#11191b]"] .text-zinc-600 {
+  color: #667085 !important;
+}
+
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] label[class*="bg-cyan-300"] {
+  background: #ecfeff !important;
+  border-color: #a5f3fc !important;
+  color: #0e7490 !important;
+}
+
+body.motyq-graphite div[class*="z-[615]"][class*="right-5"][class*="top-24"] label[class*="bg-cyan-300"]:hover {
+  background: #cffafe !important;
+  border-color: #67e8f9 !important;
+}
