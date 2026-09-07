@@ -8,6 +8,7 @@ import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companySco
 import { storeIdForUser, storeService } from '../services/storeService';
 import { storeScopeService, STORE_SCOPE_EVENT } from '../services/storeScopeService';
 import MarketIQ from './MarketIQ';
+import MarketIQPersistenceBridge from './MarketIQPersistenceBridge';
 
 const MarketIQShell:React.FC=()=>{
  const[user,setUser]=useState<User|null>(null);const[companyId,setCompanyId]=useState('');const[storeId,setStoreId]=useState('');const[storeName,setStoreName]=useState('');
@@ -21,6 +22,7 @@ const MarketIQShell:React.FC=()=>{
  useEffect(()=>onAuthStateChanged(auth,async fb=>{if(!fb?.email){setUser(null);return;}try{const p=await userService.getUser(fb.email);if(!p||p.status!=='active'||!['admin','manager'].includes(String(p.role))){setUser(null);return;}setUser(p);await resolve(p);}catch{setUser(null);}}),[]);
  useEffect(()=>{if(!user||user.role!=='admin')return;const refresh=()=>void resolve(user);window.addEventListener(COMPANY_SCOPE_EVENT,refresh);window.addEventListener(STORE_SCOPE_EVENT,refresh);return()=>{window.removeEventListener(COMPANY_SCOPE_EVENT,refresh);window.removeEventListener(STORE_SCOPE_EVENT,refresh);};},[user]);
  if(!user||!companyId||!storeId)return null;
- return <MarketIQ currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName||'Unidade ativa'}/>;
+ const activeStoreName=storeName||'Unidade ativa';
+ return <><MarketIQ currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/><MarketIQPersistenceBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/></>;
 };
 export default MarketIQShell;
