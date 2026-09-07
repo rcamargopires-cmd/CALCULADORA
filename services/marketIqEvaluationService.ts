@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export type MarketIQEvaluationStatus = 'draft' | 'approved' | 'rejected';
@@ -117,5 +117,11 @@ export const marketIqEvaluationService = {
       updatedAt: serverTimestamp(),
     });
     window.dispatchEvent(new CustomEvent('motyq:marketiq-history-updated'));
+  },
+
+  remove: async (id: string, plateValue?: string): Promise<void> => {
+    if (!id) return;
+    await deleteDoc(doc(db, 'operational_meta', id));
+    window.dispatchEvent(new CustomEvent('motyq:marketiq-history-updated', { detail: { plate: cleanPlate(plateValue || '') } }));
   },
 };
