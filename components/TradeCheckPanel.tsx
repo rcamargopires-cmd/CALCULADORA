@@ -24,7 +24,7 @@ const initialCompleted: Record<StepKey, boolean> = { tjsp:false, pge:false, detr
 
 const researchSteps = [
   { key:'tjsp' as const, label:'TJSP / e-SAJ', url:'https://esaj.tjsp.jus.br/cpopg/open.do', hint:'Pesquisar pelo CPF do proprietário', copy:(f:FormState)=>f.cpf },
-  { key:'pge' as const, label:'Dívida Ativa PGE', url:'https://www.dividaativa.pge.sp.gov.br/sc/pages/pagamento/gareLiquidacao.jsf', hint:'Usar CPF e RENAVAM', copy:(f:FormState)=>`CPF: ${f.cpf}\nRENAVAM: ${f.renavam}` },
+  { key:'pge' as const, label:'Dívida Ativa PGE', url:'https://www.dividaativa.pge.sp.gov.br/sc/pages/pagamento/gareLiquidacao.jsf', hint:'Usar RENAVAM', copy:(f:FormState)=>f.renavam },
   { key:'detran' as const, label:'Detran-SP', url:'https://www.detran.sp.gov.br/detransp/pb/servicos/veiculos/consultar_debitos_restricoes?id=consultar_debitos_restricoes', hint:'Usar placa e RENAVAM', copy:(f:FormState)=>`PLACA: ${f.plate}\nRENAVAM: ${f.renavam}` },
   { key:'sivei' as const, label:'SIVEI / Fazenda', url:'https://www3.fazenda.sp.gov.br/SIVEI/DebitosVinculados/Consulta', hint:'Consulta de débitos vinculados', copy:(f:FormState)=>`PLACA: ${f.plate}\nRENAVAM: ${f.renavam}` },
   { key:'pedagio' as const, label:'Pedágio Digital', url:'https://www.pedagiodigital.com/', hint:'Consultar pela placa', copy:(f:FormState)=>f.plate },
