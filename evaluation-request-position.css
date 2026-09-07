@@ -68,7 +68,7 @@ body.motyq-graphite button[title="Avaliações pendentes"]::after {
   white-space: nowrap;
 }
 
-body.motyq-graphite button[title="Avaliações pendentes"] > span:not(.evaluation-count) {
+body.motyq-graphite button[title="Avaliações pendentes"] > span:first-of-type {
   position: absolute !important;
   left: 52px !important;
   top: 28px !important;
@@ -81,6 +81,11 @@ body.motyq-graphite button[title="Avaliações pendentes"] > span:not(.evaluatio
   line-height: 16px !important;
   font-weight: 600 !important;
   color: #172033 !important;
+}
+
+/* Count is already present in the desktop title text. */
+body.motyq-graphite button[title="Avaliações pendentes"] > span:nth-of-type(2) {
+  display: none !important;
 }
 
 @media (max-width: 640px) {
