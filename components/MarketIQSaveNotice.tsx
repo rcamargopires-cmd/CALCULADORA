@@ -6,14 +6,17 @@ type Notice = { state: SaveState; text: string };
 
 const findSaveButton = () => Array.from(document.querySelectorAll('button')).find(button => {
   const text = String(button.textContent || '').trim().toUpperCase();
-  return text.includes('SALVAR AVALIAÇÃO') || text.includes('SALVAR ALTERAÇÕES') || text.includes('AVALIAÇÃO SALVA') || text.includes('SALVANDO');
+  return text.includes('SALVAR AVALIAÇÃO') || text.includes('SALVAR ALTERAÇÕES') || text.includes('AVALIAÇÃO SALVA') || text.includes('SALVANDO') || text.includes('SALVAR NOVAMENTE');
 }) as HTMLButtonElement | undefined;
 
 const setButtonLabel = (button: HTMLButtonElement, label: string) => {
   const nodes = Array.from(button.childNodes);
   const textNode = nodes.find(node => node.nodeType === Node.TEXT_NODE);
-  if (textNode) textNode.textContent = label;
-  else button.appendChild(document.createTextNode(label));
+  if (textNode) {
+    if (textNode.textContent !== label) textNode.textContent = label;
+  } else {
+    button.appendChild(document.createTextNode(label));
+  }
 };
 
 const MarketIQSaveNotice: React.FC = () => {
@@ -87,12 +90,9 @@ const MarketIQSaveNotice: React.FC = () => {
       scheduleHide(6000);
     };
 
-    const unlockOnEdit = (event: Event) => {
+    const unlockOnEdit = () => {
       if (stateRef.current !== 'saved') return;
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const modal = target.closest('[class*="max-w-[1500px]"]');
-      if (!modal) return;
+      if (!findSaveButton()) return;
       changeState({ state: 'idle', text: 'Alterações detectadas. Salve novamente quando terminar.' });
       scheduleHide(3000);
     };
