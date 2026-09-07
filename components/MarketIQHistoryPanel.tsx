@@ -135,16 +135,19 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId }) => {
                     <strong className="text-base">{item.vehicle || 'Veículo sem descrição'}</strong>
                     {index === 0 && <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[.05] px-2 py-0.5 text-[9px] font-black uppercase text-cyan-300">ÚLTIMA</span>}
                     <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${statusTone(item.status)}`}>{statusLabel(item.status)}</span>
+                    {!!item.photos?.length && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.04] px-2 py-0.5 text-[9px] font-black text-amber-200">{item.photos.length} FOTO(S)</span>}
+                    {!!item.damages?.length && <span className="rounded-full border border-red-300/20 bg-red-300/[.04] px-2 py-0.5 text-[9px] font-black text-red-200">{item.damages.length} AVARIA(S)</span>}
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">{dateLabel(item.createdAt)} · {item.createdByName || item.createdByEmail || 'Avaliador não identificado'}</p>
                 </div>
                 <button onClick={() => setSelected(item)} className="flex h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-semibold text-zinc-300 hover:border-cyan-300/30 hover:text-cyan-200"><Eye size={14}/>VER DETALHES</button>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Ano / KM</p><p className="mt-1 text-sm font-semibold">{item.year || '—'} · {item.km || '—'} km</p></div>
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">FIPE</p><p className="mt-1 text-sm font-semibold">{money(item.fipe)}</p>{fipeDelta !== 0 && <p className={`mt-1 text-[10px] ${fipeDelta > 0 ? 'text-emerald-300' : 'text-red-300'}`}>{fipeDelta > 0 ? '+' : ''}{money(fipeDelta)} vs anterior</p>}</div>
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Compra recomendada</p><p className="mt-1 text-sm font-semibold text-cyan-200">{item.recommendedBuy ? money(item.recommendedBuy) : '—'}</p>{buyDelta !== 0 && <p className={`mt-1 text-[10px] ${buyDelta > 0 ? 'text-emerald-300' : 'text-red-300'}`}>{buyDelta > 0 ? '+' : ''}{money(buyDelta)} vs anterior</p>}</div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Avarias</p><p className="mt-1 text-sm font-semibold text-amber-200">{money(item.damageTotal || 0)}</p></div>
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Status</p><p className="mt-1 text-sm font-semibold">{statusLabel(item.status)}</p></div>
               </div>
             </div>)}
@@ -153,19 +156,25 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId }) => {
       </div>
     </div>}
 
-    {selected && <div className="fixed inset-0 z-[660] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
-      <div className="w-full max-w-2xl rounded-[24px] border border-white/10 bg-[#111416] p-5 text-white shadow-2xl" onClick={e => e.stopPropagation()}>
+    {selected && <div className="fixed inset-0 z-[660] overflow-y-auto bg-black/75 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
+      <div className="mx-auto my-6 w-full max-w-3xl rounded-[24px] border border-white/10 bg-[#111416] p-5 text-white shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-4">
           <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-cyan-300">AVALIAÇÃO SALVA · SOMENTE CONSULTA</p><h4 className="mt-1 text-xl font-semibold">{selected.plate} · {selected.vehicle || 'Veículo'}</h4><p className="mt-1 text-xs text-zinc-500">{dateLabel(selected.createdAt)} · {selected.storeName}</p></div>
           <button onClick={() => setSelected(null)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-zinc-400"><X size={16}/></button>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Ano / KM</p><p className="mt-1 font-semibold">{selected.year || '—'} · {selected.km || '—'} km</p></div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">FIPE</p><p className="mt-1 font-semibold">{money(selected.fipe)}</p></div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Compra recomendada</p><p className="mt-1 font-semibold text-cyan-200">{selected.recommendedBuy ? money(selected.recommendedBuy) : 'Não registrada'}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Avarias</p><p className="mt-1 font-semibold text-amber-200">{money(selected.damageTotal || 0)}</p></div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Status</p><p className="mt-1 font-semibold">{statusLabel(selected.status)}</p></div>
         </div>
-        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Observações do avaliador</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{selected.notes || 'Sem observações registradas.'}</p></div>
+
+        {!!selected.photos?.length && <div className="mt-4"><p className="text-[10px] font-black uppercase tracking-[.13em] text-zinc-500">Fotos & documentos</p><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">{selected.photos.map(photo => <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-xl border border-white/10 bg-black/20">{photo.contentType === 'application/pdf' ? <div className="grid aspect-[4/3] place-items-center text-xs font-bold text-zinc-500">ABRIR PDF</div> : <img src={photo.url} alt={photo.name} className="aspect-[4/3] w-full object-cover"/>}<div className="p-2 text-[10px] text-zinc-500">{photo.category} · {photo.name}</div></a>)}</div></div>}
+
+        {!!selected.damages?.length && <div className="mt-4"><p className="text-[10px] font-black uppercase tracking-[.13em] text-zinc-500">Avarias registradas</p><div className="mt-2 space-y-2">{selected.damages.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-sm text-zinc-300">{item.description}</span><strong className="shrink-0 text-sm text-amber-200">{money(item.cost)}</strong></div>)}</div></div>}
+
+        <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Observações do avaliador</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{selected.notes || 'Sem observações registradas.'}</p></div>
         <div className="mt-3 text-xs text-zinc-500">Avaliado por {selected.createdByName || selected.createdByEmail || '—'}</div>
       </div>
     </div>}
