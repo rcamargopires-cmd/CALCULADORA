@@ -25,8 +25,9 @@ import SellerShowroomAutoReset from './components/SellerShowroomAutoReset';
 import MarketIQShell from './components/MarketIQShell';
 import MarketIQLookupBridge from './components/MarketIQLookupBridge';
 import MarketIQSessionReset from './components/MarketIQSessionReset';
+import EvaluationCenter from './components/EvaluationCenter';
+import EvaluationMarketIQBridge from './components/EvaluationMarketIQBridge';
 
-// Stable pre-theme baseline. This comment intentionally triggers a clean production deploy.
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
@@ -48,6 +49,8 @@ root.render(
     <GroupStockHostRepair />
     <ManagerShowroomProposalsShell />
     <SellerShowroomAutoReset />
+    <EvaluationMarketIQBridge />
+    <EvaluationCenter />
     <MarketIQShell />
     <MarketIQLookupBridge />
     <MarketIQSessionReset />
