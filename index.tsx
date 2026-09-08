@@ -5,7 +5,6 @@ import './marketiq-lookup-light.css';
 import './motyq-light.css';
 import './motyq-light-refinements.css';
 import './motyq-light-dashboard.css';
-import './evaluation-request-position.css';
 import './services/storeScopeAdapter';
 import './services/stockBatchAdapter';
 import './services/unifiedStockAuditAdapter';
@@ -27,6 +26,7 @@ import MarketIQShell from './components/MarketIQShell';
 import MarketIQLookupBridge from './components/MarketIQLookupBridge';
 import MarketIQSessionReset from './components/MarketIQSessionReset';
 
+// Stable pre-theme baseline. This comment intentionally triggers a clean production deploy.
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
