@@ -9,6 +9,7 @@ import { STORE_SCOPE_EVENT, storeScopeService } from './storeScopeService';
 export type DealTenantContext = { companyId: string; storeId: string };
 
 type DealWithoutId = Omit<SavedCalculation, 'id'>;
+type DealDocument = SavedCalculation & { kind?: string };
 
 const contextFor = (user: User): DealTenantContext => ({
   companyId: user.role === 'admin' ? companyScopeService.get(user) : companyIdForUser(user),
@@ -32,7 +33,10 @@ export const dealTenantService = {
         : query(base, where('companyId', '==', companyId), where('storeId', '==', storeId));
 
       unsubscribeSnapshot = onSnapshot(q, snapshot => {
-        onData(sorted(snapshot.docs.map(item => ({ id: item.id, ...item.data() } as SavedCalculation))));
+        const normalDeals = snapshot.docs
+          .map(item => ({ id: item.id, ...item.data() } as DealDocument))
+          .filter(item => item.kind !== 'evaluation_request');
+        onData(sorted(normalDeals));
       }, error => onError?.(error));
     };
 
