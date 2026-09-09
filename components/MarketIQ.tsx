@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, AlertTriangle, Calculator, CarFront, CheckCircle2, ClipboardList, FileText, Gauge, Save, ShieldCheck, X, XCircle } from 'lucide-react';
 import { User } from '../types';
 
@@ -23,6 +23,22 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
  const[body,setBody]=useState<Level>(4);const[interior,setInterior]=useState<Level>(4);const[tires,setTires]=useState<Level>(4);const[mechanical,setMechanical]=useState<Level>(4);const[history,setHistory]=useState<Level>(4);
  const[notes,setNotes]=useState('');
  const[costs,setCosts]=useState({hygiene:'350',bodywork:'0',dent:'0',tires:'0',review:'0',mechanical:'0',aesthetics:'0',transfer:'650',purchaseTaxes:'0',documents:'0',other:'0'});
+
+ useEffect(()=>{
+   const openEvaluation=(event:Event)=>{
+     const detail=(event as CustomEvent).detail||{};
+     const nextPlate=String(detail.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
+     if(!nextPlate)return;
+     setPlate(nextPlate);
+     setVehicle(String(detail.vehicle||'')==='Veículo a identificar'?'':String(detail.vehicle||''));
+     setYear(String(detail.year||''));
+     setKm(String(detail.km||''));
+     setNotes(String(detail.notes||''));
+     setOpen(true);
+   };
+   window.addEventListener('motyq:marketiq-open-request-v2',openEvaluation as EventListener);
+   return()=>window.removeEventListener('motyq:marketiq-open-request-v2',openEvaluation as EventListener);
+ },[]);
 
  const calc=useMemo(()=>{
    const m=num(market),f=num(fipe),low=num(marketLow),high=num(marketHigh),actualKm=num(km),expKm=Math.max(1,num(expectedKm));

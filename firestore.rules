@@ -2,150 +2,789 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAuthenticated() { return request.auth != null; }
-    function profileExists() { return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.token.email)); }
-    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data; }
-    function isOwnerAdmin() { return isAuthenticated() && request.auth.token.email == "r.camargo.pires@gmail.com" && request.auth.token.email_verified == true; }
-    function isActive() { return isOwnerAdmin() || (profileExists() && profile().status == 'active'); }
-    function role() { return isOwnerAdmin() ? 'admin' : (profileExists() ? profile().role : ''); }
-    function isAdmin() { return isActive() && role() == 'admin'; }
-    function isManager() { return isActive() && (role() == 'manager' || role() == 'admin'); }
-    function isSeller() { return isActive() && (role() == 'seller' || role() == 'user'); }
-    function isReception() { return isActive() && role() == 'reception'; }
-    function myCompany() { return profileExists() && ('companyId' in profile()) ? profile().companyId : 'abrao-reze'; }
-    function myStore() { return profileExists() && ('storeId' in profile()) ? profile().storeId : 'outlet-sorocaba'; }
-    function dataCompany(data) { return ('companyId' in data) ? data.companyId : 'abrao-reze'; }
-    function dataStore(data) { return ('storeId' in data) ? data.storeId : 'outlet-sorocaba'; }
-    function sameCompany(data) { return isActive() && dataCompany(data) == myCompany(); }
-    function sameStore(data) { return sameCompany(data) && dataStore(data) == myStore(); }
-    function ownsDeal() { return resource.data.userId == request.auth.token.email || resource.data.userId == request.auth.uid; }
-    function createsOwnDeal() { return request.resource.data.userId == request.auth.token.email || request.resource.data.userId == request.auth.uid; }
-    function assignedPassage(data) { return isSeller() && data.assignedSellerEmail == request.auth.token.email; }
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function profileExists() {
+      return isAuthenticated() &&
+        exists(
+          /databases/$(database)/documents/users/$(request.auth.token.email)
+        );
+    }
+
+    function profile() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.token.email)
+      ).data;
+    }
+
+    function isOwnerAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.email == "r.camargo.pires@gmail.com" &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isActive() {
+      return isOwnerAdmin() ||
+        (
+          profileExists() &&
+          profile().status == 'active'
+        );
+    }
+
+    function role() {
+      return isOwnerAdmin()
+        ? 'admin'
+        : (
+            profileExists()
+              ? profile().role
+              : ''
+          );
+    }
+
+    function isAdmin() {
+      return isActive() &&
+        role() == 'admin';
+    }
+
+    function isManager() {
+      return isActive() &&
+        (
+          role() == 'manager' ||
+          role() == 'admin'
+        );
+    }
+
+    function isSeller() {
+      return isActive() &&
+        (
+          role() == 'seller' ||
+          role() == 'user'
+        );
+    }
+
+    function isReception() {
+      return isActive() &&
+        role() == 'reception';
+    }
+
+    function isDirector() {
+      return isActive() &&
+        role() == 'director';
+    }
+
+    function myCompany() {
+      return profileExists() &&
+        ('companyId' in profile())
+          ? profile().companyId
+          : 'abrao-reze';
+    }
+
+    function myStore() {
+      return profileExists() &&
+        ('storeId' in profile())
+          ? profile().storeId
+          : 'outlet-sorocaba';
+    }
+
+    function dataCompany(data) {
+      return ('companyId' in data)
+        ? data.companyId
+        : 'abrao-reze';
+    }
+
+    function dataStore(data) {
+      return ('storeId' in data)
+        ? data.storeId
+        : 'outlet-sorocaba';
+    }
+
+    function sameCompany(data) {
+      return isActive() &&
+        dataCompany(data) == myCompany();
+    }
+
+    function sameStore(data) {
+      return sameCompany(data) &&
+        dataStore(data) == myStore();
+    }
+
+    function ownsDeal() {
+      return resource.data.userId == request.auth.token.email ||
+        resource.data.userId == request.auth.uid;
+    }
+
+    function createsOwnDeal() {
+      return request.resource.data.userId == request.auth.token.email ||
+        request.resource.data.userId == request.auth.uid;
+    }
+
+    function assignedPassage(data) {
+      return isSeller() &&
+        data.assignedSellerEmail == request.auth.token.email;
+    }
+
     function assignedAction(data) {
       return isSeller() &&
-        ('kind' in data) && data.kind == 'action_task' &&
-        ('assignedToEmail' in data) && data.assignedToEmail == request.auth.token.email;
+        ('kind' in data) &&
+        data.kind == 'action_task' &&
+        ('assignedToEmail' in data) &&
+        data.assignedToEmail == request.auth.token.email;
     }
+
+
+    // =====================================================
+    // USUÁRIOS
+    // =====================================================
 
     match /users/{email} {
-      allow read: if isAuthenticated() && (request.auth.token.email == email || isAdmin() || ((role() == 'manager' || role() == 'seller' || role() == 'user') && sameStore(resource.data)));
+
+      allow read: if isAuthenticated() && (
+        request.auth.token.email == email ||
+
+        isAdmin() ||
+
+        (
+          (
+            role() == 'manager' ||
+            role() == 'seller' ||
+            role() == 'user'
+          ) &&
+          sameStore(resource.data)
+        )
+      );
+
       allow write: if isAdmin();
     }
+
+
+    // =====================================================
+    // DEALGUARD / NEGOCIAÇÕES
+    // DIRETOR NÃO TEM ACESSO
+    // =====================================================
+
     match /deals/{dealId} {
-      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data)) || (isSeller() && ownsDeal() && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data)) || (isSeller() && createsOwnDeal() && sameStore(request.resource.data));
-      allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) || (isSeller() && ownsDeal() && createsOwnDeal() && sameStore(resource.data) && sameStore(request.resource.data));
-      allow delete: if isAdmin();
-    }
-    match /config/{document} {
-      allow read: if isAdmin() || (isActive() && !isReception() && document != 'companies' && document != 'multistore' && document != 'tenant_security');
-      allow write: if isAdmin();
-    }
-    match /operational_stock/{itemId} {
-      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
-      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
-    }
-    match /operational_sales/{itemId} {
-      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
-      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
-    }
-    match /market_presence/{itemId} {
-      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
-      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
-    }
-    match /prep_orders/{itemId} {
-      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
-      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
-    }
-    match /showroom_passages/{passageId} {
+
       allow read: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data)) ||
-        (isReception() && sameStore(resource.data)) ||
-        (assignedPassage(resource.data) && sameStore(resource.data));
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        ) ||
+
+        (
+          isSeller() &&
+          ownsDeal() &&
+          sameStore(resource.data)
+        );
 
       allow create: if isAdmin() ||
-        (role() == 'manager' && sameStore(request.resource.data)) ||
-        (isReception() && sameStore(request.resource.data));
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        ) ||
+
+        (
+          isSeller() &&
+          createsOwnDeal() &&
+          sameStore(request.resource.data)
+        );
 
       allow update: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
+
         (
-          assignedPassage(resource.data) &&
+          role() == 'manager' &&
           sameStore(resource.data) &&
-          sameStore(request.resource.data) &&
-          request.resource.data.assignedSellerEmail == resource.data.assignedSellerEmail &&
-          request.resource.data.companyId == resource.data.companyId &&
-          request.resource.data.storeId == resource.data.storeId &&
-          request.resource.data.customerName == resource.data.customerName &&
-          request.resource.data.phone == resource.data.phone &&
-          request.resource.data.interestModel == resource.data.interestModel &&
-          request.resource.data.createdAt == resource.data.createdAt
+          sameStore(request.resource.data)
+        ) ||
+
+        (
+          isSeller() &&
+          ownsDeal() &&
+          createsOwnDeal() &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
         );
 
       allow delete: if isAdmin();
     }
-    match /showroom_queue/{queueId} {
+
+
+    // =====================================================
+    // AVALIAÇÕES DE VEÍCULOS
+    // VENDEDOR CRIA E VÊ SOMENTE AS PRÓPRIAS
+    // GERENTE ATENDE SOMENTE A PRÓPRIA LOJA
+    // =====================================================
+
+    match /evaluation_requests/{requestId} {
+
       allow read: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data)) ||
-        (isReception() && sameStore(resource.data));
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        ) ||
+
+        (
+          isSeller() &&
+          sameStore(resource.data) &&
+          resource.data.requesterEmail == request.auth.token.email
+        );
 
       allow create: if isAdmin() ||
-        (role() == 'manager' && sameStore(request.resource.data));
+
+        (
+          isSeller() &&
+          sameStore(request.resource.data) &&
+          request.resource.data.requesterEmail == request.auth.token.email &&
+          request.resource.data.status == 'requested'
+        );
 
       allow update: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
+        );
+
+      allow delete: if isAdmin();
+    }
+
+
+    // =====================================================
+    // CONFIGURAÇÕES
+    // DIRETOR SÓ PODE LER PERFORMANCE
+    // RECEPÇÃO NÃO TEM ACESSO
+    // =====================================================
+
+    match /config/{document} {
+
+      allow read: if isAdmin() ||
+
+        (
+          isDirector() &&
+          document == 'performance'
+        ) ||
+
+        (
+          isActive() &&
+          !isReception() &&
+          !isDirector() &&
+          document != 'companies' &&
+          document != 'multistore' &&
+          document != 'tenant_security'
+        );
+
+      allow write: if isAdmin();
+    }
+
+
+    // =====================================================
+    // ESCOPO EXECUTIVO DA DIRETORIA
+    // UMA EMPRESA NÃO ENXERGA A OUTRA
+    // =====================================================
+
+    match /director_scope/{companyId} {
+
+      allow read: if isAdmin() ||
+
+        (
+          isDirector() &&
+          companyId == myCompany() &&
+          resource.data.companyId == myCompany()
+        );
+
+      allow write: if isAdmin();
+    }
+
+
+    // =====================================================
+    // ESTOQUE OPERACIONAL
+    // DIRETOR LÊ TODAS AS LOJAS DA PRÓPRIA EMPRESA
+    // =====================================================
+
+    match /operational_stock/{itemId} {
+
+      allow read: if isAdmin() ||
+
+        (
+          isDirector() &&
+          sameCompany(resource.data)
+        ) ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        );
+
+      allow create: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        );
+
+      allow update, delete: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
+        );
+    }
+
+
+    // =====================================================
+    // VENDAS OPERACIONAIS
+    // DIRETOR NÃO RECEBE VENDA INDIVIDUAL
+    // =====================================================
+
+    match /operational_sales/{itemId} {
+
+      allow read: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        );
+
+      allow create: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        );
+
+      allow update, delete: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
+        );
+    }
+
+
+    // =====================================================
+    // MARKET PRESENCE
+    // DIRETOR NÃO TEM ACESSO AO DETALHE
+    // =====================================================
+
+    match /market_presence/{itemId} {
+
+      allow read: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        );
+
+      allow create: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        );
+
+      allow update, delete: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
+        );
+    }
+
+
+    // =====================================================
+    // PREPTRACK
+    // DIRETOR NÃO TEM ACESSO OPERACIONAL
+    // =====================================================
+
+    match /prep_orders/{itemId} {
+
+      allow read: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        );
+
+      allow create: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        );
+
+      allow update, delete: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
+        );
+    }
+
+
+    // =====================================================
+    // SHOWROOMFLOW
+    // PASSAGENS DE CLIENTES
+    // DIRETOR NÃO ACESSA CLIENTES INDIVIDUAIS
+    // =====================================================
+
+    match /showroom_passages/{passageId} {
+
+      allow read: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        ) ||
+
         (
           isReception() &&
+          sameStore(resource.data)
+        ) ||
+
+        (
+          assignedPassage(resource.data) &&
+          sameStore(resource.data)
+        );
+
+
+      allow create: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        ) ||
+
+        (
+          isReception() &&
+          sameStore(request.resource.data)
+        );
+
+
+      allow update: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
+        ) ||
+
+        (
+          assignedPassage(resource.data) &&
+
           sameStore(resource.data) &&
           sameStore(request.resource.data) &&
-          request.resource.data.sellers == resource.data.sellers &&
-          request.resource.data.companyId == resource.data.companyId &&
-          request.resource.data.storeId == resource.data.storeId
+
+          request.resource.data.assignedSellerEmail ==
+            resource.data.assignedSellerEmail &&
+
+          request.resource.data.companyId ==
+            resource.data.companyId &&
+
+          request.resource.data.storeId ==
+            resource.data.storeId &&
+
+          request.resource.data.customerName ==
+            resource.data.customerName &&
+
+          request.resource.data.phone ==
+            resource.data.phone &&
+
+          request.resource.data.interestModel ==
+            resource.data.interestModel &&
+
+          request.resource.data.createdAt ==
+            resource.data.createdAt
         );
 
       allow delete: if isAdmin();
     }
-    match /operational_meta/{itemId} {
+
+
+    // =====================================================
+    // SHOWROOMFLOW
+    // FILA / VEZ DOS VENDEDORES
+    // =====================================================
+
+    match /showroom_queue/{queueId} {
+
       allow read: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data)) ||
-        assignedAction(resource.data);
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        ) ||
+
+        (
+          isReception() &&
+          sameStore(resource.data)
+        );
+
 
       allow create: if isAdmin() ||
-        (role() == 'manager' && sameStore(request.resource.data));
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        );
+
 
       allow update: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
+        ) ||
+
+        (
+          isReception() &&
+
+          sameStore(resource.data) &&
+          sameStore(request.resource.data) &&
+
+          request.resource.data.sellers ==
+            resource.data.sellers &&
+
+          request.resource.data.companyId ==
+            resource.data.companyId &&
+
+          request.resource.data.storeId ==
+            resource.data.storeId
+        );
+
+      allow delete: if isAdmin();
+    }
+
+
+    // =====================================================
+    // METADADOS OPERACIONAIS
+    // DIRETOR LÊ CONSOLIDADOS DA PRÓPRIA EMPRESA
+    // VENDEDOR ACESSA SOMENTE TAREFAS ATRIBUÍDAS A ELE
+    // =====================================================
+
+    match /operational_meta/{itemId} {
+
+      allow read: if isAdmin() ||
+
+        (
+          isDirector() &&
+          sameCompany(resource.data)
+        ) ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        ) ||
+
+        (
+          assignedAction(resource.data) &&
+          sameStore(resource.data)
+        );
+
+
+      allow create: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        );
+
+
+      allow update: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
+        ) ||
+
         (
           assignedAction(resource.data) &&
           assignedAction(request.resource.data) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'result', 'updatedAt', 'completedAt']) &&
-          request.resource.data.status in ['open', 'in_progress', 'done']
+
+          sameStore(resource.data) &&
+          sameStore(request.resource.data) &&
+
+          request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasOnly([
+              'status',
+              'result',
+              'updatedAt',
+              'completedAt'
+            ]) &&
+
+          request.resource.data.status in [
+            'open',
+            'in_progress',
+            'done'
+          ]
         );
 
+
       allow delete: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data));
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        );
     }
+
+
+    // =====================================================
+    // IMPORTAÇÕES
+    // DIRETOR NÃO TEM ACESSO
+    // =====================================================
+
     match /operational_imports/{itemId} {
-      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+
+      allow read: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        );
+
+      allow create: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        );
+
       allow update, delete: if isAdmin();
     }
+
+
+    // =====================================================
+    // PERFORMANCE PRIVADA DO VENDEDOR
+    // DIRETOR NÃO TEM ACESSO INDIVIDUAL
+    // =====================================================
+
     match /seller_performance/{email} {
-      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data)) || (isSeller() && request.auth.token.email == email && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
-      allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+
+      allow read: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data)
+        ) ||
+
+        (
+          isSeller() &&
+          request.auth.token.email == email &&
+          sameStore(resource.data)
+        );
+
+      allow create: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(request.resource.data)
+        );
+
+      allow update: if isAdmin() ||
+
+        (
+          role() == 'manager' &&
+          sameStore(resource.data) &&
+          sameStore(request.resource.data)
+        );
+
       allow delete: if isAdmin();
+
+
       match /history/{snapshotDate} {
-        allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data)) || (isSeller() && request.auth.token.email == email && sameStore(resource.data));
-        allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
-        allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+
+        allow read: if isAdmin() ||
+
+          (
+            role() == 'manager' &&
+            sameStore(resource.data)
+          ) ||
+
+          (
+            isSeller() &&
+            request.auth.token.email == email &&
+            sameStore(resource.data)
+          );
+
+        allow create: if isAdmin() ||
+
+          (
+            role() == 'manager' &&
+            sameStore(request.resource.data)
+          );
+
+        allow update: if isAdmin() ||
+
+          (
+            role() == 'manager' &&
+            sameStore(resource.data) &&
+            sameStore(request.resource.data)
+          );
+
         allow delete: if isAdmin();
       }
     }
-    match /{document=**} { allow read, write: if false; }
+
+
+    // =====================================================
+    // RESUMO EXECUTIVO POR LOJA
+    // SHOWROOMFLOW + PREPTRACK SEM DADOS SENSÍVEIS
+    // =====================================================
+
+    match /executive_store_summary/{summaryId} {
+
+      // Admin pode ler tudo.
+      // Diretor lê somente resumos da própria empresa.
+      allow read: if isAdmin() ||
+
+        (
+          isDirector() &&
+          sameCompany(resource.data)
+        );
+
+
+      // O resumo é criado pelo administrador a partir
+      // dos dados operacionais da empresa.
+      allow create: if isAdmin() &&
+        sameCompany(request.resource.data);
+
+
+      // Atualização só pelo administrador e não permite
+      // mover o resumo para outra empresa.
+      allow update: if isAdmin() &&
+        sameCompany(resource.data) &&
+        sameCompany(request.resource.data) &&
+        request.resource.data.companyId ==
+          resource.data.companyId &&
+        request.resource.data.storeId ==
+          resource.data.storeId;
+
+
+      allow delete: if isAdmin();
+    }
+
+
+    // =====================================================
+    // BLOQUEIO PADRÃO
+    // QUALQUER COISA NÃO LIBERADA ACIMA É NEGADA
+    // =====================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
