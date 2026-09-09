@@ -22,18 +22,20 @@ const MarketIQShell:React.FC=()=>{
    const company=isAdmin?companyScopeService.get(profile):companyIdForUser(profile);
    const store=isAdmin?storeScopeService.get(profile):storeIdForUser(profile);
    setCompanyId(company);setStoreId(store);
+   if(profile.role==='evaluator') { setStoreName('Unidade do avaliador'); return; }
    try{const stores=await storeService.getAll();setStoreName(storeService.getName(stores.filter((s:any)=>(s.companyId||company)===company),store));}catch{setStoreName('Unidade ativa');}
  };
- useEffect(()=>onAuthStateChanged(auth,async fb=>{if(!fb?.email){setUser(null);return;}try{const p=await userService.getUser(fb.email);if(!p||p.status!=='active'||!['admin','manager'].includes(String(p.role))){setUser(null);return;}setUser(p);await resolve(p);}catch{setUser(null);}}),[]);
+ useEffect(()=>onAuthStateChanged(auth,async fb=>{if(!fb?.email){setUser(null);return;}try{const p=await userService.getUser(fb.email);if(!p||p.status!=='active'||!['admin','manager','evaluator'].includes(String(p.role))){setUser(null);return;}setUser(p);await resolve(p);}catch{setUser(null);}}),[]);
  useEffect(()=>{if(!user||user.role!=='admin')return;const refresh=()=>void resolve(user);window.addEventListener(COMPANY_SCOPE_EVENT,refresh);window.addEventListener(STORE_SCOPE_EVENT,refresh);return()=>{window.removeEventListener(COMPANY_SCOPE_EVENT,refresh);window.removeEventListener(STORE_SCOPE_EVENT,refresh);};},[user]);
  if(!user||!companyId||!storeId)return null;
  const activeStoreName=storeName||'Unidade ativa';
+ const evaluator=user.role==='evaluator';
  return <>
    <MarketIQ currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQPersistenceBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQSaveNotice/>
    <MarketIQHistoryPanel currentUser={user} companyId={companyId} storeId={storeId}/>
-   <MarketIQShowroomLinkBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
+   {!evaluator&&<MarketIQShowroomLinkBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>} 
    <MarketIQMediaPanel companyId={companyId} storeId={storeId}/>
    <MarketIQMarketScanBridge storeName={activeStoreName}/>
  </>;
