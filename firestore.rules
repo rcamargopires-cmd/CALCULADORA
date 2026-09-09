@@ -37,6 +37,24 @@ service cloud.firestore {
       allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) || (isSeller() && ownsDeal() && createsOwnDeal() && sameStore(resource.data) && sameStore(request.resource.data));
       allow delete: if isAdmin();
     }
+    match /evaluation_requests/{requestId} {
+      allow read: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data)) ||
+        (isSeller() && sameStore(resource.data) && resource.data.requesterEmail == request.auth.token.email);
+
+      allow create: if isAdmin() ||
+        (
+          isSeller() &&
+          sameStore(request.resource.data) &&
+          request.resource.data.requesterEmail == request.auth.token.email &&
+          request.resource.data.status == 'requested'
+        );
+
+      allow update: if isAdmin() ||
+        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+
+      allow delete: if isAdmin();
+    }
     match /config/{document} {
       allow read: if isAdmin() || (isActive() && !isReception() && document != 'companies' && document != 'multistore' && document != 'tenant_security');
       allow write: if isAdmin();
