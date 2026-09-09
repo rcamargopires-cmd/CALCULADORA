@@ -25,31 +25,35 @@ import SellerShowroomAutoReset from './components/SellerShowroomAutoReset';
 import MarketIQShell from './components/MarketIQShell';
 import MarketIQLookupBridge from './components/MarketIQLookupBridge';
 import MarketIQSessionReset from './components/MarketIQSessionReset';
+import ModuleErrorBoundary from './components/ModuleErrorBoundary';
 
-// Stable pre-theme baseline. This comment intentionally triggers a clean production deploy.
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
+const Safe = ({ name, children }: { name: string; children: React.ReactNode }) => (
+  <ModuleErrorBoundary name={name}>{children}</ModuleErrorBoundary>
+);
+
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
-    <ManagerTopNav />
-    <OperationalTools />
-    <TradeCheckShell />
-    <MarketPresenceCorrectionShell />
-    <UnifiedStockAuditNotice />
-    <EnvironmentHeaderBadge />
-    <SellerShowroomSoundAlert />
-    <ShowroomDealLinkBridge />
-    <GroupStockModule />
-    <GroupStockHostRepair />
-    <ManagerShowroomProposalsShell />
-    <SellerShowroomAutoReset />
-    <MarketIQShell />
-    <MarketIQLookupBridge />
-    <MarketIQSessionReset />
+    <ModuleErrorBoundary name="App" critical><App /></ModuleErrorBoundary>
+    <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
+    <Safe name="OperationalTools"><OperationalTools /></Safe>
+    <Safe name="TradeCheckShell"><TradeCheckShell /></Safe>
+    <Safe name="MarketPresenceCorrectionShell"><MarketPresenceCorrectionShell /></Safe>
+    <Safe name="UnifiedStockAuditNotice"><UnifiedStockAuditNotice /></Safe>
+    <Safe name="EnvironmentHeaderBadge"><EnvironmentHeaderBadge /></Safe>
+    <Safe name="SellerShowroomSoundAlert"><SellerShowroomSoundAlert /></Safe>
+    <Safe name="ShowroomDealLinkBridge"><ShowroomDealLinkBridge /></Safe>
+    <Safe name="GroupStockModule"><GroupStockModule /></Safe>
+    <Safe name="GroupStockHostRepair"><GroupStockHostRepair /></Safe>
+    <Safe name="ManagerShowroomProposalsShell"><ManagerShowroomProposalsShell /></Safe>
+    <Safe name="SellerShowroomAutoReset"><SellerShowroomAutoReset /></Safe>
+    <Safe name="MarketIQShell"><MarketIQShell /></Safe>
+    <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
+    <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
   </React.StrictMode>
 );
