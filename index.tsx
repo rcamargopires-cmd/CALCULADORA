@@ -27,6 +27,7 @@ import MarketIQLookupBridge from './components/MarketIQLookupBridge';
 import MarketIQSessionReset from './components/MarketIQSessionReset';
 import ModuleErrorBoundary from './components/ModuleErrorBoundary';
 import EvaluationCenter from './components/EvaluationCenter';
+import EvaluationDecisionBridge from './components/EvaluationDecisionBridge';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -53,6 +54,7 @@ root.render(
     <Safe name="GroupStockHostRepair"><GroupStockHostRepair /></Safe>
     <Safe name="ManagerShowroomProposalsShell"><ManagerShowroomProposalsShell /></Safe>
     <Safe name="SellerShowroomAutoReset"><SellerShowroomAutoReset /></Safe>
+    <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
     <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
     <Safe name="MarketIQShell"><MarketIQShell /></Safe>
     <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
