@@ -41,10 +41,10 @@ const SellerDeliveryAgendaShortcut: React.FC = () => {
       target="_blank"
       rel="noopener noreferrer"
       title="Abrir Agenda de Entregas"
-      className="flex items-center gap-2 rounded-md px-4 py-1.5 text-xs font-bold text-zinc-500 transition-all hover:text-zinc-300"
+      className="flex items-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs font-bold text-zinc-500 transition-all hover:text-zinc-300"
     >
       <CalendarDays size={14}/>
-      AGENDA DE ENTREGA
+      ENTREGAS
     </a>,
     slot,
   );
