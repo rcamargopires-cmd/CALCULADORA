@@ -42,6 +42,12 @@ service cloud.firestore {
     function isMarketIqRecord(data) {
       return ('kind' in data) && data.kind in ['marketiq_evaluation', 'marketiq_vehicle_identity', 'marketiq_media'];
     }
+    function isMarketIqUsage(data) {
+      return ('kind' in data) && data.kind == 'marketiq_usage';
+    }
+    function sameCompanyMarketIqUsage(data) {
+      return (isEvaluator() || isManager()) && isMarketIqUsage(data) && dataCompany(data) == myCompany();
+    }
 
     match /users/{email} {
       allow read: if isAuthenticated() && (
@@ -97,6 +103,7 @@ service cloud.firestore {
       allow read: if isAdmin() ||
         (isDirector() && document == 'performance') ||
         (isEvaluator() && document == ('group_stock_' + myCompany())) ||
+        (isEvaluator() && document == ('marketiq_plan_' + myCompany())) ||
         (
           isActive() && !isReception() && !isDirector() &&
           document != 'companies' && document != 'multistore' && document != 'tenant_security'
@@ -175,11 +182,17 @@ service cloud.firestore {
         (isDirector() && sameCompany(resource.data)) ||
         (role() == 'manager' && sameStore(resource.data)) ||
         (assignedAction(resource.data) && sameStore(resource.data)) ||
-        (evaluatorSameStore(resource.data) && isMarketIqRecord(resource.data));
+        (evaluatorSameStore(resource.data) && isMarketIqRecord(resource.data)) ||
+        sameCompanyMarketIqUsage(resource.data);
 
       allow create: if isAdmin() ||
         (role() == 'manager' && sameStore(request.resource.data)) ||
-        (evaluatorSameStore(request.resource.data) && isMarketIqRecord(request.resource.data));
+        (evaluatorSameStore(request.resource.data) && isMarketIqRecord(request.resource.data)) ||
+        (
+          sameCompanyMarketIqUsage(request.resource.data) &&
+          request.resource.data.used == 1 &&
+          request.resource.data.consultationIds.size() == 1
+        );
 
       allow update: if isAdmin() ||
         (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
@@ -195,6 +208,15 @@ service cloud.firestore {
           request.resource.data.kind == resource.data.kind &&
           request.resource.data.companyId == resource.data.companyId &&
           request.resource.data.storeId == resource.data.storeId
+        ) ||
+        (
+          sameCompanyMarketIqUsage(resource.data) && sameCompanyMarketIqUsage(request.resource.data) &&
+          request.resource.data.kind == resource.data.kind &&
+          request.resource.data.companyId == resource.data.companyId &&
+          request.resource.data.month == resource.data.month &&
+          request.resource.data.used == resource.data.used + 1 &&
+          request.resource.data.consultationIds.size() == resource.data.consultationIds.size() + 1 &&
+          request.resource.data.consultationIds.hasAll(resource.data.consultationIds)
         );
 
       allow delete: if isAdmin() ||
