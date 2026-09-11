@@ -80,7 +80,7 @@ export default async function handler(req:any,res:any){
     }catch(error){console.error('MarketIQ PRODESP identify failed',error);}
   }
 
-  // DadosAPI test endpoint supplied by the provider: plate-only lookup.
+  // DadosAPI v1 plate-only lookup. Preview redeploys pick up the protected DADOS_API_KEY variable.
   if(dadosApiKey&&hasPlate){
     attempted=true;
     try{
