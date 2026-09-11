@@ -44,6 +44,10 @@ const fill = (data: { plate?: string; model?: string; year?: string; km?: number
   if (data.km) setInput(field('KM atual'), String(data.km));
   if (data.fipe) setInput(field('FIPE'), moneyInput(data.fipe));
 };
+const permissionDenied = (error: unknown) => {
+  const value = String((error as any)?.code || (error as any)?.message || error || '').toLowerCase();
+  return value.includes('permission') || value.includes('insufficient');
+};
 
 const lookupFipe = async (input: { brand: string; model: string; year: string; fuel?: string }) => {
   if (!input.model || !input.year) return null;
@@ -172,7 +176,13 @@ const MarketIQLookupBridge: React.FC = () => {
       if (!currentUser) throw new Error('Sua sessão expirou. Entre novamente no MOTYQ.');
       const companyId = companyScopeService.get(user);
       const storeId = storeScopeService.get(user);
-      await marketIqQuotaService.assertAvailable(companyId);
+      try {
+        await marketIqQuotaService.assertAvailable(companyId);
+      } catch (error) {
+        if (error instanceof MarketIqQuotaExceededError) throw error;
+        if (!permissionDenied(error)) throw error;
+        console.warn('MarketIQ quota permissions are not published yet; continuing preview lookup without quota gate.');
+      }
 
       const token = await currentUser.getIdToken();
       const response = await fetch('/api/marketiq-identify', {
@@ -194,12 +204,18 @@ const MarketIQLookupBridge: React.FC = () => {
         let fipeCode = String(payload?.fipeCode || '');
 
         if (!model) throw new Error('A consulta retornou o veículo, mas não conseguiu definir modelo/versão.');
-        await marketIqQuotaService.consumeEvaluation({
-          companyId,
-          storeId,
-          userEmail: currentUser.email || user.email,
-          sessionId: marketIqQuotaService.getEvaluationSessionId(),
-        });
+        try {
+          await marketIqQuotaService.consumeEvaluation({
+            companyId,
+            storeId,
+            userEmail: currentUser.email || user.email,
+            sessionId: marketIqQuotaService.getEvaluationSessionId(),
+          });
+        } catch (error) {
+          if (error instanceof MarketIqQuotaExceededError) throw error;
+          if (!permissionDenied(error)) throw error;
+          console.warn('MarketIQ quota usage could not be persisted in preview; vehicle identification remains valid.');
+        }
 
         fill({ plate: resolvedPlate || undefined, model, year, fipe: fipeValue || undefined });
         if (resolvedRenavam) setRenavam(resolvedRenavam);
