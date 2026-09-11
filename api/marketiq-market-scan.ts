@@ -23,6 +23,9 @@ type Comparable = {
   url?: string | null;
 };
 
+type MarketLevel = 'high' | 'medium' | 'low';
+type PriceTrend = 'up' | 'stable' | 'down';
+
 const toNumber = (value: unknown) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   const raw = String(value ?? '').trim();
@@ -44,6 +47,7 @@ const median = (values: number[]) => {
 };
 
 const round100 = (value: number) => Math.round(value / 100) * 100;
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const parseJson = (text: string) => {
   const clean = String(text || '').replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -59,6 +63,25 @@ const parseJson = (text: string) => {
 const domainOf = (url: string) => {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
 };
+
+const normalizeLevel = (value: unknown, fallback: MarketLevel): MarketLevel => {
+  const v = String(value || '').toLowerCase();
+  if (v === 'high' || v === 'alta' || v === 'alto') return 'high';
+  if (v === 'low' || v === 'baixa' || v === 'baixo') return 'low';
+  if (v === 'medium' || v === 'media' || v === 'média' || v === 'medio' || v === 'médio') return 'medium';
+  return fallback;
+};
+
+const normalizeTrend = (value: unknown): PriceTrend => {
+  const v = String(value || '').toLowerCase();
+  if (v === 'up' || v === 'alta' || v === 'subindo') return 'up';
+  if (v === 'down' || v === 'queda' || v === 'caindo') return 'down';
+  return 'stable';
+};
+
+const demandScore = (value: MarketLevel) => value === 'high' ? 90 : value === 'low' ? 35 : 65;
+const supplyScore = (value: MarketLevel) => value === 'high' ? 35 : value === 'low' ? 90 : 65;
+const competitionScore = (value: MarketLevel) => value === 'high' ? 40 : value === 'low' ? 85 : 65;
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -89,7 +112,7 @@ export default async function handler(req: any, res: any) {
 
     const prompt = `
 Você é o motor MarketScan de uma concessionária brasileira de veículos seminovos.
-Use a Pesquisa Google para localizar anúncios REAIS E ATUAIS de veículos comparáveis ao carro abaixo.
+Use a Pesquisa Google para analisar o mercado ATUAL do veículo abaixo.
 
 VEÍCULO ALVO
 - Modelo / versão: ${model}
@@ -98,7 +121,8 @@ VEÍCULO ALVO
 - FIPE atual: ${fipe || 'não informada'}
 - Unidade/região: ${storeName}
 
-FONTES PRIORITÁRIAS
+PARTE 1 · COMPARÁVEIS DIRETOS PARA PREÇO
+Procure anúncios reais e atuais, priorizando:
 1. Webmotors
 2. OLX Autos
 3. iCarros
@@ -106,15 +130,35 @@ FONTES PRIORITÁRIAS
 5. Mercado Livre Veículos
 6. Portais e lojas de seminovos confiáveis
 
-REGRAS DE COMPARABILIDADE
+REGRAS DOS COMPARÁVEIS
 - Priorize EXATAMENTE a mesma versão e o mesmo ano/modelo.
 - Se houver poucos anúncios, aceite ano ${year - 1} a ${year + 1}, deixando isso explícito.
 - Priorize Sorocaba e interior de SP; se necessário, amplie para o estado de São Paulo.
 - Se KM estiver disponível, prefira veículos próximos da quilometragem alvo.
-- Considere apenas preço total anunciado do veículo. Ignore parcela, entrada, consórcio, aluguel e anúncios sem preço claro.
+- Considere apenas preço total anunciado. Ignore parcela, entrada, consórcio, aluguel e anúncios sem preço claro.
 - Não invente preço, URL, quilometragem, versão ou localização.
-- Se uma informação não estiver visível no resultado pesquisado, use null.
-- Retorne no máximo 15 comparáveis.
+- Se uma informação não estiver visível, use null.
+- Retorne no máximo 15 comparáveis. Essa lista é uma AMOSTRA, nunca chame de estoque total do mercado.
+
+PARTE 2 · OFERTA × DEMANDA E PRESSÃO COMPETITIVA
+Além dos comparáveis diretos, pesquise sinais atuais que ajudem a estimar:
+- OFERTA: baixa, média ou alta para este modelo/versão/faixa de preço.
+- DEMANDA ESTIMADA: baixa, média ou alta.
+- CONCORRÊNCIA: baixa, média ou alta considerando veículos substitutos de segmento, preço e proposta semelhantes, inclusive marcas chinesas, híbridos e elétricos quando relevantes.
+- TENDÊNCIA DE PREÇO: alta, estabilidade ou queda.
+
+Para avaliar OFERTA, considere a abundância aparente de anúncios nas fontes pesquisadas e repetição do mesmo modelo/faixa.
+Para avaliar DEMANDA, procure sinais públicos atuais como liquidez citada por fontes confiáveis, emplacamentos quando aplicáveis, procura do modelo/segmento, tempo de estoque citado, comportamento de preço e notícias recentes. Se não houver evidência forte, use "medium".
+Para avaliar CONCORRÊNCIA, considere alternativas que disputam o mesmo comprador e promoções agressivas de veículos zero km que possam pressionar o seminovo.
+Para TENDÊNCIA, considere descontos recentes, mudanças de preço do zero km, lançamentos, desvalorizações e comportamento dos anúncios.
+
+IMPORTANTE
+- Demanda é uma ESTIMATIVA baseada em sinais públicos. Não invente volume de vendas.
+- Não informe quantidade total de carros à venda se a fonte não fornecer esse total.
+- Não confunda os até 15 comparáveis retornados com a oferta total.
+- Seja conservador quando a evidência for fraca.
+- O rationale deve explicar de forma curta por que classificou oferta, demanda e concorrência.
+- evidence deve trazer até 4 sinais concretos encontrados na pesquisa.
 
 RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
 {
@@ -129,6 +173,17 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
       "url": null
     }
   ],
+  "marketSignals": {
+    "supply": "high",
+    "demand": "medium",
+    "competition": "high",
+    "priceTrend": "down",
+    "rationale": "resumo curto e objetivo",
+    "evidence": [
+      "sinal concreto 1",
+      "sinal concreto 2"
+    ]
+  },
   "notes": "resumo curto sobre qualidade/amplitude da amostra"
 }
 `;
@@ -190,11 +245,45 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         ? 'medium'
         : 'low';
 
+    const rawSignals = parsed?.marketSignals || {};
+    const fallbackSupply: MarketLevel = sample.length >= 10 ? 'high' : sample.length >= 4 ? 'medium' : 'low';
+    const supply = normalizeLevel(rawSignals.supply, fallbackSupply);
+    const demand = normalizeLevel(rawSignals.demand, 'medium');
+    const competition = normalizeLevel(rawSignals.competition, 'medium');
+    const priceTrend = normalizeTrend(rawSignals.priceTrend);
+
+    const balanceScore = Math.round(clamp(
+      demandScore(demand) * 0.45 +
+      supplyScore(supply) * 0.35 +
+      competitionScore(competition) * 0.20,
+      20,
+      95,
+    ));
+    const turnoverRisk = balanceScore >= 78 ? 'low' : balanceScore >= 58 ? 'medium' : 'high';
+    const evidence = Array.isArray(rawSignals.evidence)
+      ? rawSignals.evidence.map((item: unknown) => String(item || '').trim()).filter(Boolean).slice(0, 4)
+      : [];
+    const rationale = String(rawSignals.rationale || '').trim()
+      || `Oferta ${supply === 'high' ? 'alta' : supply === 'low' ? 'baixa' : 'média'}, demanda estimada ${demand === 'high' ? 'alta' : demand === 'low' ? 'baixa' : 'média'} e concorrência ${competition === 'high' ? 'alta' : competition === 'low' ? 'baixa' : 'média'}.`;
+
+    const marketSignals = {
+      supply,
+      demand,
+      competition,
+      priceTrend,
+      balanceScore,
+      turnoverRisk,
+      rationale,
+      evidence,
+      sampleIsNotTotal: true,
+    };
+
     if (!sample.length || !observed) {
       return res.status(200).json({
         comparables: [],
         stats: { count: 0, low: 0, median: 0, high: 0, observed: 0 },
         confidence: 'low',
+        marketSignals,
         notes: parsed?.notes || 'Não encontrei comparáveis suficientes com preço verificável.',
         sources,
         searchQueries: grounding?.webSearchQueries || [],
@@ -211,6 +300,7 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         observed: round100(observed),
       },
       confidence,
+      marketSignals,
       notes: parsed?.notes || '',
       sources,
       searchQueries: grounding?.webSearchQueries || [],

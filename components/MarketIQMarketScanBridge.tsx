@@ -15,10 +15,26 @@ type Comparable = {
   url?: string;
 };
 
+type MarketLevel = 'high' | 'medium' | 'low';
+type PriceTrend = 'up' | 'stable' | 'down';
+
+type MarketSignals = {
+  supply: MarketLevel;
+  demand: MarketLevel;
+  competition: MarketLevel;
+  priceTrend: PriceTrend;
+  balanceScore: number;
+  turnoverRisk: 'low' | 'medium' | 'high';
+  rationale?: string;
+  evidence?: string[];
+  sampleIsNotTotal?: boolean;
+};
+
 type ScanResult = {
   comparables: Comparable[];
   stats: { count: number; low: number; median: number; high: number; observed: number };
   confidence: 'high' | 'medium' | 'low';
+  marketSignals?: MarketSignals;
   notes?: string;
   sources?: Array<{ title: string; url: string }>;
   searchQueries?: string[];
@@ -60,6 +76,15 @@ const confidenceClass = (value: ScanResult['confidence']) => value === 'high'
   : value === 'medium'
     ? 'border-amber-200 bg-amber-50 text-amber-700'
     : 'border-rose-200 bg-rose-50 text-rose-700';
+
+const levelLabel = (value?: MarketLevel) => value === 'high' ? 'ALTA' : value === 'low' ? 'BAIXA' : 'MÉDIA';
+const trendLabel = (value?: PriceTrend) => value === 'up' ? 'ALTA' : value === 'down' ? 'QUEDA' : 'ESTÁVEL';
+const riskLabel = (value?: MarketSignals['turnoverRisk']) => value === 'low' ? 'BAIXO' : value === 'high' ? 'ALTO' : 'MODERADO';
+const levelTone = (value: MarketLevel | undefined, reverse = false) => {
+  const good = reverse ? value === 'low' : value === 'high';
+  const bad = reverse ? value === 'high' : value === 'low';
+  return good ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : bad ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-700';
+};
 
 const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
@@ -153,18 +178,35 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
     setInput(field('Faixa mínima'), moneyInput(result.stats.low));
     setInput(field('Faixa máxima'), moneyInput(result.stats.high));
     if (typicalKm) setInput(field('KM típico comparável'), String(typicalKm));
+
+    const signals = result.marketSignals;
+    if (signals) {
+      window.dispatchEvent(new CustomEvent('motyq:marketiq-market-pressure-applied', {
+        detail: {
+          supply: signals.supply,
+          demand: signals.demand,
+          competition: signals.competition,
+          priceTrend: signals.priceTrend,
+          balanceScore: signals.balanceScore,
+          turnoverRisk: signals.turnoverRisk,
+          rationale: signals.rationale || '',
+        },
+      }));
+    }
     setApplied(true);
   };
 
   const trigger = <button
     onClick={() => void scan()}
     disabled={loading}
-    title="Pesquisar anúncios comparáveis na web"
+    title="Pesquisar mercado, oferta, demanda e concorrência"
     className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-cyan-200 bg-white px-2.5 text-[10px] font-black uppercase tracking-[.08em] text-cyan-700 transition hover:bg-cyan-50 disabled:opacity-60"
   >
     {loading ? <RefreshCw size={12} className="animate-spin" /> : <Search size={12} />}
     MARKETSCAN
   </button>;
+
+  const signals = result?.marketSignals;
 
   return <>
     {portalHost && marketVisible() && createPortal(trigger, portalHost)}
@@ -174,7 +216,7 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 md:px-6">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.16em] text-cyan-700">MOTYQ MARKETIQ · MARKETSCAN</p>
-            <h3 className="mt-1 text-xl font-semibold">Mercado real de comparáveis</h3>
+            <h3 className="mt-1 text-xl font-semibold">Mercado real + oferta × demanda</h3>
             <p className="mt-1 text-sm text-slate-500">{vehicleLabel || 'Veículo'} · pesquisa web em tempo real</p>
           </div>
           <button disabled={loading} onClick={() => setOpen(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-50"><X size={17} /></button>
@@ -184,8 +226,8 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
           {loading && <div className="grid min-h-[280px] place-items-center rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
             <div>
               <RefreshCw size={32} className="mx-auto animate-spin text-cyan-600" />
-              <p className="mt-4 font-semibold">Pesquisando anúncios comparáveis...</p>
-              <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">O MarketScan está cruzando Webmotors, OLX, iCarros, Mobiauto e outras fontes disponíveis, priorizando versão, ano, região e quilometragem.</p>
+              <p className="mt-4 font-semibold">Mapeando mercado e pressão competitiva...</p>
+              <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">O MarketScan cruza anúncios comparáveis, volume aparente de oferta, veículos substitutos, sinais de demanda e tendência de preço.</p>
             </div>
           </div>}
 
@@ -193,12 +235,32 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
 
           {!loading && result?.stats?.count > 0 && <>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">AMOSTRA</p><p className="mt-1 text-2xl font-semibold">{result.stats.count}</p><p className="mt-1 text-[10px] text-slate-500">anúncios válidos</p></div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">AMOSTRA</p><p className="mt-1 text-2xl font-semibold">{result.stats.count}</p><p className="mt-1 text-[10px] text-slate-500">comparáveis válidos</p></div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MENOR</p><p className="mt-1 text-lg font-semibold">{money(result.stats.low)}</p></div>
               <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-cyan-700">MERCADO OBSERVADO</p><p className="mt-1 text-lg font-semibold text-cyan-800">{money(result.stats.observed)}</p></div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MEDIANA</p><p className="mt-1 text-lg font-semibold">{money(result.stats.median)}</p></div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MAIOR</p><p className="mt-1 text-lg font-semibold">{money(result.stats.high)}</p></div>
             </div>
+
+            {signals && <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">ÍNDICE OFERTA × DEMANDA</p>
+                  <p className="mt-1 text-3xl font-semibold text-slate-900">{Math.round(signals.balanceScore)}/100</p>
+                </div>
+                <span className={`rounded-full border px-3 py-1 text-[10px] font-black ${signals.balanceScore >= 70 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : signals.balanceScore >= 55 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>RISCO DE GIRO {riskLabel(signals.turnoverRisk)}</span>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className={`rounded-xl border p-3 ${levelTone(signals.supply, true)}`}><p className="text-[9px] font-black uppercase tracking-[.1em] opacity-70">OFERTA</p><p className="mt-1 text-lg font-semibold">{levelLabel(signals.supply)}</p></div>
+                <div className={`rounded-xl border p-3 ${levelTone(signals.demand)}`}><p className="text-[9px] font-black uppercase tracking-[.1em] opacity-70">DEMANDA ESTIMADA</p><p className="mt-1 text-lg font-semibold">{levelLabel(signals.demand)}</p></div>
+                <div className={`rounded-xl border p-3 ${levelTone(signals.competition, true)}`}><p className="text-[9px] font-black uppercase tracking-[.1em] opacity-70">CONCORRÊNCIA</p><p className="mt-1 text-lg font-semibold">{levelLabel(signals.competition)}</p></div>
+                <div className={`rounded-xl border p-3 ${signals.priceTrend === 'up' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : signals.priceTrend === 'down' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}><p className="text-[9px] font-black uppercase tracking-[.1em] opacity-70">TENDÊNCIA DE PREÇO</p><p className="mt-1 text-lg font-semibold">{trendLabel(signals.priceTrend)}</p></div>
+              </div>
+
+              {signals.rationale && <p className="mt-4 text-sm leading-6 text-slate-600">{signals.rationale}</p>}
+              {!!signals.evidence?.length && <div className="mt-3 space-y-1">{signals.evidence.slice(0,4).map((item,index)=><p key={index} className="text-[11px] leading-5 text-slate-500">• {item}</p>)}</div>}
+            </div>}
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${confidenceClass(result.confidence)}`}>CONFIANÇA {confidenceLabel(result.confidence)}</span>
@@ -227,7 +289,7 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
             </div>}
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-              <p className="max-w-2xl text-[11px] leading-5 text-slate-500">O MarketScan usa preços anunciados, não preços efetivamente vendidos. O MarketIQ continua aplicando estado do carro, KM, preparação, giro, margem e risco antes de recomendar a compra.</p>
+              <p className="max-w-2xl text-[11px] leading-5 text-slate-500">A amostra mostra comparáveis encontrados, não o estoque total do mercado. Oferta, demanda e risco de giro são estimativas baseadas em sinais públicos atuais e servem como apoio à decisão do avaliador.</p>
               <button onClick={apply} className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black ${applied ? 'bg-emerald-600 text-white' : 'bg-cyan-600 text-white hover:bg-cyan-700'}`}>{applied ? <CheckCircle2 size={15} /> : <Search size={15} />}{applied ? 'APLICADO NO MARKETIQ' : 'APLICAR NO MARKETIQ'}</button>
             </div>
           </>}
