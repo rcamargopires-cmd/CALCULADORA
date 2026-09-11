@@ -9,6 +9,7 @@ import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companySco
 import { storeScopeService } from '../services/storeScopeService';
 import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../services/groupStockService';
 import { marketIqVehicleCacheService } from '../services/marketIqVehicleCacheService';
+import { MarketIqQuotaExceededError, marketIqQuotaService } from '../services/marketIqQuotaService';
 
 const cleanPlate = (value: string) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
 const cleanRenavam = (value: string) => String(value || '').replace(/\D/g, '').slice(0, 11);
@@ -169,6 +170,10 @@ const MarketIQLookupBridge: React.FC = () => {
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error('Sua sessão expirou. Entre novamente no MOTYQ.');
+      const companyId = companyScopeService.get(user);
+      const storeId = storeScopeService.get(user);
+      await marketIqQuotaService.assertAvailable(companyId);
+
       const token = await currentUser.getIdToken();
       const response = await fetch('/api/marketiq-identify', {
         method: 'POST',
@@ -189,6 +194,13 @@ const MarketIQLookupBridge: React.FC = () => {
         let fipeCode = String(payload?.fipeCode || '');
 
         if (!model) throw new Error('A consulta retornou o veículo, mas não conseguiu definir modelo/versão.');
+        await marketIqQuotaService.consumeEvaluation({
+          companyId,
+          storeId,
+          userEmail: currentUser.email || user.email,
+          sessionId: marketIqQuotaService.getEvaluationSessionId(),
+        });
+
         fill({ plate: resolvedPlate || undefined, model, year, fipe: fipeValue || undefined });
         if (resolvedRenavam) setRenavam(resolvedRenavam);
 
@@ -204,8 +216,6 @@ const MarketIQLookupBridge: React.FC = () => {
         }
 
         if (resolvedPlate) {
-          const companyId = companyScopeService.get(user);
-          const storeId = storeScopeService.get(user);
           await marketIqVehicleCacheService.save({
             plate: resolvedPlate,
             brand,
@@ -237,7 +247,11 @@ const MarketIQLookupBridge: React.FC = () => {
         setNotice({ kind: 'warn', text: 'Não consegui identificar automaticamente com esses dados. Confira placa/RENAVAM ou preencha modelo, ano e FIPE manualmente. O CRLV não é obrigatório.' });
       }
     } catch (error: any) {
-      setNotice({ kind: 'warn', text: error?.message || 'Não foi possível identificar o veículo agora. Você pode continuar preenchendo os dados manualmente.' });
+      if (error instanceof MarketIqQuotaExceededError) {
+        setNotice({ kind: 'warn', text: `Limite mensal atingido: ${error.status.used}/${error.status.limit} avaliações. Novas consultas ficam bloqueadas até a renovação do mês ou alteração do plano.` });
+      } else {
+        setNotice({ kind: 'warn', text: error?.message || 'Não foi possível identificar o veículo agora. Você pode continuar preenchendo os dados manualmente.' });
+      }
     } finally {
       setIdentifying(false);
     }
