@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { onAuthStateChanged } from 'firebase/auth';
+import { Search } from 'lucide-react';
 import { auth } from '../firebase';
 import { User } from '../types';
 import { userService } from '../services/userService';
@@ -7,9 +9,10 @@ import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companySco
 import { storeScopeService } from '../services/storeScopeService';
 import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../services/groupStockService';
 import { marketIqVehicleCacheService } from '../services/marketIqVehicleCacheService';
+import { MarketIqQuotaExceededError, marketIqQuotaService } from '../services/marketIqQuotaService';
 
-const CRLV_PARSER_VERSION = 2;
 const cleanPlate = (value: string) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+const cleanRenavam = (value: string) => String(value || '').replace(/\D/g, '').slice(0, 11);
 const moneyInput = (value: number) => value ? value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 const marketRoot = () => Array.from(document.querySelectorAll('div.fixed.inset-0')).find(el => String(el.textContent || '').includes('MOTYQ MARKETIQ')) as HTMLElement | undefined;
 const marketVisible = () => {
@@ -34,20 +37,20 @@ const setInput = (input: HTMLInputElement | null, value: string) => {
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
 };
-const fill = (data: { model?: string; year?: string; km?: number; fipe?: number }) => {
+const fill = (data: { plate?: string; model?: string; year?: string; km?: number; fipe?: number }) => {
+  if (data.plate) setInput(field('Placa'), data.plate);
   if (data.model) setInput(field('Modelo / versão'), data.model);
   if (data.year) setInput(field('Ano/modelo'), String(data.year));
   if (data.km) setInput(field('KM atual'), String(data.km));
   if (data.fipe) setInput(field('FIPE'), moneyInput(data.fipe));
 };
-const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
-  reader.onerror = () => reject(reader.error);
-  reader.readAsDataURL(file);
-});
+const permissionDenied = (error: unknown) => {
+  const value = String((error as any)?.code || (error as any)?.message || error || '').toLowerCase();
+  return value.includes('permission') || value.includes('insufficient');
+};
 
 const lookupFipe = async (input: { brand: string; model: string; year: string; fuel?: string }) => {
+  if (!input.model || !input.year) return null;
   const params = new URLSearchParams({ brand: input.brand, model: input.model, year: input.year });
   if (input.fuel) params.set('fuel', input.fuel);
   params.set('_ts', String(Date.now()));
@@ -57,17 +60,14 @@ const lookupFipe = async (input: { brand: string; model: string; year: string; f
 };
 
 type Notice = { kind: 'ok' | 'warn' | 'loading'; text: string } | null;
-type ExternalVehicle = { plate: string };
 
 const MarketIQLookupBridge: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [snapshot, setSnapshot] = useState<GroupStockSnapshot | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [external, setExternal] = useState<ExternalVehicle | null>(null);
-  const [readingCrlv, setReadingCrlv] = useState(false);
-  const lastPlate = useRef('');
-  const requestId = useRef(0);
-  const wasMarketVisible = useRef(false);
+  const [renavam, setRenavam] = useState('');
+  const [identifying, setIdentifying] = useState(false);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
 
   useEffect(() => onAuthStateChanged(auth, async firebaseUser => {
     if (!firebaseUser?.email) { setUser(null); return; }
@@ -96,251 +96,211 @@ const MarketIQLookupBridge: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      const visible = marketVisible();
-      if (wasMarketVisible.current && !visible) {
-        requestId.current += 1;
-        lastPlate.current = '';
-        setNotice(null);
-        setExternal(null);
-        setReadingCrlv(false);
+    const locate = () => {
+      const root = marketRoot();
+      if (!root) { setPortalHost(null); return; }
+      const title = Array.from(root.querySelectorAll('h3')).find(el => String(el.textContent || '').includes('Identificação do veículo')) as HTMLElement | undefined;
+      const section = title?.closest('section') as HTMLElement | null;
+      const grid = section?.querySelector('.grid') as HTMLElement | null;
+      if (!grid) { setPortalHost(null); return; }
+      let host = grid.querySelector('[data-marketiq-direct-identify-host]') as HTMLElement | null;
+      if (!host) {
+        host = document.createElement('span');
+        host.setAttribute('data-marketiq-direct-identify-host', 'true');
+        host.className = 'contents';
+        grid.appendChild(host);
       }
-      wasMarketVisible.current = visible;
-    }, 150);
+      setPortalHost(host);
+    };
+    locate();
+    const observer = new MutationObserver(locate);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (!marketVisible()) {
+        setNotice(null);
+        setRenavam('');
+        setIdentifying(false);
+      }
+    }, 250);
     return () => window.clearInterval(timer);
   }, []);
 
-  const showExternal = (plate: string, text = 'Veículo fora do estoque. Envie o CRLV-e para o Motyq identificar o carro sem consulta veicular paga.') => {
-    setExternal({ plate });
-    setNotice({ kind: 'warn', text });
+  const fallbackByPlate = async (plate: string) => {
+    if (!user || !plate) return false;
+    const companyId = companyScopeService.get(user);
+    const storeId = storeScopeService.get(user);
+    const stockItem: GroupStockItem | undefined = snapshot?.items.find(item => cleanPlate(item.plate) === plate);
+    const cached = await marketIqVehicleCacheService.get(companyId, storeId, plate).catch(() => null);
+
+    if (stockItem) {
+      fill({ plate, model: stockItem.model, year: stockItem.year, km: stockItem.km });
+      const fipe = await lookupFipe({ brand: stockItem.brand, model: stockItem.model, year: stockItem.year, fuel: stockItem.fuel });
+      if (fipe?.value) fill({ fipe: Number(fipe.value) || 0 });
+      setNotice({ kind: 'ok', text: `${stockItem.model} · ${stockItem.year} localizado no estoque do grupo${fipe?.value ? ` · FIPE ${fipe.referenceMonth || 'atual'} carregada` : ''}.` });
+      return true;
+    }
+
+    if (cached?.model) {
+      fill({ plate, model: cached.model, year: cached.year });
+      const fipe = await lookupFipe({ brand: cached.brand, model: cached.model, year: cached.year, fuel: cached.fuel });
+      if (fipe?.value) fill({ fipe: Number(fipe.value) || 0 });
+      setNotice({ kind: 'ok', text: `${cached.model} · ${cached.year} reconhecido pelo histórico do MOTYQ${fipe?.value ? ` · FIPE ${fipe.referenceMonth || 'atual'} carregada` : ''}.` });
+      return true;
+    }
+    return false;
   };
 
-  const readCrlv = async (file: File) => {
-    if (!external || !user) return;
-    if (file.size > 12 * 1024 * 1024) {
-      setNotice({ kind: 'warn', text: 'O CRLV-e deve ter no máximo 12 MB.' });
+  const identify = async () => {
+    if (!user || identifying) return;
+    const plate = cleanPlate(field('Placa')?.value || '');
+    const cleanId = cleanRenavam(renavam);
+
+    if (!plate && cleanId.length < 9) {
+      setNotice({ kind: 'warn', text: 'Informe a placa ou o RENAVAM. Você também pode informar os dois para aumentar a confiança da identificação.' });
       return;
     }
-    setReadingCrlv(true);
-    setNotice({ kind: 'loading', text: `Lendo o CRLV-e de ${external.plate}...` });
+    if (plate && plate.length !== 7) {
+      setNotice({ kind: 'warn', text: 'A placa precisa ter 7 caracteres.' });
+      return;
+    }
+
+    setIdentifying(true);
+    setNotice({ kind: 'loading', text: plate && cleanId ? 'Identificando por placa + RENAVAM...' : plate ? `Identificando ${plate} pela placa...` : 'Identificando pelo RENAVAM...' });
+
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) throw new Error('no_session');
+      if (!currentUser) throw new Error('Sua sessão expirou. Entre novamente no MOTYQ.');
+      const companyId = companyScopeService.get(user);
+      const storeId = storeScopeService.get(user);
+      try {
+        await marketIqQuotaService.assertAvailable(companyId);
+      } catch (error) {
+        if (error instanceof MarketIqQuotaExceededError) throw error;
+        if (!permissionDenied(error)) throw error;
+        console.warn('MarketIQ quota permissions are not published yet; continuing preview lookup without quota gate.');
+      }
+
       const token = await currentUser.getIdToken();
-      const data64 = await fileToBase64(file);
-      const response = await fetch('/api/marketiq-crlv', {
+      const response = await fetch('/api/marketiq-identify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ file: { name: file.name, mimeType: file.type || 'application/octet-stream', data: data64 } }),
+        body: JSON.stringify({ plate, renavam: cleanId }),
       });
       const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.data) throw new Error(payload?.error || 'crlv_failed');
 
-      const vehicle = payload.data;
-      const readPlate = cleanPlate(vehicle.plate || '');
-      if (readPlate && readPlate !== external.plate) {
-        setNotice({ kind: 'warn', text: `O CRLV-e enviado é da placa ${readPlate}, diferente de ${external.plate}.` });
+      if (response.ok) {
+        const resolvedPlate = cleanPlate(payload?.plate || plate);
+        const resolvedRenavam = cleanRenavam(payload?.renavam || cleanId);
+        const brand = String(payload?.brand || '').trim();
+        const model = String(payload?.model || payload?.registryModel || '').trim();
+        const year = String(payload?.year || '').trim();
+        const fuel = String(payload?.fuel || '').trim();
+        let fipeValue = Number(payload?.fipeValue) || 0;
+        let fipeReference = String(payload?.referenceMonth || '');
+        let fipeCode = String(payload?.fipeCode || '');
+
+        if (!model) throw new Error('A consulta retornou o veículo, mas não conseguiu definir modelo/versão.');
+        try {
+          await marketIqQuotaService.consumeEvaluation({
+            companyId,
+            storeId,
+            userEmail: currentUser.email || user.email,
+            sessionId: marketIqQuotaService.getEvaluationSessionId(),
+          });
+        } catch (error) {
+          if (error instanceof MarketIqQuotaExceededError) throw error;
+          if (!permissionDenied(error)) throw error;
+          console.warn('MarketIQ quota usage could not be persisted in preview; vehicle identification remains valid.');
+        }
+
+        fill({ plate: resolvedPlate || undefined, model, year, fipe: fipeValue || undefined });
+        if (resolvedRenavam) setRenavam(resolvedRenavam);
+
+        if (!fipeValue && year) {
+          setNotice({ kind: 'loading', text: `${model} · ${year} identificado. Buscando FIPE...` });
+          const fipe = await lookupFipe({ brand, model, year, fuel });
+          if (fipe?.value) {
+            fipeValue = Number(fipe.value) || 0;
+            fipeReference = String(fipe.referenceMonth || '');
+            fipeCode = String(fipe.fipeCode || '');
+            fill({ model: String(fipe.model || model), year: String(fipe.year || year), fipe: fipeValue });
+          }
+        }
+
+        if (resolvedPlate) {
+          await marketIqVehicleCacheService.save({
+            plate: resolvedPlate,
+            brand,
+            model,
+            year,
+            fuel,
+            renavam: resolvedRenavam,
+            fipeCode,
+            lastFipeValue: fipeValue || undefined,
+            lastFipeReference: fipeReference,
+            source: String(payload?.source || 'consulta-veicular'),
+            companyId,
+            storeId,
+            identifiedAt: new Date().toISOString(),
+            identifiedBy: currentUser.email || currentUser.uid,
+          }).catch(() => undefined);
+        }
+
+        const mode = payload?.lookupMode === 'renavam' ? 'RENAVAM' : payload?.lookupMode === 'plate+renavam' ? 'placa + RENAVAM' : 'placa';
+        setNotice({ kind: 'ok', text: `${model}${year ? ` · ${year}` : ''} identificado por ${mode}${fipeValue ? ` · FIPE ${fipeReference || 'atual'} carregada` : ''}. Documento não necessário.` });
         return;
       }
 
-      const companyId = companyScopeService.get(user);
-      const storeId = storeScopeService.get(user);
-      const brand = String(vehicle.brand || String(vehicle.model || '').split('/')[0] || '').trim();
-      const model = String(vehicle.model || '').trim();
-      const year = String(vehicle.yearModel || vehicle.yearFab || '').trim();
-      const fuel = String(vehicle.fuel || '').trim();
-      const renavam = String(vehicle.renavam || '').replace(/\D/g, '');
-      const parserVersion = Number(vehicle.parserVersion) || CRLV_PARSER_VERSION;
+      if (plate && await fallbackByPlate(plate)) return;
 
-      fill({ model, year });
-      await marketIqVehicleCacheService.save({
-        plate: external.plate,
-        brand,
-        model,
-        year,
-        fuel,
-        renavam,
-        parserVersion,
-        source: 'crlv',
-        companyId,
-        storeId,
-        identifiedAt: new Date().toISOString(),
-        identifiedBy: currentUser.email || currentUser.uid,
-      }).catch(() => undefined);
-
-      setNotice({ kind: 'loading', text: `${model} ${year} identificado pelo CRLV. Buscando FIPE...` });
-      const fipe = await lookupFipe({ brand, model, year, fuel });
-      if (fipe?.value) {
-        const resolvedModel = String(fipe.model || model);
-        const resolvedYear = String(fipe.year || year);
-        const value = Number(fipe.value) || 0;
-        fill({ model: resolvedModel, year: resolvedYear, fipe: value });
-        await marketIqVehicleCacheService.save({
-          plate: external.plate,
-          brand,
-          model: resolvedModel,
-          year: resolvedYear,
-          fuel,
-          renavam,
-          parserVersion,
-          fipeCode: String(fipe.fipeCode || ''),
-          lastFipeValue: value,
-          lastFipeReference: String(fipe.referenceMonth || ''),
-          source: 'crlv',
-          companyId,
-          storeId,
-          identifiedAt: new Date().toISOString(),
-          identifiedBy: currentUser.email || currentUser.uid,
-        }).catch(() => undefined);
-        setNotice({ kind: 'ok', text: `${resolvedModel} · ano/modelo ${resolvedYear}. CRLV-e validado e FIPE ${fipe.referenceMonth || 'atual'} preenchida automaticamente.` });
-        setExternal(null);
+      if (payload?.error === 'vehicle_provider_not_configured') {
+        setNotice({ kind: 'warn', text: 'A identificação direta ainda precisa da chave do provedor veicular no ambiente. Você pode preencher modelo, ano e FIPE manualmente e continuar a avaliação.' });
       } else {
-        setNotice({ kind: 'warn', text: `${model} · ano/modelo ${year} foi identificado e salvo, mas não consegui vincular a versão à FIPE automaticamente.` });
-        setExternal(null);
+        setNotice({ kind: 'warn', text: 'Não consegui identificar automaticamente com esses dados. Confira placa/RENAVAM ou preencha modelo, ano e FIPE manualmente. O CRLV não é obrigatório.' });
       }
     } catch (error: any) {
-      const message = String(error?.message || '');
-      setNotice({
-        kind: 'warn',
-        text: message.includes('Sessão')
-          ? 'Sua sessão expirou. Entre novamente no Motyq.'
-          : message && !message.includes('crlv_failed')
-            ? message
-            : 'Não consegui ler esse CRLV-e. Tente uma foto/PDF mais nítido.',
-      });
+      if (error instanceof MarketIqQuotaExceededError) {
+        setNotice({ kind: 'warn', text: `Limite mensal atingido: ${error.status.used}/${error.status.limit} avaliações. Novas consultas ficam bloqueadas até a renovação do mês ou alteração do plano.` });
+      } else {
+        setNotice({ kind: 'warn', text: error?.message || 'Não foi possível identificar o veículo agora. Você pode continuar preenchendo os dados manualmente.' });
+      }
     } finally {
-      setReadingCrlv(false);
+      setIdentifying(false);
     }
   };
 
-  useEffect(() => {
-    const onInput = (event: Event) => {
-      const target = event.target as HTMLInputElement | null;
-      if (!target || target !== field('Placa') || !user) return;
+  const controls = <>
+    <label className="block">
+      <span className="mb-1 block text-[10px] font-bold uppercase tracking-[.11em] text-zinc-500">RENAVAM · opcional</span>
+      <input
+        value={renavam}
+        onChange={e => setRenavam(cleanRenavam(e.target.value))}
+        inputMode="numeric"
+        placeholder="Use se tiver"
+        className="h-10 w-full rounded-xl border border-white/10 bg-black/25 px-3 text-sm text-white outline-none focus:border-cyan-300/40"
+      />
+    </label>
+    <div className="block">
+      <span className="mb-1 block text-[10px] font-bold uppercase tracking-[.11em] text-zinc-500">Identificação</span>
+      <button
+        type="button"
+        onClick={() => void identify()}
+        disabled={identifying}
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] px-3 text-xs font-black uppercase tracking-[.08em] text-cyan-200 transition hover:bg-cyan-300/[.13] disabled:opacity-50"
+      >
+        <Search size={14}/>{identifying ? 'CONSULTANDO...' : 'IDENTIFICAR'}
+      </button>
+    </div>
+  </>;
 
-      const plate = cleanPlate(target.value);
-      if (plate.length !== 7) {
-        lastPlate.current = '';
-        setNotice(null);
-        setExternal(null);
-        return;
-      }
-      if (plate === lastPlate.current) return;
-
-      lastPlate.current = plate;
-      setExternal(null);
-      const currentRequest = ++requestId.current;
-      setNotice({ kind: 'loading', text: `Consultando ${plate}...` });
-
-      const companyId = companyScopeService.get(user);
-      const storeId = storeScopeService.get(user);
-      const stockItem: GroupStockItem | undefined = snapshot?.items.find(item => cleanPlate(item.plate) === plate);
-
-      // IMPORTANT: a identidade validada por CRLV é a fonte autoritativa para ano/modelo.
-      // O estoque só é usado se não houver CRLV válido para esta placa.
-      void marketIqVehicleCacheService.get(companyId, storeId, plate).then(async cached => {
-        if (currentRequest !== requestId.current) return;
-
-        if (cached?.source === 'crlv') {
-          if (Number(cached.parserVersion || 0) < CRLV_PARSER_VERSION) {
-            showExternal(plate, 'Esta placa tem uma leitura antiga de CRLV. Envie o CRLV-e uma vez para revalidar o ano/modelo. O dado do estoque não será usado enquanto o documento não for confirmado.');
-            return;
-          }
-
-          fill({ model: cached.model, year: cached.year, km: stockItem?.km });
-          setNotice({ kind: 'loading', text: `${cached.model} · ano/modelo ${cached.year} confirmado pelo CRLV. Atualizando FIPE...` });
-          const fipe = await lookupFipe({ brand: cached.brand, model: cached.model, year: cached.year, fuel: cached.fuel });
-          if (currentRequest !== requestId.current) return;
-
-          if (fipe?.value) {
-            const resolvedModel = String(fipe.model || cached.model);
-            const resolvedYear = String(fipe.year || cached.year);
-            const value = Number(fipe.value) || 0;
-            fill({ model: resolvedModel, year: resolvedYear, km: stockItem?.km, fipe: value });
-            setNotice({ kind: 'ok', text: `${resolvedModel} · ano/modelo ${resolvedYear}. CRLV priorizado sobre o estoque. FIPE ${fipe.referenceMonth || 'atual'} atualizada.` });
-            void marketIqVehicleCacheService.save({
-              ...cached,
-              model: resolvedModel,
-              year: resolvedYear,
-              fipeCode: String(fipe.fipeCode || cached.fipeCode || ''),
-              lastFipeValue: value,
-              lastFipeReference: String(fipe.referenceMonth || ''),
-              companyId,
-              storeId,
-            }).catch(() => undefined);
-          } else {
-            setNotice({ kind: 'warn', text: `${cached.model} · ano/modelo ${cached.year} confirmado pelo CRLV, mas a FIPE precisa ser confirmada.` });
-          }
-          return;
-        }
-
-        if (stockItem) {
-          fill({ model: stockItem.model, year: stockItem.year, km: stockItem.km });
-          setNotice({ kind: 'loading', text: `${stockItem.model} localizado no estoque. Buscando FIPE...` });
-          const result = await lookupFipe({ brand: stockItem.brand, model: stockItem.model, year: stockItem.year, fuel: stockItem.fuel });
-          if (currentRequest !== requestId.current) return;
-          if (result?.value) {
-            fill({ model: stockItem.model || result.model, year: stockItem.year || String(result.year), km: stockItem.km, fipe: Number(result.value) || 0 });
-            setNotice({ kind: 'ok', text: `Veículo localizado no estoque. FIPE ${result.referenceMonth || 'atual'} preenchida automaticamente.` });
-          } else {
-            setNotice({ kind: 'warn', text: 'Veículo localizado no estoque, mas a versão FIPE precisa ser confirmada.' });
-          }
-          return;
-        }
-
-        if (cached) {
-          fill({ model: cached.model, year: cached.year });
-          setNotice({ kind: 'loading', text: `${cached.model} ${cached.year} reconhecido pelo Motyq. Atualizando FIPE...` });
-          const fipe = await lookupFipe({ brand: cached.brand, model: cached.model, year: cached.year, fuel: cached.fuel });
-          if (currentRequest !== requestId.current) return;
-          if (fipe?.value) {
-            const resolvedModel = String(fipe.model || cached.model);
-            const resolvedYear = String(fipe.year || cached.year);
-            const value = Number(fipe.value) || 0;
-            fill({ model: resolvedModel, year: resolvedYear, fipe: value });
-            setNotice({ kind: 'ok', text: `${resolvedModel} · ano/modelo ${resolvedYear}. FIPE ${fipe.referenceMonth || 'atual'} atualizada.` });
-          } else {
-            setNotice({ kind: 'warn', text: `${cached.model} reconhecido pela placa, mas a FIPE precisa ser confirmada.` });
-          }
-          return;
-        }
-
-        showExternal(plate);
-      }).catch(() => {
-        if (stockItem) {
-          fill({ model: stockItem.model, year: stockItem.year, km: stockItem.km });
-          setNotice({ kind: 'warn', text: 'Veículo localizado no estoque, mas não consegui validar o histórico de identificação agora.' });
-        } else {
-          showExternal(plate);
-        }
-      });
-    };
-
-    document.addEventListener('input', onInput, true);
-    return () => document.removeEventListener('input', onInput, true);
-  }, [snapshot, user]);
-
-  if ((!notice && !external) || !marketVisible()) return null;
-
-  return <div className="fixed right-5 top-24 z-[615] w-[min(92vw,390px)] space-y-3">
-    {notice && <div className={`rounded-2xl border px-4 py-3 text-xs shadow-2xl backdrop-blur-xl ${notice.kind === 'ok' ? 'border-emerald-300/25 bg-emerald-950/90 text-emerald-100' : notice.kind === 'warn' ? 'border-amber-300/25 bg-amber-950/90 text-amber-100' : 'border-cyan-300/20 bg-cyan-950/90 text-cyan-100'}`}>{notice.text}</div>}
-    {external && <div className="rounded-2xl border border-white/10 bg-[#11191b]/95 p-4 text-white shadow-2xl backdrop-blur-xl">
-      <div className="mb-3">
-        <p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VALIDAR CRLV-E</p>
-        <p className="mt-1 text-sm font-semibold">{external.plate} · confirmação de ano/modelo</p>
-        <p className="mt-1 text-[11px] leading-4 text-zinc-500">Envie uma foto ou PDF do CRLV-e. O ano/modelo lido do documento terá prioridade sobre qualquer informação divergente do estoque.</p>
-      </div>
-      <label className={`flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] ${readingCrlv ? 'pointer-events-none opacity-50' : ''}`}>
-        {readingCrlv ? 'LENDO CRLV-E...' : 'ENVIAR CRLV-E'}
-        <input type="file" accept="image/*,application/pdf" className="hidden" disabled={readingCrlv} onChange={e => {
-          const file = e.target.files?.[0];
-          if (file) void readCrlv(file);
-          e.currentTarget.value = '';
-        }} />
-      </label>
-      <p className="mt-2 text-center text-[10px] text-zinc-600">Foto, print ou PDF · até 12 MB</p>
-    </div>}
-  </div>;
+  return <>
+    {portalHost && marketVisible() && createPortal(controls, portalHost)}
+    {notice && marketVisible() && <div className={`fixed right-5 top-24 z-[615] w-[min(92vw,410px)] rounded-2xl border px-4 py-3 text-xs shadow-2xl backdrop-blur-xl ${notice.kind === 'ok' ? 'border-emerald-300/25 bg-emerald-950/90 text-emerald-100' : notice.kind === 'warn' ? 'border-amber-300/25 bg-amber-950/90 text-amber-100' : 'border-cyan-300/20 bg-cyan-950/90 text-cyan-100'}`}>{notice.text}</div>}
+  </>;
 };
 
 export default MarketIQLookupBridge;
