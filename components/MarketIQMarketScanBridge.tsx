@@ -43,6 +43,32 @@ type ScanResult = {
 const money = (value: number) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const moneyInput = (value: number) => value ? Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 const numberFromInput = (value: string) => Number(String(value || '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
+const round100 = (value: number) => Math.round(value / 100) * 100;
+
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
+const statsFrom = (items: Comparable[]) => {
+  const prices = items.map(item => Number(item.price || 0)).filter(value => value > 0).sort((a, b) => a - b);
+  if (!prices.length) return { count: 0, low: 0, median: 0, high: 0, observed: 0 };
+  const marketMedian = median(prices);
+  const low = prices[0];
+  const high = prices[prices.length - 1];
+  const trimmed = prices.length >= 6 ? prices.slice(1, -1) : prices;
+  const trimmedMean = trimmed.reduce((sum, value) => sum + value, 0) / trimmed.length;
+  const observed = marketMedian && trimmedMean ? marketMedian * 0.65 + trimmedMean * 0.35 : marketMedian || trimmedMean || 0;
+  return {
+    count: prices.length,
+    low: round100(low),
+    median: round100(marketMedian),
+    high: round100(high),
+    observed: round100(observed),
+  };
+};
 
 const marketRoot = () => Array.from(document.querySelectorAll('div.fixed.inset-0')).find(el => String(el.textContent || '').includes('MOTYQ MARKETIQ')) as HTMLElement | undefined;
 const marketVisible = () => {
@@ -94,6 +120,7 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [vehicleLabel, setVehicleLabel] = useState('');
   const [applied, setApplied] = useState(false);
+  const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
 
   useEffect(() => {
     const locate = () => {
@@ -117,7 +144,18 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
     return () => observer.disconnect();
   }, []);
 
-  const knownKms = useMemo(() => (result?.comparables || []).map(item => Number(item.km || 0)).filter(value => value > 0).sort((a, b) => a - b), [result]);
+  const validatedComparables = useMemo(() => {
+    const items = result?.comparables || [];
+    return selectedIndexes.map(index => items[index]).filter(Boolean);
+  }, [result, selectedIndexes]);
+
+  const validatedStats = useMemo(() => statsFrom(validatedComparables), [validatedComparables]);
+
+  const knownKms = useMemo(() => validatedComparables
+    .map(item => Number(item.km || 0))
+    .filter(value => value > 0)
+    .sort((a, b) => a - b), [validatedComparables]);
+
   const typicalKm = useMemo(() => {
     if (!knownKms.length) return 0;
     const mid = Math.floor(knownKms.length / 2);
@@ -133,6 +171,7 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
     setVehicleLabel(`${model || 'Veículo'}${year ? ` · ${year}` : ''}`);
     setOpen(true);
     setApplied(false);
+    setSelectedIndexes([]);
     setError('');
     setResult(null);
 
@@ -172,11 +211,26 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
     }
   };
 
+  const toggleComparable = (index: number) => {
+    setApplied(false);
+    setSelectedIndexes(current => current.includes(index) ? current.filter(item => item !== index) : [...current, index]);
+  };
+
+  const selectAll = () => {
+    setApplied(false);
+    setSelectedIndexes((result?.comparables || []).map((_, index) => index));
+  };
+
+  const clearAll = () => {
+    setApplied(false);
+    setSelectedIndexes([]);
+  };
+
   const apply = () => {
-    if (!result?.stats?.observed) return;
-    setInput(field('Mercado observado'), moneyInput(result.stats.observed));
-    setInput(field('Faixa mínima'), moneyInput(result.stats.low));
-    setInput(field('Faixa máxima'), moneyInput(result.stats.high));
+    if (!result || !validatedStats.observed || !validatedStats.count) return;
+    setInput(field('Mercado observado'), moneyInput(validatedStats.observed));
+    setInput(field('Faixa mínima'), moneyInput(validatedStats.low));
+    setInput(field('Faixa máxima'), moneyInput(validatedStats.high));
     if (typicalKm) setInput(field('KM típico comparável'), String(typicalKm));
 
     const signals = result.marketSignals;
@@ -190,6 +244,8 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
           balanceScore: signals.balanceScore,
           turnoverRisk: signals.turnoverRisk,
           rationale: signals.rationale || '',
+          validatedComparableCount: validatedStats.count,
+          foundComparableCount: result.comparables.length,
         },
       }));
     }
@@ -207,6 +263,8 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
   </button>;
 
   const signals = result?.marketSignals;
+  const totalFound = result?.comparables?.length || 0;
+  const hasValidated = validatedStats.count > 0;
 
   return <>
     {portalHost && marketVisible() && createPortal(trigger, portalHost)}
@@ -234,12 +292,25 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
           {!loading && error && !result?.stats?.count && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">{error}</div>}
 
           {!loading && result?.stats?.count > 0 && <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">AMOSTRA</p><p className="mt-1 text-2xl font-semibold">{result.stats.count}</p><p className="mt-1 text-[10px] text-slate-500">comparáveis válidos</p></div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MENOR</p><p className="mt-1 text-lg font-semibold">{money(result.stats.low)}</p></div>
-              <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-cyan-700">MERCADO OBSERVADO</p><p className="mt-1 text-lg font-semibold text-cyan-800">{money(result.stats.observed)}</p></div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MEDIANA</p><p className="mt-1 text-lg font-semibold">{money(result.stats.median)}</p></div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MAIOR</p><p className="mt-1 text-lg font-semibold">{money(result.stats.high)}</p></div>
+            <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-800">VALIDAÇÃO DO AVALIADOR</p>
+                  <p className="mt-1 text-sm leading-6 text-cyan-900">Marque somente os anúncios realmente compatíveis com o veículo avaliado. Itens desmarcados não entram no preço, KM típico nem na amostra validada.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={selectAll} className="rounded-lg border border-cyan-200 bg-white px-3 py-1.5 text-[10px] font-black text-cyan-700 hover:bg-cyan-50">MARCAR TODOS</button>
+                  <button onClick={clearAll} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-black text-slate-600 hover:bg-slate-50">LIMPAR</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">VALIDADOS</p><p className="mt-1 text-2xl font-semibold">{validatedStats.count}/{totalFound}</p><p className="mt-1 text-[10px] text-slate-500">selecionados pelo avaliador</p></div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MENOR</p><p className="mt-1 text-lg font-semibold">{hasValidated ? money(validatedStats.low) : '—'}</p></div>
+              <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-cyan-700">MERCADO VALIDADO</p><p className="mt-1 text-lg font-semibold text-cyan-800">{hasValidated ? money(validatedStats.observed) : '—'}</p></div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MEDIANA</p><p className="mt-1 text-lg font-semibold">{hasValidated ? money(validatedStats.median) : '—'}</p></div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MAIOR</p><p className="mt-1 text-lg font-semibold">{hasValidated ? money(validatedStats.high) : '—'}</p></div>
             </div>
 
             {signals && <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -259,27 +330,39 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
               </div>
 
               {signals.rationale && <p className="mt-4 text-sm leading-6 text-slate-600">{signals.rationale}</p>}
-              {!!signals.evidence?.length && <div className="mt-3 space-y-1">{signals.evidence.slice(0,4).map((item,index)=><p key={index} className="text-[11px] leading-5 text-slate-500">• {item}</p>)}</div>}
+              {!!signals.evidence?.length && <div className="mt-3 space-y-1">{signals.evidence.slice(0, 4).map((item, index) => <p key={index} className="text-[11px] leading-5 text-slate-500">• {item}</p>)}</div>}
             </div>}
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${confidenceClass(result.confidence)}`}>CONFIANÇA {confidenceLabel(result.confidence)}</span>
-              {typicalKm > 0 && <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600">KM típico {typicalKm.toLocaleString('pt-BR')}</span>}
+              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${confidenceClass(result.confidence)}`}>CONFIANÇA DA BUSCA {confidenceLabel(result.confidence)}</span>
+              {typicalKm > 0 && <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600">KM típico validado {typicalKm.toLocaleString('pt-BR')}</span>}
               {result.notes && <span className="text-xs text-slate-500">{result.notes}</span>}
             </div>
 
             <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-              <div className="grid grid-cols-[90px_1fr_90px_110px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[9px] font-black uppercase tracking-[.1em] text-slate-500 md:grid-cols-[110px_1fr_100px_120px_130px]">
-                <span>Fonte</span><span>Comparável</span><span>Ano</span><span className="hidden md:block">KM</span><span className="text-right">Preço</span>
+              <div className="grid grid-cols-[54px_85px_1fr_80px_105px] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[9px] font-black uppercase tracking-[.1em] text-slate-500 md:grid-cols-[64px_100px_1fr_80px_100px_120px] md:px-4">
+                <span className="text-center">OK</span><span>Fonte</span><span>Comparável</span><span>Ano</span><span className="hidden md:block">KM</span><span className="text-right">Preço</span>
               </div>
-              <div className="max-h-[380px] divide-y divide-slate-100 overflow-y-auto">
-                {result.comparables.map((item, index) => <div key={`${item.source}-${item.price}-${index}`} className="grid grid-cols-[90px_1fr_90px_110px] gap-3 px-4 py-3 text-xs md:grid-cols-[110px_1fr_100px_120px_130px]">
-                  <span className="font-bold text-slate-600">{item.source}</span>
-                  <div className="min-w-0"><p className="truncate font-semibold text-slate-800">{item.title}</p><p className="mt-0.5 truncate text-[10px] text-slate-500">{item.location || 'Local não informado'}</p></div>
-                  <span className="text-slate-600">{item.year || '—'}</span>
-                  <span className="hidden text-slate-600 md:block">{item.km ? `${item.km.toLocaleString('pt-BR')} km` : '—'}</span>
-                  <span className="text-right font-semibold text-slate-900">{money(item.price)}</span>
-                </div>)}
+              <div className="max-h-[420px] divide-y divide-slate-100 overflow-y-auto">
+                {result.comparables.map((item, index) => {
+                  const checked = selectedIndexes.includes(index);
+                  return <div key={`${item.source}-${item.price}-${index}`} className={`grid grid-cols-[54px_85px_1fr_80px_105px] gap-2 px-3 py-3 text-xs transition md:grid-cols-[64px_100px_1fr_80px_100px_120px] md:px-4 ${checked ? 'bg-emerald-50/70' : 'bg-white'}`}>
+                    <label className="flex cursor-pointer items-center justify-center" title="Marcar como comparável compatível">
+                      <input type="checkbox" checked={checked} onChange={() => toggleComparable(index)} className="h-5 w-5 cursor-pointer accent-emerald-600" />
+                    </label>
+                    <span className="font-bold text-slate-600">{item.source}</span>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-800">{item.title}</p>
+                      <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[10px] text-slate-500">
+                        <span className="truncate">{item.location || 'Local não informado'}</span>
+                        {item.url && <a href={item.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 font-bold text-cyan-700 hover:underline" onClick={event => event.stopPropagation()}>ABRIR <ExternalLink size={10} /></a>}
+                      </div>
+                    </div>
+                    <span className="text-slate-600">{item.year || '—'}</span>
+                    <span className="hidden text-slate-600 md:block">{item.km ? `${item.km.toLocaleString('pt-BR')} km` : '—'}</span>
+                    <span className="text-right font-semibold text-slate-900">{money(item.price)}</span>
+                  </div>;
+                })}
               </div>
             </div>
 
@@ -289,8 +372,8 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
             </div>}
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-              <p className="max-w-2xl text-[11px] leading-5 text-slate-500">A amostra mostra comparáveis encontrados, não o estoque total do mercado. Oferta, demanda e risco de giro são estimativas baseadas em sinais públicos atuais e servem como apoio à decisão do avaliador.</p>
-              <button onClick={apply} className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black ${applied ? 'bg-emerald-600 text-white' : 'bg-cyan-600 text-white hover:bg-cyan-700'}`}>{applied ? <CheckCircle2 size={15} /> : <Search size={15} />}{applied ? 'APLICADO NO MARKETIQ' : 'APLICAR NO MARKETIQ'}</button>
+              <p className="max-w-2xl text-[11px] leading-5 text-slate-500">Somente os comparáveis marcados entram no preço final e na quilometragem típica. Oferta, demanda e risco de giro continuam sendo uma leitura ampla do mercado, separada da amostra validada.</p>
+              <button disabled={!hasValidated} onClick={apply} className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 ${applied ? 'bg-emerald-600 text-white' : hasValidated ? 'bg-cyan-600 text-white hover:bg-cyan-700' : ''}`}>{applied ? <CheckCircle2 size={15} /> : <Search size={15} />}{applied ? 'VALIDAÇÃO APLICADA' : hasValidated ? `APLICAR ${validatedStats.count} COMPARÁVEL${validatedStats.count === 1 ? '' : 'IS'}` : 'SELECIONE COMPARÁVEIS'}</button>
             </div>
           </>}
         </div>
