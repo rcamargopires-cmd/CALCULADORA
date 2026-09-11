@@ -95,6 +95,12 @@ export const marketIqQuotaService = {
     return statusFrom(companyId, limit, used, month);
   },
 
+  assertAvailable: async (companyId: string): Promise<MarketIqQuotaStatus> => {
+    const status = await marketIqQuotaService.getStatus(companyId);
+    if (status.blocked) throw new MarketIqQuotaExceededError(status);
+    return status;
+  },
+
   consumeEvaluation: async (input: { companyId: string; storeId: string; userEmail?: string; sessionId?: string }): Promise<MarketIqQuotaStatus> => {
     const companyId = safeCompanyId(input.companyId);
     const month = currentMonth();
