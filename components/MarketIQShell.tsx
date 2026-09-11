@@ -14,6 +14,7 @@ import MarketIQShowroomLinkBridge from './MarketIQShowroomLinkBridge';
 import MarketIQMediaPanel from './MarketIQMediaPanel';
 import MarketIQMarketScanBridge from './MarketIQMarketScanBridge';
 import MarketIQSaveNotice from './MarketIQSaveNotice';
+import MarketIQQuotaBadge from './MarketIQQuotaBadge';
 
 const MarketIQShell:React.FC=()=>{
  const[user,setUser]=useState<User|null>(null);const[companyId,setCompanyId]=useState('');const[storeId,setStoreId]=useState('');const[storeName,setStoreName]=useState('');
@@ -32,12 +33,13 @@ const MarketIQShell:React.FC=()=>{
  const evaluator=user.role==='evaluator';
  return <>
    <MarketIQ currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
+   <MarketIQQuotaBadge currentUser={user} companyId={companyId} storeId={storeId}/>
    <MarketIQPersistenceBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQSaveNotice/>
    <MarketIQHistoryPanel currentUser={user} companyId={companyId} storeId={storeId}/>
    {!evaluator&&<MarketIQShowroomLinkBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>} 
    <MarketIQMediaPanel companyId={companyId} storeId={storeId}/>
-   <MarketIQMarketScanBridge storeName={activeStoreName}/>
+   <MarketIQMarketScanBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
  </>;
 };
 export default MarketIQShell;
