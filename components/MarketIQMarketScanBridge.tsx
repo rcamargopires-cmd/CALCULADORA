@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle2, ExternalLink, RefreshCw, Search, X } from 'lucide-react';
 import { auth } from '../firebase';
+import { User } from '../types';
+import { MarketIqQuotaExceededError, marketIqQuotaService } from '../services/marketIqQuotaService';
 
-type Props = { storeName: string };
+type Props = { currentUser: User; companyId: string; storeId: string; storeName: string };
 
 type Comparable = {
   source: string;
@@ -112,7 +114,7 @@ const levelTone = (value: MarketLevel | undefined, reverse = false) => {
   return good ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : bad ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-700';
 };
 
-const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
+const MarketIQMarketScanBridge: React.FC<Props> = ({ currentUser, companyId, storeId, storeName }) => {
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -180,15 +182,16 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
       return;
     }
 
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) {
       setError('Sua sessão expirou. Entre novamente no Motyq.');
       return;
     }
 
     setLoading(true);
     try {
-      const token = await currentUser.getIdToken();
+      await marketIqQuotaService.assertAvailable(companyId);
+      const token = await firebaseUser.getIdToken();
       const response = await fetch('/api/marketiq-market-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -202,10 +205,22 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error || 'Não foi possível pesquisar o mercado.');
+
+      await marketIqQuotaService.consumeEvaluation({
+        companyId,
+        storeId,
+        userEmail: firebaseUser.email || currentUser.email,
+        sessionId: marketIqQuotaService.getEvaluationSessionId(),
+      });
+
       setResult(payload as ScanResult);
       if (!payload?.stats?.count) setError('Não encontrei anúncios comparáveis suficientes com preço verificável. Tente novamente mais tarde ou amplie manualmente a pesquisa.');
     } catch (e: any) {
-      setError(e?.message || 'Não foi possível pesquisar o mercado agora.');
+      if (e instanceof MarketIqQuotaExceededError) {
+        setError(`Limite mensal atingido: ${e.status.used}/${e.status.limit} avaliações. Novas consultas estão bloqueadas até a renovação do mês ou alteração do plano.`);
+      } else {
+        setError(e?.message || 'Não foi possível pesquisar o mercado agora.');
+      }
     } finally {
       setLoading(false);
     }
