@@ -56,7 +56,6 @@ export default async function handler(req:any,res:any){
 
   let attempted=false;
 
-  // PRODESP/DETRAN-SP is kept as a stronger cross-check when both keys are available.
   if(hasPlate&&hasRenavam&&prodespUrl&&prodespToken){
     attempted=true;
     try{
@@ -81,17 +80,41 @@ export default async function handler(req:any,res:any){
     }catch(error){console.error('MarketIQ PRODESP identify failed',error);}
   }
 
-  // Primary flexible lookup. Send only the identifiers the evaluator actually has.
-  if(dadosApiKey&&(hasPlate||hasRenavam)){
+  // DadosAPI test endpoint supplied by the provider: plate-only lookup.
+  if(dadosApiKey&&hasPlate){
     attempted=true;
     try{
-      const body:any={};
-      if(hasPlate)body.placa=plate;
-      if(hasRenavam)body.renavam=renavam;
+      const response=await fetch('https://api.dadosapi.com/v1/veiculo-placa-unica',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${dadosApiKey}`},
+        body:JSON.stringify({placa:plate}),
+      });
+      const raw:any=await response.json().catch(()=>null);
+      if(response.ok&&raw){
+        const vehicle=normalizedVehicle(raw);
+        if(vehicle.model||vehicle.registryModel){
+          return res.status(200).json({
+            ...vehicle,
+            plate:vehicle.plate||plate,
+            renavam:vehicle.renavam||renavam,
+            source:'dadosapi-v1',
+            lookupMode:'plate',
+          });
+        }
+      }else{
+        console.error('MarketIQ DadosAPI identify failed',response.status,raw?.error||raw?.message||'unknown_error');
+      }
+    }catch(error){console.error('MarketIQ DadosAPI identify failed',error);}
+  }
+
+  // Keep the flexible endpoint only as a RENAVAM fallback while we validate provider support.
+  if(dadosApiKey&&!hasPlate&&hasRenavam){
+    attempted=true;
+    try{
       const response=await fetch('https://api.dadosapi.com/dados-publicos/consulta-veiculo-por-placa',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${dadosApiKey}`},
-        body:JSON.stringify(body),
+        body:JSON.stringify({renavam}),
       });
       const raw:any=await response.json().catch(()=>null);
       if(response.ok&&raw){
@@ -102,14 +125,13 @@ export default async function handler(req:any,res:any){
             plate:vehicle.plate||plate,
             renavam:vehicle.renavam||renavam,
             source:'dadosapi',
-            lookupMode:hasPlate&&hasRenavam?'plate+renavam':hasPlate?'plate':'renavam',
+            lookupMode:'renavam',
           });
         }
       }
-    }catch(error){console.error('MarketIQ DadosAPI identify failed',error);}
+    }catch(error){console.error('MarketIQ DadosAPI RENAVAM identify failed',error);}
   }
 
-  // Plate-only fallback.
   if(hasPlate&&placaFipeToken){
     attempted=true;
     try{
