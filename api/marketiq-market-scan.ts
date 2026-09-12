@@ -101,16 +101,23 @@ Use a Pesquisa Google para localizar anúncios REAIS E ATUAIS de veículos compa
 
 VEÍCULO ALVO
 - Modelo / versão informado no estoque: ${model}
-- Ano/modelo correto para pesquisa: ${year}
+- ANO-MODELO obrigatório: ${year}
 - KM atual: ${km || 'não informado'}
 - FIPE atual: ${fipe || 'não informada'}
 - Unidade/região: ${storeName}
+
+IMPORTANTE SOBRE ANO
+- Compare SOMENTE veículos de ANO-MODELO ${year}.
+- Fabricação ${year - 1}/modelo ${year} pode ser aceita, pois o ano-modelo continua ${year}.
+- NÃO aceite ano-modelo ${year - 1}, ${year + 1} ou qualquer outro ano-modelo.
+- Veículos de outro ano-modelo têm FIPE diferente e NÃO podem compor a precificação deste carro.
 
 IMPORTANTE SOBRE NOMES DE VERSÃO
 - O texto vindo do estoque pode usar abreviações internas. Interprete e EXPANDA abreviações automotivas antes de pesquisar.
 - Exemplos comuns: LGTD = Longitude, LTD = Limited, AT = automático, AUT = automático, T270 = motor T270.
 - Pesquise também a forma comercial completa usada pelos portais, sem alterar marca/modelo/versão real.
 - Exemplo: "RENEGADE LGTD T270" deve ser pesquisado também como "Jeep Renegade Longitude T270" e, quando compatível com os resultados, "1.3 T270 Turbo Flex Longitude AT6".
+- NÃO misture outra versão, mesmo que seja do mesmo modelo e ano.
 
 FONTES PRIORITÁRIAS
 1. Webmotors
@@ -121,20 +128,21 @@ FONTES PRIORITÁRIAS
 6. Portais e lojas de seminovos confiáveis
 
 ESTRATÉGIA DE PESQUISA
-- Faça buscas específicas por fonte, por exemplo: site:webmotors.com.br + versão completa + ano + região.
+- Na Webmotors, procure a versão EXATA e o ANO-MODELO ${year}, priorizando os anúncios de MENOR PREÇO primeiro.
+- Faça buscas específicas por fonte, por exemplo: site:webmotors.com.br + versão completa + ${year} + região + menor preço.
 - Se uma página de resultados do portal mostrar vários cards de anúncios com preço, ano, KM e localização, use esses cards como evidência válida.
-- Se a cidade tiver poucos resultados, amplie para raio/região e depois para o estado de São Paulo.
+- Se a cidade tiver poucos resultados, amplie para raio/região e depois para o estado de São Paulo, SEM mudar versão nem ano-modelo.
 - Não conclua que não há mercado apenas porque um portal usa página dinâmica; tente resultado indexado pelo Google e outras fontes.
 
 REGRAS DE COMPARABILIDADE
-- Priorize EXATAMENTE a mesma versão e o mesmo ano/modelo.
-- Se houver poucos anúncios, aceite ano ${year - 1} a ${year + 1}, deixando isso explícito.
+- EXIJA a mesma versão e o mesmo ANO-MODELO ${year}.
 - Priorize ${storeName}; se necessário, amplie para o estado de São Paulo.
-- Se KM estiver disponível, prefira veículos próximos da quilometragem alvo.
+- Se KM estiver disponível, prefira veículos próximos da quilometragem alvo, mas não descarte um anúncio válido apenas por KM diferente.
 - Considere apenas preço total anunciado do veículo. Ignore parcela, entrada, consórcio, aluguel e anúncios sem preço claro.
+- Procure deliberadamente o piso competitivo: os anúncios equivalentes mais baratos são os mais relevantes para uma concessionária definir preço de venda e compra.
 - Não invente preço, URL, quilometragem, versão ou localização.
 - Se uma informação não estiver visível no resultado pesquisado, use null.
-- Retorne no máximo 15 comparáveis.
+- Retorne no máximo 20 comparáveis, ORDENADOS DO MENOR PARA O MAIOR PREÇO.
 
 RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
 {
@@ -142,14 +150,14 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
     {
       "source": "Webmotors",
       "title": "texto real/resumido do anúncio",
-      "price": 119900,
-      "year": 2024,
-      "km": 42000,
-      "location": "Sorocaba, SP",
+      "price": 97900,
+      "year": ${year},
+      "km": 25000,
+      "location": "São Paulo, SP",
       "url": null
     }
   ],
-  "notes": "resumo curto sobre qualidade/amplitude da amostra"
+  "notes": "resumo curto sobre a amostra encontrada"
 }
 `;
 
@@ -163,32 +171,37 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
     const parsed = parseJson(response.text || '');
     const rawComparables: Comparable[] = Array.isArray(parsed?.comparables) ? parsed.comparables : [];
 
-    const cleaned = rawComparables
+    const exactYear = rawComparables
       .map((item) => ({
         source: String(item.source || '').trim() || 'Web',
         title: String(item.title || '').trim() || model,
         price: toNumber(item.price),
-        year: toModelYear(item.year) || year,
+        year: toModelYear(item.year) || 0,
         km: toNumber(item.km) || 0,
         location: String(item.location || '').trim(),
         url: item.url ? String(item.url) : '',
       }))
       .filter((item) => item.price >= 10000 && item.price <= 2000000)
-      .filter((item) => Math.abs(item.year - year) <= 2);
+      .filter((item) => item.year === year);
 
-    const initialMedian = median(cleaned.map(item => item.price));
-    const filtered = initialMedian
-      ? cleaned.filter(item => item.price >= initialMedian * 0.72 && item.price <= initialMedian * 1.28)
-      : cleaned;
+    const initialMedian = median(exactYear.map(item => item.price));
+    const cleaned = initialMedian
+      ? exactYear.filter(item => item.price >= initialMedian * 0.72 && item.price <= initialMedian * 1.28)
+      : exactYear;
 
-    const sample = filtered.length >= 3 ? filtered : cleaned;
+    const sample = cleaned.length >= 3 ? cleaned : exactYear;
     const prices = sample.map(item => item.price).sort((a, b) => a - b);
     const marketMedian = median(prices);
     const low = prices.length ? prices[0] : 0;
     const high = prices.length ? prices[prices.length - 1] : 0;
-    const trimmed = prices.length >= 6 ? prices.slice(1, -1) : prices;
-    const trimmedMean = trimmed.length ? trimmed.reduce((sum, value) => sum + value, 0) / trimmed.length : 0;
-    const observed = marketMedian && trimmedMean ? (marketMedian * 0.65 + trimmedMean * 0.35) : (marketMedian || trimmedMean || 0);
+
+    // Para compra de seminovo, o preço que realmente pressiona o mercado é o bloco
+    // dos anúncios equivalentes mais baratos, não a média dos anúncios mais caros.
+    // Usa pelo menos 3 carros e, em amostras maiores, os 30% menores preços válidos.
+    const lowerBandCount = prices.length ? Math.min(prices.length, Math.max(3, Math.ceil(prices.length * 0.30))) : 0;
+    const lowerBand = prices.slice(0, lowerBandCount);
+    const competitiveFloor = median(lowerBand);
+    const observed = competitiveFloor || marketMedian || 0;
 
     const grounding = (response as any)?.candidates?.[0]?.groundingMetadata || {};
     const groundingChunks = Array.isArray(grounding?.groundingChunks) ? grounding.groundingChunks : [];
@@ -215,11 +228,17 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         comparables: [],
         stats: { count: 0, low: 0, median: 0, high: 0, observed: 0 },
         confidence: 'low',
-        notes: parsed?.notes || 'Não encontrei comparáveis suficientes com preço verificável.',
+        notes: `Não encontrei comparáveis suficientes da mesma versão com ano-modelo ${year}.`,
         sources,
         searchQueries: grounding?.webSearchQueries || [],
       });
     }
+
+    const noteParts = [
+      `${sample.length} comparáveis válidos da mesma versão e ano-modelo ${year}.`,
+      `Base de precificação: ${lowerBandCount} menor${lowerBandCount === 1 ? '' : 'es'} preço${lowerBandCount === 1 ? '' : 's'} válido${lowerBandCount === 1 ? '' : 's'} da amostra.`,
+      parsed?.notes ? String(parsed.notes).trim() : '',
+    ].filter(Boolean);
 
     return res.status(200).json({
       comparables: sample.sort((a, b) => a.price - b.price),
@@ -231,7 +250,7 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         observed: round100(observed),
       },
       confidence,
-      notes: parsed?.notes || '',
+      notes: noteParts.join(' '),
       sources,
       searchQueries: grounding?.webSearchQueries || [],
     });
