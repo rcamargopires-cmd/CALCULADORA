@@ -23,7 +23,7 @@ const ORIGIN: Record<ShowroomPassageOrigin, string> = {
   requested: 'Pedido',
 };
 
-type Period = '7d' | '30d' | '90d' | 'all';
+type Period = 'month' | '7d' | '30d' | '90d' | 'all';
 
 type Props = {
   user: User;
@@ -50,9 +50,18 @@ const phoneMask = (raw: string) => {
 
 const inPeriod = (item: ShowroomPassage, period: Period) => {
   if (period === 'all') return true;
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
-  const created = new Date(item.createdAt).getTime();
+  const createdDate = new Date(item.createdAt);
+  const created = createdDate.getTime();
   if (!Number.isFinite(created)) return false;
+
+  if (period === 'month') {
+    const current = new Date();
+    return created <= current.getTime()
+      && createdDate.getFullYear() === current.getFullYear()
+      && createdDate.getMonth() === current.getMonth();
+  }
+
+  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
   return created >= Date.now() - days * 24 * 60 * 60 * 1000;
 };
 
@@ -171,6 +180,7 @@ const SellerShowroomHistory: React.FC<Props> = ({ user }) => {
             <label className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400"><CalendarDays size={13}/> Período</span>
               <select value={period} onChange={event => setPeriod(event.target.value as Period)} className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-sky-400">
+                <option value="month">Mês atual</option>
                 <option value="7d">Últimos 7 dias</option>
                 <option value="30d">Últimos 30 dias</option>
                 <option value="90d">Últimos 90 dias</option>
