@@ -106,6 +106,11 @@ VEÍCULO ALVO
 - FIPE atual: ${fipe || 'não informada'}
 - Unidade/região: ${storeName}
 
+IMPORTANTE SOBRE PREÇO X FIPE
+- ${fipe ? `A FIPE atual é R$ ${fipe.toLocaleString('pt-BR')}. NÃO use nenhum anúncio com preço acima desse valor.` : 'A FIPE não foi informada; nesse caso, não aplique teto de FIPE.'}
+- Para a precificação, anúncios acima da FIPE não representam o piso competitivo e devem ser ignorados.
+- Priorize os menores preços válidos abaixo ou iguais à FIPE.
+
 IMPORTANTE SOBRE ANO
 - Compare SOMENTE veículos de ANO-MODELO ${year}.
 - Fabricação ${year - 1}/modelo ${year} pode ser aceita, pois o ano-modelo continua ${year}.
@@ -139,6 +144,7 @@ REGRAS DE COMPARABILIDADE
 - Priorize ${storeName}; se necessário, amplie para o estado de São Paulo.
 - Se KM estiver disponível, prefira veículos próximos da quilometragem alvo, mas não descarte um anúncio válido apenas por KM diferente.
 - Considere apenas preço total anunciado do veículo. Ignore parcela, entrada, consórcio, aluguel e anúncios sem preço claro.
+- ${fipe ? `DESCARTE qualquer preço acima de R$ ${fipe.toLocaleString('pt-BR')} (FIPE atual).` : ''}
 - Procure deliberadamente o piso competitivo: os anúncios equivalentes mais baratos são os mais relevantes para uma concessionária definir preço de venda e compra.
 - Não invente preço, URL, quilometragem, versão ou localização.
 - Se uma informação não estiver visível no resultado pesquisado, use null.
@@ -182,7 +188,8 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         url: item.url ? String(item.url) : '',
       }))
       .filter((item) => item.price >= 10000 && item.price <= 2000000)
-      .filter((item) => item.year === year);
+      .filter((item) => item.year === year)
+      .filter((item) => !fipe || item.price <= fipe);
 
     const initialMedian = median(exactYear.map(item => item.price));
     const cleaned = initialMedian
@@ -228,7 +235,9 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         comparables: [],
         stats: { count: 0, low: 0, median: 0, high: 0, observed: 0 },
         confidence: 'low',
-        notes: `Não encontrei comparáveis suficientes da mesma versão com ano-modelo ${year}.`,
+        notes: fipe
+          ? `Não encontrei comparáveis suficientes da mesma versão e ano-modelo ${year} com preço até a FIPE.`
+          : `Não encontrei comparáveis suficientes da mesma versão com ano-modelo ${year}.`,
         sources,
         searchQueries: grounding?.webSearchQueries || [],
       });
@@ -236,6 +245,7 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
 
     const noteParts = [
       `${sample.length} comparáveis válidos da mesma versão e ano-modelo ${year}.`,
+      fipe ? `Anúncios acima da FIPE de R$ ${fipe.toLocaleString('pt-BR')} foram descartados.` : '',
       `Base de precificação: ${lowerBandCount} menor${lowerBandCount === 1 ? '' : 'es'} preço${lowerBandCount === 1 ? '' : 's'} válido${lowerBandCount === 1 ? '' : 's'} da amostra.`,
       parsed?.notes ? String(parsed.notes).trim() : '',
     ].filter(Boolean);
