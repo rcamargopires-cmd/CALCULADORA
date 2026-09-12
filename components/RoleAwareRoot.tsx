@@ -17,6 +17,7 @@ import GroupStockHostRepair from './GroupStockHostRepair';
 import ManagerShowroomProposalsShell from './ManagerShowroomProposalsShell';
 import SellerShowroomAutoReset from './SellerShowroomAutoReset';
 import SellerDeliveryAgendaShortcut from './SellerDeliveryAgendaShortcut';
+import SellerShowroomHistory from './SellerShowroomHistory';
 import MarketIQShell from './MarketIQShell';
 import MarketIQLookupBridge from './MarketIQLookupBridge';
 import MarketIQSessionReset from './MarketIQSessionReset';
@@ -43,7 +44,10 @@ const StandardMotyq = ({ user }: { user: User | null }) => <>
   <Safe name="GroupStockHostRepair"><GroupStockHostRepair /></Safe>
   <Safe name="ManagerShowroomProposalsShell"><ManagerShowroomProposalsShell /></Safe>
   <Safe name="SellerShowroomAutoReset"><SellerShowroomAutoReset /></Safe>
-  {user && ['seller', 'user'].includes(String(user.role)) && <Safe name="SellerDeliveryAgendaShortcut"><SellerDeliveryAgendaShortcut /></Safe>}
+  {user && ['seller', 'user'].includes(String(user.role)) && <>
+    <Safe name="SellerDeliveryAgendaShortcut"><SellerDeliveryAgendaShortcut /></Safe>
+    <Safe name="SellerShowroomHistory"><SellerShowroomHistory user={user}/></Safe>
+  </>}
   <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
   <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
   <Safe name="MarketIQShell"><MarketIQShell /></Safe>
