@@ -27,6 +27,12 @@ type ScanResult = {
 const money = (value: number) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const moneyInput = (value: number) => value ? Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 const numberFromInput = (value: string) => Number(String(value || '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
+const yearFromInput = (value: string) => {
+  const matches = String(value || '').match(/(?:19|20)\d{2}/g) || [];
+  if (matches.length) return Number(matches[matches.length - 1]);
+  const numeric = Math.round(numberFromInput(value));
+  return numeric >= 1900 && numeric <= 2100 ? numeric : 0;
+};
 
 const marketRoot = () => Array.from(document.querySelectorAll('div.fixed.inset-0')).find(el => String(el.textContent || '').includes('MOTYQ MARKETIQ')) as HTMLElement | undefined;
 const marketVisible = () => {
@@ -111,7 +117,8 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
     setError('');
     setResult(null);
 
-    if (!model || !year) {
+    const normalizedYear = yearFromInput(year);
+    if (!model || !normalizedYear) {
       setError('Informe modelo/versão e ano/modelo antes de pesquisar o mercado.');
       return;
     }
@@ -130,7 +137,8 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           model,
-          year: numberFromInput(year),
+          year: normalizedYear,
+          yearLabel: year,
           km: numberFromInput(km),
           fipe: numberFromInput(fipe),
           storeName,
@@ -228,7 +236,10 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
               <p className="max-w-2xl text-[11px] leading-5 text-slate-500">O MarketScan usa preços anunciados, não preços efetivamente vendidos. O MarketIQ continua aplicando estado do carro, KM, preparação, giro, margem e risco antes de recomendar a compra.</p>
-              <button onClick={apply} className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black ${applied ? 'bg-emerald-600 text-white' : 'bg-cyan-600 text-white hover:bg-cyan-700'}`}>{applied ? <CheckCircle2 size={15} /> : <Search size={15} />}{applied ? 'APLICADO NO MARKETIQ' : 'APLICAR NO MARKETIQ'}</button>
+              <button onClick={apply} className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${applied ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                <CheckCircle2 size={15} />
+                {applied ? 'APLICADO AO MARKETIQ' : 'USAR DADOS NO MARKETIQ'}
+              </button>
             </div>
           </>}
         </div>
