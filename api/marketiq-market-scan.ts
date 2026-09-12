@@ -143,6 +143,8 @@ ESTRATÉGIA DE PESQUISA
 - Faça primeiro buscas específicas na Webmotors e no iCarros pela versão EXATA e ANO-MODELO ${year}, priorizando MENOR PREÇO.
 - Exemplos: site:webmotors.com.br + versão completa + ${year} + região + menor preço; site:icarros.com.br + versão completa + ${year} + região + menor preço.
 - Se uma página de resultados mostrar vários cards com preço, ano, KM e localização, use esses cards como evidência válida.
+- Se a página mostrar claramente o TOTAL DE ANÚNCIOS encontrados para esses filtros exatos, capture esse número em marketOfferCount.
+- Só informe marketOfferCount quando o número estiver visível/confirmado na fonte. NÃO estime nem invente.
 - Se a cidade tiver poucos resultados, amplie para raio/região e depois para o estado de São Paulo, SEM mudar versão nem ano-modelo.
 - Só depois use fontes secundárias permitidas.
 
@@ -170,6 +172,8 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
       "url": null
     }
   ],
+  "marketOfferCount": 130,
+  "marketOfferSource": "Webmotors exibiu 130 anúncios encontrados com os filtros equivalentes",
   "notes": "resumo curto sobre a amostra encontrada"
 }
 `;
@@ -218,6 +222,18 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
     const competitiveFloor = median(lowerBand);
     const observed = competitiveFloor || marketMedian || 0;
 
+    const reportedOfferCount = Math.max(0, Math.round(toNumber(parsed?.marketOfferCount)));
+    const offerCount = reportedOfferCount || sample.length;
+    const offerLevel = reportedOfferCount
+      ? (reportedOfferCount >= 30 ? 'high' : reportedOfferCount >= 12 ? 'medium' : 'low')
+      : (sample.length >= 15 ? 'high' : sample.length >= 8 ? 'medium' : 'low');
+    const offerSource = String(parsed?.marketOfferSource || '').trim();
+    const offerWarning = offerLevel === 'high'
+      ? `ALTA OFERTA NO MERCADO${reportedOfferCount ? `: ${reportedOfferCount} anúncios equivalentes identificados` : ''}. Cautela na compra: muita oferta aumenta a concorrência, pressiona os preços para baixo e pode alongar o giro. Priorize compra bem posicionada no piso do mercado.`
+      : offerLevel === 'medium'
+        ? `Oferta relevante no mercado${reportedOfferCount ? `: ${reportedOfferCount} anúncios equivalentes identificados` : ''}. Avalie preço de entrada e giro com atenção.`
+        : '';
+
     const grounding = (response as any)?.candidates?.[0]?.groundingMetadata || {};
     const groundingChunks = Array.isArray(grounding?.groundingChunks) ? grounding.groundingChunks : [];
     const sources = groundingChunks
@@ -244,6 +260,7 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         comparables: [],
         stats: { count: 0, low: 0, median: 0, high: 0, observed: 0 },
         confidence: 'low',
+        marketSupply: { level: offerLevel, count: offerCount, reported: Boolean(reportedOfferCount), source: offerSource, warning: offerWarning },
         notes: fipe
           ? `Não encontrei comparáveis suficientes da mesma versão e ano-modelo ${year} com preço até a FIPE nas fontes permitidas.`
           : `Não encontrei comparáveis suficientes da mesma versão com ano-modelo ${year} nas fontes permitidas.`,
@@ -253,6 +270,7 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
     }
 
     const noteParts = [
+      offerWarning,
       `${sample.length} comparáveis válidos da mesma versão e ano-modelo ${year}.`,
       preferred.length >= 3 ? 'Amostra baseada prioritariamente em Webmotors e iCarros.' : 'Webmotors/iCarros insuficientes; amostra complementada apenas com fontes secundárias permitidas.',
       fipe ? `Anúncios acima da FIPE de R$ ${fipe.toLocaleString('pt-BR')} foram descartados.` : '',
@@ -271,6 +289,7 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         observed: round100(observed),
       },
       confidence,
+      marketSupply: { level: offerLevel, count: offerCount, reported: Boolean(reportedOfferCount), source: offerSource, warning: offerWarning },
       notes: noteParts.join(' '),
       sources,
       searchQueries: grounding?.webSearchQueries || [],
