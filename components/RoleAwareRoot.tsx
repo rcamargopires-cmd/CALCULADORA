@@ -22,6 +22,7 @@ import ManagerShowroomHistory from './ManagerShowroomHistory';
 import MarketIQShell from './MarketIQShell';
 import MarketIQLookupBridge from './MarketIQLookupBridge';
 import MarketIQSessionReset from './MarketIQSessionReset';
+import MarketIQFinalDecisionBridge from './MarketIQFinalDecisionBridge';
 import ModuleErrorBoundary from './ModuleErrorBoundary';
 import EvaluationCenter from './EvaluationCenter';
 import EvaluationDecisionBridge from './EvaluationDecisionBridge';
@@ -54,6 +55,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => <>
   <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
   <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
   <Safe name="MarketIQShell"><MarketIQShell /></Safe>
+  {user && <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>}
   <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
   <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
 </>;
@@ -62,6 +64,7 @@ const EvaluatorMotyq = ({ user }: { user: User }) => <>
   <ModuleErrorBoundary name="EvaluatorWorkspace" critical><EvaluatorWorkspace user={user}/></ModuleErrorBoundary>
   <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
   <Safe name="MarketIQShell"><MarketIQShell /></Safe>
+  <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>
   <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
   <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
 </>;
