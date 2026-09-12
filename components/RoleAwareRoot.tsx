@@ -18,6 +18,7 @@ import ManagerShowroomProposalsShell from './ManagerShowroomProposalsShell';
 import SellerShowroomAutoReset from './SellerShowroomAutoReset';
 import SellerDeliveryAgendaShortcut from './SellerDeliveryAgendaShortcut';
 import SellerShowroomHistory from './SellerShowroomHistory';
+import ManagerShowroomHistory from './ManagerShowroomHistory';
 import MarketIQShell from './MarketIQShell';
 import MarketIQLookupBridge from './MarketIQLookupBridge';
 import MarketIQSessionReset from './MarketIQSessionReset';
@@ -48,6 +49,8 @@ const StandardMotyq = ({ user }: { user: User | null }) => <>
     <Safe name="SellerDeliveryAgendaShortcut"><SellerDeliveryAgendaShortcut /></Safe>
     <Safe name="SellerShowroomHistory"><SellerShowroomHistory user={user}/></Safe>
   </>}
+  {user && ['manager', 'admin'].includes(String(user.role)) &&
+    <Safe name="ManagerShowroomHistory"><ManagerShowroomHistory user={user}/></Safe>}
   <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
   <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
   <Safe name="MarketIQShell"><MarketIQShell /></Safe>
