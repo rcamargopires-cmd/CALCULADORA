@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, ExternalLink, RefreshCw, Search, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw, Search, X } from 'lucide-react';
 import { auth } from '../firebase';
 
 type Props = { storeName: string };
@@ -19,6 +19,13 @@ type ScanResult = {
   comparables: Comparable[];
   stats: { count: number; low: number; median: number; high: number; observed: number };
   confidence: 'high' | 'medium' | 'low';
+  marketSupply?: {
+    level: 'high' | 'medium' | 'low';
+    count: number;
+    reported?: boolean;
+    source?: string;
+    warning?: string;
+  };
   notes?: string;
   sources?: Array<{ title: string; url: string }>;
   searchQueries?: string[];
@@ -193,13 +200,29 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
             <div>
               <RefreshCw size={32} className="mx-auto animate-spin text-cyan-600" />
               <p className="mt-4 font-semibold">Pesquisando anúncios comparáveis...</p>
-              <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">O MarketScan está cruzando Webmotors, OLX, iCarros, Mobiauto e outras fontes disponíveis, priorizando versão, ano, região e quilometragem.</p>
+              <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">O MarketScan está pesquisando primeiro Webmotors e iCarros e, se necessário, complementando com outras fontes permitidas.</p>
             </div>
           </div>}
 
           {!loading && error && !result?.stats?.count && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">{error}</div>}
 
           {!loading && result?.stats?.count > 0 && <>
+            {result.marketSupply?.level === 'high' && <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950 shadow-sm">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={22} className="mt-0.5 shrink-0 text-amber-600" />
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[.1em] text-amber-800">ALTA OFERTA · CAUTELA NA COMPRA</p>
+                  <p className="mt-1 text-sm font-semibold leading-6">{result.marketSupply.warning || 'Há muitos veículos equivalentes anunciados. A concorrência tende a pressionar preço e aumentar o risco de giro.'}</p>
+                  {result.marketSupply.source && <p className="mt-1 text-[11px] text-amber-700">{result.marketSupply.source}</p>}
+                </div>
+              </div>
+            </div>}
+
+            {result.marketSupply?.level === 'medium' && <div className="mb-4 rounded-2xl border border-yellow-200 bg-yellow-50 p-3 text-yellow-900">
+              <p className="text-[11px] font-black uppercase tracking-[.08em]">OFERTA RELEVANTE</p>
+              <p className="mt-1 text-xs leading-5">{result.marketSupply.warning || 'Existe oferta relevante deste veículo. Avalie o preço de entrada e o giro com atenção.'}</p>
+            </div>}
+
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">AMOSTRA</p><p className="mt-1 text-2xl font-semibold">{result.stats.count}</p><p className="mt-1 text-[10px] text-slate-500">anúncios válidos</p></div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-slate-500">MENOR</p><p className="mt-1 text-lg font-semibold">{money(result.stats.low)}</p></div>
@@ -210,6 +233,7 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${confidenceClass(result.confidence)}`}>CONFIANÇA {confidenceLabel(result.confidence)}</span>
+              {result.marketSupply?.count > 0 && <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${result.marketSupply.level === 'high' ? 'border-amber-300 bg-amber-50 text-amber-800' : result.marketSupply.level === 'medium' ? 'border-yellow-200 bg-yellow-50 text-yellow-800' : 'border-slate-200 bg-white text-slate-600'}`}>OFERTA {result.marketSupply.count.toLocaleString('pt-BR')}</span>}
               {typicalKm > 0 && <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600">KM típico {typicalKm.toLocaleString('pt-BR')}</span>}
               {result.notes && <span className="text-xs text-slate-500">{result.notes}</span>}
             </div>
