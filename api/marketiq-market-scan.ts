@@ -68,6 +68,16 @@ const domainOf = (url: string) => {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
 };
 
+const sourceKey = (source: string, url: string) => `${String(source || '')} ${String(url || '')}`.toLowerCase();
+const isExcludedSource = (source: string, url: string) => {
+  const key = sourceKey(source, url);
+  return key.includes('facebook') || key.includes('facebook.com') || key.includes('mercado livre') || key.includes('mercadolivre') || key.includes('mercadolivre.com');
+};
+const isPreferredSource = (source: string, url: string) => {
+  const key = sourceKey(source, url);
+  return key.includes('webmotors') || key.includes('webmotors.com') || key.includes('icarros') || key.includes('icarros.com');
+};
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -108,14 +118,13 @@ VEÍCULO ALVO
 
 IMPORTANTE SOBRE PREÇO X FIPE
 - ${fipe ? `A FIPE atual é R$ ${fipe.toLocaleString('pt-BR')}. NÃO use nenhum anúncio com preço acima desse valor.` : 'A FIPE não foi informada; nesse caso, não aplique teto de FIPE.'}
-- Para a precificação, anúncios acima da FIPE não representam o piso competitivo e devem ser ignorados.
+- Para a precificação, anúncios acima da FIPE devem ser ignorados.
 - Priorize os menores preços válidos abaixo ou iguais à FIPE.
 
 IMPORTANTE SOBRE ANO
 - Compare SOMENTE veículos de ANO-MODELO ${year}.
 - Fabricação ${year - 1}/modelo ${year} pode ser aceita, pois o ano-modelo continua ${year}.
 - NÃO aceite ano-modelo ${year - 1}, ${year + 1} ou qualquer outro ano-modelo.
-- Veículos de outro ano-modelo têm FIPE diferente e NÃO podem compor a precificação deste carro.
 
 IMPORTANTE SOBRE NOMES DE VERSÃO
 - O texto vindo do estoque pode usar abreviações internas. Interprete e EXPANDA abreviações automotivas antes de pesquisar.
@@ -124,20 +133,18 @@ IMPORTANTE SOBRE NOMES DE VERSÃO
 - Exemplo: "RENEGADE LGTD T270" deve ser pesquisado também como "Jeep Renegade Longitude T270" e, quando compatível com os resultados, "1.3 T270 Turbo Flex Longitude AT6".
 - NÃO misture outra versão, mesmo que seja do mesmo modelo e ano.
 
-FONTES PRIORITÁRIAS
-1. Webmotors
-2. OLX Autos
-3. iCarros
-4. Mobiauto
-5. Mercado Livre Veículos
-6. Portais e lojas de seminovos confiáveis
+FONTES
+- PRIORIDADE MÁXIMA: Webmotors e iCarros.
+- Tente formar a amostra primeiro com anúncios dessas duas fontes.
+- Somente se Webmotors + iCarros não fornecerem comparáveis suficientes, complemente com Mobiauto, OLX Autos e portais/lojas de seminovos confiáveis.
+- NÃO use Facebook, Facebook Marketplace, Mercado Livre nem Mercado Livre Veículos em nenhuma hipótese.
 
 ESTRATÉGIA DE PESQUISA
-- Na Webmotors, procure a versão EXATA e o ANO-MODELO ${year}, priorizando os anúncios de MENOR PREÇO primeiro.
-- Faça buscas específicas por fonte, por exemplo: site:webmotors.com.br + versão completa + ${year} + região + menor preço.
-- Se uma página de resultados do portal mostrar vários cards de anúncios com preço, ano, KM e localização, use esses cards como evidência válida.
+- Faça primeiro buscas específicas na Webmotors e no iCarros pela versão EXATA e ANO-MODELO ${year}, priorizando MENOR PREÇO.
+- Exemplos: site:webmotors.com.br + versão completa + ${year} + região + menor preço; site:icarros.com.br + versão completa + ${year} + região + menor preço.
+- Se uma página de resultados mostrar vários cards com preço, ano, KM e localização, use esses cards como evidência válida.
 - Se a cidade tiver poucos resultados, amplie para raio/região e depois para o estado de São Paulo, SEM mudar versão nem ano-modelo.
-- Não conclua que não há mercado apenas porque um portal usa página dinâmica; tente resultado indexado pelo Google e outras fontes.
+- Só depois use fontes secundárias permitidas.
 
 REGRAS DE COMPARABILIDADE
 - EXIJA a mesma versão e o mesmo ANO-MODELO ${year}.
@@ -145,9 +152,9 @@ REGRAS DE COMPARABILIDADE
 - Se KM estiver disponível, prefira veículos próximos da quilometragem alvo, mas não descarte um anúncio válido apenas por KM diferente.
 - Considere apenas preço total anunciado do veículo. Ignore parcela, entrada, consórcio, aluguel e anúncios sem preço claro.
 - ${fipe ? `DESCARTE qualquer preço acima de R$ ${fipe.toLocaleString('pt-BR')} (FIPE atual).` : ''}
-- Procure deliberadamente o piso competitivo: os anúncios equivalentes mais baratos são os mais relevantes para uma concessionária definir preço de venda e compra.
+- Procure deliberadamente o piso competitivo.
+- NÃO use anúncios do Facebook ou Mercado Livre.
 - Não invente preço, URL, quilometragem, versão ou localização.
-- Se uma informação não estiver visível no resultado pesquisado, use null.
 - Retorne no máximo 20 comparáveis, ORDENADOS DO MENOR PARA O MAIOR PREÇO.
 
 RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
@@ -189,22 +196,23 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
       }))
       .filter((item) => item.price >= 10000 && item.price <= 2000000)
       .filter((item) => item.year === year)
-      .filter((item) => !fipe || item.price <= fipe);
+      .filter((item) => !fipe || item.price <= fipe)
+      .filter((item) => !isExcludedSource(item.source, item.url));
 
-    const initialMedian = median(exactYear.map(item => item.price));
+    const preferred = exactYear.filter(item => isPreferredSource(item.source, item.url));
+    const sourcePool = preferred.length >= 3 ? preferred : exactYear;
+
+    const initialMedian = median(sourcePool.map(item => item.price));
     const cleaned = initialMedian
-      ? exactYear.filter(item => item.price >= initialMedian * 0.72 && item.price <= initialMedian * 1.28)
-      : exactYear;
+      ? sourcePool.filter(item => item.price >= initialMedian * 0.72 && item.price <= initialMedian * 1.28)
+      : sourcePool;
 
-    const sample = cleaned.length >= 3 ? cleaned : exactYear;
+    const sample = cleaned.length >= 3 ? cleaned : sourcePool;
     const prices = sample.map(item => item.price).sort((a, b) => a - b);
     const marketMedian = median(prices);
     const low = prices.length ? prices[0] : 0;
     const high = prices.length ? prices[prices.length - 1] : 0;
 
-    // Para compra de seminovo, o preço que realmente pressiona o mercado é o bloco
-    // dos anúncios equivalentes mais baratos, não a média dos anúncios mais caros.
-    // Usa pelo menos 3 carros e, em amostras maiores, os 30% menores preços válidos.
     const lowerBandCount = prices.length ? Math.min(prices.length, Math.max(3, Math.ceil(prices.length * 0.30))) : 0;
     const lowerBand = prices.slice(0, lowerBandCount);
     const competitiveFloor = median(lowerBand);
@@ -216,6 +224,7 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
       .map((chunk: any) => chunk?.web)
       .filter((web: any) => web?.uri)
       .map((web: any) => ({ title: String(web.title || domainOf(web.uri) || 'Fonte web'), url: String(web.uri) }))
+      .filter((item: any) => !isExcludedSource(item.title, item.url))
       .filter((item: any, index: number, arr: any[]) => arr.findIndex(other => other.url === item.url) === index)
       .slice(0, 20);
 
@@ -236,8 +245,8 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         stats: { count: 0, low: 0, median: 0, high: 0, observed: 0 },
         confidence: 'low',
         notes: fipe
-          ? `Não encontrei comparáveis suficientes da mesma versão e ano-modelo ${year} com preço até a FIPE.`
-          : `Não encontrei comparáveis suficientes da mesma versão com ano-modelo ${year}.`,
+          ? `Não encontrei comparáveis suficientes da mesma versão e ano-modelo ${year} com preço até a FIPE nas fontes permitidas.`
+          : `Não encontrei comparáveis suficientes da mesma versão com ano-modelo ${year} nas fontes permitidas.`,
         sources,
         searchQueries: grounding?.webSearchQueries || [],
       });
@@ -245,7 +254,9 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
 
     const noteParts = [
       `${sample.length} comparáveis válidos da mesma versão e ano-modelo ${year}.`,
+      preferred.length >= 3 ? 'Amostra baseada prioritariamente em Webmotors e iCarros.' : 'Webmotors/iCarros insuficientes; amostra complementada apenas com fontes secundárias permitidas.',
       fipe ? `Anúncios acima da FIPE de R$ ${fipe.toLocaleString('pt-BR')} foram descartados.` : '',
+      'Facebook e Mercado Livre foram excluídos.',
       `Base de precificação: ${lowerBandCount} menor${lowerBandCount === 1 ? '' : 'es'} preço${lowerBandCount === 1 ? '' : 's'} válido${lowerBandCount === 1 ? '' : 's'} da amostra.`,
       parsed?.notes ? String(parsed.notes).trim() : '',
     ].filter(Boolean);
