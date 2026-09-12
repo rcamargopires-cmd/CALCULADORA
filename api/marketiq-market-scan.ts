@@ -36,6 +36,14 @@ const toNumber = (value: unknown) => {
   return Number(normalized) || 0;
 };
 
+const toModelYear = (value: unknown) => {
+  const raw = String(value ?? '').trim();
+  const matches = raw.match(/(?:19|20)\d{2}/g) || [];
+  if (matches.length) return Number(matches[matches.length - 1]);
+  const numeric = Math.round(toNumber(value));
+  return numeric >= 1900 && numeric <= 2100 ? numeric : 0;
+};
+
 const median = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
   if (!sorted.length) return 0;
@@ -78,7 +86,7 @@ export default async function handler(req: any, res: any) {
     if (!apiKey) return res.status(503).json({ error: 'MarketScan ainda não está configurado no servidor.' });
 
     const model = String(req.body?.model || '').trim();
-    const year = Math.round(toNumber(req.body?.year));
+    const year = toModelYear(req.body?.yearLabel || req.body?.year);
     const km = Math.round(toNumber(req.body?.km));
     const fipe = toNumber(req.body?.fipe);
     const storeName = String(req.body?.storeName || 'Sorocaba, SP').trim();
@@ -92,11 +100,17 @@ Você é o motor MarketScan de uma concessionária brasileira de veículos semin
 Use a Pesquisa Google para localizar anúncios REAIS E ATUAIS de veículos comparáveis ao carro abaixo.
 
 VEÍCULO ALVO
-- Modelo / versão: ${model}
-- Ano/modelo: ${year}
+- Modelo / versão informado no estoque: ${model}
+- Ano/modelo correto para pesquisa: ${year}
 - KM atual: ${km || 'não informado'}
 - FIPE atual: ${fipe || 'não informada'}
 - Unidade/região: ${storeName}
+
+IMPORTANTE SOBRE NOMES DE VERSÃO
+- O texto vindo do estoque pode usar abreviações internas. Interprete e EXPANDA abreviações automotivas antes de pesquisar.
+- Exemplos comuns: LGTD = Longitude, LTD = Limited, AT = automático, AUT = automático, T270 = motor T270.
+- Pesquise também a forma comercial completa usada pelos portais, sem alterar marca/modelo/versão real.
+- Exemplo: "RENEGADE LGTD T270" deve ser pesquisado também como "Jeep Renegade Longitude T270" e, quando compatível com os resultados, "1.3 T270 Turbo Flex Longitude AT6".
 
 FONTES PRIORITÁRIAS
 1. Webmotors
@@ -106,10 +120,16 @@ FONTES PRIORITÁRIAS
 5. Mercado Livre Veículos
 6. Portais e lojas de seminovos confiáveis
 
+ESTRATÉGIA DE PESQUISA
+- Faça buscas específicas por fonte, por exemplo: site:webmotors.com.br + versão completa + ano + região.
+- Se uma página de resultados do portal mostrar vários cards de anúncios com preço, ano, KM e localização, use esses cards como evidência válida.
+- Se a cidade tiver poucos resultados, amplie para raio/região e depois para o estado de São Paulo.
+- Não conclua que não há mercado apenas porque um portal usa página dinâmica; tente resultado indexado pelo Google e outras fontes.
+
 REGRAS DE COMPARABILIDADE
 - Priorize EXATAMENTE a mesma versão e o mesmo ano/modelo.
 - Se houver poucos anúncios, aceite ano ${year - 1} a ${year + 1}, deixando isso explícito.
-- Priorize Sorocaba e interior de SP; se necessário, amplie para o estado de São Paulo.
+- Priorize ${storeName}; se necessário, amplie para o estado de São Paulo.
 - Se KM estiver disponível, prefira veículos próximos da quilometragem alvo.
 - Considere apenas preço total anunciado do veículo. Ignore parcela, entrada, consórcio, aluguel e anúncios sem preço claro.
 - Não invente preço, URL, quilometragem, versão ou localização.
@@ -123,7 +143,7 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
       "source": "Webmotors",
       "title": "texto real/resumido do anúncio",
       "price": 119900,
-      "year": 2023,
+      "year": 2024,
       "km": 42000,
       "location": "Sorocaba, SP",
       "url": null
@@ -148,7 +168,7 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
         source: String(item.source || '').trim() || 'Web',
         title: String(item.title || '').trim() || model,
         price: toNumber(item.price),
-        year: Math.round(toNumber(item.year)) || year,
+        year: toModelYear(item.year) || year,
         km: toNumber(item.km) || 0,
         location: String(item.location || '').trim(),
         url: item.url ? String(item.url) : '',
