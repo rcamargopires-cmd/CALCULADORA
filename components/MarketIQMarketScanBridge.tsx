@@ -13,6 +13,8 @@ type Comparable = {
   km: number;
   location: string;
   url?: string;
+  matchType?: 'exact' | 'similar';
+  similarityReason?: string;
 };
 
 type ScanResult = {
@@ -24,6 +26,13 @@ type ScanResult = {
     count: number;
     reported?: boolean;
     source?: string;
+    warning?: string;
+  };
+  expandedSearch?: {
+    used: boolean;
+    scope: 'national_exact' | 'national_similar';
+    exactCount: number;
+    similarCount: number;
     warning?: string;
   };
   notes?: string;
@@ -78,6 +87,7 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [searchPhase, setSearchPhase] = useState<'strict' | 'expanded'>('strict');
   const [error, setError] = useState('');
   const [result, setResult] = useState<ScanResult | null>(null);
   const [vehicleLabel, setVehicleLabel] = useState('');
@@ -123,6 +133,7 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
     setApplied(false);
     setError('');
     setResult(null);
+    setSearchPhase('strict');
 
     const normalizedYear = yearFromInput(year);
     if (!model || !normalizedYear) {
@@ -136,25 +147,44 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
       return;
     }
 
+    const body = {
+      model,
+      year: normalizedYear,
+      yearLabel: year,
+      km: numberFromInput(km),
+      fipe: numberFromInput(fipe),
+      storeName,
+    };
+
     setLoading(true);
     try {
       const token = await currentUser.getIdToken();
-      const response = await fetch('/api/marketiq-market-scan', {
+      const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+      const strictResponse = await fetch('/api/marketiq-market-scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          model,
-          year: normalizedYear,
-          yearLabel: year,
-          km: numberFromInput(km),
-          fipe: numberFromInput(fipe),
-          storeName,
-        }),
+        headers,
+        body: JSON.stringify(body),
       });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.error || 'Não foi possível pesquisar o mercado.');
-      setResult(payload as ScanResult);
-      if (!payload?.stats?.count) setError('Não encontrei anúncios comparáveis suficientes com preço verificável. Tente novamente mais tarde ou amplie manualmente a pesquisa.');
+      const strictPayload = await strictResponse.json().catch(() => null);
+      if (!strictResponse.ok) throw new Error(strictPayload?.error || 'Não foi possível pesquisar o mercado.');
+
+      if (strictPayload?.stats?.count > 0) {
+        setResult(strictPayload as ScanResult);
+        return;
+      }
+
+      setSearchPhase('expanded');
+      const expandedResponse = await fetch('/api/marketiq-market-scan-expanded', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      const expandedPayload = await expandedResponse.json().catch(() => null);
+      if (!expandedResponse.ok) throw new Error(expandedPayload?.error || 'Não foi possível ampliar a pesquisa de mercado.');
+      setResult(expandedPayload as ScanResult);
+      if (!expandedPayload?.stats?.count) {
+        setError('O MarketScan já ampliou a busca para outras regiões do Brasil e para veículos semelhantes tecnicamente próximos, mas ainda não encontrou amostra verificável suficiente.');
+      }
     } catch (e: any) {
       setError(e?.message || 'Não foi possível pesquisar o mercado agora.');
     } finally {
@@ -199,14 +229,27 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
           {loading && <div className="grid min-h-[280px] place-items-center rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
             <div>
               <RefreshCw size={32} className="mx-auto animate-spin text-cyan-600" />
-              <p className="mt-4 font-semibold">Pesquisando anúncios comparáveis...</p>
-              <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">O MarketScan está pesquisando primeiro Webmotors e iCarros e, se necessário, complementando com outras fontes permitidas.</p>
+              <p className="mt-4 font-semibold">{searchPhase === 'expanded' ? 'Ampliando a pesquisa...' : 'Pesquisando anúncios comparáveis...'}</p>
+              <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">{searchPhase === 'expanded'
+                ? 'A amostra exata ficou pequena. O MarketScan está buscando em outras regiões do Brasil e, se necessário, versões/anos muito próximos do mesmo modelo e powertrain.'
+                : 'O MarketScan está pesquisando primeiro Webmotors e iCarros e, se necessário, complementando com outras fontes permitidas.'}</p>
             </div>
           </div>}
 
           {!loading && error && !result?.stats?.count && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">{error}</div>}
 
           {!loading && result?.stats?.count > 0 && <>
+            {result.expandedSearch?.used && <div className="mb-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-indigo-950 shadow-sm">
+              <div className="flex items-start gap-3">
+                <Search size={21} className="mt-0.5 shrink-0 text-indigo-600" />
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[.1em] text-indigo-800">PESQUISA AMPLIADA AUTOMATICAMENTE</p>
+                  <p className="mt-1 text-sm font-semibold leading-6">{result.expandedSearch.warning || 'A busca local/exata foi insuficiente e o MarketScan ampliou o alcance geográfico e técnico.'}</p>
+                  <p className="mt-1 text-[11px] text-indigo-700">Exatos: {result.expandedSearch.exactCount || 0} · Semelhantes: {result.expandedSearch.similarCount || 0}</p>
+                </div>
+              </div>
+            </div>}
+
             {result.marketSupply?.level === 'high' && <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950 shadow-sm">
               <div className="flex items-start gap-3">
                 <AlertTriangle size={22} className="mt-0.5 shrink-0 text-amber-600" />
@@ -245,7 +288,15 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
               <div className="max-h-[380px] divide-y divide-slate-100 overflow-y-auto">
                 {result.comparables.map((item, index) => <div key={`${item.source}-${item.price}-${index}`} className="grid grid-cols-[90px_1fr_90px_110px] gap-3 px-4 py-3 text-xs md:grid-cols-[110px_1fr_100px_120px_130px]">
                   <span className="font-bold text-slate-600">{item.source}</span>
-                  <div className="min-w-0"><p className="truncate font-semibold text-slate-800">{item.title}</p><p className="mt-0.5 truncate text-[10px] text-slate-500">{item.location || 'Local não informado'}</p></div>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className="truncate font-semibold text-slate-800">{item.title}</p>
+                      {item.matchType === 'similar' && <span className="shrink-0 rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[8px] font-black text-indigo-700">SEMELHANTE</span>}
+                      {item.matchType === 'exact' && <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[8px] font-black text-emerald-700">EXATO</span>}
+                    </div>
+                    <p className="mt-0.5 truncate text-[10px] text-slate-500">{item.location || 'Local não informado'}</p>
+                    {item.matchType === 'similar' && item.similarityReason && <p className="mt-0.5 truncate text-[9px] text-indigo-600">{item.similarityReason}</p>}
+                  </div>
                   <span className="text-slate-600">{item.year || '—'}</span>
                   <span className="hidden text-slate-600 md:block">{item.km ? `${item.km.toLocaleString('pt-BR')} km` : '—'}</span>
                   <span className="text-right font-semibold text-slate-900">{money(item.price)}</span>
@@ -259,7 +310,7 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
             </div>}
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-              <p className="max-w-2xl text-[11px] leading-5 text-slate-500">O MarketScan usa preços anunciados, não preços efetivamente vendidos. O MarketIQ continua aplicando estado do carro, KM, preparação, giro, margem e risco antes de recomendar a compra.</p>
+              <p className="max-w-2xl text-[11px] leading-5 text-slate-500">O MarketScan usa preços anunciados, não preços efetivamente vendidos. Quando a pesquisa ampliada usa semelhantes, eles servem como referência complementar e a confiança é reduzida. O MarketIQ continua aplicando estado do carro, KM, preparação, giro, margem e risco antes de recomendar a compra.</p>
               <button onClick={apply} className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${applied ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
                 <CheckCircle2 size={15} />
                 {applied ? 'APLICADO AO MARKETIQ' : 'USAR DADOS NO MARKETIQ'}
