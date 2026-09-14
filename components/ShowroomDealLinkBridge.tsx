@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { arrayUnion, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { CarFront, CheckCircle2, ChevronRight, Link2, PlusCircle, Unlink, UsersRound, X, XCircle } from 'lucide-react';
+import { CarFront, CheckCircle2, ChevronRight, FileText, Link2, PlusCircle, Unlink, UsersRound, X, XCircle } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { SavedCalculation, ShowroomPassage, User } from '../types';
 import { userService } from '../services/userService';
@@ -18,11 +18,14 @@ type LinkContext = {
   customerName: string;
   phone: string;
   interestModel: string;
+  negotiationDescription: string;
   origin: 'walk_in' | 'requested';
   companyId: string;
   storeId: string;
   startedAt: string;
 };
+
+type DescriptionMode = 'begin' | 'edit';
 
 const sameDay = (iso?: string) => {
   if (!iso) return false;
@@ -38,7 +41,7 @@ const readContext = (): LinkContext | null => {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as LinkContext;
-    return parsed?.passageId ? parsed : null;
+    return parsed?.passageId ? { ...parsed, negotiationDescription: String(parsed.negotiationDescription || '') } : null;
   } catch {
     return null;
   }
@@ -66,6 +69,8 @@ const timeOfDeal = (item: SavedCalculation) => {
   return Number.isFinite(value) ? value : 0;
 };
 
+const negotiationOf = (item?: ShowroomPassage | null) => String((item as any)?.negotiationDescription || '').trim();
+
 const ShowroomDealLinkBridge: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [passages, setPassages] = useState<ShowroomPassage[]>([]);
@@ -74,6 +79,11 @@ const ShowroomDealLinkBridge: React.FC = () => {
   const [selectedPassageId, setSelectedPassageId] = useState('');
   const [finishTarget, setFinishTarget] = useState<ShowroomPassage | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [descriptionTarget, setDescriptionTarget] = useState<ShowroomPassage | null>(null);
+  const [descriptionMode, setDescriptionMode] = useState<DescriptionMode>('begin');
+  const [descriptionText, setDescriptionText] = useState('');
+  const [descriptionError, setDescriptionError] = useState('');
+  const [savingDescription, setSavingDescription] = useState(false);
   const processedRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -183,6 +193,7 @@ const ShowroomDealLinkBridge: React.FC = () => {
               showroomCustomerName: active.customerName,
               showroomCustomerPhone: active.phone,
               showroomInterestModel: active.interestModel,
+              showroomNegotiationDescription: active.negotiationDescription,
               showroomOrigin: active.origin,
               showroomLinkedAt: now,
             }, { merge: true });
@@ -219,12 +230,13 @@ const ShowroomDealLinkBridge: React.FC = () => {
   const linkedPassage = active ? passages.find(item => item.id === active.passageId) : null;
   const linkedCount = Number((linkedPassage as any)?.linkedDealIds?.length || 0);
 
-  const begin = (item: ShowroomPassage) => {
+  const startContext = (item: ShowroomPassage, negotiationDescription: string) => {
     const context: LinkContext = {
       passageId: item.id,
       customerName: item.customerName,
       phone: item.phone,
       interestModel: item.interestModel,
+      negotiationDescription,
       origin: item.origin === 'requested' ? 'requested' : 'walk_in',
       companyId: item.companyId,
       storeId: item.storeId,
@@ -234,6 +246,52 @@ const ShowroomDealLinkBridge: React.FC = () => {
     setActive(context);
     writeContext(context);
     clickCalculator();
+  };
+
+  const openDescription = (item: ShowroomPassage, mode: DescriptionMode) => {
+    setDescriptionTarget(item);
+    setDescriptionMode(mode);
+    setDescriptionText(negotiationOf(item) || (mode === 'edit' ? String(active?.negotiationDescription || '') : ''));
+    setDescriptionError('');
+  };
+
+  const saveDescription = async () => {
+    if (!descriptionTarget || savingDescription) return;
+    const description = descriptionText.trim();
+    if (description.length < 5) {
+      setDescriptionError('Descreva resumidamente a negociação antes de continuar.');
+      return;
+    }
+    setSavingDescription(true);
+    setDescriptionError('');
+    try {
+      const timestamp = new Date().toISOString();
+      const byEmail = String(user.email || '').trim().toLowerCase();
+      const byName = String(user.name || user.email || '').trim();
+      await updateDoc(doc(db, 'showroom_passages', descriptionTarget.id), {
+        negotiationDescription: description,
+        negotiationDescriptionUpdatedAt: timestamp,
+        negotiationDescriptionByEmail: byEmail,
+        negotiationDescriptionByName: byName,
+        negotiationDescriptionHistory: arrayUnion({ description, at: timestamp, byEmail, byName }),
+        updatedAt: timestamp,
+      });
+
+      if (descriptionMode === 'begin') {
+        startContext(descriptionTarget, description);
+      } else if (active?.passageId === descriptionTarget.id) {
+        const next = { ...active, negotiationDescription: description };
+        setActive(next);
+        writeContext(next);
+      }
+      setDescriptionTarget(null);
+      setDescriptionText('');
+    } catch (error) {
+      console.warn('Motyq: não foi possível salvar a descrição da negociação.', error);
+      setDescriptionError('Não foi possível salvar a descrição agora. Tente novamente.');
+    } finally {
+      setSavingDescription(false);
+    }
   };
 
   const unlink = () => {
@@ -260,6 +318,34 @@ const ShowroomDealLinkBridge: React.FC = () => {
     }
   };
 
+  const descriptionModal = descriptionTarget ? <div className="fixed inset-0 z-[630] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={() => !savingDescription && setDescriptionTarget(null)}>
+    <div className="w-full max-w-xl rounded-[28px] border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onClick={event => event.stopPropagation()}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[.16em] text-violet-300">DESCRIÇÃO DA NEGOCIAÇÃO</p>
+          <h3 className="mt-1 text-xl font-semibold">{descriptionTarget.customerName}</h3>
+          <p className="mt-1 text-sm text-zinc-500">Registre o cenário real do atendimento, inclusive vários modelos ou compra adicional.</p>
+        </div>
+        <button disabled={savingDescription} onClick={() => setDescriptionTarget(null)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 text-zinc-500 hover:text-white disabled:opacity-40"><X size={16}/></button>
+      </div>
+      <label className="mt-5 block">
+        <span className="text-[10px] font-black uppercase tracking-[.13em] text-zinc-500">Negociação em andamento</span>
+        <textarea
+          autoFocus
+          value={descriptionText}
+          onChange={event => setDescriptionText(event.target.value)}
+          rows={5}
+          maxLength={1200}
+          placeholder="Ex.: cliente negocia Compass e Corolla Cross, tem Creta na troca e também estuda uma compra adicional para a esposa."
+          className="mt-2 w-full resize-y rounded-2xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm leading-6 text-white outline-none focus:border-violet-300/40"
+        />
+      </label>
+      <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-zinc-600"><span>Essa descrição fica vinculada ao atendimento.</span><span>{descriptionText.length}/1200</span></div>
+      {descriptionError && <div className="mt-3 rounded-xl border border-red-300/15 bg-red-300/[.05] px-3 py-2 text-xs text-red-200">{descriptionError}</div>}
+      <button disabled={savingDescription} onClick={() => void saveDescription()} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-violet-300 text-sm font-black text-violet-950 transition hover:bg-violet-200 disabled:opacity-50"><FileText size={16}/>{savingDescription ? 'SALVANDO...' : descriptionMode === 'begin' ? 'SALVAR E INICIAR NEGOCIAÇÃO' : 'SALVAR DESCRIÇÃO'}</button>
+    </div>
+  </div> : null;
+
   const finishModal = finishTarget ? <div className="fixed inset-0 z-[620] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={() => !finishing && setFinishTarget(null)}>
     <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onClick={event => event.stopPropagation()}>
       <div className="flex items-start justify-between gap-4">
@@ -276,14 +362,17 @@ const ShowroomDealLinkBridge: React.FC = () => {
 
   if (active) {
     const target = linkedPassage || selected;
+    const activeDescription = active.negotiationDescription || negotiationOf(linkedPassage);
     return <>
       <div className="fixed bottom-4 left-1/2 z-[355] w-[calc(100%-20px)] max-w-3xl -translate-x-1/2 rounded-[22px] border border-emerald-300/25 bg-zinc-950/95 p-3 shadow-2xl backdrop-blur md:bottom-5 md:p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.15em] text-emerald-300"><Link2 size={13}/> Negociação vinculada ao atendimento</div>
             <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1"><strong className="truncate text-base text-white md:text-lg">{active.customerName}</strong><span className="text-xs text-zinc-500">{active.interestModel || 'Interesse não informado'}</span>{linkedCount > 0 && <span className="rounded-full bg-white/[.06] px-2 py-0.5 text-[10px] text-zinc-400">{linkedCount} negociação(ões)</span>}</div>
+            {activeDescription && <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400"><span className="font-semibold text-zinc-300">Negociação:</span> {activeDescription}</p>}
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
+            {target && <button onClick={() => openDescription(target, 'edit')} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-violet-300/20 px-3 py-2 text-xs font-black text-violet-200 hover:border-violet-300/40 md:flex-none"><FileText size={15}/> DESCRIÇÃO</button>}
             <button onClick={clickCalculator} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-3 py-2 text-xs font-black text-emerald-950 md:flex-none"><PlusCircle size={15}/> NOVA SIMULAÇÃO</button>
             {target && <button onClick={() => setFinishTarget(target)} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-zinc-200 hover:border-white/20 md:flex-none"><CheckCircle2 size={15}/> FINALIZAR ATENDIMENTO</button>}
             <button onClick={unlink} title="Desvincular próximas negociações" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-zinc-500 hover:text-white"><Unlink size={15}/></button>
@@ -291,26 +380,29 @@ const ShowroomDealLinkBridge: React.FC = () => {
         </div>
       </div>
       {finishModal}
+      {descriptionModal}
     </>;
   }
 
-  if (!selected) return finishModal;
+  if (!selected) return <>{finishModal}{descriptionModal}</>;
 
   return <>
     <div className="fixed bottom-4 left-1/2 z-[350] w-[calc(100%-20px)] max-w-3xl -translate-x-1/2 rounded-[22px] border border-violet-300/25 bg-zinc-950/95 p-3 shadow-2xl backdrop-blur md:bottom-5 md:p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.15em] text-violet-300"><UsersRound size={13}/> Cliente em atendimento</div>
           <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1"><strong className="truncate text-base text-white md:text-lg">{selected.customerName}</strong><span className="text-xs text-zinc-500">{selected.interestModel || 'Interesse não informado'}</span></div>
+          {negotiationOf(selected) && <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400"><span className="font-semibold text-zinc-300">Negociação:</span> {negotiationOf(selected)}</p>}
           {activePassages.length > 1 && <select value={selected.id} onChange={event => setSelectedPassageId(event.target.value)} className="mt-2 h-8 max-w-full rounded-lg border border-white/10 bg-zinc-900 px-2 text-xs text-zinc-300">{activePassages.map(item => <option key={item.id} value={item.id}>{item.customerName} · {item.interestModel || 'sem modelo'}</option>)}</select>}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <button onClick={() => begin(selected)} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-violet-300 px-4 py-2.5 text-xs font-black text-violet-950 md:flex-none"><CarFront size={16}/> INICIAR NEGOCIAÇÃO <ChevronRight size={14}/></button>
+          <button onClick={() => openDescription(selected, 'begin')} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-violet-300 px-4 py-2.5 text-xs font-black text-violet-950 md:flex-none"><CarFront size={16}/> INICIAR NEGOCIAÇÃO <ChevronRight size={14}/></button>
           <button onClick={() => setFinishTarget(selected)} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-xs font-black text-zinc-200 hover:border-white/20 md:flex-none"><CheckCircle2 size={15}/> FINALIZAR ATENDIMENTO</button>
         </div>
       </div>
     </div>
     {finishModal}
+    {descriptionModal}
   </>;
 };
 
