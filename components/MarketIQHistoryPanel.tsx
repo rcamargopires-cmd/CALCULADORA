@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Eye, History, Trash2, X } from 'lucide-react';
 import { User } from '../types';
-import { MarketIQEvaluation, marketIqEvaluationService } from '../services/marketIqEvaluationService';
+import { MarketIQEvaluation, MarketIQCommercialClass, marketIqEvaluationService } from '../services/marketIqEvaluationService';
 
 type Props = { companyId: string; storeId: string; currentUser: User };
 
@@ -28,6 +28,14 @@ const dateLabel = (value: any) => {
 
 const statusLabel = (status: MarketIQEvaluation['status']) => status === 'approved' ? 'APROVADA' : status === 'rejected' ? 'RECUSADA' : 'RASCUNHO';
 const statusTone = (status: MarketIQEvaluation['status']) => status === 'approved' ? 'border-emerald-300/20 bg-emerald-300/[.06] text-emerald-300' : status === 'rejected' ? 'border-red-300/20 bg-red-300/[.05] text-red-300' : 'border-amber-300/20 bg-amber-300/[.05] text-amber-200';
+const classTone: Record<MarketIQCommercialClass, string> = {
+  A: 'border-emerald-300/30 bg-emerald-300/[.08] text-emerald-200',
+  B: 'border-cyan-300/30 bg-cyan-300/[.08] text-cyan-200',
+  C: 'border-amber-300/30 bg-amber-300/[.08] text-amber-200',
+  D: 'border-orange-300/30 bg-orange-300/[.08] text-orange-200',
+  E: 'border-red-300/30 bg-red-300/[.08] text-red-200',
+};
+const classDestination = (item: MarketIQEvaluation) => item.commercialDestination || (item.commercialClass === 'A' || item.commercialClass === 'B' ? 'SHOWROOM' : item.commercialClass === 'C' ? 'OUTLET' : item.commercialClass ? 'REPASSE' : '');
 
 const readCurrentPlate = () => {
   const labels = Array.from(document.querySelectorAll('label'));
@@ -162,6 +170,7 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId, currentUser
                     <strong className="text-base">{item.vehicle || 'Veículo sem descrição'}</strong>
                     {index === 0 && <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[.05] px-2 py-0.5 text-[9px] font-black uppercase text-cyan-300">ÚLTIMA</span>}
                     <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${statusTone(item.status)}`}>{statusLabel(item.status)}</span>
+                    {item.commercialClass && <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black ${classTone[item.commercialClass]}`}>{item.commercialClass} · {classDestination(item)}</span>}
                     {!!item.photos?.length && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.04] px-2 py-0.5 text-[9px] font-black text-amber-200">{item.photos.length} FOTO(S)</span>}
                     {!!item.damages?.length && <span className="rounded-full border border-red-300/20 bg-red-300/[.04] px-2 py-0.5 text-[9px] font-black text-red-200">{item.damages.length} AVARIA(S)</span>}
                   </div>
@@ -178,8 +187,9 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId, currentUser
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Ano / KM</p><p className="mt-1 text-sm font-semibold">{item.year || '—'} · {item.km || '—'} km</p></div>
+                <div className={`rounded-xl border p-3 ${item.commercialClass ? classTone[item.commercialClass] : 'border-white/10 bg-black/20 text-zinc-400'}`}><p className="text-[9px] uppercase opacity-70">Classificação</p><p className="mt-1 text-sm font-black">{item.commercialClass ? `${item.commercialClass} · ${classDestination(item)}` : 'Não classificado'}</p>{item.commercialClassOverride && <p className="mt-1 text-[9px] font-bold">AJUSTADA PELO AVALIADOR</p>}</div>
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">FIPE</p><p className="mt-1 text-sm font-semibold">{money(item.fipe)}</p>{fipeDelta !== 0 && <p className={`mt-1 text-[10px] ${fipeDelta > 0 ? 'text-emerald-300' : 'text-red-300'}`}>{fipeDelta > 0 ? '+' : ''}{money(fipeDelta)} vs anterior</p>}</div>
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Compra recomendada</p><p className="mt-1 text-sm font-semibold text-cyan-200">{item.recommendedBuy ? money(item.recommendedBuy) : '—'}</p>{buyDelta !== 0 && <p className={`mt-1 text-[10px] ${buyDelta > 0 ? 'text-emerald-300' : 'text-red-300'}`}>{buyDelta > 0 ? '+' : ''}{money(buyDelta)} vs anterior</p>}</div>
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Avarias</p><p className="mt-1 text-sm font-semibold text-amber-200">{money(item.damageTotal || 0)}</p></div>
@@ -194,16 +204,24 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId, currentUser
     {selected && <div className="fixed inset-0 z-[660] overflow-y-auto bg-black/75 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
       <div className="mx-auto my-6 w-full max-w-3xl rounded-[24px] border border-white/10 bg-[#111416] p-5 text-white shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-4">
-          <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-cyan-300">AVALIAÇÃO SALVA · SOMENTE CONSULTA</p><h4 className="mt-1 text-xl font-semibold">{selected.plate} · {selected.vehicle || 'Veículo'}</h4><p className="mt-1 text-xs text-zinc-500">{dateLabel(selected.createdAt)} · {selected.storeName}</p></div>
+          <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-cyan-300">AVALIAÇÃO SALVA · SOMENTE CONSULTA</p><h4 className="mt-1 text-xl font-semibold">{selected.plate} · {selected.vehicle || 'Veículo'}</h4><div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-xs text-zinc-500">{dateLabel(selected.createdAt)} · {selected.storeName}</p>{selected.commercialClass && <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black ${classTone[selected.commercialClass]}`}>{selected.commercialClass} · {classDestination(selected)}</span>}</div></div>
           <button onClick={() => setSelected(null)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-zinc-400"><X size={16}/></button>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Ano / KM</p><p className="mt-1 font-semibold">{selected.year || '—'} · {selected.km || '—'} km</p></div>
+          <div className={`rounded-xl border p-3 ${selected.commercialClass ? classTone[selected.commercialClass] : 'border-white/10 bg-black/20 text-zinc-400'}`}><p className="text-[9px] uppercase opacity-70">Classificação</p><p className="mt-1 font-black">{selected.commercialClass ? `${selected.commercialClass} · ${classDestination(selected)}` : 'Não classificado'}</p></div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">FIPE</p><p className="mt-1 font-semibold">{money(selected.fipe)}</p></div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Compra recomendada</p><p className="mt-1 font-semibold text-cyan-200">{selected.recommendedBuy ? money(selected.recommendedBuy) : 'Não registrada'}</p></div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Avarias</p><p className="mt-1 font-semibold text-amber-200">{money(selected.damageTotal || 0)}</p></div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Status</p><p className="mt-1 font-semibold">{statusLabel(selected.status)}</p></div>
         </div>
+
+        {selected.commercialClass && <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.13em] text-zinc-500">Classificação comercial</p><p className="mt-1 text-lg font-semibold">Classe {selected.commercialClass} · {classDestination(selected)}</p></div>{selected.commercialClassOverride && <span className="rounded-full border border-amber-300/25 bg-amber-300/[.06] px-3 py-1 text-[9px] font-black text-amber-200">ALTERADA MANUALMENTE</span>}</div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 text-xs"><div className="rounded-xl border border-white/10 p-3"><span className="text-zinc-500">Classe sugerida</span><strong className="float-right text-white">{selected.suggestedCommercialClass || '—'}</strong></div><div className="rounded-xl border border-white/10 p-3"><span className="text-zinc-500">KM considerado</span><strong className="float-right text-white">{selected.classificationKm ? `${selected.classificationKm.toLocaleString('pt-BR')} km` : '—'}</strong></div><div className="rounded-xl border border-white/10 p-3"><span className="text-zinc-500">Garantia de fábrica</span><strong className="float-right text-white">{selected.factoryWarranty ? 'SIM' : 'NÃO'}</strong></div><div className="rounded-xl border border-white/10 p-3"><span className="text-zinc-500">Critério validado</span><strong className="float-right text-white">{selected.classificationValid === false ? 'PENDENTE' : 'OK'}</strong></div></div>
+          {selected.commercialClassOverride && <div className="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/[.035] p-3"><p className="text-[9px] font-black uppercase text-amber-200">Justificativa da alteração</p><p className="mt-1 text-sm leading-5 text-zinc-300">{selected.commercialClassReason || 'Justificativa não registrada.'}</p></div>}
+          {(selected.classificationByName || selected.classificationByEmail) && <p className="mt-3 text-[10px] text-zinc-600">Classificação registrada por {selected.classificationByName || selected.classificationByEmail}{selected.classificationUpdatedAt ? ` · ${dateLabel(selected.classificationUpdatedAt)}` : ''}</p>}
+        </div>}
 
         {!!selected.photos?.length && <div className="mt-4"><p className="text-[10px] font-black uppercase tracking-[.13em] text-zinc-500">Fotos & documentos</p><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">{selected.photos.map(photo => <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-xl border border-white/10 bg-black/20">{photo.contentType === 'application/pdf' ? <div className="grid aspect-[4/3] place-items-center text-xs font-bold text-zinc-500">ABRIR PDF</div> : <img src={photo.url} alt={photo.name} className="aspect-[4/3] w-full object-cover"/>}<div className="p-2 text-[10px] text-zinc-500">{photo.category} · {photo.name}</div></a>)}</div></div>}
 
