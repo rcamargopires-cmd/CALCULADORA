@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, CarFront, Clock3, History, Phone, Search, UserRound, UsersRound, X } from 'lucide-react';
-import { ShowroomPassage, ShowroomPassageOrigin, ShowroomPassageStatus, User } from '../types';
+import { ShowroomPassage, ShowroomPassageOrigin, ShowroomPassageStatus, ShowroomQueueSeller, User } from '../types';
 import { showroomFlowService } from '../services/showroomFlowService';
 import { companyScopeService } from '../services/companyScopeService';
 import { storeScopeService } from '../services/storeScopeService';
+import ShowroomPassageAdminActions from './ShowroomPassageAdminActions';
 
 const SLOT_ID = 'motyq-manager-showroom-history-slot';
 
@@ -96,6 +97,7 @@ const ManagerShowroomHistory: React.FC<Props> = ({ user }) => {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ShowroomPassage[]>([]);
+  const [queueSellers, setQueueSellers] = useState<ShowroomQueueSeller[]>([]);
   const [period, setPeriod] = useState<Period>('month');
   const [origin, setOrigin] = useState<'all' | ShowroomPassageOrigin>('all');
   const [sellerEmail, setSellerEmail] = useState('all');
@@ -126,6 +128,16 @@ const ManagerShowroomHistory: React.FC<Props> = ({ user }) => {
         console.error('Manager showroom history error', err);
         setError('Não foi possível carregar o fluxo de atendimentos agora.');
       },
+    );
+  }, [companyId, storeId]);
+
+  useEffect(() => {
+    if (!companyId || !storeId) return;
+    return showroomFlowService.subscribeQueue(
+      companyId,
+      storeId,
+      queue => setQueueSellers(queue?.sellers || []),
+      err => console.error('Manager showroom queue error', err),
     );
   }, [companyId, storeId]);
 
@@ -180,14 +192,14 @@ const ManagerShowroomHistory: React.FC<Props> = ({ user }) => {
   return <>
     {button}
     {open && <div className="fixed inset-0 z-[590] overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-sm md:p-6" onClick={() => setOpen(false)}>
-      <div className="mx-auto max-w-[1500px] overflow-hidden rounded-[30px] border border-slate-200 bg-[#f7f9fc] shadow-2xl" onClick={event => event.stopPropagation()}>
+      <div className="mx-auto max-w-[1580px] overflow-hidden rounded-[30px] border border-slate-200 bg-[#f7f9fc] shadow-2xl" onClick={event => event.stopPropagation()}>
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white p-5 md:p-7">
           <div className="flex gap-3">
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-sky-200 bg-sky-50 text-sky-700"><UsersRound size={20}/></div>
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">SHOWROOMFLOW · GESTÃO</p>
               <h2 className="mt-1 text-2xl font-semibold text-slate-900">Fluxo de atendimentos</h2>
-              <p className="mt-1 text-sm text-slate-500">Acompanhe passagens, pedidos, clientes, interesses e resultados de todos os vendedores da unidade.</p>
+              <p className="mt-1 text-sm text-slate-500">Acompanhe, corrija e audite passagens, pedidos, clientes e resultados de todos os vendedores da unidade.</p>
             </div>
           </div>
           <button type="button" onClick={() => setOpen(false)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 hover:text-slate-900"><X size={18}/></button>
@@ -240,8 +252,8 @@ const ManagerShowroomHistory: React.FC<Props> = ({ user }) => {
           {error && <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</div>}
 
           <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-            <div className="hidden grid-cols-[115px_1fr_1fr_1fr_105px_1.2fr_120px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 xl:grid">
-              <span>Data / hora</span><span>Vendedor</span><span>Cliente</span><span>Telefone</span><span>Origem</span><span>Procurava</span><span>Status</span>
+            <div className="hidden grid-cols-[110px_1fr_1fr_1fr_95px_1.15fr_110px_150px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 xl:grid">
+              <span>Data / hora</span><span>Vendedor</span><span>Cliente</span><span>Telefone</span><span>Origem</span><span>Procurava</span><span>Status</span><span>Ações</span>
             </div>
 
             <div className="max-h-[62vh] overflow-y-auto">
@@ -253,7 +265,7 @@ const ManagerShowroomHistory: React.FC<Props> = ({ user }) => {
                 </div>
               ) : filtered.map(item => (
                 <article key={item.id} className="border-b border-slate-100 px-4 py-4 last:border-0">
-                  <div className="grid gap-4 xl:grid-cols-[115px_1fr_1fr_1fr_105px_1.2fr_120px] xl:items-center">
+                  <div className="grid gap-4 xl:grid-cols-[110px_1fr_1fr_1fr_95px_1.15fr_110px_150px] xl:items-center">
                     <div>
                       <p className="text-xs font-semibold text-slate-900">{formatDate(item.createdAt)}</p>
                       <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400"><Clock3 size={11}/>{formatTime(item.createdAt)}</p>
@@ -276,11 +288,14 @@ const ManagerShowroomHistory: React.FC<Props> = ({ user }) => {
                     <div className="flex items-start gap-2 text-sm text-slate-700"><CarFront size={15} className="mt-0.5 shrink-0 text-slate-400"/><span>{item.interestModel || 'Não informado'}</span></div>
 
                     <span className={`w-fit rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(item.status)}`}>{STATUS[item.status]}</span>
+
+                    <ShowroomPassageAdminActions item={item} currentUser={user} sellers={queueSellers} theme="light"/>
                   </div>
 
-                  {(item.notes || item.closedAt) && <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                  {(item.notes || item.closedAt || (item as any).correctedAt) && <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
                     {item.notes && <span><strong className="font-semibold text-slate-700">Observação:</strong> {item.notes}</span>}
                     {item.closedAt && <span><strong className="font-semibold text-slate-700">Encerrado:</strong> {formatDate(item.closedAt)} às {formatTime(item.closedAt)}</span>}
+                    {(item as any).correctedAt && <span><strong className="font-semibold text-amber-700">Corrigido:</strong> {formatDate((item as any).correctedAt)} às {formatTime((item as any).correctedAt)} · {(item as any).correctedByName || (item as any).correctedByEmail || 'Gestão'}</span>}
                   </div>}
                 </article>
               ))}

@@ -16,6 +16,7 @@ const normalizePassage=(data:any):ShowroomPassage=>({
   origin:legacyOrigin(data?.origin),
 } as ShowroomPassage);
 
+const isVisiblePassage=(item:ShowroomPassage)=>!Boolean((item as any)?.deletedAt);
 const uniqueEmails=(values:string[])=>Array.from(new Set(values.map(cleanEmail).filter(Boolean)));
 
 const normalizeQueue=(data:any,companyId:string,storeId:string):ShowroomQueueState=>{
@@ -66,7 +67,7 @@ const getBusyRequestedSellerEmails=async(companyId:string,storeId:string)=>{
   const snap=await getDocs(q);
   return new Set(snap.docs
     .map(item=>normalizePassage(item.data()))
-    .filter(item=>item.origin==='requested'&&busyRequestedStatuses.has(item.status))
+    .filter(item=>isVisiblePassage(item)&&item.origin==='requested'&&busyRequestedStatuses.has(item.status))
     .map(item=>cleanEmail(item.assignedSellerEmail))
     .filter(Boolean));
 };
@@ -78,12 +79,12 @@ export const showroomFlowService={
 
   subscribeStorePassages:(companyId:string,storeId:string,onData:(items:ShowroomPassage[])=>void,onError?:(error:any)=>void)=>{
     const q=query(collection(db,'showroom_passages'),where('companyId','==',companyId),where('storeId','==',storeId));
-    return onSnapshot(q,snap=>onData(snap.docs.map(item=>normalizePassage(item.data())).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))),onError);
+    return onSnapshot(q,snap=>onData(snap.docs.map(item=>normalizePassage(item.data())).filter(isVisiblePassage).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))),onError);
   },
 
   subscribeSellerPassages:(companyId:string,storeId:string,email:string,onData:(items:ShowroomPassage[])=>void,onError?:(error:any)=>void)=>{
     const q=query(collection(db,'showroom_passages'),where('companyId','==',companyId),where('storeId','==',storeId),where('assignedSellerEmail','==',email));
-    return onSnapshot(q,snap=>onData(snap.docs.map(item=>normalizePassage(item.data())).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))),onError);
+    return onSnapshot(q,snap=>onData(snap.docs.map(item=>normalizePassage(item.data())).filter(isVisiblePassage).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))),onError);
   },
 
   syncQueue:async(companyId:string,storeId:string,users:User[]):Promise<ShowroomQueueState>=>{
@@ -205,6 +206,67 @@ export const showroomFlowService={
 
   updatePassage:async(id:string,patch:Partial<Pick<ShowroomPassage,'status'|'notes'|'assumedAt'|'closedAt'>>)=>{
     await updateDoc(doc(db,'showroom_passages',id),{...patch,updatedAt:now()});
+  },
+
+  correctPassage:async(input:{id:string;customerName:string;phone:string;interestModel:string;origin:ShowroomPassageOrigin;assignedSellerId:string;assignedSellerEmail:string;assignedSellerName:string;status:ShowroomPassageStatus;notes?:string;actorEmail?:string;actorName?:string;reason:string})=>{
+    const ref=doc(db,'showroom_passages',input.id);
+    const snap=await getDoc(ref);
+    if(!snap.exists())throw new Error('Atendimento não encontrado.');
+    const current=normalizePassage(snap.data());
+    if(!isVisiblePassage(current))throw new Error('Este atendimento já foi excluído.');
+    const timestamp=now();
+    const oldHistory=Array.isArray((current as any).correctionHistory)?(current as any).correctionHistory:[];
+    const correction={
+      at:timestamp,
+      byEmail:input.actorEmail||'',
+      byName:input.actorName||'',
+      reason:input.reason.trim(),
+      before:{
+        customerName:current.customerName||'',phone:current.phone||'',interestModel:current.interestModel||'',origin:legacyOrigin(current.origin),
+        assignedSellerId:current.assignedSellerId||'',assignedSellerEmail:current.assignedSellerEmail||'',assignedSellerName:current.assignedSellerName||'',status:current.status,notes:current.notes||''
+      },
+      after:{
+        customerName:input.customerName.trim(),phone:cleanPhone(input.phone),interestModel:input.interestModel.trim(),origin:legacyOrigin(input.origin),
+        assignedSellerId:input.assignedSellerId,assignedSellerEmail:input.assignedSellerEmail,assignedSellerName:input.assignedSellerName,status:input.status,notes:input.notes||''
+      }
+    };
+    const assumedAt=input.status==='waiting'?'':(current.assumedAt||timestamp);
+    const closedAt=['sale','no_deal'].includes(input.status)?(current.closedAt||timestamp):'';
+    await updateDoc(ref,{
+      customerName:input.customerName.trim(),
+      phone:cleanPhone(input.phone),
+      interestModel:input.interestModel.trim(),
+      origin:legacyOrigin(input.origin),
+      assignedSellerId:input.assignedSellerId,
+      assignedSellerEmail:input.assignedSellerEmail,
+      assignedSellerName:input.assignedSellerName,
+      status:input.status,
+      notes:input.notes||'',
+      assumedAt,
+      closedAt,
+      correctedAt:timestamp,
+      correctedByEmail:input.actorEmail||'',
+      correctedByName:input.actorName||'',
+      correctionReason:input.reason.trim(),
+      correctionHistory:[...oldHistory,correction].slice(-20),
+      updatedAt:timestamp,
+    });
+  },
+
+  softDeletePassage:async(input:{id:string;actorEmail?:string;actorName?:string;reason:string})=>{
+    const ref=doc(db,'showroom_passages',input.id);
+    const snap=await getDoc(ref);
+    if(!snap.exists())throw new Error('Atendimento não encontrado.');
+    const current=normalizePassage(snap.data());
+    if(!isVisiblePassage(current))return;
+    const timestamp=now();
+    await updateDoc(ref,{
+      deletedAt:timestamp,
+      deletedByEmail:input.actorEmail||'',
+      deletedByName:input.actorName||'',
+      deletionReason:input.reason.trim(),
+      updatedAt:timestamp,
+    });
   },
 
   assumePassage:async(item:ShowroomPassage)=>{
