@@ -14,6 +14,7 @@ import MarketIQShowroomLinkBridge from './MarketIQShowroomLinkBridge';
 import MarketIQMediaPanel from './MarketIQMediaPanel';
 import MarketIQMarketScanBridge from './MarketIQMarketScanBridge';
 import MarketIQSaveNotice from './MarketIQSaveNotice';
+import MarketIQCommercialClassification from './MarketIQCommercialClassification';
 
 const MarketIQShell:React.FC=()=>{
  const[user,setUser]=useState<User|null>(null);const[companyId,setCompanyId]=useState('');const[storeId,setStoreId]=useState('');const[storeName,setStoreName]=useState('');
@@ -32,6 +33,7 @@ const MarketIQShell:React.FC=()=>{
  const evaluator=user.role==='evaluator';
  return <>
    <MarketIQ currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
+   <MarketIQCommercialClassification currentUser={user}/>
    <MarketIQPersistenceBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQSaveNotice/>
    <MarketIQHistoryPanel currentUser={user} companyId={companyId} storeId={storeId}/>
