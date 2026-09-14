@@ -2,6 +2,8 @@ import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, up
 import { db } from '../firebase';
 
 export type MarketIQEvaluationStatus = 'draft' | 'approved' | 'rejected';
+export type MarketIQCommercialClass = 'A' | 'B' | 'C' | 'D' | 'E';
+export type MarketIQCommercialDestination = 'SHOWROOM' | 'OUTLET' | 'REPASSE';
 export type MarketIQMediaCategory = 'front' | 'rear' | 'left' | 'right' | 'interior' | 'dashboard' | 'tires' | 'damage' | 'document';
 export type MarketIQMediaItem = { id: string; category: MarketIQMediaCategory; url: string; path: string; name: string; contentType?: string; createdAt?: string };
 export type MarketIQDamageItem = { id: string; description: string; cost: number; mediaId?: string };
@@ -19,6 +21,19 @@ export type MarketIQEvaluation = {
   fipe: string;
   notes: string;
   recommendedBuy?: number;
+  commercialClass?: MarketIQCommercialClass;
+  suggestedCommercialClass?: MarketIQCommercialClass | '';
+  commercialDestination?: MarketIQCommercialDestination | '';
+  commercialClassOverride?: boolean;
+  commercialClassReason?: string;
+  factoryWarranty?: boolean;
+  onlyHygiene?: boolean;
+  minorDetails?: boolean;
+  classificationValid?: boolean;
+  classificationKm?: number;
+  classificationByEmail?: string;
+  classificationByName?: string;
+  classificationUpdatedAt?: any;
   status: MarketIQEvaluationStatus;
   createdByEmail: string;
   createdByName: string;
