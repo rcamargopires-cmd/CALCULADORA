@@ -10,6 +10,12 @@ const auditId=()=>`${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 const cleanEmail=(value:string)=>String(value||'').trim().toLowerCase();
 const legacyOrigin=(value:any):ShowroomPassageOrigin=>value==='requested'?'requested':'walk_in';
 const busyRequestedStatuses=new Set<ShowroomPassageStatus>(['waiting','in_service','evaluation','proposal']);
+const localDateKey=(value:string|Date)=>{
+  const date=value instanceof Date?value:new Date(value);
+  if(Number.isNaN(date.getTime()))return '';
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+};
+const isTodayLocal=(value?:string)=>Boolean(value)&&localDateKey(String(value))===localDateKey(new Date());
 
 const normalizePassage=(data:any):ShowroomPassage=>({
   ...data,
@@ -67,7 +73,7 @@ const getBusyRequestedSellerEmails=async(companyId:string,storeId:string)=>{
   const snap=await getDocs(q);
   return new Set(snap.docs
     .map(item=>normalizePassage(item.data()))
-    .filter(item=>isVisiblePassage(item)&&item.origin==='requested'&&busyRequestedStatuses.has(item.status))
+    .filter(item=>isVisiblePassage(item)&&isTodayLocal(item.createdAt)&&item.origin==='requested'&&busyRequestedStatuses.has(item.status))
     .map(item=>cleanEmail(item.assignedSellerEmail))
     .filter(Boolean));
 };
