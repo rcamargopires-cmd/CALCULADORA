@@ -8,8 +8,47 @@ import { storeScopeService } from '../services/storeScopeService';
 import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../services/groupStockService';
 import { marketIqVehicleCacheService } from '../services/marketIqVehicleCacheService';
 
-const CRLV_PARSER_VERSION = 2;
+const CRLV_PARSER_VERSION = 3;
 const cleanPlate = (value: string) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+
+const OCR_TO_LETTER: Record<string, string> = {
+  '0': 'O',
+  '1': 'I',
+  '5': 'S',
+  '8': 'B',
+};
+const OCR_TO_DIGIT: Record<string, string> = {
+  O: '0',
+  Q: '0',
+  I: '1',
+  L: '1',
+  S: '5',
+  B: '8',
+};
+
+const normalizePlateByReferencePattern = (value: string, reference: string) => {
+  const plate = cleanPlate(value);
+  const ref = cleanPlate(reference);
+  if (plate.length !== 7 || ref.length !== 7) return plate;
+
+  const isMercosul = /^[A-Z]{3}\d[A-Z]\d{2}$/.test(ref);
+  const isOld = /^[A-Z]{3}\d{4}$/.test(ref);
+  if (!isMercosul && !isOld) return plate;
+
+  return plate.split('').map((char, index) => {
+    const wantsLetter = index < 3 || (isMercosul && index === 4);
+    return wantsLetter ? (OCR_TO_LETTER[char] || char) : (OCR_TO_DIGIT[char] || char);
+  }).join('');
+};
+
+const platesEquivalent = (readValue: string, expectedValue: string) => {
+  const read = cleanPlate(readValue);
+  const expected = cleanPlate(expectedValue);
+  if (!read || !expected) return false;
+  if (read === expected) return true;
+  return normalizePlateByReferencePattern(read, expected) === expected;
+};
+
 const moneyInput = (value: number) => value ? value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 const marketRoot = () => Array.from(document.querySelectorAll('div.fixed.inset-0')).find(el => String(el.textContent || '').includes('MOTYQ MARKETIQ')) as HTMLElement | undefined;
 const marketVisible = () => {
@@ -138,8 +177,9 @@ const MarketIQLookupBridge: React.FC = () => {
 
       const vehicle = payload.data;
       const readPlate = cleanPlate(vehicle.plate || '');
-      if (readPlate && readPlate !== external.plate) {
-        setNotice({ kind: 'warn', text: `O CRLV-e enviado é da placa ${readPlate}, diferente de ${external.plate}.` });
+      const expectedPlate = cleanPlate(external.plate);
+      if (readPlate && !platesEquivalent(readPlate, expectedPlate)) {
+        setNotice({ kind: 'warn', text: `O CRLV-e enviado parece ser da placa ${readPlate}, diferente de ${expectedPlate}. Confira o documento antes de continuar.` });
         return;
       }
 
@@ -154,7 +194,7 @@ const MarketIQLookupBridge: React.FC = () => {
 
       fill({ model, year });
       await marketIqVehicleCacheService.save({
-        plate: external.plate,
+        plate: expectedPlate,
         brand,
         model,
         year,
@@ -176,7 +216,7 @@ const MarketIQLookupBridge: React.FC = () => {
         const value = Number(fipe.value) || 0;
         fill({ model: resolvedModel, year: resolvedYear, fipe: value });
         await marketIqVehicleCacheService.save({
-          plate: external.plate,
+          plate: expectedPlate,
           brand,
           model: resolvedModel,
           year: resolvedYear,
