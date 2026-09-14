@@ -13,6 +13,8 @@ const verifyFirebaseToken = async (idToken: string) => {
   return data?.users?.[0] || null;
 };
 
+type MatchTier = 'exact' | 'same_model' | 'adjacent_year' | 'technical_peer';
+
 type Comparable = {
   source?: string;
   title?: string;
@@ -21,6 +23,10 @@ type Comparable = {
   km?: number | string | null;
   location?: string;
   url?: string | null;
+  matchType?: string;
+  matchTier?: string;
+  compatibilityScore?: number | string;
+  similarityReason?: string;
 };
 
 const toNumber = (value: unknown) => {
@@ -52,6 +58,7 @@ const median = (values: number[]) => {
 };
 
 const round100 = (value: number) => Math.round(value / 100) * 100;
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const parseJson = (text: string) => {
   const clean = String(text || '').replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -76,6 +83,28 @@ const isExcludedSource = (source: string, url: string) => {
 const isPreferredSource = (source: string, url: string) => {
   const key = sourceKey(source, url);
   return key.includes('webmotors') || key.includes('webmotors.com') || key.includes('icarros') || key.includes('icarros.com');
+};
+
+const normalizeTier = (item: Comparable): MatchTier => {
+  const raw = String(item.matchTier || item.matchType || '').toLowerCase().replace(/[-\s]+/g, '_');
+  if (raw === 'exact' || raw === 'exato') return 'exact';
+  if (raw.includes('adjacent') || raw.includes('ano_adjacente')) return 'adjacent_year';
+  if (raw.includes('technical') || raw.includes('peer') || raw.includes('concorrente') || raw.includes('similar_model')) return 'technical_peer';
+  return 'same_model';
+};
+
+const defaultScore = (tier: MatchTier) => {
+  if (tier === 'exact') return 100;
+  if (tier === 'same_model') return 92;
+  if (tier === 'adjacent_year') return 84;
+  return 74;
+};
+
+const defaultReason = (tier: MatchTier) => {
+  if (tier === 'same_model') return 'mesmo modelo, ano-modelo e powertrain; versão comercial próxima';
+  if (tier === 'adjacent_year') return 'mesmo modelo e powertrain em ano-modelo adjacente';
+  if (tier === 'technical_peer') return 'veículo tecnicamente próximo em categoria, powertrain e faixa de mercado';
+  return '';
 };
 
 export default async function handler(req: any, res: any) {
@@ -106,75 +135,104 @@ export default async function handler(req: any, res: any) {
     }
 
     const prompt = `
-Você é o motor MarketScan de uma concessionária brasileira de veículos seminovos.
-Use a Pesquisa Google para localizar anúncios REAIS E ATUAIS de veículos comparáveis ao carro abaixo.
+Você é o motor de pesquisa do MOTYQ MarketScan, usado por avaliadores profissionais de seminovos no Brasil.
+Sua missão é encontrar o MERCADO REAL do veículo, sem declarar "amostra insuficiente" enquanto existirem anúncios relevantes do mesmo modelo ou referências técnicas próximas.
+Use Pesquisa Google e pesquise de verdade nas páginas/resultados dos portais.
 
 VEÍCULO ALVO
 - Modelo / versão informado no estoque: ${model}
-- ANO-MODELO obrigatório: ${year}
+- Ano-modelo alvo: ${year}
 - KM atual: ${km || 'não informado'}
-- FIPE atual: ${fipe || 'não informada'}
-- Unidade/região: ${storeName}
+- FIPE atual: ${fipe ? `R$ ${fipe.toLocaleString('pt-BR')}` : 'não informada'}
+- Unidade/região de origem: ${storeName}
 
-IMPORTANTE SOBRE PREÇO X FIPE
-- ${fipe ? `A FIPE atual é R$ ${fipe.toLocaleString('pt-BR')}. NÃO use nenhum anúncio com preço acima desse valor.` : 'A FIPE não foi informada; nesse caso, não aplique teto de FIPE.'}
-- Para a precificação, anúncios acima da FIPE devem ser ignorados.
-- Priorize os menores preços válidos abaixo ou iguais à FIPE.
-
-IMPORTANTE SOBRE ANO
-- Compare SOMENTE veículos de ANO-MODELO ${year}.
-- Fabricação ${year - 1}/modelo ${year} pode ser aceita, pois o ano-modelo continua ${year}.
-- NÃO aceite ano-modelo ${year - 1}, ${year + 1} ou qualquer outro ano-modelo.
-
-IMPORTANTE SOBRE NOMES DE VERSÃO
-- O texto vindo do estoque pode usar abreviações internas. Interprete e EXPANDA abreviações automotivas antes de pesquisar.
-- Exemplos comuns: LGTD = Longitude, LTD = Limited, AT = automático, AUT = automático, T270 = motor T270.
-- Pesquise também a forma comercial completa usada pelos portais, sem alterar marca/modelo/versão real.
-- Exemplo: "RENEGADE LGTD T270" deve ser pesquisado também como "Jeep Renegade Longitude T270" e, quando compatível com os resultados, "1.3 T270 Turbo Flex Longitude AT6".
-- NÃO misture outra versão, mesmo que seja do mesmo modelo e ano.
+REGRA FUNDAMENTAL SOBRE FIPE
+- FIPE é REFERÊNCIA, NÃO É TETO de pesquisa.
+- NÃO descarte um anúncio real apenas porque o preço está acima da FIPE.
+- O objetivo aqui é medir o preço anunciado no mercado real. Depois o MarketIQ compara mercado, FIPE, giro, margem e risco.
+- Ignore somente preços evidentemente inválidos, parcelas, entrada, consórcio, aluguel, leilão sem preço integral e anúncios sem preço total claro.
 
 FONTES
-- PRIORIDADE MÁXIMA: Webmotors e iCarros.
-- Tente formar a amostra primeiro com anúncios dessas duas fontes.
-- Somente se Webmotors + iCarros não fornecerem comparáveis suficientes, complemente com Mobiauto, OLX Autos e portais/lojas de seminovos confiáveis.
-- NÃO use Facebook, Facebook Marketplace, Mercado Livre nem Mercado Livre Veículos em nenhuma hipótese.
+- Prioridade máxima: Webmotors e iCarros.
+- Depois: Mobiauto, OLX Autos e sites confiáveis de lojas/concessionárias.
+- Nunca use Facebook, Facebook Marketplace, Mercado Livre ou Mercado Livre Veículos.
 
-ESTRATÉGIA DE PESQUISA
-- Faça primeiro buscas específicas na Webmotors e no iCarros pela versão EXATA e ANO-MODELO ${year}, priorizando MENOR PREÇO.
-- Exemplos: site:webmotors.com.br + versão completa + ${year} + região + menor preço; site:icarros.com.br + versão completa + ${year} + região + menor preço.
-- Se uma página de resultados mostrar vários cards com preço, ano, KM e localização, use esses cards como evidência válida.
-- Se a página mostrar claramente o TOTAL DE ANÚNCIOS encontrados para esses filtros exatos, capture esse número em marketOfferCount.
-- Só informe marketOfferCount quando o número estiver visível/confirmado na fonte. NÃO estime nem invente.
-- Se a cidade tiver poucos resultados, amplie para raio/região e depois para o estado de São Paulo, SEM mudar versão nem ano-modelo.
-- Só depois use fontes secundárias permitidas.
+ANTES DE BUSCAR
+- Interprete corretamente a marca, o modelo, a versão e o powertrain do texto recebido.
+- Expanda abreviações internas. Exemplos: LGTD=Longitude, LTD=Limited, AT/AUT=automático.
+- Use também o nome comercial que os portais usam. Ex.: "KONA 1.6 HEV SIGNATURE" deve virar buscas como "Hyundai Kona 1.6 GDI HEV Signature DCT" e também "Hyundai Kona 2026" quando a busca precisar ser ampliada.
 
-REGRAS DE COMPARABILIDADE
-- EXIJA a mesma versão e o mesmo ANO-MODELO ${year}.
-- Priorize ${storeName}; se necessário, amplie para o estado de São Paulo.
-- Se KM estiver disponível, prefira veículos próximos da quilometragem alvo, mas não descarte um anúncio válido apenas por KM diferente.
-- Considere apenas preço total anunciado do veículo. Ignore parcela, entrada, consórcio, aluguel e anúncios sem preço claro.
-- ${fipe ? `DESCARTE qualquer preço acima de R$ ${fipe.toLocaleString('pt-BR')} (FIPE atual).` : ''}
-- Procure deliberadamente o piso competitivo.
-- NÃO use anúncios do Facebook ou Mercado Livre.
-- Não invente preço, URL, quilometragem, versão ou localização.
-- Retorne no máximo 20 comparáveis, ORDENADOS DO MENOR PARA O MAIOR PREÇO.
+FAÇA A PESQUISA EM FUNIL, NESTA ORDEM. NÃO PARE CEDO DEMAIS:
 
-RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
+ETAPA 1 — EXATO
+- Mesma marca + modelo + versão + powertrain + ano-modelo ${year}.
+- Procure primeiro na região de ${storeName}, depois no estado e depois em TODO O BRASIL.
+- Webmotors e iCarros vêm primeiro.
+- Se encontrar pelo menos 3 anúncios exatos válidos, eles formam a amostra principal.
+
+ETAPA 2 — MESMO MODELO, MESMO ANO
+- Se houver menos de 3 exatos, mantenha a mesma marca/modelo, mesmo ano-modelo ${year}, mesma carroceria e mesmo powertrain.
+- Libere versões comerciais próximas do MESMO MODELO.
+- Exemplo: Signature e Ultimate podem ser comparadas se compartilharem o mesmo conjunto mecânico, mas devem ser marcadas como semelhantes.
+
+ETAPA 3 — MESMO MODELO, ANO ADJACENTE
+- Se ainda houver menos de 3 referências, mantenha marca/modelo, carroceria e powertrain e aceite ano-modelo ${year - 1} ou ${year + 1}.
+
+ETAPA 4 — SEMELHANTE TÉCNICO
+- Só se as etapas anteriores ainda forem insuficientes, use modelos concorrentes realmente próximos.
+- Exija mesma categoria/carroceria, powertrain equivalente, proposta de uso próxima e faixa de preço de mercado razoavelmente compatível.
+- Não misture SUV com hatch/sedan apenas por preço.
+- Não misture híbrido com combustão convencional quando isso alterar materialmente o produto.
+
+PONTUAÇÃO DE COMPATIBILIDADE
+- exact: 100
+- same_model: 88 a 95
+- adjacent_year: 80 a 87
+- technical_peer: 65 a 79
+- Explique em uma frase curta por que o semelhante é comparável.
+
+OFERTA DE MERCADO
+- Procure deliberadamente páginas de resultado da Webmotors/iCarros que mostrem a quantidade de anúncios.
+- Se houver contagem da versão exata, use-a.
+- Se a contagem exata não existir, pode usar a contagem do MESMO MODELO + ANO, desde que marketOfferSource deixe explícito que inclui outras versões.
+- Nunca invente contagem.
+- Procure os menores preços válidos, mas não filtre por FIPE.
+
+RETORNE NO MÁXIMO 20 ANÚNCIOS, ORDENADOS DO MENOR PARA O MAIOR PREÇO.
+RETORNE APENAS JSON VÁLIDO:
 {
   "comparables": [
     {
       "source": "Webmotors",
-      "title": "texto real/resumido do anúncio",
-      "price": 97900,
+      "title": "Hyundai Kona 1.6 GDI HEV Signature DCT",
+      "price": 238000,
       "year": ${year},
-      "km": 25000,
+      "km": 0,
       "location": "São Paulo, SP",
-      "url": null
+      "url": null,
+      "matchType": "exact",
+      "matchTier": "exact",
+      "compatibilityScore": 100,
+      "similarityReason": ""
+    },
+    {
+      "source": "Webmotors",
+      "title": "Hyundai Kona 1.6 GDI HEV Ultimate DCT",
+      "price": 179990,
+      "year": ${year},
+      "km": 0,
+      "location": "São Paulo, SP",
+      "url": null,
+      "matchType": "similar",
+      "matchTier": "same_model",
+      "compatibilityScore": 92,
+      "similarityReason": "mesmo Kona 2026 e mesmo powertrain HEV; versão comercial próxima"
     }
   ],
-  "marketOfferCount": 130,
-  "marketOfferSource": "Webmotors exibiu 130 anúncios encontrados com os filtros equivalentes",
-  "notes": "resumo curto sobre a amostra encontrada"
+  "marketOfferCount": 0,
+  "marketOfferSource": "",
+  "expandedGeography": true,
+  "notes": "resumo curto do que foi encontrado e até qual etapa foi necessário ampliar"
 }
 `;
 
@@ -188,39 +246,79 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
     const parsed = parseJson(response.text || '');
     const rawComparables: Comparable[] = Array.isArray(parsed?.comparables) ? parsed.comparables : [];
 
-    const exactYear = rawComparables
-      .map((item) => ({
-        source: String(item.source || '').trim() || 'Web',
-        title: String(item.title || '').trim() || model,
-        price: toNumber(item.price),
-        year: toModelYear(item.year) || 0,
-        km: toNumber(item.km) || 0,
-        location: String(item.location || '').trim(),
-        url: item.url ? String(item.url) : '',
-      }))
-      .filter((item) => item.price >= 10000 && item.price <= 2000000)
-      .filter((item) => item.year === year)
-      .filter((item) => !fipe || item.price <= fipe)
-      .filter((item) => !isExcludedSource(item.source, item.url));
+    const normalized = rawComparables
+      .map((item) => {
+        const tier = normalizeTier(item);
+        const parsedYear = toModelYear(item.year) || 0;
+        const scoreRaw = Math.round(toNumber(item.compatibilityScore));
+        const score = clamp(scoreRaw || defaultScore(tier), 0, 100);
+        const reasonRaw = String(item.similarityReason || '').trim() || defaultReason(tier);
+        return {
+          source: String(item.source || '').trim() || 'Web',
+          title: String(item.title || '').trim() || model,
+          price: toNumber(item.price),
+          year: parsedYear,
+          km: toNumber(item.km) || 0,
+          location: String(item.location || '').trim(),
+          url: item.url ? String(item.url) : '',
+          matchType: tier === 'exact' ? 'exact' as const : 'similar' as const,
+          matchTier: tier,
+          compatibilityScore: score,
+          similarityReason: tier === 'exact' ? '' : `Compatibilidade ${score}% · ${reasonRaw}`,
+        };
+      })
+      .filter(item => item.price >= 10000 && item.price <= 2000000)
+      .filter(item => item.year >= year - 1 && item.year <= year + 1)
+      .filter(item => !isExcludedSource(item.source, item.url));
 
-    const preferred = exactYear.filter(item => isPreferredSource(item.source, item.url));
-    const sourcePool = preferred.length >= 3 ? preferred : exactYear;
+    const seen = new Set<string>();
+    const deduped = normalized.filter(item => {
+      const key = `${item.source}|${item.title}|${item.price}|${item.year}|${item.location}`.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const sortPreferred = (items: typeof deduped) => [...items].sort((a, b) => {
+      const sourceA = isPreferredSource(a.source, a.url) ? 0 : 1;
+      const sourceB = isPreferredSource(b.source, b.url) ? 0 : 1;
+      if (sourceA !== sourceB) return sourceA - sourceB;
+      return a.price - b.price;
+    });
+
+    const exact = sortPreferred(deduped.filter(item => item.matchTier === 'exact' && item.year === year));
+    const sameModel = sortPreferred(deduped.filter(item => item.matchTier === 'same_model' && item.year === year));
+    const adjacent = sortPreferred(deduped.filter(item => item.matchTier === 'adjacent_year'));
+    const peers = sortPreferred(deduped.filter(item => item.matchTier === 'technical_peer'));
+
+    let selectedTier: MatchTier = 'technical_peer';
+    let sourcePool = [...exact, ...sameModel, ...adjacent, ...peers];
+
+    if (exact.length >= 3) {
+      selectedTier = 'exact';
+      sourcePool = exact;
+    } else if (exact.length + sameModel.length >= 3) {
+      selectedTier = 'same_model';
+      sourcePool = [...exact, ...sameModel];
+    } else if (exact.length + sameModel.length + adjacent.length >= 3) {
+      selectedTier = 'adjacent_year';
+      sourcePool = [...exact, ...sameModel, ...adjacent];
+    }
+
+    sourcePool = sourcePool.slice(0, 20);
 
     const initialMedian = median(sourcePool.map(item => item.price));
     const cleaned = initialMedian
-      ? sourcePool.filter(item => item.price >= initialMedian * 0.72 && item.price <= initialMedian * 1.28)
+      ? sourcePool.filter(item => item.price >= initialMedian * 0.65 && item.price <= initialMedian * 1.35)
       : sourcePool;
-
     const sample = cleaned.length >= 3 ? cleaned : sourcePool;
+
     const prices = sample.map(item => item.price).sort((a, b) => a - b);
     const marketMedian = median(prices);
     const low = prices.length ? prices[0] : 0;
     const high = prices.length ? prices[prices.length - 1] : 0;
-
     const lowerBandCount = prices.length ? Math.min(prices.length, Math.max(3, Math.ceil(prices.length * 0.30))) : 0;
-    const lowerBand = prices.slice(0, lowerBandCount);
-    const competitiveFloor = median(lowerBand);
-    const observed = competitiveFloor || marketMedian || 0;
+    const observed = median(prices.slice(0, lowerBandCount)) || marketMedian || 0;
 
     const reportedOfferCount = Math.max(0, Math.round(toNumber(parsed?.marketOfferCount)));
     const offerCount = reportedOfferCount || sample.length;
@@ -229,9 +327,9 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
       : (sample.length >= 15 ? 'high' : sample.length >= 8 ? 'medium' : 'low');
     const offerSource = String(parsed?.marketOfferSource || '').trim();
     const offerWarning = offerLevel === 'high'
-      ? `ALTA OFERTA NO MERCADO${reportedOfferCount ? `: ${reportedOfferCount} anúncios equivalentes identificados` : ''}. Cautela na compra: muita oferta aumenta a concorrência, pressiona os preços para baixo e pode alongar o giro. Priorize compra bem posicionada no piso do mercado.`
+      ? `ALTA OFERTA NO MERCADO${reportedOfferCount ? `: ${reportedOfferCount} anúncios identificados` : ''}. Cautela na compra: muita oferta aumenta a concorrência, pressiona preço e pode alongar o giro.`
       : offerLevel === 'medium'
-        ? `Oferta relevante no mercado${reportedOfferCount ? `: ${reportedOfferCount} anúncios equivalentes identificados` : ''}. Avalie preço de entrada e giro com atenção.`
+        ? `Oferta relevante no mercado${reportedOfferCount ? `: ${reportedOfferCount} anúncios identificados` : ''}. Avalie preço de entrada e giro com atenção.`
         : '';
 
     const grounding = (response as any)?.candidates?.[0]?.groundingMetadata || {};
@@ -244,38 +342,56 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
       .filter((item: any, index: number, arr: any[]) => arr.findIndex(other => other.url === item.url) === index)
       .slice(0, 20);
 
-    const sourceDomains = new Set([
-      ...sample.map(item => String(item.source || '').toLowerCase()).filter(Boolean),
-      ...sources.map((item: any) => domainOf(item.url)).filter(Boolean),
-    ]);
-
-    const confidence = sample.length >= 8 && sourceDomains.size >= 3
-      ? 'high'
-      : sample.length >= 4 && sourceDomains.size >= 2
-        ? 'medium'
-        : 'low';
-
     if (!sample.length || !observed) {
       return res.status(200).json({
         comparables: [],
         stats: { count: 0, low: 0, median: 0, high: 0, observed: 0 },
         confidence: 'low',
         marketSupply: { level: offerLevel, count: offerCount, reported: Boolean(reportedOfferCount), source: offerSource, warning: offerWarning },
-        notes: fipe
-          ? `Não encontrei comparáveis suficientes da mesma versão e ano-modelo ${year} com preço até a FIPE nas fontes permitidas.`
-          : `Não encontrei comparáveis suficientes da mesma versão com ano-modelo ${year} nas fontes permitidas.`,
+        expandedSearch: {
+          used: true,
+          scope: 'national_similar',
+          exactCount: exact.length,
+          similarCount: sameModel.length + adjacent.length + peers.length,
+          warning: 'O MarketScan percorreu versão exata, mesmo modelo, anos adjacentes e semelhantes técnicos, mas não conseguiu validar preços suficientes nesta execução.',
+        },
+        notes: String(parsed?.notes || '').trim(),
         sources,
         searchQueries: grounding?.webSearchQueries || [],
       });
     }
 
+    const exactInSample = sample.filter(item => item.matchType === 'exact').length;
+    const similarInSample = sample.filter(item => item.matchType === 'similar').length;
+    const expandedGeography = Boolean(parsed?.expandedGeography);
+    const expandedUsed = selectedTier !== 'exact' || expandedGeography;
+
+    const warning = selectedTier === 'exact'
+      ? (expandedGeography
+        ? 'A busca local foi pequena; o MarketScan ampliou a distância e encontrou comparáveis exatos em outras regiões.'
+        : 'Amostra formada com veículos da mesma versão e ano-modelo.')
+      : selectedTier === 'same_model'
+        ? 'Havia poucos anúncios da versão exata. O MarketScan manteve o mesmo modelo, ano e powertrain e incluiu versões comerciais próximas com compatibilidade indicada.'
+        : selectedTier === 'adjacent_year'
+          ? 'A amostra exata continuou pequena. O MarketScan manteve o mesmo modelo/powertrain e incluiu anos-modelo adjacentes com peso menor.'
+          : 'A oferta do mesmo modelo foi insuficiente. O MarketScan incluiu semelhantes técnicos de alta proximidade e reduziu a confiança da referência.';
+
+    const sourceDomains = new Set([
+      ...sample.map(item => String(item.source || '').toLowerCase()).filter(Boolean),
+      ...sources.map((item: any) => domainOf(item.url)).filter(Boolean),
+    ]);
+
+    const confidence = selectedTier === 'exact'
+      ? (sample.length >= 8 && sourceDomains.size >= 2 ? 'high' : sample.length >= 3 ? 'medium' : 'low')
+      : selectedTier === 'same_model'
+        ? (sample.length >= 6 ? 'medium' : 'low')
+        : 'low';
+
     const noteParts = [
-      offerWarning,
-      `${sample.length} comparáveis válidos da mesma versão e ano-modelo ${year}.`,
-      preferred.length >= 3 ? 'Amostra baseada prioritariamente em Webmotors e iCarros.' : 'Webmotors/iCarros insuficientes; amostra complementada apenas com fontes secundárias permitidas.',
-      fipe ? `Anúncios acima da FIPE de R$ ${fipe.toLocaleString('pt-BR')} foram descartados.` : '',
-      'Facebook e Mercado Livre foram excluídos.',
-      `Base de precificação: ${lowerBandCount} menor${lowerBandCount === 1 ? '' : 'es'} preço${lowerBandCount === 1 ? '' : 's'} válido${lowerBandCount === 1 ? '' : 's'} da amostra.`,
+      warning,
+      fipe ? `FIPE de R$ ${fipe.toLocaleString('pt-BR')} usada como referência, sem bloquear anúncios acima dela.` : '',
+      reportedOfferCount && offerSource ? offerSource : '',
+      'Prioridade para Webmotors e iCarros; Facebook e Mercado Livre excluídos.',
       parsed?.notes ? String(parsed.notes).trim() : '',
     ].filter(Boolean);
 
@@ -290,6 +406,13 @@ RETORNE APENAS JSON VÁLIDO, SEM MARKDOWN, NESTE FORMATO:
       },
       confidence,
       marketSupply: { level: offerLevel, count: offerCount, reported: Boolean(reportedOfferCount), source: offerSource, warning: offerWarning },
+      expandedSearch: {
+        used: expandedUsed,
+        scope: selectedTier === 'exact' ? 'national_exact' : 'national_similar',
+        exactCount: exactInSample,
+        similarCount: similarInSample,
+        warning,
+      },
       notes: noteParts.join(' '),
       sources,
       searchQueries: grounding?.webSearchQueries || [],
