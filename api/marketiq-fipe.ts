@@ -1,19 +1,29 @@
 type NamedCode={code?:string|number;name?:string;codigo?:string|number;nome?:string};
 
 const BASE='https://fipe.parallelum.com.br/api/v2/cars';
-const clean=(value:string)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const cleanBase=(value:string)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const clean=(value:string)=>cleanBase(value)
+ .replace(/\btitnat\b/g,'titanium')
+ .replace(/\btitan\b/g,'titanium')
+ .replace(/\bfrestyle\b/g,'freestyle')
+ .replace(/\bimpet\b/g,'impetus')
+ .replace(/\baudac\b/g,'audace')
+ .replace(/\blgtd\b/g,'longitude')
+ .replace(/\bltd\b/g,'limited');
 const canonicalBrand=(value:string)=>clean(value)
  .replace(/^vw\s+volkswagen$/,'volkswagen')
  .replace(/^vw$/,'volkswagen')
  .replace(/^gm\s+chevrolet$/,'chevrolet')
  .replace(/^mercedes\s+benz$/,'mercedes benz');
 const ignored=new Set(['flex','gasolina','alcool','diesel','automatico','aut','mec','manual','cv','16v','8v','4p','5p','tsi','mpi','mi','total']);
+const trimTokens=new Set(['titanium','storm','freestyle','se','sel','trend','xls','xlt','limited','longitude','sport','wildtrak','highline','comfortline','exclusive','premier','lt','ltz','rs','platinum','touring','advance','audace','impetus','drive','precision','volcano','ranch','endurance','trekking']);
 const tokens=(value:string)=>clean(value).split(' ').filter(Boolean).filter(t=>!ignored.has(t));
 const scoreText=(target:string,candidate:string)=>{
  const a=tokens(target),b=tokens(candidate);if(!a.length||!b.length)return 0;
  let score=0;for(const t of a){if(b.includes(t))score+=/^\d/.test(t)?1.4:1;else if(b.some(x=>x.includes(t)||t.includes(x)))score+=0.4;}
  const denom=a.reduce((s,t)=>s+( /^\d/.test(t)?1.4:1),0);return Math.min(1,score/Math.max(1,denom));
 };
+const targetTrimOf=(value:string)=>tokens(value).find(t=>trimTokens.has(t))||'';
 const getJson=async(url:string)=>{
  const token=process.env.FIPE_API_TOKEN||process.env.FIPE_SUBSCRIPTION_TOKEN||'';
  const headers:Record<string,string>={'Accept':'application/json','User-Agent':'Motyq-MarketIQ/1.0'};
@@ -38,14 +48,19 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
  const models=await getJson(`${BASE}/brands/${brandCode}/models`) as NamedCode[];
  const inputTokens=tokens(input.model);
  const family=inputTokens[0]||'';
+ const targetTrim=targetTrimOf(input.model);
  const ranked=models.map(item=>{
    const name=getName(item);
+   const candidateTokens=tokens(name);
+   const candidateTrim=targetTrimOf(name);
    const base=scoreText(input.model,name);
-   const familyBonus=family&&tokens(name).includes(family)?0.18:0;
+   const familyBonus=family&&candidateTokens.includes(family)?0.18:0;
    const exactPhrase=clean(name).includes(clean(input.model))?0.16:0;
-   return {item,name,total:base+familyBonus+exactPhrase,base};
+   const trimBonus=targetTrim&&candidateTrim===targetTrim?0.45:0;
+   const trimPenalty=targetTrim&&candidateTrim&&candidateTrim!==targetTrim?-0.65:targetTrim&&!candidateTokens.includes(targetTrim)?-0.45:0;
+   return {item,name,total:base+familyBonus+exactPhrase+trimBonus+trimPenalty,base,candidateTrim};
  }).sort((a,b)=>b.total-a.total);
- const candidates=ranked.filter(row=>row.total>=0.45).slice(0,8);
+ const candidates=ranked.filter(row=>row.total>=0.45&&(!targetTrim||tokens(row.name).includes(targetTrim))).slice(0,8);
  if(!candidates.length)return null;
 
  const requestedYears=yearsFrom(input.year);
@@ -57,24 +72,27 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
    const years=await getJson(`${BASE}/brands/${brandCode}/models/${modelCode}/years`) as NamedCode[];
    let chosen=years.filter(y=>!targetYear||String(getCode(y)).startsWith(`${targetYear}-`)||getName(y).includes(String(targetYear)));
    if(!chosen.length&&requestedYears.length)chosen=years.filter(y=>requestedYears.some(ry=>String(getCode(y)).startsWith(`${ry}-`)||getName(y).includes(String(ry))));
-   if(!chosen.length)chosen=years.slice(0,4);
+   if(!chosen.length)continue;
    for(const y of chosen.slice(0,6)){
      const yearCode=getCode(y);
      const detail:any=await getJson(`${BASE}/brands/${brandCode}/models/${modelCode}/years/${yearCode}`);
      const detailModel=String(detail?.model||detail?.Modelo||candidate.name);
      const detailFuel=String(detail?.fuel||detail?.Combustivel||'');
      const detailYear=Number(detail?.modelYear||detail?.AnoModelo||0);
+     if(targetYear&&detailYear!==targetYear)continue;
+     if(targetTrim&&!tokens(detailModel).includes(targetTrim))continue;
      const modelScore=scoreText(input.model,detailModel);
      const fuelScore=fuelWanted&&clean(detailFuel).includes(fuelWanted.split(' ')[0])?0.08:0;
      const yearScore=targetYear&&detailYear===targetYear?0.10:0;
      const exactBonus=clean(detailModel).includes(clean(input.model))?0.15:0;
-     const total=modelScore+fuelScore+yearScore+exactBonus;
+     const trimScore=targetTrim&&tokens(detailModel).includes(targetTrim)?0.35:0;
+     const total=modelScore+fuelScore+yearScore+exactBonus+trimScore;
      if(!best||total>best.total)best={detail,total,modelScore};
    }
  }
  if(!best?.detail)return null;
  const value=parseValue(best.detail.price||best.detail.Valor);
- if(!value)return null;
+ if(!value||value<10000)return null;
  return {
    value,
    brand:String(best.detail.brand||best.detail.Marca||getName(brand)),
