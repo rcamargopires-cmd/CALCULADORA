@@ -14,6 +14,11 @@ const num=(value:any)=>{
   return Number(normalized)||0;
 };
 
+const plausibleVehicleValue=(value:any)=>{
+  const parsed=num(value);
+  return parsed>=10000&&parsed<=2000000?parsed:0;
+};
+
 const verifyFirebaseToken=async(idToken:string)=>{
   const response=await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`,{
     method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({idToken}),
@@ -43,8 +48,10 @@ const stringsFrom=(value:any,out:string[]=[],depth=0):string[]=>{
 const normalizeDadosApi=(raw:any,plate:string)=>{
   const data=raw?.data&&typeof raw.data==='object'?raw.data:raw||{};
   const extra=data.extra||{};
+  const targetYear=Number(data.anoModelo||extra.ano_modelo||data.ano_modelo||data.ano||0)||0;
   const fipeRows=Array.isArray(data?.fipe?.dados)?data.fipe.dados:[];
-  const fipe=fipeRows[0]||{};
+  const matchingFipe=fipeRows.find((row:any)=>Number(row?.ano_modelo||row?.anoModelo||0)===targetYear);
+  const fipe=matchingFipe||fipeRows[0]||{};
   const restrictions=[
     extra.restricao_1,extra.restricao_2,extra.restricao_3,extra.restricao_4,
     data.restricoes,data.restricao,data.situacao,
@@ -55,7 +62,16 @@ const normalizeDadosApi=(raw:any,plate:string)=>{
   const corpus=stringsFrom(data).join(' | ').toUpperCase();
   const auctionOrClaim=/(RECUPERAD[OA]\s+DE\s+SINISTRO|SINISTRO|LEIL[AÃ]O)/i.test(corpus);
   const armored=/BLINDAD[OA]/i.test(corpus);
-  const fipeValue=num(fipe.texto_valor||extra.media_preco||data.valorFipe||data.valor_fipe);
+
+  // A DadosAPI pode devolver campos auxiliares que não são preço FIPE completo.
+  // Nunca deixamos valor muito baixo (ex.: 626) alimentar a avaliação como se fosse FIPE.
+  const fipeValue=
+    plausibleVehicleValue(fipe.texto_valor)||
+    plausibleVehicleValue(data.valorFipe)||
+    plausibleVehicleValue(data.valor_fipe)||
+    plausibleVehicleValue(extra.media_preco)||
+    0;
+
   const model=String(data.MODELO||data.modelo||data.marcaModelo||extra.modelo||fipe.texto_modelo||'').trim();
   const brand=String(data.MARCA||data.marca||String(data.marcaModelo||'').split('/')[0]||'').trim();
   const year=String(data.anoModelo||extra.ano_modelo||fipe.ano_modelo||data.ano_modelo||data.ano||'').trim();
@@ -106,7 +122,7 @@ const queryDadosApi=async(plate:string,token:string)=>{
       if(response.ok&&lastBody){
         const normalized=normalizeDadosApi(lastBody,plate);
         if(normalized.model||normalized.year||normalized.fipeValue){
-          console.info('MarketIQ DadosAPI lookup ok',{endpoint,status:response.status,plate});
+          console.info('MarketIQ DadosAPI lookup ok',{endpoint,status:response.status,plate,hasValidFipe:Boolean(normalized.fipeValue)});
           return normalized;
         }
       }
@@ -144,13 +160,13 @@ const queryLegacy=async(plate:string,token:string)=>{
     color:String(info.cor||''),
     fuel:String(info.combustivel||best?.combustivel||''),
     renavam:'',municipality:'',uf:'',situation:'',restrictions:[],
-    fipeValue:num(best?.valor),
+    fipeValue:plausibleVehicleValue(best?.valor),
     fipeCode:String(best?.codigo_fipe||''),
     referenceMonth:String(best?.mes_referencia||''),
     confidence:best?Math.round(best._score):0,
     flags:{auctionOrClaim:false,armored:false},
     provider:'placafipe',
-    alternatives:ranked.slice(0,3).map((item:any)=>({model:String(item.modelo||''),year:Number(item.ano_modelo||0),value:num(item.valor),fipeCode:String(item.codigo_fipe||''),score:Math.round(item._score)})),
+    alternatives:ranked.slice(0,3).map((item:any)=>({model:String(item.modelo||''),year:Number(item.ano_modelo||0),value:plausibleVehicleValue(item.valor),fipeCode:String(item.codigo_fipe||''),score:Math.round(item._score)})),
   };
 };
 
