@@ -95,6 +95,21 @@ const lookupFipe = async (input: { brand: string; model: string; year: string; f
   return response.json();
 };
 
+const lookupPlate = async (plate: string) => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return null;
+  const token = await currentUser.getIdToken();
+  const response = await fetch('/api/marketiq-plate', {
+    method: 'POST',
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ plate }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) return { error: String(payload?.error || 'plate_lookup_failed'), status: response.status };
+  return payload;
+};
+
 type Notice = { kind: 'ok' | 'warn' | 'loading'; text: string } | null;
 type ExternalVehicle = { plate: string };
 
@@ -149,7 +164,7 @@ const MarketIQLookupBridge: React.FC = () => {
     return () => window.clearInterval(timer);
   }, []);
 
-  const showExternal = (plate: string, text = 'Veículo fora do estoque. Envie o CRLV-e para o Motyq identificar o carro sem consulta veicular paga.') => {
+  const showExternal = (plate: string, text = 'Não consegui identificar esta placa automaticamente. Envie o CRLV-e para continuar a avaliação.') => {
     setExternal({ plate });
     setNotice({ kind: 'warn', text });
   };
@@ -270,20 +285,19 @@ const MarketIQLookupBridge: React.FC = () => {
       lastPlate.current = plate;
       setExternal(null);
       const currentRequest = ++requestId.current;
-      setNotice({ kind: 'loading', text: `Consultando ${plate}...` });
+      setNotice({ kind: 'loading', text: `Consultando ${plate} pela placa...` });
 
       const companyId = companyScopeService.get(user);
       const storeId = storeScopeService.get(user);
       const stockItem: GroupStockItem | undefined = snapshot?.items.find(item => cleanPlate(item.plate) === plate);
 
-      // IMPORTANT: a identidade validada por CRLV é a fonte autoritativa para ano/modelo.
-      // O estoque só é usado se não houver CRLV válido para esta placa.
+      // CRLV validado continua sendo a fonte mais forte. Sem CRLV, a DadosAPI vira a identificação automática principal.
       void marketIqVehicleCacheService.get(companyId, storeId, plate).then(async cached => {
         if (currentRequest !== requestId.current) return;
 
         if (cached?.source === 'crlv') {
           if (Number(cached.parserVersion || 0) < CRLV_PARSER_VERSION) {
-            showExternal(plate, 'Esta placa tem uma leitura antiga de CRLV. Envie o CRLV-e uma vez para revalidar o ano/modelo. O dado do estoque não será usado enquanto o documento não for confirmado.');
+            showExternal(plate, 'Esta placa tem uma leitura antiga de CRLV. Envie o CRLV-e uma vez para revalidar o ano/modelo.');
             return;
           }
 
@@ -297,7 +311,7 @@ const MarketIQLookupBridge: React.FC = () => {
             const resolvedYear = String(fipe.year || cached.year);
             const value = Number(fipe.value) || 0;
             fill({ model: resolvedModel, year: resolvedYear, km: stockItem?.km, fipe: value });
-            setNotice({ kind: 'ok', text: `${resolvedModel} · ano/modelo ${resolvedYear}. CRLV priorizado sobre o estoque. FIPE ${fipe.referenceMonth || 'atual'} atualizada.` });
+            setNotice({ kind: 'ok', text: `${resolvedModel} · ano/modelo ${resolvedYear}. CRLV priorizado. FIPE ${fipe.referenceMonth || 'atual'} atualizada.` });
             void marketIqVehicleCacheService.save({
               ...cached,
               model: resolvedModel,
@@ -314,6 +328,72 @@ const MarketIQLookupBridge: React.FC = () => {
           return;
         }
 
+        try {
+          const plateData: any = await lookupPlate(plate);
+          if (currentRequest !== requestId.current) return;
+          if (plateData && !plateData.error && plateData.model && plateData.year) {
+            const model = String(plateData.model || '').trim();
+            const year = String(plateData.year || '').trim();
+            const brand = String(plateData.brand || '').trim();
+            const fuel = String(plateData.fuel || '').trim();
+            let fipeValue = Number(plateData.fipeValue) || 0;
+            let fipeCode = String(plateData.fipeCode || '');
+            let referenceMonth = String(plateData.referenceMonth || '');
+
+            if (!fipeValue) {
+              const fipe = await lookupFipe({ brand, model, year, fuel });
+              if (currentRequest !== requestId.current) return;
+              if (fipe?.value) {
+                fipeValue = Number(fipe.value) || 0;
+                fipeCode = String(fipe.fipeCode || fipeCode);
+                referenceMonth = String(fipe.referenceMonth || referenceMonth);
+              }
+            }
+
+            fill({ model, year, km: stockItem?.km, fipe: fipeValue });
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              void marketIqVehicleCacheService.save({
+                plate,
+                brand,
+                model,
+                year,
+                fuel,
+                renavam: String(plateData.renavam || ''),
+                fipeCode,
+                lastFipeValue: fipeValue,
+                lastFipeReference: referenceMonth,
+                source: 'dadosapi',
+                companyId,
+                storeId,
+                identifiedAt: new Date().toISOString(),
+                identifiedBy: currentUser.email || currentUser.uid,
+              }).catch(() => undefined);
+            }
+
+            const restrictions = Array.isArray(plateData.restrictions) ? plateData.restrictions.filter(Boolean) : [];
+            const flags = plateData.flags || {};
+            window.dispatchEvent(new CustomEvent('motyq:marketiq-plate-identified', {
+              detail: { plate, provider: plateData.provider || 'dadosapi', restrictions, flags },
+            }));
+
+            const location = [plateData.municipality, plateData.uf].filter(Boolean).join('/');
+            const riskText = flags.auctionOrClaim
+              ? ' · ATENÇÃO: a consulta encontrou indicação relacionada a sinistro/leilão.'
+              : flags.armored
+                ? ' · ATENÇÃO: a consulta encontrou indicação de blindagem.'
+                : restrictions.length
+                  ? ` · Restrição: ${restrictions[0]}.`
+                  : '';
+            const sourceText = plateData.provider === 'dadosapi' ? 'DadosAPI' : 'consulta de placa';
+            setNotice({ kind: flags.auctionOrClaim || flags.armored ? 'warn' : 'ok', text: `${model} · ano/modelo ${year}${location ? ` · ${location}` : ''}. Identificado automaticamente pela ${sourceText}${referenceMonth ? ` · FIPE ${referenceMonth}` : ''}.${riskText}` });
+            setExternal(null);
+            return;
+          }
+        } catch (error) {
+          console.warn('MarketIQ: consulta automática por placa indisponível.', error);
+        }
+
         if (stockItem) {
           fill({ model: stockItem.model, year: stockItem.year, km: stockItem.km });
           setNotice({ kind: 'loading', text: `${stockItem.model} localizado no estoque. Buscando FIPE...` });
@@ -321,7 +401,7 @@ const MarketIQLookupBridge: React.FC = () => {
           if (currentRequest !== requestId.current) return;
           if (result?.value) {
             fill({ model: stockItem.model || result.model, year: stockItem.year || String(result.year), km: stockItem.km, fipe: Number(result.value) || 0 });
-            setNotice({ kind: 'ok', text: `Veículo localizado no estoque. FIPE ${result.referenceMonth || 'atual'} preenchida automaticamente.` });
+            setNotice({ kind: 'ok', text: `Consulta de placa indisponível; veículo localizado no estoque. FIPE ${result.referenceMonth || 'atual'} preenchida automaticamente.` });
           } else {
             setNotice({ kind: 'warn', text: 'Veículo localizado no estoque, mas a versão FIPE precisa ser confirmada.' });
           }
@@ -329,19 +409,8 @@ const MarketIQLookupBridge: React.FC = () => {
         }
 
         if (cached) {
-          fill({ model: cached.model, year: cached.year });
-          setNotice({ kind: 'loading', text: `${cached.model} ${cached.year} reconhecido pelo Motyq. Atualizando FIPE...` });
-          const fipe = await lookupFipe({ brand: cached.brand, model: cached.model, year: cached.year, fuel: cached.fuel });
-          if (currentRequest !== requestId.current) return;
-          if (fipe?.value) {
-            const resolvedModel = String(fipe.model || cached.model);
-            const resolvedYear = String(fipe.year || cached.year);
-            const value = Number(fipe.value) || 0;
-            fill({ model: resolvedModel, year: resolvedYear, fipe: value });
-            setNotice({ kind: 'ok', text: `${resolvedModel} · ano/modelo ${resolvedYear}. FIPE ${fipe.referenceMonth || 'atual'} atualizada.` });
-          } else {
-            setNotice({ kind: 'warn', text: `${cached.model} reconhecido pela placa, mas a FIPE precisa ser confirmada.` });
-          }
+          fill({ model: cached.model, year: cached.year, fipe: cached.lastFipeValue });
+          setNotice({ kind: 'warn', text: `${cached.model} ${cached.year} recuperado do cache do Motyq. A consulta de placa não respondeu agora.` });
           return;
         }
 
@@ -349,7 +418,7 @@ const MarketIQLookupBridge: React.FC = () => {
       }).catch(() => {
         if (stockItem) {
           fill({ model: stockItem.model, year: stockItem.year, km: stockItem.km });
-          setNotice({ kind: 'warn', text: 'Veículo localizado no estoque, mas não consegui validar o histórico de identificação agora.' });
+          setNotice({ kind: 'warn', text: 'Veículo localizado no estoque, mas não consegui validar a identificação automática agora.' });
         } else {
           showExternal(plate);
         }
@@ -368,7 +437,7 @@ const MarketIQLookupBridge: React.FC = () => {
       <div className="mb-3">
         <p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VALIDAR CRLV-E</p>
         <p className="mt-1 text-sm font-semibold">{external.plate} · confirmação de ano/modelo</p>
-        <p className="mt-1 text-[11px] leading-4 text-zinc-500">Envie uma foto ou PDF do CRLV-e. O ano/modelo lido do documento terá prioridade sobre qualquer informação divergente do estoque.</p>
+        <p className="mt-1 text-[11px] leading-4 text-zinc-500">A consulta automática por placa não concluiu a identificação. Envie uma foto ou PDF do CRLV-e para continuar.</p>
       </div>
       <label className={`flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] ${readingCrlv ? 'pointer-events-none opacity-50' : ''}`}>
         {readingCrlv ? 'LENDO CRLV-E...' : 'ENVIAR CRLV-E'}
