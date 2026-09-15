@@ -86,10 +86,10 @@ const normalizeDadosApi=(raw:any,plate:string)=>{
 };
 
 const queryDadosApi=async(plate:string,token:string)=>{
+  const working='https://api.dadosapi.com/v1/veiculo-placa-unica';
   const documented='https://api.dadosapi.com/dados-publicos/consulta-veiculo-por-placa';
-  const legacy='https://api.dadosapi.com/v1/veiculo-placa-unica';
   const custom=String(process.env.DADOSAPI_VEHICLE_ENDPOINT||'').trim();
-  const endpoints=Array.from(new Set([custom,documented,legacy].filter(Boolean)));
+  const endpoints=Array.from(new Set([custom,working,documented].filter(Boolean)));
   let lastStatus=0;
   let lastBody:any=null;
 
@@ -105,15 +105,16 @@ const queryDadosApi=async(plate:string,token:string)=>{
 
       if(response.ok&&lastBody){
         const normalized=normalizeDadosApi(lastBody,plate);
-        if(normalized.model||normalized.year||normalized.fipeValue)return normalized;
+        if(normalized.model||normalized.year||normalized.fipeValue){
+          console.info('MarketIQ DadosAPI lookup ok',{endpoint,status:response.status,plate});
+          return normalized;
+        }
       }
 
-      // 429/5xx indicam indisponibilidade/limite: não multiplica chamadas desnecessariamente.
       if(response.status===429||response.status>=500)break;
     }catch(error:any){
       lastBody={message:String(error?.message||error)};
       lastStatus=0;
-      // Se uma rota específica falhar por DNS/rota, ainda tentamos a oficial seguinte.
     }
   }
 
@@ -160,13 +161,22 @@ export default async function handler(req:any,res:any){
 
   const authHeader=String(req.headers?.authorization||'');
   const idToken=authHeader.startsWith('Bearer ')?authHeader.slice(7):'';
-  if(!idToken)return res.status(401).json({error:'not_authenticated'});
+  if(!idToken){
+    console.warn('MarketIQ plate lookup blocked: no Firebase token',{plate});
+    return res.status(401).json({error:'not_authenticated'});
+  }
   const firebaseUser=await verifyFirebaseToken(idToken).catch(()=>null);
-  if(!firebaseUser?.email)return res.status(401).json({error:'invalid_session'});
+  if(!firebaseUser?.email){
+    console.warn('MarketIQ plate lookup blocked: invalid Firebase session',{plate});
+    return res.status(401).json({error:'invalid_session'});
+  }
 
   const dadosApiToken=String(process.env.DADOSAPI_TOKEN||'').trim();
   const legacyToken=String(process.env.PLACA_FIPE_TOKEN||'').trim();
-  if(!dadosApiToken&&!legacyToken)return res.status(503).json({error:'provider_not_configured'});
+  if(!dadosApiToken&&!legacyToken){
+    console.warn('MarketIQ plate lookup blocked: provider not configured',{plate});
+    return res.status(503).json({error:'provider_not_configured'});
+  }
 
   try{
     if(dadosApiToken){
@@ -177,6 +187,7 @@ export default async function handler(req:any,res:any){
         console.warn('MarketIQ DadosAPI lookup failed',{
           status:Number(error?.status)||0,
           providerMessage:String(error?.body?.message||error?.body?.mensagem||error?.body?.error||''),
+          plate,
         });
         if(!legacyToken){
           const status=Number(error?.status)||502;
