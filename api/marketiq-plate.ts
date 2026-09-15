@@ -86,26 +86,37 @@ const normalizeDadosApi=(raw:any,plate:string)=>{
 };
 
 const queryDadosApi=async(plate:string,token:string)=>{
-  const preferred=String(process.env.DADOSAPI_VEHICLE_ENDPOINT||'https://api.dadosapi.com/v1/veiculo-placa-unica').trim();
   const documented='https://api.dadosapi.com/dados-publicos/consulta-veiculo-por-placa';
-  const endpoints=preferred===documented?[preferred]:[preferred,documented];
+  const legacy='https://api.dadosapi.com/v1/veiculo-placa-unica';
+  const custom=String(process.env.DADOSAPI_VEHICLE_ENDPOINT||'').trim();
+  const endpoints=Array.from(new Set([custom,documented,legacy].filter(Boolean)));
   let lastStatus=0;
   let lastBody:any=null;
 
   for(const endpoint of endpoints){
-    const response=await fetch(endpoint,{
-      method:'POST',
-      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-      body:JSON.stringify({placa:plate}),
-    });
-    lastStatus=response.status;
-    lastBody=await response.json().catch(()=>null);
-    if(response.ok&&lastBody){
-      const normalized=normalizeDadosApi(lastBody,plate);
-      if(normalized.model||normalized.year||normalized.fipeValue)return normalized;
+    try{
+      const response=await fetch(endpoint,{
+        method:'POST',
+        headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+        body:JSON.stringify({placa:plate}),
+      });
+      lastStatus=response.status;
+      lastBody=await response.json().catch(()=>null);
+
+      if(response.ok&&lastBody){
+        const normalized=normalizeDadosApi(lastBody,plate);
+        if(normalized.model||normalized.year||normalized.fipeValue)return normalized;
+      }
+
+      // 429/5xx indicam indisponibilidade/limite: não multiplica chamadas desnecessariamente.
+      if(response.status===429||response.status>=500)break;
+    }catch(error:any){
+      lastBody={message:String(error?.message||error)};
+      lastStatus=0;
+      // Se uma rota específica falhar por DNS/rota, ainda tentamos a oficial seguinte.
     }
-    if(response.status!==404&&response.status!==405)break;
   }
+
   const error:any=new Error('dadosapi_error');
   error.status=lastStatus;
   error.body=lastBody;
@@ -163,10 +174,17 @@ export default async function handler(req:any,res:any){
         const result=await queryDadosApi(plate,dadosApiToken);
         return res.status(200).json(result);
       }catch(error:any){
-        console.warn('MarketIQ DadosAPI lookup failed',error?.status||error?.message||error);
+        console.warn('MarketIQ DadosAPI lookup failed',{
+          status:Number(error?.status)||0,
+          providerMessage:String(error?.body?.message||error?.body?.mensagem||error?.body?.error||''),
+        });
         if(!legacyToken){
           const status=Number(error?.status)||502;
-          return res.status(status===401||status===403?502:status).json({error:'dadosapi_provider_error'});
+          return res.status(status===401||status===403?502:status).json({
+            error:'dadosapi_provider_error',
+            providerStatus:status,
+            providerMessage:String(error?.body?.message||error?.body?.mensagem||error?.body?.error||''),
+          });
         }
       }
     }
