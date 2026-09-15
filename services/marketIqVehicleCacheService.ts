@@ -11,7 +11,7 @@ export interface MarketIqVehicleIdentity {
   fipeCode?: string;
   lastFipeValue?: number;
   lastFipeReference?: string;
-  source: 'crlv' | 'stock' | 'manual';
+  source: 'crlv' | 'dadosapi' | 'stock' | 'manual';
   parserVersion?: number;
   companyId: string;
   storeId: string;
@@ -26,7 +26,7 @@ const refFor = (companyId: string, storeId: string, plate: string) =>
   doc(db, 'operational_meta', `marketiq_vehicle_${safeId(companyId)}_${safeId(storeId)}_${cleanPlate(plate)}`);
 
 const normalize = (data: Partial<MarketIqVehicleIdentity>, companyId: string, storeId: string, plate: string): MarketIqVehicleIdentity => {
-  const source: MarketIqVehicleIdentity['source'] = data.source === 'stock' || data.source === 'manual' ? data.source : 'crlv';
+  const source: MarketIqVehicleIdentity['source'] = data.source === 'stock' || data.source === 'manual' || data.source === 'dadosapi' ? data.source : 'crlv';
   const rawParserVersion = Number(data.parserVersion) || 0;
   const parserVersion = source === 'crlv' && rawParserVersion < MIN_TRUSTED_CRLV_PARSER_VERSION ? 0 : rawParserVersion;
 
