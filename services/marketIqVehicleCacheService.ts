@@ -53,11 +53,16 @@ export const marketIqVehicleCacheService = {
   get: async (companyId: string, storeId: string, plate: string): Promise<MarketIqVehicleIdentity | null> => {
     const cleaned = cleanPlate(plate);
     if (!/^[A-Z0-9]{7}$/.test(cleaned)) return null;
-    const snap = await getDoc(refFor(companyId, storeId, cleaned));
-    if (!snap.exists()) return null;
-    const data = snap.data() as Partial<MarketIqVehicleIdentity>;
-    const item = normalize(data, companyId, storeId, cleaned);
-    return item.model && item.year ? item : null;
+    try {
+      const snap = await getDoc(refFor(companyId, storeId, cleaned));
+      if (!snap.exists()) return null;
+      const data = snap.data() as Partial<MarketIqVehicleIdentity>;
+      const item = normalize(data, companyId, storeId, cleaned);
+      return item.model && item.year ? item : null;
+    } catch (error) {
+      console.warn('MarketIQ vehicle cache read failed; continuing with live plate lookup.', error);
+      return null;
+    }
   },
 
   save: async (identity: MarketIqVehicleIdentity) => {
