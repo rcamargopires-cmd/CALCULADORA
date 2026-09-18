@@ -37,7 +37,7 @@ const Safe = ({ name, children }: { name: string; children: React.ReactNode }) =
 const StandardMotyq = ({ user }: { user: User | null }) => <>
   <ModuleErrorBoundary name="App" critical><App /></ModuleErrorBoundary>
   <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
-  {user && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
+  {user && ['seller', 'user'].includes(String(user.role)) && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
   <Safe name="OperationalTools"><OperationalTools /></Safe>
   <Safe name="TradeCheckShell"><TradeCheckShell /></Safe>
   <Safe name="MarketPresenceCorrectionShell"><MarketPresenceCorrectionShell /></Safe>
