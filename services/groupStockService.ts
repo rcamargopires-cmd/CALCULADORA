@@ -48,12 +48,12 @@ const createCrmMatchAlerts = async (companyId: string, added: GroupStockItem[], 
   const leads = snap.docs
     .map(item => ({ id: item.id, ...item.data() } as any))
     .filter(item => !['sale', 'no_deal'].includes(String(item.status || '')))
-    .filter(item => String(item.interestModel || '').trim())
+    .filter(item => String(item.desiredVehicle || item.interestModel || '').trim())
     .filter(item => String(item.assignedSellerEmail || '').trim());
 
   let created = 0;
   for (const lead of leads) {
-    const matches = matchGroupStock(added, String(lead.interestModel || ''), 2)
+    const matches = matchGroupStock(added, String(lead.desiredVehicle || lead.interestModel || ''), 2)
       .filter(match => match.kind === 'exact');
     for (const match of matches) {
       const vehicle = match.item;
@@ -71,7 +71,7 @@ const createCrmMatchAlerts = async (companyId: string, added: GroupStockItem[], 
         tone: 'info',
         title: `Entrou ${vehicle.model} para ${lead.customerName || 'seu cliente'}`,
         evidence: `${vehicle.model} · ${vehicle.year || 'ano n/i'} · ${vehicle.km ? Number(vehicle.km).toLocaleString('pt-BR') + ' km · ' : ''}${vehicle.plate} · ${location} · ${price}`,
-        recommendedAction: `O cliente procura "${lead.interestModel}". Confira o veículo que acabou de entrar no estoque compartilhado e faça contato com o cliente.`,
+        recommendedAction: `O cliente procura "${lead.desiredVehicle || lead.interestModel}". Confira o veículo que acabou de entrar no estoque compartilhado e faça contato com o cliente.`,
         metric: vehicle.plate,
         assignedToEmail: String(lead.assignedSellerEmail || '').trim().toLowerCase(),
         assignedToName: String(lead.assignedSellerName || lead.assignedSellerEmail || ''),
