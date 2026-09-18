@@ -1,5 +1,7 @@
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import { actionTaskService } from './actionTaskService';
+import { matchGroupStock } from './crmStockMatchService';
 
 export interface GroupStockItem {
   plate: string;
@@ -35,6 +37,54 @@ const documentId = (companyId: string) => `group_stock_${safeId(companyId)}`;
 const refFor = (companyId: string) => doc(db, 'config', documentId(companyId));
 const cleanPlate = (value: string) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
+const localDate = () => {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const createCrmMatchAlerts = async (companyId: string, added: GroupStockItem[], importedBy: string) => {
+  if (!added.length) return 0;
+  const snap = await getDocs(query(collection(db, 'showroom_passages'), where('companyId', '==', companyId)));
+  const leads = snap.docs
+    .map(item => ({ id: item.id, ...item.data() } as any))
+    .filter(item => !['sale', 'no_deal'].includes(String(item.status || '')))
+    .filter(item => String(item.interestModel || '').trim())
+    .filter(item => String(item.assignedSellerEmail || '').trim());
+
+  let created = 0;
+  for (const lead of leads) {
+    const matches = matchGroupStock(added, String(lead.interestModel || ''), 2)
+      .filter(match => match.kind === 'exact');
+    for (const match of matches) {
+      const vehicle = match.item;
+      const location = vehicle.location || vehicle.stockOwner || 'local não informado';
+      const price = vehicle.suggestedPrice
+        ? Number(vehicle.suggestedPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        : 'preço não informado';
+      await actionTaskService.create({
+        companyId,
+        storeId: String(lead.storeId || ''),
+        storeName: String(lead.storeName || lead.storeId || 'Unidade'),
+        sourceActionId: `crm_stock_match_${lead.id}_${vehicle.plate}`,
+        sourceDate: localDate(),
+        scope: 'CRM · Estoque',
+        tone: 'info',
+        title: `Entrou ${vehicle.model} para ${lead.customerName || 'seu cliente'}`,
+        evidence: `${vehicle.model} · ${vehicle.year || 'ano n/i'} · ${vehicle.km ? Number(vehicle.km).toLocaleString('pt-BR') + ' km · ' : ''}${vehicle.plate} · ${location} · ${price}`,
+        recommendedAction: `O cliente procura "${lead.interestModel}". Confira o veículo que acabou de entrar no estoque compartilhado e faça contato com o cliente.`,
+        metric: vehicle.plate,
+        assignedToEmail: String(lead.assignedSellerEmail || '').trim().toLowerCase(),
+        assignedToName: String(lead.assignedSellerName || lead.assignedSellerEmail || ''),
+        dueDate: localDate(),
+        createdByEmail: importedBy || 'motyq@system',
+        createdByName: 'MOTYQ · Alerta de estoque',
+      });
+      created += 1;
+    }
+  }
+  return created;
+};
+
 const normalizeItems = (items: GroupStockItem[]) => Array.from(new Map(
   items
     .map(item => ({
@@ -65,6 +115,14 @@ export const groupStockService = {
   save: async (snapshot: GroupStockSnapshot) => {
     const items = normalizeItems(snapshot.items);
     if (!items.length) throw new Error('Nenhum veículo válido foi reconhecido no estoque compartilhado.');
+
+    const current = await getDoc(refFor(snapshot.companyId));
+    const previous = current.exists()
+      ? normalizeItems(Array.isArray(current.data().items) ? current.data().items as GroupStockItem[] : [])
+      : [];
+    const previousPlates = new Set(previous.map(item => item.plate));
+    const added = items.filter(item => !previousPlates.has(item.plate));
+
     await setDoc(refFor(snapshot.companyId), {
       companyId: snapshot.companyId,
       items,
@@ -73,8 +131,19 @@ export const groupStockService = {
       importedAt: snapshot.importedAt,
       importedBy: snapshot.importedBy,
       rows: items.length,
+      addedRows: added.length,
       updatedAt: serverTimestamp(),
     }, { merge: false });
+
+    const crmAlerts = await createCrmMatchAlerts(snapshot.companyId, added, snapshot.importedBy).catch(error => {
+      console.warn('MOTYQ: não foi possível criar alertas de estoque para o CRM.', error);
+      return 0;
+    });
+
+    window.dispatchEvent(new CustomEvent('motyq:group-stock-updated', {
+      detail: { companyId: snapshot.companyId, added: added.length, crmAlerts },
+    }));
+
     return items.length;
   },
 
