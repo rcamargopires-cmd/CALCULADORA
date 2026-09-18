@@ -13,7 +13,7 @@ import { auth } from '../firebase';
 
 type Props={user:User};
 type Column={status:ShowroomPassageStatus;label:string;hint:string};
-type WhatsAppStatus={connected:boolean;platformReady:boolean;missing:string[];webhookUrl:string;graphVersion:string;connection?:{displayPhoneNumber:string;phoneNumberId:string;wabaId:string;connectedAt:string;sellerName:string}|null};
+type WhatsAppStatus={connected:boolean;platformReady:boolean;missing:string[];webhookUrl:string;graphVersion:string;embeddedSignup?:{appId:string;configId:string;featureType:string;sessionInfoVersion:string};connection?:{displayPhoneNumber:string;phoneNumberId:string;wabaId:string;connectedAt:string;sellerName:string}|null};
 
 const COLUMNS:Column[]=[
   {status:'waiting',label:'Novo lead',hint:'Ainda sem contato'},
@@ -89,6 +89,8 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const[busyId,setBusyId]=useState('');
   const[message,setMessage]=useState('');
   const[waStatus,setWaStatus]=useState<WhatsAppStatus|null>(null);
+  const[waBusy,setWaBusy]=useState(false);
+  const[waMessage,setWaMessage]=useState('');
   const[scope,setScope]=useState(()=>({companyId:companyScopeService.get(user),storeId:storeScopeService.get(user)}));
   const canManage=user.role==='admin'||user.role==='manager';
   const isSeller=user.role==='seller'||user.role==='user';
@@ -115,18 +117,25 @@ const MotyqCRM:React.FC<Props>=({user})=>{
       : showroomFlowService.subscribeStorePassages(scope.companyId,scope.storeId,setItems,onError);
   },[scope.companyId,scope.storeId,user.email,isSeller]);
 
+  const loadWhatsAppStatus=async()=>{
+    const current=auth.currentUser;
+    if(!current)throw new Error('not_authenticated');
+    const token=await current.getIdToken();
+    const response=await fetch('/api/whatsapp-status',{headers:{authorization:`Bearer ${token}`}});
+    if(!response.ok)throw new Error('status_failed');
+    const data=await response.json();
+    setWaStatus(data);
+    return data as WhatsAppStatus;
+  };
+
   useEffect(()=>{
     if(!open)return;
     let alive=true;
     (async()=>{
       try{
-        const current=auth.currentUser;
-        if(!current)throw new Error('not_authenticated');
-        const token=await current.getIdToken();
-        const response=await fetch('/api/whatsapp-status',{headers:{authorization:`Bearer ${token}`}});
-        if(!response.ok)throw new Error('status_failed');
-        const data=await response.json();
-        if(alive)setWaStatus(data);
+        const data=await loadWhatsAppStatus();
+        if(!alive)return;
+        setWaStatus(data);
       }catch{
         if(alive)setWaStatus(null);
       }
@@ -159,6 +168,142 @@ const MotyqCRM:React.FC<Props>=({user})=>{
     const closed=items.filter(item=>['sale','no_deal'].includes(item.status)).length;
     return{active,sales,overdue,conversion:closed?Math.round(sales/closed*100):0};
   },[items]);
+
+  const connectMyWhatsApp=async()=>{
+    setWaBusy(true);setWaMessage('');
+    let cleanup=()=>{};
+    try{
+      const status=waStatus||await loadWhatsAppStatus();
+      if(!status.platformReady)throw new Error('A integração da Meta ainda não está configurada para liberar conexões.');
+      const embedded=status.embeddedSignup;
+      if(!embedded?.appId||!embedded?.configId)throw new Error('Configuração do Embedded Signup ainda não disponível.');
+
+      const loadSdk=()=>new Promise<void>((resolve,reject)=>{
+        const w=window as any;
+        const init=()=>{
+          try{
+            w.FB.init({appId:embedded.appId,cookie:true,xfbml:true,version:status.graphVersion||'v24.0'});
+            resolve();
+          }catch(error){reject(error);}
+        };
+        if(w.FB){init();return;}
+        w.fbAsyncInit=init;
+        const existing=document.getElementById('facebook-jssdk');
+        if(existing){
+          const timer=window.setInterval(()=>{if(w.FB){window.clearInterval(timer);init();}},150);
+          window.setTimeout(()=>{window.clearInterval(timer);if(!w.FB)reject(new Error('Não consegui carregar a conexão segura da Meta.'));},10000);
+          return;
+        }
+        const script=document.createElement('script');
+        script.id='facebook-jssdk';
+        script.async=true;
+        script.defer=true;
+        script.crossOrigin='anonymous';
+        script.src='https://connect.facebook.net/pt_BR/sdk.js';
+        script.onerror=()=>reject(new Error('Não consegui carregar a conexão segura da Meta.'));
+        document.body.appendChild(script);
+      });
+      await loadSdk();
+
+      let code='';
+      let session:any=null;
+      let completed=false;
+      let failTimer=0;
+
+      const finalize=async()=>{
+        if(completed||!code||!session?.waba_id)return;
+        completed=true;
+        cleanup();
+        const current=auth.currentUser;
+        if(!current)throw new Error('Sua sessão expirou. Entre novamente no MOTYQ.');
+        const token=await current.getIdToken();
+        const response=await fetch('/api/whatsapp-connect',{
+          method:'POST',
+          headers:{'content-type':'application/json',authorization:`Bearer ${token}`},
+          body:JSON.stringify({code,wabaId:session.waba_id,phoneNumberId:session.phone_number_id||''}),
+        });
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok){
+          if(data?.error==='phone_already_connected_to_another_seller')throw new Error('Este número já está vinculado a outro vendedor no MOTYQ.');
+          if(data?.error==='multiple_phone_numbers_found')throw new Error('A Meta encontrou mais de um número nessa conta. Vamos selecionar o número em uma próxima etapa.');
+          throw new Error(data?.reason||'A Meta não concluiu a conexão do número.');
+        }
+        setWaStatus(prev=>prev?{...prev,connected:true,connection:data.connection}:prev);
+        setWaMessage('WhatsApp conectado ao seu usuário com sucesso.');
+        setWaBusy(false);
+      };
+
+      const listener=(event:MessageEvent)=>{
+        try{
+          const origin=new URL(event.origin);
+          if(!['www.facebook.com','web.facebook.com','facebook.com'].includes(origin.hostname))return;
+          const payload=typeof event.data==='string'?JSON.parse(event.data):event.data;
+          if(payload?.type!=='WA_EMBEDDED_SIGNUP')return;
+          if(['FINISH','FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING','FINISH_ONLY_WABA'].includes(String(payload?.event||''))){
+            session=payload.data||{};
+            void finalize().catch(error=>{setWaMessage(error?.message||'Não foi possível concluir a conexão.');setWaBusy(false);});
+          }else if(payload?.event==='CANCEL'){
+            setWaMessage('Conexão cancelada antes da conclusão.');
+            setWaBusy(false);cleanup();
+          }else if(payload?.event==='ERROR'){
+            setWaMessage(String(payload?.data?.error_message||'A Meta informou um erro durante a conexão.'));
+            setWaBusy(false);cleanup();
+          }
+        }catch{}
+      };
+      window.addEventListener('message',listener);
+      cleanup=()=>{window.removeEventListener('message',listener);if(failTimer)window.clearTimeout(failTimer);};
+      failTimer=window.setTimeout(()=>{
+        if(!completed){
+          cleanup();
+          setWaBusy(false);
+          setWaMessage('A conexão demorou mais que o esperado. Se você concluiu tudo na Meta, tente novamente para recuperar o vínculo.');
+        }
+      },120000);
+
+      const extras:any={setup:{}};
+      if(embedded.featureType)extras.featureType=embedded.featureType;
+      if(embedded.sessionInfoVersion)extras.sessionInfoVersion=embedded.sessionInfoVersion;
+
+      (window as any).FB.login((response:any)=>{
+        if(response?.authResponse?.code){
+          code=String(response.authResponse.code);
+          void finalize().catch(error=>{setWaMessage(error?.message||'Não foi possível concluir a conexão.');setWaBusy(false);});
+          return;
+        }
+        if(!completed){
+          cleanup();
+          setWaBusy(false);
+          setWaMessage('A autorização da Meta não foi concluída.');
+        }
+      },{
+        config_id:embedded.configId,
+        auth_type:'rerequest',
+        response_type:'code',
+        override_default_response_type:true,
+        extras,
+      });
+    }catch(error:any){
+      cleanup();
+      setWaBusy(false);
+      setWaMessage(error?.message||'Não foi possível iniciar a conexão com a Meta.');
+    }
+  };
+
+  const disconnectMyWhatsApp=async()=>{
+    if(!window.confirm('Desconectar seu WhatsApp do MOTYQ? O número continuará funcionando no WhatsApp Business.'))return;
+    setWaBusy(true);setWaMessage('');
+    try{
+      const current=auth.currentUser;
+      if(!current)throw new Error('Sua sessão expirou.');
+      const token=await current.getIdToken();
+      const response=await fetch('/api/whatsapp-disconnect',{method:'POST',headers:{authorization:`Bearer ${token}`}});
+      if(!response.ok)throw new Error('Não foi possível desconectar agora.');
+      await loadWhatsAppStatus();
+      setWaMessage('WhatsApp desconectado do MOTYQ.');
+    }catch(error:any){setWaMessage(error?.message||'Não foi possível desconectar agora.');}
+    finally{setWaBusy(false);}
+  };
 
   const patch=async(item:ShowroomPassage,data:Parameters<typeof showroomFlowService.updateCrmLead>[1])=>{
     setBusyId(item.id);setMessage('');
@@ -219,7 +364,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
           </section>
 
           <section className={`rounded-2xl border p-4 ${waStatus?.connected?'border-emerald-200 bg-gradient-to-r from-emerald-50 to-white':'border-violet-200 bg-gradient-to-r from-violet-50 to-white'}`}>
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-start gap-3">
                 <div className={`grid h-10 w-10 place-items-center rounded-xl ${waStatus?.connected?'bg-emerald-100 text-emerald-700':'bg-violet-100 text-violet-700'}`}><Bot size={18}/></div>
                 <div>
@@ -227,13 +372,18 @@ const MotyqCRM:React.FC<Props>=({user})=>{
                   <p className="mt-1 text-sm text-slate-700">
                     {waStatus?.connected
                       ? `Seu WhatsApp ${waStatus.connection?.displayPhoneNumber||''} está vinculado ao seu usuário. As conversas deste número entram somente na sua carteira.`
-                      : 'Cada vendedor conecta o próprio WhatsApp. Não existe número central da loja neste fluxo.'}
+                      : 'Conecte o seu WhatsApp Business ao seu login. Não existe número central da loja neste fluxo.'}
                   </p>
-                  {!waStatus?.connected&&waStatus?.platformReady&&<p className="mt-2 text-xs font-semibold text-violet-700">Pronto para receber a conexão do seu número pela Meta.</p>}
-                  {!waStatus?.connected&&waStatus&&!waStatus.platformReady&&<p className="mt-2 text-[11px] text-slate-500">A configuração técnica da Meta ainda está sendo concluída.</p>}
+                  {!waStatus?.connected&&<p className="mt-2 text-xs text-slate-500">A conexão abre uma janela segura da Meta. Sua senha do Facebook não passa pelo MOTYQ.</p>}
+                  {waMessage&&<p className={`mt-3 text-xs font-semibold ${waStatus?.connected?'text-emerald-700':'text-violet-700'}`}>{waMessage}</p>}
                 </div>
               </div>
-              <span className={`w-fit rounded-full border bg-white px-3 py-1.5 text-xs font-semibold ${waStatus?.connected?'border-emerald-200 text-emerald-700':'border-violet-200 text-violet-700'}`}>{waStatus?.connected?'MEU NÚMERO CONECTADO':'MEU NÚMERO NÃO CONECTADO'}</span>
+              <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row md:flex-col">
+                {waStatus?.connected
+                  ? <button type="button" disabled={waBusy} onClick={disconnectMyWhatsApp} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 disabled:opacity-50">DESCONECTAR</button>
+                  : <button type="button" disabled={waBusy||!waStatus?.platformReady} onClick={connectMyWhatsApp} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">{waBusy?'CONECTANDO...':'CONECTAR MEU WHATSAPP'}</button>}
+                <span className={`w-fit self-end rounded-full border bg-white px-3 py-1.5 text-[10px] font-semibold ${waStatus?.connected?'border-emerald-200 text-emerald-700':'border-violet-200 text-violet-700'}`}>{waStatus?.connected?'MEU NÚMERO CONECTADO':'NÃO CONECTADO'}</span>
+              </div>
             </div>
           </section>
 
