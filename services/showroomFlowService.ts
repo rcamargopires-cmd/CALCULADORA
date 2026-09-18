@@ -1,6 +1,6 @@
-import { collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { CrmLeadSource, CrmLeadTemperature, ShowroomPassage, ShowroomPassageOrigin, ShowroomPassageStatus, ShowroomQueueAudit, ShowroomQueuePause, ShowroomQueueReason, ShowroomQueueSeller, ShowroomQueueState, User } from '../types';
+import { CrmLeadSource, CrmLeadTemperature, ShowroomPassage, ShowroomPassageActivity, ShowroomPassageOrigin, ShowroomPassageStatus, ShowroomQueueAudit, ShowroomQueuePause, ShowroomQueueReason, ShowroomQueueSeller, ShowroomQueueState, User } from '../types';
 
 const cleanPhone=(value:string)=>String(value||'').replace(/\D/g,'').slice(0,15);
 const queueId=(companyId:string,storeId:string)=>`${companyId}_${storeId}`.replace(/[^a-zA-Z0-9_-]/g,'-');
@@ -8,6 +8,7 @@ const now=()=>new Date().toISOString();
 const passageRef=()=>doc(collection(db,'showroom_passages'));
 const auditId=()=>`${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 const cleanEmail=(value:string)=>String(value||'').trim().toLowerCase();
+const activity=(type:ShowroomPassageActivity['type'],label:string,details='',status?:ShowroomPassageStatus,byEmail='',byName=''):ShowroomPassageActivity=>({id:auditId(),type,at:now(),label,details,status,byEmail,byName});
 const legacyOrigin=(value:any):ShowroomPassageOrigin=>value==='requested'?'requested':'walk_in';
 const busyRequestedStatuses=new Set<ShowroomPassageStatus>(['waiting','in_service','evaluation','proposal']);
 const localDateKey=(value:string|Date)=>{
@@ -203,7 +204,7 @@ export const showroomFlowService={
         if(!selected)throw new Error('Nenhum vendedor disponível para passagem agora.');
       }
       const timestamp=now();
-      const passage:ShowroomPassage={id:pRef.id,customerName:input.customerName.trim(),phone:cleanPhone(input.phone),interestModel:input.interestModel.trim(),origin,assignedSellerId:selected.id,assignedSellerEmail:selected.email,assignedSellerName:selected.name,status:'waiting',createdAt:timestamp,updatedAt:timestamp,createdBy:input.createdBy||'',createdByName:input.createdByName||'',companyId:input.companyId,storeId:input.storeId};
+      const passage:ShowroomPassage={id:pRef.id,customerName:input.customerName.trim(),phone:cleanPhone(input.phone),interestModel:input.interestModel.trim(),origin,assignedSellerId:selected.id,assignedSellerEmail:selected.email,assignedSellerName:selected.name,status:'waiting',createdAt:timestamp,updatedAt:timestamp,activityHistory:[{id:auditId(),type:'created',at:timestamp,label:'Atendimento criado',details:input.interestModel.trim()?`Interesse: ${input.interestModel.trim()}`:'',status:'waiting',byEmail:input.createdBy||'',byName:input.createdByName||''}],createdBy:input.createdBy||'',createdByName:input.createdByName||'',companyId:input.companyId,storeId:input.storeId};
       tx.set(pRef,passage);
       if(origin==='walk_in')tx.update(qRef,{turnOrder:moveEmailToEnd(queue,selected.email),nextIndex:0,updatedAt:timestamp});
       return passage;
@@ -230,6 +231,7 @@ export const showroomFlowService={
       sourceLabel:input.sourceLabel?.trim()||'',
       leadTemperature:input.leadTemperature||'warm',
       nextFollowUpAt:input.nextFollowUpAt||'',
+      activityHistory:[{id:auditId(),type:'created',at:timestamp,label:'Lead criado',details:input.notes?.trim()||'',status:'waiting',byEmail:input.createdBy||'',byName:input.createdByName||''}],
       createdBy:input.createdBy||'',
       createdByName:input.createdByName||'',
       companyId:input.companyId,
@@ -240,14 +242,26 @@ export const showroomFlowService={
   },
 
   updateCrmLead:async(id:string,patch:Partial<Pick<ShowroomPassage,'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'>>)=>{
-    const next:any={...patch,updatedAt:now()};
-    if(patch.status==='in_service'&&!('lastContactAt' in patch))next.lastContactAt=now();
-    if(patch.status==='sale'||patch.status==='no_deal')next.closedAt=now();
+    const timestamp=now();
+    const next:any={...patch,updatedAt:timestamp};
+    if(patch.status==='in_service'&&!('lastContactAt' in patch))next.lastContactAt=timestamp;
+    if(patch.status==='sale'||patch.status==='no_deal')next.closedAt=timestamp;
+    const events:ShowroomPassageActivity[]=[];
+    if(patch.status)events.push({id:auditId(),type:['sale','no_deal'].includes(patch.status)?'closed':'status',at:timestamp,label:`Etapa alterada para ${patch.status}`,status:patch.status});
+    if(typeof patch.notes==='string'&&patch.notes.trim())events.push({id:auditId(),type:'note',at:timestamp,label:'Observação atualizada',details:patch.notes.trim()});
+    if(typeof patch.nextFollowUpAt==='string'&&patch.nextFollowUpAt)events.push({id:auditId(),type:'follow_up',at:timestamp,label:'Follow-up programado',details:patch.nextFollowUpAt});
+    if(events.length)next.activityHistory=arrayUnion(...events);
     await updateDoc(doc(db,'showroom_passages',id),next);
   },
 
   updatePassage:async(id:string,patch:Partial<Pick<ShowroomPassage,'status'|'notes'|'assumedAt'|'closedAt'>>)=>{
-    await updateDoc(doc(db,'showroom_passages',id),{...patch,updatedAt:now()});
+    const timestamp=now();
+    const next:any={...patch,updatedAt:timestamp};
+    const events:ShowroomPassageActivity[]=[];
+    if(patch.status)events.push({id:auditId(),type:['sale','no_deal'].includes(patch.status)?'closed':'status',at:timestamp,label:`Etapa alterada para ${patch.status}`,status:patch.status});
+    if(typeof patch.notes==='string'&&patch.notes.trim())events.push({id:auditId(),type:'note',at:timestamp,label:'Observação atualizada',details:patch.notes.trim()});
+    if(events.length)next.activityHistory=arrayUnion(...events);
+    await updateDoc(doc(db,'showroom_passages',id),next);
   },
 
   correctPassage:async(input:{id:string;customerName:string;phone:string;interestModel:string;origin:ShowroomPassageOrigin;assignedSellerId:string;assignedSellerEmail:string;assignedSellerName:string;status:ShowroomPassageStatus;notes?:string;actorEmail?:string;actorName?:string;reason:string})=>{
@@ -291,6 +305,7 @@ export const showroomFlowService={
       correctedByName:input.actorName||'',
       correctionReason:input.reason.trim(),
       correctionHistory:[...oldHistory,correction].slice(-20),
+      activityHistory:arrayUnion({id:auditId(),type:'correction',at:timestamp,label:'Atendimento corrigido',details:input.reason.trim(),status:input.status,byEmail:input.actorEmail||'',byName:input.actorName||''}),
       updatedAt:timestamp,
     });
   },
@@ -313,11 +328,11 @@ export const showroomFlowService={
 
   assumePassage:async(item:ShowroomPassage)=>{
     const timestamp=now();
-    await updateDoc(doc(db,'showroom_passages',item.id),{status:'in_service' as ShowroomPassageStatus,assumedAt:item.assumedAt||timestamp,updatedAt:timestamp});
+    await updateDoc(doc(db,'showroom_passages',item.id),{status:'in_service' as ShowroomPassageStatus,assumedAt:item.assumedAt||timestamp,activityHistory:arrayUnion({id:auditId(),type:'assumed',at:timestamp,label:'Atendimento assumido',status:'in_service'}),updatedAt:timestamp});
   },
 
   finishPassage:async(item:ShowroomPassage,status:Exclude<ShowroomPassageStatus,'waiting'|'in_service'>,notes?:string)=>{
     const timestamp=now();
-    await updateDoc(doc(db,'showroom_passages',item.id),{status,notes:notes||item.notes||'',closedAt:['sale','no_deal'].includes(status)?timestamp:(item.closedAt||''),updatedAt:timestamp});
+    await updateDoc(doc(db,'showroom_passages',item.id),{status,notes:notes||item.notes||'',closedAt:['sale','no_deal'].includes(status)?timestamp:(item.closedAt||''),activityHistory:arrayUnion({id:auditId(),type:['sale','no_deal'].includes(status)?'closed':'status',at:timestamp,label:`Etapa alterada para ${status}`,details:notes||'',status}),updatedAt:timestamp});
   }
 };
