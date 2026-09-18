@@ -172,7 +172,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
       if(sourceFilter!=='all'&&sourceOf(item)!==sourceFilter)return false;
       if(onlyMine&&String(item.assignedSellerEmail||'').toLowerCase()!==String(user.email||'').toLowerCase())return false;
       if(!needle)return true;
-      return [item.customerName,item.phone,item.interestModel,item.assignedSellerName,item.notes,SOURCE[sourceOf(item)]]
+      return [item.customerName,item.phone,item.interestModel,item.desiredVehicle,item.customerEmail,item.tradeInPlate,item.assignedSellerName,item.notes,SOURCE[sourceOf(item)]]
         .some(value=>String(value||'').toLocaleLowerCase('pt-BR').includes(needle));
     });
   },[items,search,sourceFilter,onlyMine,user.email]);
