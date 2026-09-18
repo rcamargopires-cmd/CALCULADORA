@@ -10,6 +10,8 @@ import { userService } from '../services/userService';
 import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companyScopeService';
 import { storeScopeService, STORE_SCOPE_EVENT } from '../services/storeScopeService';
 import { auth } from '../firebase';
+import { GroupStockItem, groupStockService } from '../services/groupStockService';
+import { CrmStockMatch, matchGroupStock } from '../services/crmStockMatchService';
 
 type Props={user:User};
 type Column={status:ShowroomPassageStatus;label:string;hint:string};
@@ -82,6 +84,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const[slot,setSlot]=useState<HTMLElement|null>(null);
   const[items,setItems]=useState<ShowroomPassage[]>([]);
   const[sellers,setSellers]=useState<User[]>([]);
+  const[groupStock,setGroupStock]=useState<GroupStockItem[]>([]);
   const[search,setSearch]=useState('');
   const[sourceFilter,setSourceFilter]=useState<'all'|CrmLeadSource>('all');
   const[onlyMine,setOnlyMine]=useState(false);
@@ -116,6 +119,15 @@ const MotyqCRM:React.FC<Props>=({user})=>{
       ? showroomFlowService.subscribeSellerPassages(scope.companyId,scope.storeId,user.email,setItems,onError)
       : showroomFlowService.subscribeStorePassages(scope.companyId,scope.storeId,setItems,onError);
   },[scope.companyId,scope.storeId,user.email,isSeller]);
+
+  useEffect(()=>{
+    if(!scope.companyId){setGroupStock([]);return;}
+    return groupStockService.subscribe(
+      scope.companyId,
+      snapshot=>setGroupStock(snapshot?.items||[]),
+      error=>{console.warn('CRM shared stock unavailable',error);setGroupStock([]);},
+    );
+  },[scope.companyId]);
 
   const loadWhatsAppStatus=async()=>{
     const current=auth.currentUser;
@@ -399,7 +411,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
                     <span className="grid h-7 min-w-7 place-items-center rounded-full bg-white px-2 text-xs font-bold text-slate-600 shadow-sm">{rows.length}</span>
                   </div>
                   <div className="space-y-3">
-                    {rows.map(item=><LeadCard key={item.id} item={item} busy={busyId===item.id} onPatch={data=>patch(item,data)} />)}
+                    {rows.map(item=><LeadCard key={item.id} item={item} busy={busyId===item.id} matches={matchGroupStock(groupStock,item.interestModel,3)} onPatch={data=>patch(item,data)} />)}
                     {!rows.length&&<div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-5 text-center text-xs text-slate-400">Nenhum lead</div>}
                   </div>
                 </div>;
@@ -409,12 +421,12 @@ const MotyqCRM:React.FC<Props>=({user})=>{
         </div>
       </div>
 
-      {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
+      {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} stockItems={groupStock} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
     </div>}
   </>;
 };
 
-const LeadCard=({item,busy,onPatch}:{item:ShowroomPassage;busy:boolean;onPatch:(patch:any)=>void})=>{
+const LeadCard=({item,busy,matches,onPatch}:{item:ShowroomPassage;busy:boolean;matches:CrmStockMatch[];onPatch:(patch:any)=>void})=>{
   const source=sourceOf(item),temp=temperatureOf(item),wa=whatsappUrl(item.phone),overdue=isOverdue(item.nextFollowUpAt)&&!['sale','no_deal'].includes(item.status);
   const TempIcon=temp==='hot'?Flame:temp==='cold'?Snowflake:SunMedium;
   return <article className={`rounded-2xl border bg-white p-3.5 shadow-sm ${overdue?'border-red-200 ring-1 ring-red-100':'border-slate-200'}`}>
@@ -436,12 +448,20 @@ const LeadCard=({item,busy,onPatch}:{item:ShowroomPassage;busy:boolean;onPatch:(
     {!['sale','no_deal'].includes(item.status)&&<div className="mt-2">
       <input type="datetime-local" value={inputDateTime(item.nextFollowUpAt)} onChange={e=>onPatch({nextFollowUpAt:e.target.value?new Date(e.target.value).toISOString():''})} className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-[11px] text-slate-600 outline-none"/>
     </div>}
+    {matches.length>0&&<div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-2.5">
+      <div className="flex items-center justify-between gap-2"><p className="text-[10px] font-black uppercase tracking-[.11em] text-emerald-700">ESTOQUE DO GRUPO</p><span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-bold text-emerald-700">{matches.length} opção(ões)</span></div>
+      <div className="mt-2 space-y-2">{matches.map(match=><div key={match.item.plate} className="rounded-lg border border-emerald-100 bg-white/80 p-2">
+        <div className="flex items-start justify-between gap-2"><div><p className="text-[11px] font-semibold text-slate-800">{match.item.model}</p><p className="mt-0.5 text-[10px] text-slate-500">{match.item.year||'Ano não informado'} · {match.item.km?match.item.km.toLocaleString('pt-BR')+' km · ':''}{match.item.location||match.item.stockOwner||'Local não informado'}</p></div><span className="text-[9px] font-black uppercase text-emerald-700">{match.kind==='exact'?'COMPATÍVEL':'SEMELHANTE'}</span></div>
+        <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-500"><span>{match.item.plate}</span><strong className="text-slate-700">{match.item.suggestedPrice?match.item.suggestedPrice.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Preço não informado'}</strong></div>
+      </div>)}</div>
+    </div>}
     {item.notes&&<p className="mt-3 line-clamp-3 rounded-xl bg-slate-50 p-2 text-[11px] leading-4 text-slate-500">{item.notes}</p>}
   </article>;
 };
 
-const NewLeadModal=({user,companyId,storeId,sellers,onClose,onCreated}:{user:User;companyId:string;storeId:string;sellers:User[];onClose:()=>void;onCreated:()=>void})=>{
+const NewLeadModal=({user,companyId,storeId,sellers,stockItems,onClose,onCreated}:{user:User;companyId:string;storeId:string;sellers:User[];stockItems:GroupStockItem[];onClose:()=>void;onCreated:()=>void})=>{
   const[name,setName]=useState('');const[phone,setPhone]=useState('');const[model,setModel]=useState('');const[seller,setSeller]=useState('');const[source,setSource]=useState<CrmLeadSource>('manual');const[temp,setTemp]=useState<CrmLeadTemperature>('warm');const[notes,setNotes]=useState('');const[follow,setFollow]=useState('');const[saving,setSaving]=useState(false);const[error,setError]=useState('');
+  const liveMatches=useMemo(()=>matchGroupStock(stockItems,model,4),[stockItems,model]);
   const save=async()=>{
     const selected=sellers.find(item=>item.email===seller);
     if(!name.trim()||phoneDigits(phone).length<8||!selected){setError('Preencha nome, telefone e vendedor responsável.');return;}
@@ -458,7 +478,12 @@ const NewLeadModal=({user,companyId,storeId,sellers,onClose,onCreated}:{user:Use
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <Field label="Nome do cliente" value={name} onChange={setName} placeholder="Nome e sobrenome"/>
         <Field label="Telefone" value={phoneMask(phone)} onChange={v=>setPhone(phoneDigits(v))} placeholder="(15) 99999-9999"/>
-        <Field label="Veículo de interesse" value={model} onChange={setModel} placeholder="Ex.: Creta até 120 mil"/>
+        <div className="sm:col-span-2">
+          <Field label="Veículo de interesse" value={model} onChange={setModel} placeholder="Ex.: Creta até 120 mil"/>
+          {model.trim().length>=3&&<div className={`mt-2 rounded-xl border p-3 ${liveMatches.length?'border-emerald-200 bg-emerald-50':'border-amber-200 bg-amber-50'}`}>
+            {liveMatches.length?<><p className="text-[10px] font-black uppercase tracking-[.11em] text-emerald-700">JÁ TEMOS OPÇÃO NO ESTOQUE DO GRUPO</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{liveMatches.map(match=><div key={match.item.plate} className="rounded-lg bg-white p-2 text-xs"><p className="font-semibold text-slate-800">{match.item.model}</p><p className="mt-1 text-[10px] text-slate-500">{match.item.year} · {match.item.km?match.item.km.toLocaleString('pt-BR')+' km · ':''}{match.item.location||match.item.stockOwner}</p><p className="mt-1 text-[10px] font-semibold text-emerald-700">{match.item.suggestedPrice?match.item.suggestedPrice.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Preço não informado'}</p></div>)}</div></>:<><p className="text-[10px] font-black uppercase tracking-[.11em] text-amber-700">SEM OPÇÃO AGORA</p><p className="mt-1 text-xs text-amber-800">O interesse ficará no CRM para o MOTYQ cruzar nas próximas atualizações de estoque.</p></>}
+          </div>}
+        </div>
         <label><span className="mb-1 block text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Vendedor</span><select value={seller} onChange={e=>setSeller(e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"><option value="">Selecione</option>{sellers.map(item=><option key={item.email} value={item.email}>{item.name}</option>)}</select></label>
         <label><span className="mb-1 block text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Origem</span><select value={source} onChange={e=>setSource(e.target.value as CrmLeadSource)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700">{Object.entries(SOURCE).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
         <label><span className="mb-1 block text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Temperatura</span><select value={temp} onChange={e=>setTemp(e.target.value as CrmLeadTemperature)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"><option value="hot">Quente</option><option value="warm">Morno</option><option value="cold">Frio</option></select></label>
