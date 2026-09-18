@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { motyqFirestore } from '../server/motyqFirestore';
-import { decryptWhatsAppToken } from '../server/whatsappTokenCrypto';
+import { motyqFirestore } from '../server/motyqFirestore.js';
+import { decryptWhatsAppToken } from '../server/whatsappTokenCrypto.js';
 
 const cleanPhone = (value: unknown) => String(value || '').replace(/\D/g, '').slice(0, 15);
 const cleanPlate = (value: unknown) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
