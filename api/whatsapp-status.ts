@@ -1,4 +1,4 @@
-import { motyqFirestore } from '../server/motyqFirestore';
+import { motyqFirestore } from '../server/motyqFirestore.js';
 
 const FIREBASE_API_KEY='AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
 
