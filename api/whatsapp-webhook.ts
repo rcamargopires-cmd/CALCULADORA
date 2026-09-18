@@ -39,9 +39,8 @@ const signatureOk = (rawBody: string, req: any) => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
-const metaSendText = async (to: string, text: string) => {
-  const token = String(process.env.WHATSAPP_ACCESS_TOKEN || '').trim();
-  const phoneNumberId = String(process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
+const metaSendText = async (to: string, text: string, phoneNumberId: string) => {
+  const token = String(process.env.WHATSAPP_SYSTEM_USER_TOKEN || '').trim();
   const version = String(process.env.WHATSAPP_GRAPH_VERSION || 'v24.0').trim();
   if (!token || !phoneNumberId) throw new Error('whatsapp_meta_not_configured');
 
@@ -66,41 +65,12 @@ const metaSendText = async (to: string, text: string) => {
   return data;
 };
 
-const selectSeller = async (companyId: string, storeId: string, existing?: any) => {
-  if (existing?.assignedSellerEmail) {
-    return {
-      id: String(existing.assignedSellerId || existing.assignedSellerEmail),
-      email: String(existing.assignedSellerEmail),
-      name: String(existing.assignedSellerName || existing.assignedSellerEmail),
-    };
-  }
-
-  const forcedEmail = String(process.env.WHATSAPP_DEFAULT_SELLER_EMAIL || '').trim().toLowerCase();
-  if (forcedEmail) {
-    const user = await motyqFirestore.get('users', forcedEmail).catch(() => null);
-    if (user) return { id: String(user.id || forcedEmail), email: forcedEmail, name: String(user.name || forcedEmail) };
-  }
-
-  const queueKey = safeId(`${companyId}_${storeId}`);
-  const queue: any = await motyqFirestore.get('showroom_queue', queueKey).catch(() => null);
-  const sellers = Array.isArray(queue?.sellers) ? queue.sellers : [];
-  const paused = new Set((Array.isArray(queue?.pausedSellers) ? queue.pausedSellers : []).map((item: any) => String(item?.email || '').toLowerCase()));
-  const excluded = new Set((Array.isArray(queue?.excludedSellerEmails) ? queue.excludedSellerEmails : []).map((item: any) => String(item || '').toLowerCase()));
-  const order = Array.isArray(queue?.turnOrder) && queue.turnOrder.length
-    ? queue.turnOrder.map((item: any) => String(item || '').toLowerCase())
-    : sellers.map((item: any) => String(item?.email || '').toLowerCase());
-
-  for (const email of order) {
-    const seller = sellers.find((item: any) => String(item?.email || '').toLowerCase() === email);
-    if (seller && seller.available !== false && !paused.has(email) && !excluded.has(email)) {
-      return { id: String(seller.id || email), email, name: String(seller.name || email) };
-    }
-  }
-
-  const fallback = sellers[0];
-  return fallback
-    ? { id: String(fallback.id || fallback.email || ''), email: String(fallback.email || ''), name: String(fallback.name || fallback.email || 'Equipe') }
-    : { id: '', email: '', name: 'Equipe comercial' };
+const resolveSellerConnection = async (phoneNumberId: string) => {
+  if (!phoneNumberId) return null;
+  const rows = await motyqFirestore.query('whatsapp_connections', [
+    { field: 'phoneNumberId', value: phoneNumberId },
+  ], 10).catch(() => []);
+  return rows.find((item: any) => item?.active !== false) || null;
 };
 
 const stockContext = async (companyId: string, storeId: string) => {
@@ -227,8 +197,25 @@ const logMessage = async (input: {
 }) => motyqFirestore.patch('whatsapp_messages', safeId(input.id), input);
 
 const processIncoming = async (message: any, value: any) => {
-  const companyId = String(process.env.WHATSAPP_COMPANY_ID || 'abrao-reze').trim();
-  const storeId = String(process.env.WHATSAPP_STORE_ID || 'outlet-sorocaba').trim();
+  const phoneNumberId = String(value?.metadata?.phone_number_id || '').trim();
+  const connection: any = await resolveSellerConnection(phoneNumberId);
+  if (!connection) {
+    console.warn('MOTYQ WhatsApp message ignored: seller connection not found', { phoneNumberId });
+    return;
+  }
+
+  const companyId = String(connection.companyId || '').trim();
+  const storeId = String(connection.storeId || '').trim();
+  const seller = {
+    id: String(connection.sellerId || connection.sellerEmail || ''),
+    email: String(connection.sellerEmail || '').trim().toLowerCase(),
+    name: String(connection.sellerName || connection.sellerEmail || 'Vendedor'),
+  };
+  if (!companyId || !storeId || !seller.email) {
+    console.warn('MOTYQ WhatsApp message ignored: incomplete seller connection', { phoneNumberId });
+    return;
+  }
+
   const from = cleanPhone(message?.from);
   if (!from) return;
 
@@ -238,9 +225,8 @@ const processIncoming = async (message: any, value: any) => {
 
   const profileName = String(value?.contacts?.find((item: any) => cleanPhone(item?.wa_id) === from)?.profile?.name || '').trim();
   const text = messageText(message);
-  const leadId = safeId(`wa_${companyId}_${storeId}_${from}`);
+  const leadId = safeId(`wa_${connection.id || phoneNumberId}_${from}`);
   const existing: any = await motyqFirestore.get('showroom_passages', leadId).catch(() => null);
-  const seller = await selectSeller(companyId, storeId, existing);
 
   await logMessage({
     id: messageId,
@@ -279,7 +265,7 @@ const processIncoming = async (message: any, value: any) => {
     lastContactAt: timestamp,
     notes,
     leadSource: 'whatsapp',
-    sourceLabel: 'WhatsApp Cloud API',
+    sourceLabel: 'WhatsApp de ' + seller.name,
     leadTemperature: agent.temperature,
     whatsappThreadId: from,
     tradeInPlate: agent.tradeInPlate,
@@ -290,6 +276,8 @@ const processIncoming = async (message: any, value: any) => {
     createdByName: String(existing?.createdByName || 'MOTYQ WhatsApp'),
     companyId,
     storeId,
+    whatsappPhoneNumberId: phoneNumberId,
+    whatsappConnectionId: String(connection.id || ''),
     lastInboundText: text.slice(0, 1200),
     lastAgentReply: agent.reply.slice(0, 1200),
     agentHandoff: agent.handoff,
@@ -297,7 +285,7 @@ const processIncoming = async (message: any, value: any) => {
 
   await motyqFirestore.patch('showroom_passages', leadId, leadPayload);
 
-  const sent = await metaSendText(from, agent.reply);
+  const sent = await metaSendText(from, agent.reply, phoneNumberId);
   const outboundId = String(sent?.messages?.[0]?.id || `outgoing_${Date.now()}_${from}`);
   await logMessage({
     id: outboundId,
@@ -350,12 +338,10 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true, ignored: true });
     }
 
-    const configuredPhoneId = String(process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
     const jobs: Promise<void>[] = [];
     for (const entry of Array.isArray(body?.entry) ? body.entry : []) {
       for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
         const value = change?.value || {};
-        if (configuredPhoneId && String(value?.metadata?.phone_number_id || '') !== configuredPhoneId) continue;
         for (const message of Array.isArray(value?.messages) ? value.messages : []) {
           jobs.push(processIncoming(message, value));
         }
