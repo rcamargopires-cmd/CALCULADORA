@@ -1,5 +1,5 @@
-import { motyqFirestore } from '../server/motyqFirestore';
-import { encryptWhatsAppToken } from '../server/whatsappTokenCrypto';
+import { motyqFirestore } from '../server/motyqFirestore.js';
+import { encryptWhatsAppToken } from '../server/whatsappTokenCrypto.js';
 
 const FIREBASE_API_KEY='AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
 
