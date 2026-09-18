@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { motyqFirestore } from '../server/motyqFirestore';
+import { decryptWhatsAppToken } from '../server/whatsappTokenCrypto';
 
 const cleanPhone = (value: unknown) => String(value || '').replace(/\D/g, '').slice(0, 15);
 const cleanPlate = (value: unknown) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
@@ -39,8 +40,8 @@ const signatureOk = (rawBody: string, req: any) => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
-const metaSendText = async (to: string, text: string, phoneNumberId: string) => {
-  const token = String(process.env.WHATSAPP_SYSTEM_USER_TOKEN || '').trim();
+const metaSendText = async (to: string, text: string, phoneNumberId: string, tokenEncrypted: string) => {
+  const token = decryptWhatsAppToken(tokenEncrypted);
   const version = String(process.env.WHATSAPP_GRAPH_VERSION || 'v24.0').trim();
   if (!token || !phoneNumberId) throw new Error('whatsapp_meta_not_configured');
 
@@ -285,7 +286,7 @@ const processIncoming = async (message: any, value: any) => {
 
   await motyqFirestore.patch('showroom_passages', leadId, leadPayload);
 
-  const sent = await metaSendText(from, agent.reply, phoneNumberId);
+  const sent = await metaSendText(from, agent.reply, phoneNumberId, String(connection.tokenEncrypted || ''));
   const outboundId = String(sent?.messages?.[0]?.id || `outgoing_${Date.now()}_${from}`);
   await logMessage({
     id: outboundId,
@@ -299,6 +300,8 @@ const processIncoming = async (message: any, value: any) => {
     timestamp: nowIso(),
   }).catch(() => undefined);
 };
+
+export const config = { api: { bodyParser: false } };
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
@@ -323,17 +326,15 @@ export default async function handler(req: any, res: any) {
       return res.status(503).json({ error: 'firebase_service_account_not_configured' });
     }
 
-    const rawBody = typeof req.body === 'string'
-      ? req.body
-      : Buffer.isBuffer(req.body)
-        ? req.body.toString('utf8')
-        : JSON.stringify(req.body || {});
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const rawBody = Buffer.concat(chunks).toString('utf8');
 
     if (!signatureOk(rawBody, req)) {
       return res.status(401).json({ error: 'invalid_webhook_signature' });
     }
 
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const body = rawBody ? JSON.parse(rawBody) : {};
     if (body?.object !== 'whatsapp_business_account') {
       return res.status(200).json({ ok: true, ignored: true });
     }
