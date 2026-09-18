@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, CheckCircle2, ListTodo, Play, RefreshCw, Save, UserCheck, X } from 'lucide-react';
 import { User } from '../types';
 import { ActionTask, actionTaskService } from '../services/actionTaskService';
@@ -28,6 +28,7 @@ const SellerActionInbox: React.FC<Props> = ({ currentUser, companyId, storeId, s
   const [tasks, setTasks] = useState<ActionTask[]>([]);
   const [results, setResults] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState('');
+  const seenTaskIds = useRef<Set<string> | null>(null);
 
   const load = async () => {
     if (!currentUser.email) return;
@@ -50,10 +51,36 @@ const SellerActionInbox: React.FC<Props> = ({ currentUser, companyId, storeId, s
   };
 
   useEffect(() => {
-    load();
-    const refresh = () => load();
-    window.addEventListener('motyq:action-task-updated', refresh);
-    return () => window.removeEventListener('motyq:action-task-updated', refresh);
+    if (!currentUser.email || !companyId || !storeId) return;
+    seenTaskIds.current = null;
+    const unsubscribe = actionTaskService.subscribeAssigned(
+      currentUser.email,
+      companyId,
+      storeId,
+      rows => {
+        const nextIds = new Set(rows.map(item => item.id));
+        if (seenTaskIds.current) {
+          const fresh = rows.filter(item => !seenTaskIds.current?.has(item.id));
+          const stockAlert = fresh.find(item => item.scope === 'CRM · Estoque' && item.status !== 'done');
+          if (stockAlert) {
+            setFeedback(`🚗 ${stockAlert.title}. ${stockAlert.recommendedAction}`);
+          }
+        }
+        seenTaskIds.current = nextIds;
+        setTasks(rows);
+        setResults(current => ({
+          ...Object.fromEntries(rows.map(task => [task.id, task.result || ''])),
+          ...current,
+        }));
+        setLoading(false);
+      },
+      error => {
+        console.error('Seller action inbox realtime error', error);
+        setFeedback('Não consegui atualizar sua agenda em tempo real.');
+        setLoading(false);
+      },
+    );
+    return unsubscribe;
   }, [currentUser.email, companyId, storeId]);
 
   const ordered = useMemo(() => [...tasks].sort((a, b) => {
