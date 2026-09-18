@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Bot, CalendarClock, CarFront, CheckCircle2, Flame, MessageCircle, Plus, Search,
+  Bot, CalendarClock, CarFront, CheckCircle2, Flame, GripVertical, MessageCircle, Plus, Search,
   Snowflake, Sparkles, SunMedium, UserRound, UsersRound, X
 } from 'lucide-react';
 import { CrmLeadSource, CrmLeadTemperature, ShowroomPassage, ShowroomPassageStatus, User } from '../types';
@@ -90,6 +90,8 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const[onlyMine,setOnlyMine]=useState(false);
   const[createOpen,setCreateOpen]=useState(false);
   const[busyId,setBusyId]=useState('');
+  const[draggedLeadId,setDraggedLeadId]=useState('');
+  const[dragOverStatus,setDragOverStatus]=useState<ShowroomPassageStatus|null>(null);
   const[message,setMessage]=useState('');
   const[waStatus,setWaStatus]=useState<WhatsAppStatus|null>(null);
   const[waBusy,setWaBusy]=useState(false);
@@ -324,6 +326,28 @@ const MotyqCRM:React.FC<Props>=({user})=>{
     finally{setBusyId('');}
   };
 
+  const moveLead=async(item:ShowroomPassage,status:ShowroomPassageStatus)=>{
+    if(!item||item.status===status||busyId===item.id)return;
+    const previousStatus=item.status;
+    setBusyId(item.id);setMessage('');
+    setItems(current=>current.map(row=>row.id===item.id?{...row,status,updatedAt:new Date().toISOString()}:row));
+    try{
+      await showroomFlowService.updateCrmLead(item.id,{status});
+    }catch(error:any){
+      setItems(current=>current.map(row=>row.id===item.id?{...row,status:previousStatus}:row));
+      setMessage(error?.message||'Não foi possível mover o lead.');
+    }finally{
+      setBusyId('');
+    }
+  };
+
+  const dropLead=(status:ShowroomPassageStatus)=>{
+    const lead=items.find(item=>item.id===draggedLeadId);
+    setDragOverStatus(null);
+    setDraggedLeadId('');
+    if(lead)void moveLead(lead,status);
+  };
+
   const navButton=slot?createPortal(
     <button type="button" onClick={()=>setOpen(true)} title="MOTYQ CRM"
       className="flex items-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs font-bold text-emerald-700 transition-all hover:bg-emerald-50 hover:text-emerald-800">
@@ -405,14 +429,37 @@ const MotyqCRM:React.FC<Props>=({user})=>{
             <div className="grid min-w-[1820px] grid-cols-7 gap-3">
               {COLUMNS.map(column=>{
                 const rows=filtered.filter(item=>item.status===column.status);
-                return <div key={column.status} className="rounded-[24px] border border-slate-200 bg-slate-100/80 p-3">
+                const isDropTarget=dragOverStatus===column.status;
+                return <div
+                  key={column.status}
+                  onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move';setDragOverStatus(column.status);}}
+                  onDragEnter={event=>{event.preventDefault();setDragOverStatus(column.status);}}
+                  onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node))setDragOverStatus(current=>current===column.status?null:current);}}
+                  onDrop={event=>{event.preventDefault();dropLead(column.status);}}
+                  className={`rounded-[24px] border p-3 transition-all ${isDropTarget?'border-emerald-400 bg-emerald-50/80 ring-2 ring-emerald-200':'border-slate-200 bg-slate-100/80'}`}
+                >
                   <div className="mb-3 flex items-center justify-between px-1">
-                    <div><p className="text-sm font-bold text-slate-800">{column.label}</p><p className="text-[11px] text-slate-400">{column.hint}</p></div>
+                    <div><p className="text-sm font-bold text-slate-800">{column.label}</p><p className="text-[11px] text-slate-400">{isDropTarget?'Solte o cliente aqui':column.hint}</p></div>
                     <span className="grid h-7 min-w-7 place-items-center rounded-full bg-white px-2 text-xs font-bold text-slate-600 shadow-sm">{rows.length}</span>
                   </div>
-                  <div className="space-y-3">
-                    {rows.map(item=><LeadCard key={item.id} item={item} busy={busyId===item.id} matches={matchGroupStock(groupStock,item.interestModel,3)} onPatch={data=>patch(item,data)} />)}
-                    {!rows.length&&<div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-5 text-center text-xs text-slate-400">Nenhum lead</div>}
+                  <div className="min-h-24 space-y-3">
+                    {rows.map(item=><LeadCard
+                      key={item.id}
+                      item={item}
+                      busy={busyId===item.id}
+                      dragging={draggedLeadId===item.id}
+                      matches={matchGroupStock(groupStock,item.interestModel,3)}
+                      onPatch={data=>patch(item,data)}
+                      onMove={status=>moveLead(item,status)}
+                      onDragStart={event=>{
+                        if(busyId===item.id){event.preventDefault();return;}
+                        setDraggedLeadId(item.id);
+                        event.dataTransfer.effectAllowed='move';
+                        event.dataTransfer.setData('text/plain',item.id);
+                      }}
+                      onDragEnd={()=>{setDraggedLeadId('');setDragOverStatus(null);}}
+                    />)}
+                    {!rows.length&&<div className={`rounded-2xl border border-dashed p-5 text-center text-xs transition ${isDropTarget?'border-emerald-400 bg-emerald-50 text-emerald-700':'border-slate-300 bg-white/60 text-slate-400'}`}>{isDropTarget?'Solte o cliente aqui':'Nenhum lead'}</div>}
                   </div>
                 </div>;
               })}
@@ -426,13 +473,16 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   </>;
 };
 
-const LeadCard=({item,busy,matches,onPatch}:{item:ShowroomPassage;busy:boolean;matches:CrmStockMatch[];onPatch:(patch:any)=>void})=>{
+const LeadCard=({item,busy,dragging,matches,onPatch,onMove,onDragStart,onDragEnd}:{item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
   const source=sourceOf(item),temp=temperatureOf(item),wa=whatsappUrl(item.phone),overdue=isOverdue(item.nextFollowUpAt)&&!['sale','no_deal'].includes(item.status);
   const TempIcon=temp==='hot'?Flame:temp==='cold'?Snowflake:SunMedium;
-  return <article className={`rounded-2xl border bg-white p-3.5 shadow-sm ${overdue?'border-red-200 ring-1 ring-red-100':'border-slate-200'}`}>
+  return <article draggable={!busy} onDragStart={onDragStart} onDragEnd={onDragEnd} className={`cursor-grab rounded-2xl border bg-white p-3.5 shadow-sm transition active:cursor-grabbing ${dragging?'scale-[.98] opacity-45 shadow-none':overdue?'border-red-200 ring-1 ring-red-100':'border-slate-200'}`}>
     <div className="flex items-start justify-between gap-2">
-      <div><h4 className="font-semibold text-slate-900">{item.customerName||'Cliente'}</h4><p className="mt-0.5 text-[11px] text-slate-400">{ageLabel(item.createdAt)} · {SOURCE[source]}</p></div>
-      <span className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${temp==='hot'?'bg-red-50 text-red-700':temp==='cold'?'bg-sky-50 text-sky-700':'bg-amber-50 text-amber-700'}`}><TempIcon size={11}/>{TEMP[temp]}</span>
+      <div className="flex min-w-0 items-start gap-2">
+        <span title="Arraste para outra etapa" className="mt-0.5 hidden shrink-0 text-slate-300 md:block"><GripVertical size={16}/></span>
+        <div className="min-w-0"><h4 className="font-semibold text-slate-900">{item.customerName||'Cliente'}</h4><p className="mt-0.5 text-[11px] text-slate-400">{ageLabel(item.createdAt)} · {SOURCE[source]}</p></div>
+      </div>
+      <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${temp==='hot'?'bg-red-50 text-red-700':temp==='cold'?'bg-sky-50 text-sky-700':'bg-amber-50 text-amber-700'}`}><TempIcon size={11}/>{TEMP[temp]}</span>
     </div>
     <div className="mt-3 space-y-2 text-xs text-slate-600">
       <p className="flex items-start gap-2"><CarFront size={13} className="mt-0.5 shrink-0 text-slate-400"/><span>{item.interestModel||'Interesse não informado'}</span></p>
@@ -441,9 +491,10 @@ const LeadCard=({item,busy,matches,onPatch}:{item:ShowroomPassage;busy:boolean;m
     </div>
     <div className="mt-3 grid grid-cols-2 gap-2">
       {wa?<button type="button" onClick={()=>window.open(wa,'_blank','noopener,noreferrer')} className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-2 text-[11px] font-bold text-emerald-700"><MessageCircle size={13}/> WhatsApp</button>:<div/>}
-      <select disabled={busy} value={item.status} onChange={e=>onPatch({status:e.target.value as ShowroomPassageStatus})} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-700 outline-none">
+      <select disabled={busy} value={item.status} onChange={e=>onMove(e.target.value as ShowroomPassageStatus)} title="Mover etapa" className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-700 outline-none md:hidden">
         {COLUMNS.map(col=><option key={col.status} value={col.status}>{col.label}</option>)}
       </select>
+      <div className="hidden items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-bold text-slate-400 md:flex"><GripVertical size={12}/> ARRASTE</div>
     </div>
     {!['sale','no_deal'].includes(item.status)&&<div className="mt-2">
       <input type="datetime-local" value={inputDateTime(item.nextFollowUpAt)} onChange={e=>onPatch({nextFollowUpAt:e.target.value?new Date(e.target.value).toISOString():''})} className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-[11px] text-slate-600 outline-none"/>
