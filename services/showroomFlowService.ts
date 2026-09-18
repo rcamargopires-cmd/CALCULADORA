@@ -243,7 +243,7 @@ export const showroomFlowService={
 
   updateCrmLead:async(
     id:string,
-    patch:Partial<Pick<ShowroomPassage,'customerName'|'phone'|'interestModel'|'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'>>,
+    patch:Partial<Pick<ShowroomPassage,'customerName'|'phone'|'interestModel'|'desiredVehicle'|'customerEmail'|'purchaseTimeline'|'preferredContact'|'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'>>,
     actor?:{email?:string;name?:string},
   )=>{
     const timestamp=now();
@@ -251,6 +251,10 @@ export const showroomFlowService={
     if(typeof patch.customerName==='string')next.customerName=patch.customerName.trim();
     if(typeof patch.phone==='string')next.phone=cleanPhone(patch.phone);
     if(typeof patch.interestModel==='string')next.interestModel=patch.interestModel.trim();
+    if(typeof patch.desiredVehicle==='string')next.desiredVehicle=patch.desiredVehicle.trim();
+    if(typeof patch.customerEmail==='string')next.customerEmail=patch.customerEmail.trim().toLowerCase();
+    if(typeof patch.purchaseTimeline==='string')next.purchaseTimeline=patch.purchaseTimeline.trim();
+    if(typeof patch.preferredContact==='string')next.preferredContact=patch.preferredContact;
     if(typeof patch.tradeInPlate==='string')next.tradeInPlate=String(patch.tradeInPlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
     if(patch.status==='in_service'&&!('lastContactAt' in patch))next.lastContactAt=timestamp;
     if(patch.status==='sale'||patch.status==='no_deal')next.closedAt=timestamp;
@@ -262,6 +266,10 @@ export const showroomFlowService={
     if('customerName' in patch)profileChanges.push('nome');
     if('phone' in patch)profileChanges.push('telefone');
     if('interestModel' in patch)profileChanges.push('veículo de interesse');
+    if('desiredVehicle' in patch)profileChanges.push('interesse atualizado');
+    if('customerEmail' in patch)profileChanges.push('e-mail');
+    if('purchaseTimeline' in patch)profileChanges.push('prazo de compra');
+    if('preferredContact' in patch)profileChanges.push('canal preferido');
     if('tradeInPlate' in patch)profileChanges.push('placa da troca');
     if('desiredEntry' in patch)profileChanges.push('entrada desejada');
     if('desiredPayment' in patch)profileChanges.push('parcela desejada');
@@ -271,6 +279,32 @@ export const showroomFlowService={
     if(typeof patch.nextFollowUpAt==='string'&&patch.nextFollowUpAt)events.push({id:auditId(),type:'follow_up',at:timestamp,label:'Follow-up programado',details:patch.nextFollowUpAt,byEmail,byName});
     if(events.length)next.activityHistory=arrayUnion(...events);
     await updateDoc(doc(db,'showroom_passages',id),next);
+  },
+
+  addCrmNote:async(id:string,note:string,actor?:{email?:string;name?:string})=>{
+    const text=String(note||'').trim();
+    if(!text)return;
+    const ref=doc(db,'showroom_passages',id);
+    const snap=await getDoc(ref);
+    if(!snap.exists())throw new Error('Atendimento não encontrado.');
+    const current=normalizePassage(snap.data());
+    const timestamp=now();
+    const stamp=new Date(timestamp).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const previous=String(current.notes||'').trim();
+    const combined=[previous,`[${stamp}] ${text}`].filter(Boolean).join('\n\n').slice(-8000);
+    await updateDoc(ref,{
+      notes:combined,
+      updatedAt:timestamp,
+      activityHistory:arrayUnion({
+        id:auditId(),
+        type:'note',
+        at:timestamp,
+        label:'Nova anotação adicionada',
+        details:text.slice(0,1200),
+        byEmail:actor?.email||'',
+        byName:actor?.name||'',
+      }),
+    });
   },
 
   updatePassage:async(id:string,patch:Partial<Pick<ShowroomPassage,'status'|'notes'|'assumedAt'|'closedAt'>>)=>{
