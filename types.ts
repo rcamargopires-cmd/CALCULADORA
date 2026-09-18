@@ -35,6 +35,8 @@ export interface PrepOrder { id:string; plate:string; vehicle:string; openedAt:s
 
 export type ShowroomPassageStatus='waiting'|'in_service'|'evaluation'|'proposal'|'follow_up'|'sale'|'no_deal';
 export type ShowroomPassageOrigin='walk_in'|'requested';
+export type CrmLeadSource='showroom'|'whatsapp'|'web'|'instagram'|'manual'|'other';
+export type CrmLeadTemperature='hot'|'warm'|'cold';
 export interface ShowroomPassage {
   id:string;
   customerName:string;
@@ -50,6 +52,16 @@ export interface ShowroomPassage {
   assumedAt?:string;
   closedAt?:string;
   notes?:string;
+  leadSource?:CrmLeadSource;
+  sourceLabel?:string;
+  leadTemperature?:CrmLeadTemperature;
+  nextFollowUpAt?:string;
+  lastContactAt?:string;
+  tradeInPlate?:string;
+  desiredEntry?:number;
+  desiredPayment?:number;
+  lostReason?:string;
+  whatsappThreadId?:string;
   createdBy?:string;
   createdByName?:string;
   companyId:string;
