@@ -9,10 +9,11 @@ import { showroomFlowService } from '../services/showroomFlowService';
 import { userService } from '../services/userService';
 import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companyScopeService';
 import { storeScopeService, STORE_SCOPE_EVENT } from '../services/storeScopeService';
+import { auth } from '../firebase';
 
 type Props={user:User};
 type Column={status:ShowroomPassageStatus;label:string;hint:string};
-type WhatsAppStatus={connected:boolean;missing:string[];webhookUrl:string;graphVersion:string};
+type WhatsAppStatus={connected:boolean;platformReady:boolean;missing:string[];webhookUrl:string;graphVersion:string;connection?:{displayPhoneNumber:string;phoneNumberId:string;wabaId:string;connectedAt:string;sellerName:string}|null};
 
 const COLUMNS:Column[]=[
   {status:'waiting',label:'Novo lead',hint:'Ainda sem contato'},
@@ -116,10 +117,21 @@ const MotyqCRM:React.FC<Props>=({user})=>{
 
   useEffect(()=>{
     if(!open)return;
-    fetch('/api/whatsapp-status').then(async response=>{
-      if(!response.ok)throw new Error('status_failed');
-      return response.json();
-    }).then(data=>setWaStatus(data)).catch(()=>setWaStatus(null));
+    let alive=true;
+    (async()=>{
+      try{
+        const current=auth.currentUser;
+        if(!current)throw new Error('not_authenticated');
+        const token=await current.getIdToken();
+        const response=await fetch('/api/whatsapp-status',{headers:{authorization:`Bearer ${token}`}});
+        if(!response.ok)throw new Error('status_failed');
+        const data=await response.json();
+        if(alive)setWaStatus(data);
+      }catch{
+        if(alive)setWaStatus(null);
+      }
+    })();
+    return()=>{alive=false;};
   },[open]);
 
   useEffect(()=>{
@@ -211,13 +223,17 @@ const MotyqCRM:React.FC<Props>=({user})=>{
               <div className="flex items-start gap-3">
                 <div className={`grid h-10 w-10 place-items-center rounded-xl ${waStatus?.connected?'bg-emerald-100 text-emerald-700':'bg-violet-100 text-violet-700'}`}><Bot size={18}/></div>
                 <div>
-                  <p className={`text-xs font-black uppercase tracking-[.13em] ${waStatus?.connected?'text-emerald-700':'text-violet-700'}`}>AGENTE WHATSAPP</p>
-                  <p className="mt-1 text-sm text-slate-700">{waStatus?.connected?'Webhook, CRM e agente de IA estão prontos para receber mensagens da Meta.':'A estrutura do agente está publicada. Falta concluir as credenciais para ligar o número oficial.'}</p>
-                  {canManage&&waStatus?.webhookUrl&&<div className="mt-3 flex flex-wrap items-center gap-2"><code className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-600">{waStatus.webhookUrl}</code><button type="button" onClick={()=>navigator.clipboard?.writeText(waStatus.webhookUrl)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-600">COPIAR WEBHOOK</button></div>}
-                  {canManage&&waStatus&&!waStatus.connected&&<p className="mt-2 text-[11px] text-slate-500">Pendências: {waStatus.missing.join(', ')}</p>}
+                  <p className={`text-xs font-black uppercase tracking-[.13em] ${waStatus?.connected?'text-emerald-700':'text-violet-700'}`}>MEU WHATSAPP · AGENTE MOTYQ</p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    {waStatus?.connected
+                      ? `Seu WhatsApp ${waStatus.connection?.displayPhoneNumber||''} está vinculado ao seu usuário. As conversas deste número entram somente na sua carteira.`
+                      : 'Cada vendedor conecta o próprio WhatsApp. Não existe número central da loja neste fluxo.'}
+                  </p>
+                  {!waStatus?.connected&&waStatus?.platformReady&&<p className="mt-2 text-xs font-semibold text-violet-700">Pronto para receber a conexão do seu número pela Meta.</p>}
+                  {!waStatus?.connected&&waStatus&&!waStatus.platformReady&&<p className="mt-2 text-[11px] text-slate-500">A configuração técnica da Meta ainda está sendo concluída.</p>}
                 </div>
               </div>
-              <span className={`w-fit rounded-full border bg-white px-3 py-1.5 text-xs font-semibold ${waStatus?.connected?'border-emerald-200 text-emerald-700':'border-violet-200 text-violet-700'}`}>{waStatus?.connected?'CONECTADO':'CONFIGURAÇÃO PENDENTE'}</span>
+              <span className={`w-fit rounded-full border bg-white px-3 py-1.5 text-xs font-semibold ${waStatus?.connected?'border-emerald-200 text-emerald-700':'border-violet-200 text-violet-700'}`}>{waStatus?.connected?'MEU NÚMERO CONECTADO':'MEU NÚMERO NÃO CONECTADO'}</span>
             </div>
           </section>
 
