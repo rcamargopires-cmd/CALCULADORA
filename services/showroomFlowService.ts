@@ -1,6 +1,6 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ShowroomPassage, ShowroomPassageOrigin, ShowroomPassageStatus, ShowroomQueueAudit, ShowroomQueuePause, ShowroomQueueReason, ShowroomQueueSeller, ShowroomQueueState, User } from '../types';
+import { CrmLeadSource, CrmLeadTemperature, ShowroomPassage, ShowroomPassageOrigin, ShowroomPassageStatus, ShowroomQueueAudit, ShowroomQueuePause, ShowroomQueueReason, ShowroomQueueSeller, ShowroomQueueState, User } from '../types';
 
 const cleanPhone=(value:string)=>String(value||'').replace(/\D/g,'').slice(0,15);
 const queueId=(companyId:string,storeId:string)=>`${companyId}_${storeId}`.replace(/[^a-zA-Z0-9_-]/g,'-');
@@ -208,6 +208,42 @@ export const showroomFlowService={
       if(origin==='walk_in')tx.update(qRef,{turnOrder:moveEmailToEnd(queue,selected.email),nextIndex:0,updatedAt:timestamp});
       return passage;
     });
+  },
+
+  createCrmLead:async(input:{companyId:string;storeId:string;customerName:string;phone:string;interestModel:string;assignedSellerId:string;assignedSellerEmail:string;assignedSellerName:string;leadSource?:CrmLeadSource;sourceLabel?:string;notes?:string;leadTemperature?:CrmLeadTemperature;nextFollowUpAt?:string;createdBy?:string;createdByName?:string}):Promise<ShowroomPassage>=>{
+    const pRef=passageRef();
+    const timestamp=now();
+    const passage:ShowroomPassage={
+      id:pRef.id,
+      customerName:input.customerName.trim(),
+      phone:cleanPhone(input.phone),
+      interestModel:input.interestModel.trim(),
+      origin:'walk_in',
+      assignedSellerId:input.assignedSellerId,
+      assignedSellerEmail:cleanEmail(input.assignedSellerEmail),
+      assignedSellerName:input.assignedSellerName.trim(),
+      status:'waiting',
+      createdAt:timestamp,
+      updatedAt:timestamp,
+      notes:input.notes?.trim()||'',
+      leadSource:input.leadSource||'manual',
+      sourceLabel:input.sourceLabel?.trim()||'',
+      leadTemperature:input.leadTemperature||'warm',
+      nextFollowUpAt:input.nextFollowUpAt||'',
+      createdBy:input.createdBy||'',
+      createdByName:input.createdByName||'',
+      companyId:input.companyId,
+      storeId:input.storeId,
+    };
+    await setDoc(pRef,passage);
+    return passage;
+  },
+
+  updateCrmLead:async(id:string,patch:Partial<Pick<ShowroomPassage,'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'>>)=>{
+    const next:any={...patch,updatedAt:now()};
+    if(patch.status==='in_service'&&!('lastContactAt' in patch))next.lastContactAt=now();
+    if(patch.status==='sale'||patch.status==='no_deal')next.closedAt=now();
+    await updateDoc(doc(db,'showroom_passages',id),next);
   },
 
   updatePassage:async(id:string,patch:Partial<Pick<ShowroomPassage,'status'|'notes'|'assumedAt'|'closedAt'>>)=>{
