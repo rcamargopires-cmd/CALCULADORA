@@ -241,15 +241,34 @@ export const showroomFlowService={
     return passage;
   },
 
-  updateCrmLead:async(id:string,patch:Partial<Pick<ShowroomPassage,'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'>>)=>{
+  updateCrmLead:async(
+    id:string,
+    patch:Partial<Pick<ShowroomPassage,'customerName'|'phone'|'interestModel'|'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'>>,
+    actor?:{email?:string;name?:string},
+  )=>{
     const timestamp=now();
     const next:any={...patch,updatedAt:timestamp};
+    if(typeof patch.customerName==='string')next.customerName=patch.customerName.trim();
+    if(typeof patch.phone==='string')next.phone=cleanPhone(patch.phone);
+    if(typeof patch.interestModel==='string')next.interestModel=patch.interestModel.trim();
+    if(typeof patch.tradeInPlate==='string')next.tradeInPlate=String(patch.tradeInPlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
     if(patch.status==='in_service'&&!('lastContactAt' in patch))next.lastContactAt=timestamp;
     if(patch.status==='sale'||patch.status==='no_deal')next.closedAt=timestamp;
     const events:ShowroomPassageActivity[]=[];
-    if(patch.status)events.push({id:auditId(),type:['sale','no_deal'].includes(patch.status)?'closed':'status',at:timestamp,label:`Etapa alterada para ${patch.status}`,status:patch.status});
-    if(typeof patch.notes==='string'&&patch.notes.trim())events.push({id:auditId(),type:'note',at:timestamp,label:'Observação atualizada',details:patch.notes.trim()});
-    if(typeof patch.nextFollowUpAt==='string'&&patch.nextFollowUpAt)events.push({id:auditId(),type:'follow_up',at:timestamp,label:'Follow-up programado',details:patch.nextFollowUpAt});
+    const byEmail=actor?.email||'';
+    const byName=actor?.name||'';
+    if(patch.status)events.push({id:auditId(),type:['sale','no_deal'].includes(patch.status)?'closed':'status',at:timestamp,label:`Etapa alterada para ${patch.status}`,status:patch.status,byEmail,byName});
+    const profileChanges:string[]=[];
+    if('customerName' in patch)profileChanges.push('nome');
+    if('phone' in patch)profileChanges.push('telefone');
+    if('interestModel' in patch)profileChanges.push('veículo de interesse');
+    if('tradeInPlate' in patch)profileChanges.push('placa da troca');
+    if('desiredEntry' in patch)profileChanges.push('entrada desejada');
+    if('desiredPayment' in patch)profileChanges.push('parcela desejada');
+    if('leadTemperature' in patch)profileChanges.push('temperatura do lead');
+    if(profileChanges.length)events.push({id:auditId(),type:'contact',at:timestamp,label:'Ficha do cliente atualizada',details:profileChanges.join(', '),byEmail,byName});
+    if(typeof patch.notes==='string'&&patch.notes.trim())events.push({id:auditId(),type:'note',at:timestamp,label:'Observação atualizada',details:patch.notes.trim().slice(-1200),byEmail,byName});
+    if(typeof patch.nextFollowUpAt==='string'&&patch.nextFollowUpAt)events.push({id:auditId(),type:'follow_up',at:timestamp,label:'Follow-up programado',details:patch.nextFollowUpAt,byEmail,byName});
     if(events.length)next.activityHistory=arrayUnion(...events);
     await updateDoc(doc(db,'showroom_passages',id),next);
   },
