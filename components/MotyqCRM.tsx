@@ -488,7 +488,7 @@ const LeadCard=({item,busy,dragging,matches,onPatch,onMove,onDragStart,onDragEnd
       <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${temp==='hot'?'bg-red-50 text-red-700':temp==='cold'?'bg-sky-50 text-sky-700':'bg-amber-50 text-amber-700'}`}><TempIcon size={11}/>{TEMP[temp]}</span>
     </div>
     <div className="mt-3 space-y-2 text-xs text-slate-600">
-      <p className="flex items-start gap-2"><CarFront size={13} className="mt-0.5 shrink-0 text-slate-400"/><span>{item.interestModel||'Interesse não informado'}</span></p>
+      <p className="flex items-start gap-2"><CarFront size={13} className="mt-0.5 shrink-0 text-slate-400"/><span>{item.desiredVehicle||item.interestModel||'Interesse não informado'}</span></p>
       <p className="flex items-center gap-2"><UserRound size={13} className="text-slate-400"/><span>{item.assignedSellerName||'Sem vendedor'}</span></p>
       {item.nextFollowUpAt&&<p className={`flex items-center gap-2 ${overdue?'font-semibold text-red-700':''}`}><CalendarClock size={13}/><span>{overdue?'Atrasado · ':''}{new Date(item.nextFollowUpAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span></p>}
     </div>
