@@ -25,7 +25,7 @@ export default async function handler(req:any,res:any){
   const flags={
     appId:Boolean(String(process.env.WHATSAPP_APP_ID||'').trim()),
     configId:Boolean(String(process.env.WHATSAPP_CONFIG_ID||'').trim()),
-    systemUserToken:Boolean(String(process.env.WHATSAPP_SYSTEM_USER_TOKEN||'').trim()),
+    tokenEncryptionKey:Boolean(String(process.env.WHATSAPP_TOKEN_ENCRYPTION_KEY||'').trim()),
     verifyToken:Boolean(String(process.env.WHATSAPP_VERIFY_TOKEN||'').trim()),
     appSecret:Boolean(String(process.env.WHATSAPP_APP_SECRET||'').trim()),
     firebaseServiceAccount:Boolean(String(process.env.FIREBASE_SERVICE_ACCOUNT_JSON||'').trim()),
@@ -51,6 +51,12 @@ export default async function handler(req:any,res:any){
     missing,
     webhookUrl:host?`${proto}://${host}/api/whatsapp-webhook`:'/api/whatsapp-webhook',
     graphVersion:String(process.env.WHATSAPP_GRAPH_VERSION||'v24.0'),
+    embeddedSignup:{
+      appId:String(process.env.WHATSAPP_APP_ID||''),
+      configId:String(process.env.WHATSAPP_CONFIG_ID||''),
+      featureType:String(process.env.WHATSAPP_EMBEDDED_FEATURE_TYPE||'whatsapp_business_app_onboarding'),
+      sessionInfoVersion:String(process.env.WHATSAPP_SESSION_INFO_VERSION||'3'),
+    },
     sellerEmail:email,
     connection:connection?{
       displayPhoneNumber:String(connection.displayPhoneNumber||''),
