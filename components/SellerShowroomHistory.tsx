@@ -260,7 +260,7 @@ const SellerShowroomHistory: React.FC<Props> = ({ user }) => {
         </div>
       </div>
     </div>}
-    {selectedCustomer && <CustomerAttendanceDossier selected={selectedCustomer} items={items} onClose={() => setSelectedCustomer(null)} />}
+    {selectedCustomer && <CustomerAttendanceDossier selected={selectedCustomer} items={items} user={user} onClose={() => setSelectedCustomer(null)} />}
   </>;
 };
 
