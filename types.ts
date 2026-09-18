@@ -37,6 +37,8 @@ export type ShowroomPassageStatus='waiting'|'in_service'|'evaluation'|'proposal'
 export type ShowroomPassageOrigin='walk_in'|'requested';
 export type CrmLeadSource='showroom'|'whatsapp'|'web'|'instagram'|'manual'|'other';
 export type CrmLeadTemperature='hot'|'warm'|'cold';
+export type ShowroomPassageActivityType='created'|'assumed'|'status'|'note'|'follow_up'|'correction'|'contact'|'closed';
+export interface ShowroomPassageActivity { id:string; type:ShowroomPassageActivityType; at:string; label:string; details?:string; status?:ShowroomPassageStatus; byEmail?:string; byName?:string; }
 export interface ShowroomPassage {
   id:string;
   customerName:string;
@@ -62,6 +64,7 @@ export interface ShowroomPassage {
   desiredPayment?:number;
   lostReason?:string;
   whatsappThreadId?:string;
+  activityHistory?:ShowroomPassageActivity[];
   createdBy?:string;
   createdByName?:string;
   companyId:string;
