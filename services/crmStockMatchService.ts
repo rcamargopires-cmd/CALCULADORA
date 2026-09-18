@@ -1,4 +1,4 @@
-import { GroupStockItem } from './groupStockService';
+import type { GroupStockItem } from './groupStockService';
 
 export type CrmStockMatch = {
   item: GroupStockItem;
