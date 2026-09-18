@@ -5,6 +5,7 @@ import { ShowroomPassage, ShowroomPassageOrigin, ShowroomPassageStatus, User } f
 import { showroomFlowService } from '../services/showroomFlowService';
 import { companyScopeService } from '../services/companyScopeService';
 import { storeScopeService } from '../services/storeScopeService';
+import CustomerAttendanceDossier from './CustomerAttendanceDossier';
 
 const SLOT_ID = 'motyq-seller-showroom-history-slot';
 
@@ -102,6 +103,7 @@ const SellerShowroomHistory: React.FC<Props> = ({ user }) => {
   const [origin, setOrigin] = useState<'all' | ShowroomPassageOrigin>('all');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<ShowroomPassage | null>(null);
 
   const companyId = companyScopeService.get(user);
   const storeId = storeScopeService.get(user);
@@ -233,7 +235,8 @@ const SellerShowroomHistory: React.FC<Props> = ({ user }) => {
                     </div>
 
                     <div>
-                      <p className="font-semibold text-slate-900">{item.customerName || 'Cliente não informado'}</p>
+                      <button type="button" onClick={() => setSelectedCustomer(item)} className="text-left font-semibold text-slate-900 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-700">{item.customerName || 'Cliente não informado'}</button>
+                      <p className="mt-1 text-[10px] font-bold uppercase tracking-[.11em] text-sky-600">Abrir ficha do cliente</p>
                       {item.assumedAt && <p className="mt-1 text-[11px] text-slate-400">Assumido às {formatTime(item.assumedAt)}</p>}
                     </div>
 
@@ -257,6 +260,7 @@ const SellerShowroomHistory: React.FC<Props> = ({ user }) => {
         </div>
       </div>
     </div>}
+    {selectedCustomer && <CustomerAttendanceDossier selected={selectedCustomer} items={items} onClose={() => setSelectedCustomer(null)} />}
   </>;
 };
 
