@@ -12,6 +12,7 @@ import { storeScopeService, STORE_SCOPE_EVENT } from '../services/storeScopeServ
 import { auth } from '../firebase';
 import { GroupStockItem, groupStockService } from '../services/groupStockService';
 import { CrmStockMatch, matchGroupStock } from '../services/crmStockMatchService';
+import CustomerAttendanceDossier from './CustomerAttendanceDossier';
 
 type Props={user:User};
 type Column={status:ShowroomPassageStatus;label:string;hint:string};
@@ -89,6 +90,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const[sourceFilter,setSourceFilter]=useState<'all'|CrmLeadSource>('all');
   const[onlyMine,setOnlyMine]=useState(false);
   const[createOpen,setCreateOpen]=useState(false);
+  const[selectedCustomer,setSelectedCustomer]=useState<ShowroomPassage|null>(null);
   const[busyId,setBusyId]=useState('');
   const[draggedLeadId,setDraggedLeadId]=useState('');
   const[dragOverStatus,setDragOverStatus]=useState<ShowroomPassageStatus|null>(null);
@@ -448,7 +450,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
                       item={item}
                       busy={busyId===item.id}
                       dragging={draggedLeadId===item.id}
-                      matches={matchGroupStock(groupStock,item.interestModel,3)}
+                      matches={matchGroupStock(groupStock,item.desiredVehicle||item.interestModel,3)}
                       onPatch={data=>patch(item,data)}
                       onMove={status=>moveLead(item,status)}
                       onDragStart={event=>{
@@ -469,6 +471,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
       </div>
 
       {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} stockItems={groupStock} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
+      {selectedCustomer&&<CustomerAttendanceDossier selected={selectedCustomer} items={items} user={user} onClose={()=>setSelectedCustomer(null)} />}
     </div>}
   </>;
 };
@@ -480,7 +483,7 @@ const LeadCard=({item,busy,dragging,matches,onPatch,onMove,onDragStart,onDragEnd
     <div className="flex items-start justify-between gap-2">
       <div className="flex min-w-0 items-start gap-2">
         <span title="Arraste para outra etapa" className="mt-0.5 hidden shrink-0 text-slate-300 md:block"><GripVertical size={16}/></span>
-        <div className="min-w-0"><h4 className="font-semibold text-slate-900">{item.customerName||'Cliente'}</h4><p className="mt-0.5 text-[11px] text-slate-400">{ageLabel(item.createdAt)} · {SOURCE[source]}</p></div>
+        <div className="min-w-0"><button type="button" onClick={event=>{event.stopPropagation();setSelectedCustomer(item);}} className="text-left font-semibold text-slate-900 underline decoration-emerald-300/70 underline-offset-4 hover:text-emerald-700">{item.customerName||'Cliente'}</button><p className="mt-0.5 text-[11px] text-slate-400">{ageLabel(item.createdAt)} · {SOURCE[source]}</p><p className="mt-0.5 text-[9px] font-bold uppercase tracking-[.1em] text-emerald-600">Abrir ficha</p></div>
       </div>
       <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${temp==='hot'?'bg-red-50 text-red-700':temp==='cold'?'bg-sky-50 text-sky-700':'bg-amber-50 text-amber-700'}`}><TempIcon size={11}/>{TEMP[temp]}</span>
     </div>
