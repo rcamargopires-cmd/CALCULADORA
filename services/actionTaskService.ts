@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export type ActionTaskStatus = 'open' | 'in_progress' | 'done';
@@ -73,6 +73,37 @@ export const actionTaskService = {
     return snap.docs
       .map(item => ({ id: item.id, ...item.data() } as ActionTask))
       .sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
+  },
+
+  subscribeAssigned: (
+    email: string,
+    companyId: string,
+    storeId: string,
+    onData: (tasks: ActionTask[]) => void,
+    onError?: (error: unknown) => void,
+  ) => {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedCompany = String(companyId || '').trim();
+    const normalizedStore = String(storeId || '').trim();
+    if (!normalizedEmail || !normalizedCompany || !normalizedStore) {
+      onData([]);
+      return () => {};
+    }
+
+    const q = query(
+      collection(db, 'operational_meta'),
+      where('kind', '==', 'action_task'),
+      where('assignedToEmail', '==', normalizedEmail),
+      where('companyId', '==', normalizedCompany),
+      where('storeId', '==', normalizedStore),
+    );
+
+    return onSnapshot(q, snap => {
+      const tasks = snap.docs
+        .map(item => ({ id: item.id, ...item.data() } as ActionTask))
+        .sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
+      onData(tasks);
+    }, onError);
   },
 
   create: async (task: NewActionTask): Promise<string> => {
