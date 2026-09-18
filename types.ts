@@ -60,6 +60,10 @@ export interface ShowroomPassage {
   nextFollowUpAt?:string;
   lastContactAt?:string;
   tradeInPlate?:string;
+  desiredVehicle?:string;
+  customerEmail?:string;
+  purchaseTimeline?:string;
+  preferredContact?:'whatsapp'|'phone'|'email';
   desiredEntry?:number;
   desiredPayment?:number;
   lostReason?:string;
