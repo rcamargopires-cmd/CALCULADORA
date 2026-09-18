@@ -12,6 +12,7 @@ import { storeScopeService, STORE_SCOPE_EVENT } from '../services/storeScopeServ
 
 type Props={user:User};
 type Column={status:ShowroomPassageStatus;label:string;hint:string};
+type WhatsAppStatus={connected:boolean;missing:string[];webhookUrl:string;graphVersion:string};
 
 const COLUMNS:Column[]=[
   {status:'waiting',label:'Novo lead',hint:'Ainda sem contato'},
@@ -86,6 +87,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const[createOpen,setCreateOpen]=useState(false);
   const[busyId,setBusyId]=useState('');
   const[message,setMessage]=useState('');
+  const[waStatus,setWaStatus]=useState<WhatsAppStatus|null>(null);
   const[scope,setScope]=useState(()=>({companyId:companyScopeService.get(user),storeId:storeScopeService.get(user)}));
   const canManage=user.role==='admin'||user.role==='manager';
   const isSeller=user.role==='seller'||user.role==='user';
@@ -111,6 +113,14 @@ const MotyqCRM:React.FC<Props>=({user})=>{
       ? showroomFlowService.subscribeSellerPassages(scope.companyId,scope.storeId,user.email,setItems,onError)
       : showroomFlowService.subscribeStorePassages(scope.companyId,scope.storeId,setItems,onError);
   },[scope.companyId,scope.storeId,user.email,isSeller]);
+
+  useEffect(()=>{
+    if(!open)return;
+    fetch('/api/whatsapp-status').then(async response=>{
+      if(!response.ok)throw new Error('status_failed');
+      return response.json();
+    }).then(data=>setWaStatus(data)).catch(()=>setWaStatus(null));
+  },[open]);
 
   useEffect(()=>{
     if(!canManage)return;
@@ -196,10 +206,18 @@ const MotyqCRM:React.FC<Props>=({user})=>{
             </label>:<div className="flex h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm text-emerald-800"><UserRound size={15}/> Carteira de {user.name.split(' ')[0]}</div>}
           </section>
 
-          <section className="rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-white p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-violet-100 text-violet-700"><Bot size={18}/></div><div><p className="text-xs font-black uppercase tracking-[.13em] text-violet-700">AGENTE WHATSAPP</p><p className="mt-1 text-sm text-slate-700">O CRM já está preparado para receber leads de WhatsApp. A conexão oficial da Meta será a próxima camada.</p></div></div>
-              <span className="w-fit rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700">CONEXÃO PENDENTE</span>
+          <section className={`rounded-2xl border p-4 ${waStatus?.connected?'border-emerald-200 bg-gradient-to-r from-emerald-50 to-white':'border-violet-200 bg-gradient-to-r from-violet-50 to-white'}`}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="flex items-start gap-3">
+                <div className={`grid h-10 w-10 place-items-center rounded-xl ${waStatus?.connected?'bg-emerald-100 text-emerald-700':'bg-violet-100 text-violet-700'}`}><Bot size={18}/></div>
+                <div>
+                  <p className={`text-xs font-black uppercase tracking-[.13em] ${waStatus?.connected?'text-emerald-700':'text-violet-700'}`}>AGENTE WHATSAPP</p>
+                  <p className="mt-1 text-sm text-slate-700">{waStatus?.connected?'Webhook, CRM e agente de IA estão prontos para receber mensagens da Meta.':'A estrutura do agente está publicada. Falta concluir as credenciais para ligar o número oficial.'}</p>
+                  {canManage&&waStatus?.webhookUrl&&<div className="mt-3 flex flex-wrap items-center gap-2"><code className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-600">{waStatus.webhookUrl}</code><button type="button" onClick={()=>navigator.clipboard?.writeText(waStatus.webhookUrl)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-600">COPIAR WEBHOOK</button></div>}
+                  {canManage&&waStatus&&!waStatus.connected&&<p className="mt-2 text-[11px] text-slate-500">Pendências: {waStatus.missing.join(', ')}</p>}
+                </div>
+              </div>
+              <span className={`w-fit rounded-full border bg-white px-3 py-1.5 text-xs font-semibold ${waStatus?.connected?'border-emerald-200 text-emerald-700':'border-violet-200 text-violet-700'}`}>{waStatus?.connected?'CONECTADO':'CONFIGURAÇÃO PENDENTE'}</span>
             </div>
           </section>
 
