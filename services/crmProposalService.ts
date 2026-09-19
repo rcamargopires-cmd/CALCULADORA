@@ -14,7 +14,7 @@ const finiteNonnegative=(value:number,label:string)=>{
 };
 
 export const proposalTotals=(input:Pick<ProposalInput,'salePrice'|'discount'|'tradeInValue'|'tradeInDebt'|'cashEntry'>)=>{
-  const netTrade=Math.max(0,Number(input.tradeInValue||0)-Number(input.tradeInDebt||0));
+  const netTrade=Number(input.tradeInValue||0)-Number(input.tradeInDebt||0);
   const balance=Math.max(0,Number(input.salePrice||0)-Number(input.discount||0)-netTrade-Number(input.cashEntry||0));
   return {netTrade,financedAmount:Math.round(balance*100)/100};
 };
@@ -42,9 +42,8 @@ export const crmProposalService={
     };
     if(!amounts.salePrice)throw new Error('Informe um preço de venda maior que zero.');
     if(amounts.discount>amounts.salePrice)throw new Error('Desconto acima do preço de venda.');
-    if(amounts.tradeInDebt>amounts.tradeInValue)throw new Error('Saldo devedor acima da avaliação da troca. Revise a negociação.');
     const total=proposalTotals(amounts);
-    if(amounts.cashEntry>amounts.salePrice-amounts.discount-Math.max(0,amounts.tradeInValue-amounts.tradeInDebt)){
+    if(amounts.cashEntry>amounts.salePrice-amounts.discount-(amounts.tradeInValue-amounts.tradeInDebt)){
       throw new Error('A entrada em dinheiro supera o valor restante da negociação.');
     }
     if(amounts.installments&&!total.financedAmount)throw new Error('Não há saldo a financiar.');
