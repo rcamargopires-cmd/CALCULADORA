@@ -10,6 +10,7 @@ import './services/stockBatchAdapter';
 import './services/unifiedStockAuditAdapter';
 import './services/monthCycleAdapter';
 import RoleAwareRoot from './components/RoleAwareRoot';
+import { isPublicCatalogRoute, PublicCatalogPage } from './components/CrmPersonalizedCatalog';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -19,6 +20,6 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <RoleAwareRoot />
+    {isPublicCatalogRoute() ? <PublicCatalogPage /> : <RoleAwareRoot />}
   </React.StrictMode>
 );
