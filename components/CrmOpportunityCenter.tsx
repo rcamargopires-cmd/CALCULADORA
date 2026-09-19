@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   CalendarClock, CarFront, CheckCircle2, Clock3, Flame, MessageCircle,
-  PhoneCall, Radar, UserRound, X
+  Radar, UserRound, X
 } from 'lucide-react';
 import type { GroupStockItem } from '../services/groupStockService';
 import { isGroupStockAvailable, matchGroupStock } from '../services/crmStockMatchService';
@@ -197,7 +197,7 @@ const CrmOpportunityCenter: React.FC<Props> = ({ user, items, stock, onOpenLead 
     const groups: Record<string, ShowroomPassage[]> = {
       late: [], today: [], idle: [], no_due: [], future: []
     };
-    active.forEach(lead => groups[dateBucket(lead, start.getTime(), end.getTime())].push(lead));
+    active.forEach(lead => groups[dateBucket(lead, Date.now(), end.getTime())].push(lead));
     groups.late.sort((a, b) => String(a.nextFollowUpAt).localeCompare(String(b.nextFollowUpAt)));
     groups.today.sort((a, b) => String(a.nextFollowUpAt).localeCompare(String(b.nextFollowUpAt)));
     groups.idle.sort((a, b) => String(a.lastContactAttemptAt || a.lastContactAt || a.createdAt)
