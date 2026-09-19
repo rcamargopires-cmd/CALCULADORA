@@ -13,6 +13,7 @@ import { auth } from '../firebase';
 import { GroupStockItem, groupStockService } from '../services/groupStockService';
 import { CrmStockMatch, matchGroupStock } from '../services/crmStockMatchService';
 import CustomerAttendanceDossier from './CustomerAttendanceDossier';
+import CrmOpportunityCenter from './CrmOpportunityCenter';
 
 type Props={user:User};
 type Column={status:ShowroomPassageStatus;label:string;hint:string};
@@ -176,6 +177,8 @@ const MotyqCRM:React.FC<Props>=({user})=>{
         .some(value=>String(value||'').toLocaleLowerCase('pt-BR').includes(needle));
     });
   },[items,search,sourceFilter,onlyMine,user.email]);
+
+  const opportunityItems=useMemo(()=>items.filter(item=>!onlyMine||String(item.assignedSellerEmail||'').toLowerCase()===String(user.email||'').toLowerCase()),[items,onlyMine,user.email]);
 
   const metrics=useMemo(()=>{
     const active=items.filter(item=>!['sale','no_deal'].includes(item.status)).length;
@@ -387,6 +390,8 @@ const MotyqCRM:React.FC<Props>=({user})=>{
             <Metric label="Conversão fechados" value={`${metrics.conversion}%`} icon={<Sparkles size={17}/>} />
           </section>
 
+          <CrmOpportunityCenter user={user} items={opportunityItems} stock={groupStock} onOpenLead={setSelectedCustomer}/>
+
           <section className="grid gap-3 xl:grid-cols-[1.4fr_.7fr_.7fr]">
             <label className="flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm">
               <Search size={16} className="text-slate-400"/>
@@ -451,6 +456,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
                       busy={busyId===item.id}
                       dragging={draggedLeadId===item.id}
                       matches={matchGroupStock(groupStock,item.desiredVehicle||item.interestModel,3)}
+                      onOpen={()=>setSelectedCustomer(item)}
                       onPatch={data=>patch(item,data)}
                       onMove={status=>moveLead(item,status)}
                       onDragStart={event=>{
@@ -476,14 +482,14 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   </>;
 };
 
-const LeadCard=({item,busy,dragging,matches,onPatch,onMove,onDragStart,onDragEnd}:{item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
+const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onDragStart,onDragEnd}:{item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onOpen:()=>void;onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
   const source=sourceOf(item),temp=temperatureOf(item),wa=whatsappUrl(item.phone),overdue=isOverdue(item.nextFollowUpAt)&&!['sale','no_deal'].includes(item.status);
   const TempIcon=temp==='hot'?Flame:temp==='cold'?Snowflake:SunMedium;
   return <article draggable={!busy} onDragStart={onDragStart} onDragEnd={onDragEnd} className={`cursor-grab rounded-2xl border bg-white p-3.5 shadow-sm transition active:cursor-grabbing ${dragging?'scale-[.98] opacity-45 shadow-none':overdue?'border-red-200 ring-1 ring-red-100':'border-slate-200'}`}>
     <div className="flex items-start justify-between gap-2">
       <div className="flex min-w-0 items-start gap-2">
         <span title="Arraste para outra etapa" className="mt-0.5 hidden shrink-0 text-slate-300 md:block"><GripVertical size={16}/></span>
-        <div className="min-w-0"><button type="button" onClick={event=>{event.stopPropagation();setSelectedCustomer(item);}} className="text-left font-semibold text-slate-900 underline decoration-emerald-300/70 underline-offset-4 hover:text-emerald-700">{item.customerName||'Cliente'}</button><p className="mt-0.5 text-[11px] text-slate-400">{ageLabel(item.createdAt)} · {SOURCE[source]}</p><p className="mt-0.5 text-[9px] font-bold uppercase tracking-[.1em] text-emerald-600">Abrir ficha</p></div>
+        <div className="min-w-0"><button type="button" onClick={event=>{event.stopPropagation();onOpen();}} className="text-left font-semibold text-slate-900 underline decoration-emerald-300/70 underline-offset-4 hover:text-emerald-700">{item.customerName||'Cliente'}</button><p className="mt-0.5 text-[11px] text-slate-400">{ageLabel(item.createdAt)} · {SOURCE[source]}</p><p className="mt-0.5 text-[9px] font-bold uppercase tracking-[.1em] text-emerald-600">Abrir ficha</p></div>
       </div>
       <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${temp==='hot'?'bg-red-50 text-red-700':temp==='cold'?'bg-sky-50 text-sky-700':'bg-amber-50 text-amber-700'}`}><TempIcon size={11}/>{TEMP[temp]}</span>
     </div>
