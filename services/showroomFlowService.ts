@@ -281,6 +281,53 @@ export const showroomFlowService={
     await updateDoc(doc(db,'showroom_passages',id),next);
   },
 
+  recordCrmContact:async(input:{
+    id:string;
+    result:'talked'|'no_answer'|'visit'|'proposal'|'advanced';
+    note?:string;
+    nextFollowUpAt?:string;
+    actor:{email:string;name:string};
+  })=>{
+    const labels={
+      talked:'Conversei com o cliente',
+      no_answer:'Cliente não respondeu',
+      visit:'Visita agendada',
+      proposal:'Proposta enviada',
+      advanced:'Negociação avançou',
+    };
+    if(!labels[input.result])throw new Error('Selecione o resultado do contato.');
+    const note=String(input.note||'').trim().slice(0,1200);
+    const follow=String(input.nextFollowUpAt||'').trim();
+    if(follow&&!Number.isFinite(new Date(follow).getTime()))throw new Error('Data de retorno inválida.');
+    const ref=doc(db,'showroom_passages',input.id);
+    const timestamp=now();
+    await runTransaction(db,async transaction=>{
+      const snap=await transaction.get(ref);
+      if(!snap.exists())throw new Error('Atendimento não encontrado.');
+      const current=normalizePassage(snap.data());
+      if(!isVisiblePassage(current)||['sale','no_deal'].includes(current.status))throw new Error('Atendimento encerrado.');
+      const nextStatus=input.result==='proposal'?'proposal':input.result==='visit'&&current.status==='waiting'?'in_service':current.status;
+      const event:ShowroomPassageActivity={
+        id:auditId(),type:'contact',at:timestamp,label:labels[input.result],
+        details:note,status:nextStatus,
+        byEmail:input.actor.email||'',byName:input.actor.name||'',
+      };
+      const history=Array.isArray(current.activityHistory)?current.activityHistory:[];
+      const stamp=new Date(timestamp).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const previousNotes=String(current.notes||'').trim();
+      const nextNotes=note?[previousNotes,'['+stamp+'] '+labels[input.result]+': '+note].filter(Boolean).join('\n\n').slice(-8000):previousNotes;
+      transaction.update(ref,{
+        status:nextStatus,
+        lastContactAttemptAt:timestamp,
+        ...(input.result!=='no_answer'?{lastContactAt:timestamp}:{}),
+        lastContactOutcome:input.result,
+        nextFollowUpAt:follow,
+        notes:nextNotes,
+        activityHistory:[...history,event].slice(-150),
+        updatedAt:timestamp,
+      });
+    });
+  },
   addCrmNote:async(id:string,note:string,actor?:{email?:string;name?:string})=>{
     const text=String(note||'').trim();
     if(!text)return;
