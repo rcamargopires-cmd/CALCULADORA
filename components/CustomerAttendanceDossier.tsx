@@ -5,8 +5,10 @@ import {
 } from 'lucide-react';
 import { CrmLeadTemperature, ShowroomPassage, ShowroomPassageActivity, ShowroomPassageStatus, User } from '../types';
 import { showroomFlowService } from '../services/showroomFlowService';
+import type { GroupStockItem } from '../services/groupStockService';
+import CrmCommercialProposals from './CrmCommercialProposals';
 
-type Props={selected:ShowroomPassage;items:ShowroomPassage[];user:User;onClose:()=>void;};
+type Props={selected:ShowroomPassage;items:ShowroomPassage[];user:User;stockItems?:GroupStockItem[];onClose:()=>void;};
 
 const STATUS:Record<ShowroomPassageStatus,string>={
   waiting:'Aguardando',in_service:'Em atendimento',evaluation:'Avaliação',proposal:'Proposta',
@@ -112,7 +114,7 @@ const statusClass=(status?:ShowroomPassageStatus)=>{
   return 'border-amber-200 bg-amber-50 text-amber-700';
 };
 
-const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,onClose})=>{
+const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems=[],onClose})=>{
   const current=items.find(item=>item.id===selected.id)||selected;
   const records=useMemo(
     ()=>items.filter(item=>isSameCustomer(current,item)).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))),
@@ -240,6 +242,8 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,onClose})=
           </div>
           <div className="mt-5 flex justify-end"><button disabled={saving} onClick={save} className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white disabled:opacity-50"><Save size={16}/>{saving?'SALVANDO...':'SALVAR NA FICHA'}</button></div>
         </section>}
+
+        <CrmCommercialProposals lead={current} user={user} stockItems={stockItems}/>
 
         <section className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
           <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">
