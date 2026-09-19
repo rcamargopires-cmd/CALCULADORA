@@ -38,6 +38,34 @@ export type ShowroomPassageOrigin='walk_in'|'requested';
 export type CrmLeadSource='showroom'|'whatsapp'|'web'|'instagram'|'manual'|'other';
 export type CrmLeadTemperature='hot'|'warm'|'cold';
 export type ShowroomPassageActivityType='created'|'assumed'|'status'|'note'|'follow_up'|'correction'|'contact'|'closed';
+export type CrmProposalStatus='draft'|'sent'|'accepted'|'rejected';
+export interface CrmProposalSnapshot {
+  id:string;
+  version:number;
+  status:CrmProposalStatus;
+  vehicle:string;
+  plate:string;
+  year:string;
+  km:number;
+  location:string;
+  stockPriceAtCreation:number;
+  salePrice:number;
+  discount:number;
+  tradeInPlate:string;
+  tradeInValue:number;
+  tradeInDebt:number;
+  cashEntry:number;
+  financedAmount:number;
+  installments:number;
+  estimatedInstallment:number;
+  notes:string;
+  createdAt:string;
+  createdByEmail:string;
+  createdByName:string;
+  updatedAt:string;
+  updatedByEmail:string;
+  updatedByName:string;
+}
 export interface ShowroomPassageActivity { id:string; type:ShowroomPassageActivityType; at:string; label:string; details?:string; status?:ShowroomPassageStatus; byEmail?:string; byName?:string; }
 export interface ShowroomPassage {
   id:string;
@@ -69,6 +97,7 @@ export interface ShowroomPassage {
   desiredEntry?:number;
   desiredPayment?:number;
   lostReason?:string;
+  crmProposals?:CrmProposalSnapshot[];
   whatsappThreadId?:string;
   activityHistory?:ShowroomPassageActivity[];
   createdBy?:string;
