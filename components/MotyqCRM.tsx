@@ -477,7 +477,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
       </div>
 
       {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} stockItems={groupStock} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
-      {selectedCustomer&&<CustomerAttendanceDossier selected={selectedCustomer} items={items} user={user} onClose={()=>setSelectedCustomer(null)} />}
+      {selectedCustomer&&<CustomerAttendanceDossier selected={selectedCustomer} items={items} user={user} stockItems={groupStock} onClose={()=>setSelectedCustomer(null)} />}
     </div>}
   </>;
 };
