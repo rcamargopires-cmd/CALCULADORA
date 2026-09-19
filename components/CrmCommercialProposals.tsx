@@ -134,7 +134,7 @@ const CrmCommercialProposals:React.FC<Props>=({lead,user,stockItems=[]})=>{
         <div><p className="text-[10px] uppercase text-slate-500">Venda após desconto</p><p className="font-semibold text-slate-800">{proposalMoney(Math.max(0,form.salePrice-form.discount))}</p></div>
         <div><p className="text-[10px] uppercase text-slate-500">Saldo a financiar / quitar</p><p className="font-bold text-emerald-800">{proposalMoney(totals.financedAmount)}</p></div>
       </div>
-      <p className="text-[11px] leading-5 text-slate-500">A parcela é registrada conforme simulação externa informada pelo vendedor. Não é calculada nem aprovada pelo MOTYQ. Valores sujeitos à avaliação final, taxas, CET, disponibilidade e aprovação de crédito.</p>
+      <p className="text-[11px] leading-5 text-slate-500">O saldo considera eventual diferença negativa na troca. A parcela é registrada conforme simulação externa informada pelo vendedor. Não é calculada nem aprovada pelo MOTYQ. Valores sujeitos à avaliação final, taxas, CET, disponibilidade e aprovação de crédito.</p>
       <div className="flex flex-wrap justify-end gap-2">
         <button type="button" disabled={busy} onClick={()=>setEditing(false)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600">CANCELAR</button>
         <button type="button" disabled={busy} onClick={save} className="flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50"><Save size={15}/>{busy?'SALVANDO...':'SALVAR PROPOSTA'}</button>
@@ -149,7 +149,7 @@ const CrmCommercialProposals:React.FC<Props>=({lead,user,stockItems=[]})=>{
         </div>
         <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
           <span>Venda: <strong>{proposalMoney(row.salePrice-row.discount)}</strong></span>
-          <span>Troca líquida: <strong>{proposalMoney(Math.max(0,row.tradeInValue-row.tradeInDebt))}</strong></span>
+          <span>Troca líquida: <strong>{proposalMoney(row.tradeInValue-row.tradeInDebt)}</strong></span>
           <span>Saldo: <strong>{proposalMoney(row.financedAmount)}</strong></span>
           {!!row.installments&&<span>Prazo: {row.installments} meses</span>}
           {!!row.estimatedInstallment&&<span>Parcela informada: {proposalMoney(row.estimatedInstallment)}</span>}
