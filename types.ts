@@ -59,6 +59,8 @@ export interface ShowroomPassage {
   leadTemperature?:CrmLeadTemperature;
   nextFollowUpAt?:string;
   lastContactAt?:string;
+  lastContactAttemptAt?:string;
+  lastContactOutcome?:string;
   tradeInPlate?:string;
   desiredVehicle?:string;
   customerEmail?:string;
