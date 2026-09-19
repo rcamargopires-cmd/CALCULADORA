@@ -7,6 +7,7 @@ import { CrmLeadTemperature, ShowroomPassage, ShowroomPassageActivity, ShowroomP
 import { showroomFlowService } from '../services/showroomFlowService';
 import type { GroupStockItem } from '../services/groupStockService';
 import CrmCommercialProposals from './CrmCommercialProposals';
+import CrmPersonalizedCatalog from './CrmPersonalizedCatalog';
 
 type Props={selected:ShowroomPassage;items:ShowroomPassage[];user:User;stockItems?:GroupStockItem[];onClose:()=>void;};
 
@@ -244,6 +245,7 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
         </section>}
 
         <CrmCommercialProposals lead={current} user={user} stockItems={stockItems}/>
+        {stockItems.length > 0 && <CrmPersonalizedCatalog lead={current} user={user} stockItems={stockItems}/>}
 
         <section className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
           <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">
