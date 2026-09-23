@@ -100,6 +100,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const[waBusy,setWaBusy]=useState(false);
   const[waMessage,setWaMessage]=useState('');
   const[scope,setScope]=useState(()=>({companyId:companyScopeService.get(user),storeId:storeScopeService.get(user)}));
+  const[dashboardRequest,setDashboardRequest]=useState<{nonce:number;action?:'lead'|'contact';leadId?:string;tab?:'agenda'|'stock'}|null>(null);
   const canManage=user.role==='admin'||user.role==='manager';
   const isSeller=user.role==='seller'||user.role==='user';
 
@@ -133,6 +134,24 @@ const MotyqCRM:React.FC<Props>=({user})=>{
       error=>{console.warn('CRM shared stock unavailable',error);setGroupStock([]);},
     );
   },[scope.companyId]);
+
+  useEffect(()=>{
+    const receive=(event:Event)=>{
+      const detail=(event as CustomEvent<{action?:'lead'|'contact';leadId?:string;tab?:'agenda'|'stock'}>).detail||{};
+      setDashboardRequest({nonce:Date.now(),...detail});
+      setOpen(true);
+    };
+    window.addEventListener('motyq:open-crm',receive);
+    return()=>window.removeEventListener('motyq:open-crm',receive);
+  },[]);
+
+  useEffect(()=>{
+    if(dashboardRequest?.action!=='lead'||!dashboardRequest.leadId)return;
+    const customer=items.find(item=>item.id===dashboardRequest.leadId);
+    if(!customer)return;
+    setSelectedCustomer(customer);
+    setDashboardRequest(current=>current?.nonce===dashboardRequest.nonce?{...current,action:undefined}:current);
+  },[items,dashboardRequest]);
 
   const loadWhatsAppStatus=async()=>{
     const current=auth.currentUser;
@@ -390,7 +409,9 @@ const MotyqCRM:React.FC<Props>=({user})=>{
             <Metric label="Conversão fechados" value={`${metrics.conversion}%`} icon={<Sparkles size={17}/>} />
           </section>
 
-          <CrmOpportunityCenter user={user} items={opportunityItems} stock={groupStock} onOpenLead={setSelectedCustomer}/>
+          <CrmOpportunityCenter key={dashboardRequest?.nonce||0} user={user} items={opportunityItems} stock={groupStock} onOpenLead={setSelectedCustomer}
+            initialTab={dashboardRequest?.tab||'agenda'} startExpanded={Boolean(dashboardRequest)}
+            initialContactLead={dashboardRequest?.action==='contact'?items.find(item=>item.id===dashboardRequest.leadId)||null:null}/>
 
           <section className="grid gap-3 xl:grid-cols-[1.4fr_.7fr_.7fr]">
             <label className="flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm">

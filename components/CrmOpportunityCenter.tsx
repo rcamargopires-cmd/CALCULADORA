@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock, CarFront, CheckCircle2, Clock3, Flame, MessageCircle,
   Radar, UserRound, X
@@ -14,6 +14,9 @@ type Props = {
   items: ShowroomPassage[];
   stock: GroupStockItem[];
   onOpenLead: (lead: ShowroomPassage) => void;
+  initialTab?: 'agenda' | 'stock';
+  startExpanded?: boolean;
+  initialContactLead?: ShowroomPassage | null;
 };
 type VehicleOpportunity = { vehicle: GroupStockItem; leads: ShowroomPassage[] };
 
@@ -182,13 +185,17 @@ const CustomerRow: React.FC<{
   </div>;
 };
 
-const CrmOpportunityCenter: React.FC<Props> = ({ user, items, stock, onOpenLead }) => {
-  const [tab, setTab] = useState<'agenda' | 'stock'>('agenda');
+const CrmOpportunityCenter: React.FC<Props> = ({ user, items, stock, onOpenLead, initialTab = 'agenda', startExpanded = false, initialContactLead = null }) => {
+  const [tab, setTab] = useState<'agenda' | 'stock'>(initialTab);
   const [minimumDays, setMinimumDays] = useState(30);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(startExpanded);
   const [showMore, setShowMore] = useState(false);
   const [contact, setContact] = useState<ShowroomPassage | null>(null);
   const [feedback, setFeedback] = useState('');
+
+  useEffect(()=>{
+    if(initialContactLead) setContact(initialContactLead);
+  },[initialContactLead?.id]);
 
   const active = useMemo(() => items.filter(activeLead), [items]);
   const agenda = useMemo(() => {
