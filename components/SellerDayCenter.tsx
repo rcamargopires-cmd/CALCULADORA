@@ -76,7 +76,8 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
       if (!alive) return;
       if (recordResult.status === 'fulfilled') {
         const record = recordResult.value;
-        const month = new Date().toLocaleDateString('en-CA').slice(0,7);
+        const currentDate = new Date();
+        const month = currentDate.getFullYear() + '-' + String(currentDate.getMonth() + 1).padStart(2,'0');
         const recordMonth = String(record?.referenceDate || '').slice(0,7);
         const sameScope = (!record?.companyId || record.companyId === companyId)
           && (!record?.storeId || record.storeId === storeId);
@@ -144,7 +145,7 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="text-[10px] font-black uppercase tracking-[.17em] text-emerald-700">MOTYQ · CENTRAL DO DIA</p>
-        <h2 className="mt-1 text-2xl font-semibold md:text-3xl">Bom {new Date(now).getHours()<12?'dia':new Date(now).getHours()<18?'tarde':'noite'}, {firstName(user.name)}!</h2>
+        <h2 className="mt-1 text-2xl font-semibold md:text-3xl">{new Date(now).getHours()<12?'Bom dia':new Date(now).getHours()<18?'Boa tarde':'Boa noite'}, {firstName(user.name)}!</h2>
         <p className="mt-1 text-sm text-slate-500">O que precisa da sua atenção agora.</p>
       </div>
       <button type="button" onClick={() => openCrm({tab:'agenda'})}
