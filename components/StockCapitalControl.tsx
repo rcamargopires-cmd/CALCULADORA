@@ -103,7 +103,7 @@ const StockCapitalControl:React.FC<Props>=({user,stock,history})=>{
     {sharedActive&&shared&&<p className="mt-2 rounded-xl bg-cyan-50 p-3 text-xs text-cyan-900">
       Fonte: {shared.sourceFile||'arquivo não informado'} · Atualizado: {shared.sourceUpdatedAt||shared.importedAt||'não informado'} · {shared.items.length} veículos no grupo.
       Os totais abaixo consideram a localização selecionada.</p>}
-    {sharedActive&&unit==='OUTLET'&&<p className="mt-2 text-xs text-slate-600">Filtro exato: <strong>Localização = OUTLET</strong>. “Estoque Atual” identifica a empresa detentora (por exemplo, ABRAO REPASSE).</p>
+    {sharedActive&&unit==='OUTLET'&&<p className="mt-2 text-xs text-slate-600">Filtro exato: <strong>Localização = OUTLET</strong>. “Estoque Atual” identifica a empresa detentora (por exemplo, ABRAO REPASSE).</p>}
     <div className="mt-4 flex flex-wrap gap-2">
       <label className="flex-1 min-w-[160px] text-xs text-slate-600">Unidade
         <select value={unit} onChange={e=>setUnit(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800">
@@ -153,7 +153,7 @@ const StockCapitalControl:React.FC<Props>=({user,stock,history})=>{
           <Area type="monotone" name="Custo ajustado projetado" dataKey="projected" stroke="#0891b2" fill="#67e8f9" fillOpacity={0.18} connectNulls={false}/>
         </AreaChart>
       </ResponsiveContainer>
-    </div>:<p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{unit!=='all'||search.trim()?'Gráfico consolidado disponível ao selecionar todas as unidades e limpar a busca.':'Aguardando importação de estoque.'}</p>}
+    </div>:<p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{search.trim()?'Limpe a busca para mostrar a projeção da unidade selecionada.':'Aguardando importação de estoque.'}</p>}
     <p className="mt-2 text-[11px] text-slate-500">Estoque compartilhado: projeção financeira da localização selecionada, sem histórico diário confirmado. Histórico operacional só aparece na base operacional. Não é um fechamento diário automático.</p>
     <button type="button" onClick={()=>setExpanded(x=>!x)} className="mt-5 flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-bold text-slate-800">
       <span><ArrowDownUp size={15} className="mr-2 inline"/> Custo por placa · {rows.length} veículos</span><span>{expanded?'RECOLHER':'VER DETALHES'}</span>
