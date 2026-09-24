@@ -10,7 +10,7 @@ import type { GroupStockItem } from '../services/groupStockService';
 import CrmCommercialProposals from './CrmCommercialProposals';
 import CrmPersonalizedCatalog from './CrmPersonalizedCatalog';
 
-type Props={selected:ShowroomPassage;items:ShowroomPassage[];user:User;stockItems?:GroupStockItem[];onClose:()=>void;};
+type Props={selected:ShowroomPassage;items:ShowroomPassage[];user:User;stockItems?:GroupStockItem[];onClose:()=>void;onContact?: (lead:ShowroomPassage)=>void;};
 
 const STATUS:Record<ShowroomPassageStatus,string>={
   waiting:'Aguardando',in_service:'Em atendimento',evaluation:'Avaliação',proposal:'Proposta',
@@ -116,7 +116,7 @@ const statusClass=(status?:ShowroomPassageStatus)=>{
   return 'border-amber-200 bg-amber-50 text-amber-700';
 };
 
-const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems=[],onClose})=>{
+const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems=[],onClose,onContact})=>{
   const current=items.find(item=>item.id===selected.id)||selected;
   const records=useMemo(
     ()=>items.filter(item=>isSameCustomer(current,item)).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))),
@@ -203,6 +203,19 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
 
       <div className="space-y-5 p-5 md:p-7">
         {feedback&&<div className={'rounded-2xl border px-4 py-3 text-sm '+(feedback.includes('sucesso')?'border-emerald-200 bg-emerald-50 text-emerald-700':'border-amber-200 bg-amber-50 text-amber-800')}>{feedback}</div>}
+        <section className="rounded-[24px] border border-emerald-200 bg-white p-4 md:p-5">
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">PRÓXIMA AÇÃO</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">{latest.nextFollowUpAt?'Retornar: '+dateTime(latest.nextFollowUpAt):'Definir e agendar o próximo contato'}</p>
+          <p className="mt-1 text-xs text-slate-500">{latest.desiredVehicle||latest.interestModel||'Interesse ainda não informado'} · {STATUS[latest.status]}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {cleanPhone(latest.phone).length>=10&&<a href={'https://wa.me/'+(cleanPhone(latest.phone).length<=11?'55':'')+cleanPhone(latest.phone)}
+              target="_blank" rel="noopener noreferrer" className="grid min-h-11 place-items-center rounded-xl bg-emerald-600 px-2 text-xs font-bold text-white">WhatsApp</a>}
+            {onContact&&<button type="button" onClick={()=>onContact(latest)} className="min-h-11 rounded-xl bg-slate-900 px-2 text-xs font-bold text-white">Registrar contato</button>}
+            <button type="button" onClick={()=>{setEditing(true);document.getElementById('motyq-dossier-edit')?.scrollIntoView({behavior:'smooth'});}} className="min-h-11 rounded-xl border border-slate-200 px-2 text-xs font-bold text-slate-700">Agendar / editar</button>
+            <button type="button" onClick={()=>document.getElementById('motyq-dossier-proposals')?.scrollIntoView({behavior:'smooth'})} className="min-h-11 rounded-xl border border-slate-200 px-2 text-xs font-bold text-slate-700">Nova proposta</button>
+            {stockItems.length>0&&<button type="button" onClick={()=>document.getElementById('motyq-dossier-catalog')?.scrollIntoView({behavior:'smooth'})} className="min-h-11 rounded-xl border border-slate-200 px-2 text-xs font-bold text-slate-700">Enviar carros</button>}
+          </div>
+        </section>
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Card icon={<Phone size={16}/>} label="Telefone" value={phoneMask(latest.phone)||'Não informado'} />
@@ -225,7 +238,7 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
           <Info label="Entrada / parcela" value={(latest.desiredEntry||latest.desiredPayment)?money(latest.desiredEntry)+' / '+money(latest.desiredPayment):'—'} />
         </section>}
 
-        {editing&&<section className="rounded-[26px] border border-cyan-200 bg-white p-5 shadow-sm md:p-6">
+        {editing&&<section id="motyq-dossier-edit" className="rounded-[26px] border border-cyan-200 bg-white p-5 shadow-sm md:p-6">
           <div className="flex items-start gap-3">
             <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-cyan-50 text-cyan-700"><PencilLine size={16}/></div>
             <div><h3 className="font-semibold text-slate-900">Completar ficha comercial</h3><p className="mt-1 text-xs text-slate-500">Esses dados ficam no cliente e ajudam o CRM, os follow-ups e o radar de estoque.</p></div>
@@ -245,8 +258,8 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
           <div className="mt-5 flex justify-end"><button disabled={saving} onClick={save} className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white disabled:opacity-50"><Save size={16}/>{saving?'SALVANDO...':'SALVAR NA FICHA'}</button></div>
         </section>}
 
-        <CrmCommercialProposals lead={current} user={user} stockItems={stockItems}/>
-        {stockItems.length > 0 && <CrmPersonalizedCatalog lead={current} user={user} stockItems={stockItems}/>}
+        <div id="motyq-dossier-proposals"><CrmCommercialProposals lead={current} user={user} stockItems={stockItems}/></div>
+        {stockItems.length > 0 && <div id="motyq-dossier-catalog"><CrmPersonalizedCatalog lead={current} user={user} stockItems={stockItems}/></div>}
 
         <section className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
           <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">

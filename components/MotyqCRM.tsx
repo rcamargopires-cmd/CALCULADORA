@@ -508,7 +508,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
 
       {quickContact&&<QuickContact key={quickContact.id} lead={items.find(item=>item.id===quickContact.id)||quickContact} user={user} onClose={()=>setQuickContact(null)} onSaved={msg=>{setQuickContact(null);setMessage(msg);}}/>}
       {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} stockItems={groupStock} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
-      {selectedCustomer&&<CustomerAttendanceDossier selected={selectedCustomer} items={items} user={user} stockItems={groupStock} onClose={()=>setSelectedCustomer(null)} />}
+      {selectedCustomer&&<CustomerAttendanceDossier selected={selectedCustomer} items={items} user={user} stockItems={groupStock} onClose={()=>setSelectedCustomer(null)} onContact={setQuickContact} />}
     </div>}
   </>;
 };
