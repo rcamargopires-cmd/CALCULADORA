@@ -34,6 +34,21 @@ const linkFields = (link: MarketIQShowroomLink | null) => link ? {
   linkedAt: new Date().toISOString(),
 } : {};
 
+const SESSION_KEY='motyq:marketiq-active-draft-v3';
+const readDraft=():{id:string;plate:string;companyId:string;storeId:string}|null=>{
+  try {const raw=window.sessionStorage.getItem(SESSION_KEY);return raw?JSON.parse(raw):null;}catch{return null;}
+};
+const rememberDraft=(id:string,plate:string,companyId:string,storeId:string)=>{
+  try{window.sessionStorage.setItem(SESSION_KEY,JSON.stringify({id,plate,companyId,storeId}));}catch{}
+};
+const forgetDraft=()=>{try{window.sessionStorage.removeItem(SESSION_KEY);}catch{}};
+const revision=(value:{vehicle:string;year:string;km:string;fipe:string;notes:string},
+ byEmail:string,byName:string)=>({
+  id:'draft_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+  at:new Date().toISOString(),type:'draft_updated',status:'draft',
+  byEmail,byName,...value,
+});
+
 const MarketIQPersistenceBridge: React.FC<Props> = ({ currentUser, companyId, storeId, storeName }) => {
   useEffect(() => {
     let saveInFlight = false;
@@ -100,11 +115,21 @@ const MarketIQPersistenceBridge: React.FC<Props> = ({ currentUser, companyId, st
         const createdByName = normalize((currentUser as any)?.name || (currentUser as any)?.displayName || (currentUser as any)?.email);
 
         const latest = await marketIqEvaluationService.getLatestByPlate(companyId, storeId, plate);
+        const session = readDraft();
+        const sameSession=session?.plate===plate&&session.companyId===companyId&&session.storeId===storeId;
+        let existing = sameSession ? await marketIqEvaluationService.getById(session.id) : null;
+        if(existing&&(existing.companyId!==companyId||existing.storeId!==storeId||existing.plate!==plate||existing.status!=='draft'))existing=null;
+        if(!existing&&latest?.status==='draft'){
+          const useExisting=window.confirm(
+            'Já existe um rascunho para a placa '+plate+'.\n\nOK: continuar este rascunho.\nCancelar: iniciar uma NOVA avaliação, mantendo a anterior.'
+          );
+          if(useExisting)existing=latest;
+        }
         let id = '';
         let updatedExisting = false;
 
-        if (latest?.status === 'draft') {
-          id = latest.id;
+        if (existing?.status === 'draft') {
+          id = existing.id;
           updatedExisting = true;
           await updateDoc(doc(db, 'operational_meta', id), {
             vehicle,
@@ -112,6 +137,7 @@ const MarketIQPersistenceBridge: React.FC<Props> = ({ currentUser, companyId, st
             km,
             fipe,
             notes,
+            revisionHistory:arrayUnion(revision({vehicle,year,km,fipe,notes},createdByEmail,createdByName)),
             ...linkFields(link),
             updatedByEmail: createdByEmail,
             updatedByName: createdByName,
@@ -129,12 +155,14 @@ const MarketIQPersistenceBridge: React.FC<Props> = ({ currentUser, companyId, st
             km,
             fipe,
             notes,
+            ...(latest?{previousEvaluationId:latest.id}:{}),
             ...linkFields(link),
             createdByEmail,
             createdByName,
           });
         }
 
+        rememberDraft(id,plate,companyId,storeId);
         await linkBack(id, link);
         lastSaveSignature = signature;
         lastSavedAt = Date.now();
@@ -163,31 +191,40 @@ const MarketIQPersistenceBridge: React.FC<Props> = ({ currentUser, companyId, st
       if (!plate) return;
       const link = readLink();
       try {
-        let latest = await marketIqEvaluationService.getLatestByPlate(companyId, storeId, plate);
-        if (!latest) {
-          const id = await marketIqEvaluationService.create({
-            companyId,
-            storeId,
-            storeName,
-            plate,
-            vehicle: '',
-            year: '',
-            km: '',
-            fipe: '',
-            notes: '',
-            recommendedBuy: typeof detail.value === 'number' ? detail.value : undefined,
-            ...linkFields(link),
-            createdByEmail: normalize((currentUser as any)?.email).toLowerCase(),
-            createdByName: normalize((currentUser as any)?.name || (currentUser as any)?.displayName || (currentUser as any)?.email),
-          });
-          await linkBack(id, link);
-          latest = await marketIqEvaluationService.getLatestByPlate(companyId, storeId, plate);
-          if (!latest && id) return;
+        const latest = await marketIqEvaluationService.getLatestByPlate(companyId, storeId, plate);
+        const session=readDraft();
+        const sameSession=session?.plate===plate&&session.companyId===companyId&&session.storeId===storeId;
+        let draft=sameSession?await marketIqEvaluationService.getById(session.id):null;
+        if(draft&&(draft.companyId!==companyId||draft.storeId!==storeId||draft.plate!==plate||draft.status!=='draft'))draft=null;
+        if(!draft&&latest?.status==='draft'){
+          const accepted=window.confirm(
+            'Existe um rascunho desta placa.\n\nOK: concluir esse rascunho.\nCancelar: criar uma NOVA avaliação para esta decisão.'
+          );
+          if(accepted)draft=latest;
         }
-        if (!latest) return;
-        await marketIqEvaluationService.setStatus(latest.id, status, typeof detail.value === 'number' ? detail.value : undefined);
-        if (link?.passageId) await linkBack(latest.id, link);
-        window.dispatchEvent(new CustomEvent('motyq:marketiq-persisted', { detail: { action: 'decision', id: latest.id, plate, status, showroomPassageId: link?.passageId || latest.showroomPassageId || '', dealId: link?.dealId || latest.dealId || '' } }));
+        if(!draft){
+          const id=await marketIqEvaluationService.create({
+            companyId,storeId,storeName,plate,
+            vehicle:normalize(detail.vehicle),year:normalize(detail.year),km:normalize(detail.km),
+            fipe:normalize(detail.fipe),notes:normalize(detail.notes),
+            ...(latest?{previousEvaluationId:latest.id}:{}),
+            ...linkFields(link),
+            createdByEmail:normalize((currentUser as any)?.email).toLowerCase(),
+            createdByName:normalize((currentUser as any)?.name || (currentUser as any)?.displayName || (currentUser as any)?.email),
+          });
+          draft=await marketIqEvaluationService.getById(id);
+        }
+        if(!draft)throw new Error('Não foi possível criar ou recuperar o rascunho.');
+        await marketIqEvaluationService.setStatus(draft.id,status,
+          typeof detail.value==='number'?detail.value:undefined,
+          {email:normalize((currentUser as any)?.email).toLowerCase(),name:normalize((currentUser as any)?.name)});
+        if(link?.passageId)await linkBack(draft.id,link);
+        forgetDraft();
+        window.dispatchEvent(new CustomEvent('motyq:marketiq-persisted',{
+          detail:{action:'decision',id:draft.id,plate,status,
+            showroomPassageId:link?.passageId||draft.showroomPassageId||'',
+            dealId:link?.dealId||draft.dealId||''}
+        }));
       } catch (error) {
         console.error('MarketIQ decision failed', error);
         window.dispatchEvent(new CustomEvent('motyq:marketiq-persistence-error', { detail: { action: 'decision', message: 'Não foi possível atualizar o status da avaliação.' } }));

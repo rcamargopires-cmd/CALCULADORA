@@ -16,6 +16,7 @@ const EvaluatorHistory:React.FC<Props>=({companyId,storeId})=>{
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState('');
   const[search,setSearch]=useState('');
+  const[filter,setFilter]=useState<'all'|'draft'|'approved'|'rejected'>('all');
   const[expanded,setExpanded]=useState<string|null>(null);
   const load=useCallback(async()=>{
     setLoading(true);setError('');
@@ -32,9 +33,9 @@ const EvaluatorHistory:React.FC<Props>=({companyId,storeId})=>{
   },[load]);
   const results=useMemo(()=>{
     const needle=search.trim().toLocaleLowerCase('pt-BR');
-    return items.filter(row=>!needle||[row.plate,row.vehicle,row.createdByName,row.sellerName,row.customerName]
-      .some(value=>String(value||'').toLocaleLowerCase('pt-BR').includes(needle)));
-  },[items,search]);
+    return items.filter(row=>(filter==='all'||row.status===filter)&&(!needle||[row.plate,row.vehicle,row.createdByName,row.sellerName,row.customerName]
+      .some(value=>String(value||'').toLocaleLowerCase('pt-BR').includes(needle))));
+  },[items,search,filter]);
   return <section className="mt-4 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4 sm:p-6">
       <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-cyan-700">MARKETIQ · ARQUIVO</p>
@@ -52,6 +53,13 @@ const EvaluatorHistory:React.FC<Props>=({companyId,storeId})=>{
           placeholder="Buscar placa, modelo ou avaliador" aria-label="Buscar avaliações"
           className="w-full min-w-0 bg-transparent text-sm text-slate-800 outline-none"/>
       </label>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar situação das avaliações">
+        {([['all','Todas'],['draft','Em andamento'],['approved','Aprovadas'],['rejected','Recusadas']] as const).map(([value,label])=>
+          <button key={value} type="button" aria-pressed={filter===value} onClick={()=>setFilter(value)}
+            className={'rounded-xl border px-3 py-2 text-xs font-bold '+(filter===value?'border-cyan-700 bg-cyan-700 text-white':'border-slate-200 bg-white text-slate-600')}>
+            {label}
+          </button>)}
+      </div>
       {loading&&<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Carregando histórico...</p>}
       {error&&<p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{error}</p>}
       {!loading&&!error&&!results.length&&<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -78,6 +86,17 @@ const EvaluatorHistory:React.FC<Props>=({companyId,storeId})=>{
           <span>Classificação: <strong>{item.commercialClass||'—'}</strong></span>
           <span>Fotos: <strong>{item.photos?.length||0}</strong></span>
           <span>Apontamentos: <strong>{item.damages?.length||0}</strong></span>
+          {!!item.previousEvaluationId&&<p className="col-span-2 text-xs text-slate-500">Nova avaliação vinculada à anterior. Registros anteriores preservados.</p>}
+          <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-3">
+            <strong className="text-xs text-slate-800">Ver evolução</strong>
+            {(item.revisionHistory||[]).length?
+              <ol className="mt-2 space-y-2">{item.revisionHistory!.map(entry=><li key={entry.id} className="border-l-2 border-cyan-200 pl-3">
+                <span className="font-semibold text-slate-700">{entry.type==='created'?'Rascunho criado':entry.type==='draft_updated'?'Rascunho atualizado':entry.type==='approved'?'Avaliação aprovada':'Avaliação recusada'}</span>
+                <span className="block text-slate-500">{when(entry.at)} · {entry.byName||entry.byEmail||'Avaliador'}{typeof entry.recommendedBuy==='number'?' · '+money(entry.recommendedBuy):''}</span>
+                <span className="block break-words text-slate-500">{entry.km?entry.km+' km · ':''}{entry.notes||''}</span>
+              </li>)}</ol>
+              :<p className="mt-1 text-xs text-slate-500">Registro anterior ao controle de versões. Nenhuma etapa foi inventada.</p>}
+          </div>
           {!!item.notes&&<p className="col-span-2 whitespace-pre-wrap break-words rounded-xl bg-white p-3">{item.notes}</p>}
         </div>}
       </article>)}

@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export type MarketIQEvaluationStatus = 'draft' | 'approved' | 'rejected';
@@ -8,8 +8,25 @@ export type MarketIQMediaCategory = 'front' | 'rear' | 'left' | 'right' | 'inter
 export type MarketIQMediaItem = { id: string; category: MarketIQMediaCategory; url: string; path: string; name: string; contentType?: string; createdAt?: string };
 export type MarketIQDamageItem = { id: string; description: string; cost: number; mediaId?: string };
 
+export type MarketIQRevision = {
+  id:string;
+  at:string;
+  type:'created'|'draft_updated'|'approved'|'rejected';
+  byEmail:string;
+  byName:string;
+  status:MarketIQEvaluationStatus;
+  vehicle:string;
+  year:string;
+  km:string;
+  fipe:string;
+  notes:string;
+  recommendedBuy?:number;
+};
+
 export type MarketIQEvaluation = {
   id: string;
+  revisionHistory?: MarketIQRevision[];
+  previousEvaluationId?:string;
   kind: 'marketiq_evaluation';
   companyId: string;
   storeId: string;
@@ -71,11 +88,25 @@ export const marketIqEvaluationService = {
       id,
       kind: 'marketiq_evaluation',
       status: 'draft',
+      revisionHistory:[{
+        id:'created_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+        at:new Date().toISOString(),type:'created',status:'draft',
+        byEmail:input.createdByEmail,byName:input.createdByName,
+        vehicle:input.vehicle,year:input.year,km:input.km,
+        fipe:input.fipe,notes:input.notes,
+        ...(typeof input.recommendedBuy==='number'?{recommendedBuy:input.recommendedBuy}:{})
+      }],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
     window.dispatchEvent(new CustomEvent('motyq:marketiq-history-updated', { detail: { plate } }));
     return id;
+  },
+
+  getById:async(id:string):Promise<MarketIQEvaluation|null>=>{
+    if(!id)return null;
+    const snap=await getDoc(doc(db,'operational_meta',id));
+    return snap.exists()?({id:snap.id,...snap.data()} as MarketIQEvaluation):null;
   },
 
   listByPlate: async (companyId: string, storeId: string, plateValue: string): Promise<MarketIQEvaluation[]> => {
@@ -113,14 +144,26 @@ export const marketIqEvaluationService = {
     return list[0] || null;
   },
 
-  setStatus: async (id: string, status: MarketIQEvaluationStatus, recommendedBuy?: number): Promise<void> => {
+  setStatus: async (id: string, status: MarketIQEvaluationStatus, recommendedBuy?: number, actor?:{email:string;name:string}): Promise<void> => {
+    const current=await marketIqEvaluationService.getById(id);
+    if(!current)throw new Error('Avaliação não encontrada.');
+    if(current.status!=='draft')throw new Error('Avaliação concluída não pode ser alterada. Inicie uma nova revisão.');
     await updateDoc(doc(db, 'operational_meta', id), {
       status,
       ...(recommendedBuy !== undefined ? { recommendedBuy } : {}),
+      revisionHistory:arrayUnion({
+        id:'decision_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+        at:new Date().toISOString(),type:status,status,
+        byEmail:actor?.email||current.createdByEmail,
+        byName:actor?.name||current.createdByName,
+        vehicle:current.vehicle||'',year:current.year||'',km:current.km||'',
+        fipe:current.fipe||'',notes:current.notes||'',
+        recommendedBuy:recommendedBuy!==undefined?recommendedBuy:Number(current.recommendedBuy||0),
+      }),
       updatedAt: serverTimestamp(),
       decidedAt: serverTimestamp(),
     });
-    window.dispatchEvent(new CustomEvent('motyq:marketiq-history-updated'));
+    window.dispatchEvent(new CustomEvent('motyq:marketiq-history-updated',{detail:{plate:current.plate}}));
   },
 
   attachMedia: async (id: string, photos: MarketIQMediaItem[], damages: MarketIQDamageItem[]): Promise<void> => {

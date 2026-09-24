@@ -227,6 +227,18 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId, currentUser
 
         {!!selected.damages?.length && <div className="mt-4"><p className="text-[10px] font-black uppercase tracking-[.13em] text-zinc-500">Avarias registradas</p><div className="mt-2 space-y-2">{selected.damages.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-sm text-zinc-300">{item.description}</span><strong className="shrink-0 text-sm text-amber-200">{money(item.cost)}</strong></div>)}</div></div>}
 
+        <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-[10px] font-black uppercase text-zinc-400">Ver evolução da avaliação</p>
+          {(selected.revisionHistory||[]).length?
+            <ol className="mt-3 space-y-3">{selected.revisionHistory!.map(entry=><li key={entry.id} className="border-l-2 border-cyan-400/40 pl-3 text-xs">
+              <strong>{entry.type==='created'?'Rascunho criado':entry.type==='draft_updated'?'Rascunho atualizado':entry.type==='approved'?'Avaliação aprovada':'Avaliação recusada'}</strong>
+              <p className="mt-1 text-zinc-400">{dateLabel(entry.at)} · {entry.byName||entry.byEmail||'Avaliador'}</p>
+              {typeof entry.recommendedBuy==='number'&&<p className="mt-1 text-cyan-200">{money(entry.recommendedBuy)}</p>}
+              {entry.notes&&<p className="mt-1 whitespace-pre-wrap text-zinc-400">{entry.notes}</p>}
+            </li>)}</ol>
+            :<p className="mt-2 text-xs text-zinc-500">Registro antigo: etapas anteriores não foram registradas.</p>}
+          {!!selected.previousEvaluationId&&<p className="mt-3 text-xs text-zinc-500">Nova avaliação vinculada à anterior, sem alterar o registro anterior.</p>}
+        </div>
         <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] uppercase text-zinc-500">Observações do avaliador</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{selected.notes || 'Sem observações registradas.'}</p></div>
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="text-xs text-zinc-500">Avaliado por {selected.createdByName || selected.createdByEmail || '—'}</div>
