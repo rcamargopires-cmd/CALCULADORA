@@ -298,7 +298,7 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
               </div>)}
             </div>
           </div>
-        </section>
+        </section>}
 
         {showDetails&&<section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-slate-700"><Repeat2 size={17}/><h3 className="font-semibold">Todos os atendimentos deste cliente</h3></div>
@@ -310,7 +310,7 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
               <span className={'w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold '+statusClass(item.status)}>{STATUS[item.status]}</span>
             </article>)}
           </div>
-        </section>
+        </section>}
       </div>
     </div>
   </div>, document.body);
