@@ -128,7 +128,6 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
   const sales=records.filter(item=>item.status==='sale').length;
 
   const[editing,setEditing]=useState(false);
-  const[showDetails,setShowDetails]=useState(false);
   const[saving,setSaving]=useState(false);
   const[feedback,setFeedback]=useState('');
   const[desiredVehicle,setDesiredVehicle]=useState('');
@@ -204,18 +203,6 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
 
       <div className="space-y-5 p-5 md:p-7">
         {feedback&&<div className={'rounded-2xl border px-4 py-3 text-sm '+(feedback.includes('sucesso')?'border-emerald-200 bg-emerald-50 text-emerald-700':'border-amber-200 bg-amber-50 text-amber-800')}>{feedback}</div>}
-        <section className="rounded-[24px] border border-emerald-200 bg-white p-4 md:p-5">
-          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">PRÓXIMA AÇÃO COM O CLIENTE</p>
-          <p className="mt-2 text-sm font-bold text-slate-900">{latest.nextFollowUpAt?'Retorno agendado: '+dateTime(latest.nextFollowUpAt):'Definir e agendar o próximo contato'}</p>
-          <p className="mt-1 text-xs text-slate-500">Interesse: {latest.desiredVehicle||latest.interestModel||'Não informado'} · {STATUS[latest.status]}</p>
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {latest.phone&&<a href={'https://wa.me/'+(String(latest.phone).replace(/\D/g,'').length<=11?'55':'')+String(latest.phone).replace(/\D/g,'')}
-              target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-2 text-xs font-bold text-white"><MessageSquareText size={15}/> WhatsApp</a>}
-            <button type="button" onClick={()=>{setEditing(true);setShowDetails(true);}} className="min-h-11 rounded-xl bg-slate-900 px-2 text-xs font-bold text-white">Agendar / registrar</button>
-            <button type="button" onClick={()=>document.getElementById('motyq-dossier-proposals')?.scrollIntoView({behavior:'smooth',block:'start'})} className="min-h-11 rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700">Propostas</button>
-            <button type="button" onClick={()=>document.getElementById('motyq-dossier-catalog')?.scrollIntoView({behavior:'smooth',block:'start'})} className="min-h-11 rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700">Enviar carros</button>
-          </div>
-        </section>
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Card icon={<Phone size={16}/>} label="Telefone" value={phoneMask(latest.phone)||'Não informado'} />
@@ -224,15 +211,14 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
           <Card icon={<History size={16}/>} label="Atendimentos" value={String(records.length)} hint={sales?String(sales)+' venda(s) registrada(s)':undefined}/>
         </section>
 
-        {showDetails&&<section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Info label="Status atual" value={STATUS[latest.status]} badgeClass={statusClass(latest.status)} />
           <Info label="Origem" value={SOURCE[latest.leadSource||'']||latest.sourceLabel||(latest.origin==='requested'?'Pedido de vendedor':'Passagem de loja')} />
           <Info label="Placa da troca" value={latest.tradeInPlate||'—'} />
           <Info label="Próximo follow-up" value={latest.nextFollowUpAt?dateTime(latest.nextFollowUpAt):'—'} />
-        </section}
+        </section>
 
-        <button type="button" onClick={()=>setShowDetails(v=>!v)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700">{showDetails?'Ocultar dados adicionais':'Ver dados adicionais e histórico'}</button>
-        {showDetails&&(latest.customerEmail||latest.purchaseTimeline||latest.preferredContact||latest.desiredEntry||latest.desiredPayment)&&<section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {(latest.customerEmail||latest.purchaseTimeline||latest.preferredContact||latest.desiredEntry||latest.desiredPayment)&&<section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Info label="E-mail" value={latest.customerEmail||'—'} />
           <Info label="Prazo de compra" value={TIMELINE[latest.purchaseTimeline||'']||'—'} />
           <Info label="Contato preferido" value={CONTACT[latest.preferredContact||'']||'—'} />
@@ -259,10 +245,10 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
           <div className="mt-5 flex justify-end"><button disabled={saving} onClick={save} className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white disabled:opacity-50"><Save size={16}/>{saving?'SALVANDO...':'SALVAR NA FICHA'}</button></div>
         </section>}
 
-        <div id="motyq-dossier-proposals" className="scroll-mt-5"><CrmCommercialProposals lead={current} user={user} stockItems={stockItems}/></div>
-        {stockItems.length > 0 && <div id="motyq-dossier-catalog" className="scroll-mt-5"><CrmPersonalizedCatalog lead={current} user={user} stockItems={stockItems}/></div>}
+        <CrmCommercialProposals lead={current} user={user} stockItems={stockItems}/>
+        {stockItems.length > 0 && <CrmPersonalizedCatalog lead={current} user={user} stockItems={stockItems}/>}
 
-        {showDetails&&<section className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
+        <section className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
           <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2 text-slate-700"><MessageSquareText size={17}/><h3 className="font-semibold">Observações registradas</h3></div>
             <p className="mt-1 text-xs text-slate-400">As novas anotações são acrescentadas sem apagar o que já foi escrito.</p>
@@ -298,9 +284,9 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
               </div>)}
             </div>
           </div>
-        </section>}
+        </section>
 
-        {showDetails&&<section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-slate-700"><Repeat2 size={17}/><h3 className="font-semibold">Todos os atendimentos deste cliente</h3></div>
           <div className="mt-4 space-y-3">
             {records.map(item=><article key={item.id} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[150px_1fr_1fr_120px] md:items-center">
@@ -310,7 +296,7 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
               <span className={'w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold '+statusClass(item.status)}>{STATUS[item.status]}</span>
             </article>)}
           </div>
-        </section>}
+        </section>
       </div>
     </div>
   </div>, document.body);
