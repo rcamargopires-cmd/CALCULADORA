@@ -183,7 +183,7 @@ const SellerDashboard: React.FC<Props> = ({ currentUser, history, onStartNewCalc
   const statusGood = projection >= goal && capture >= goals.capture && (actual === 0 || margin >= goals.margin);
 
   return (
-    <div className="pb-24 md:pb-12 space-y-6 md:space-y-8 animate-fade-in">
+    <div className="motyq-seller-performance pb-24 md:pb-12 space-y-6 md:space-y-8 animate-fade-in">
       <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm text-zinc-500">My Performance · mapa {effectiveRecord.sheetName} · {effectiveRecord.referenceDate}</p>

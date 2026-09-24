@@ -29,6 +29,7 @@ import EvaluationCenter from './EvaluationCenter';
 import EvaluationDecisionBridge from './EvaluationDecisionBridge';
 import EvaluatorWorkspace from './EvaluatorWorkspace';
 import MotyqCRM from './MotyqCRM';
+import MobileSellerQuickActions from './MobileSellerQuickActions';
 
 const Safe = ({ name, children }: { name: string; children: React.ReactNode }) => (
   <ModuleErrorBoundary name={name}>{children}</ModuleErrorBoundary>
@@ -51,6 +52,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => <>
   <Safe name="SellerShowroomAutoReset"><SellerShowroomAutoReset /></Safe>
   {user && ['seller', 'user'].includes(String(user.role)) && <>
     <Safe name="SellerAgendaDock"><SellerAgendaDock /></Safe>
+    <Safe name="MobileSellerQuickActions"><MobileSellerQuickActions /></Safe>
     <Safe name="SellerDeliveryAgendaShortcut"><SellerDeliveryAgendaShortcut /></Safe>
     <Safe name="SellerShowroomHistory"><SellerShowroomHistory user={user}/></Safe>
   </>}

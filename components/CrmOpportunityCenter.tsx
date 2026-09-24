@@ -176,7 +176,7 @@ const CustomerRow: React.FC<{
       {lead.leadTemperature === 'hot' && <span title="Cliente marcado como quente" className="shrink-0 text-orange-600"><Flame size={16}/></span>}
     </div>
     {context && <p className="mt-2 text-[11px] text-slate-500">{context}</p>}
-    <div className="mt-3 flex flex-wrap gap-2">
+    <div className="motyq-opportunity-actions mt-3 flex flex-wrap gap-2">
       <button type="button" onClick={onContact} className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-bold text-white">Registrar contato</button>
       <button type="button" onClick={onOpen} className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-700">Abrir ficha</button>
       {wa && <a href={'https://wa.me/' + wa} target="_blank" rel="noopener noreferrer"

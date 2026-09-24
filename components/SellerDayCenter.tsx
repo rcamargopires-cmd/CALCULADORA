@@ -141,7 +141,7 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
     {label:'Minhas vendas no mês',number:sales ?? '—',hint:sales===null?'Sem mapa do mês': 'Meta: '+goal+' · Mapa '+referenceDate.split('-').reverse().join('/'),color:'bg-slate-100 text-slate-900',icon:<ChartNoAxesCombined size={18}/>},
   ];
 
-  return <section aria-label="Central do Dia do vendedor" className="mb-6 overflow-hidden rounded-[30px] border border-slate-200 bg-[#f7f9fc] p-4 text-slate-900 shadow-sm md:p-7">
+  return <section aria-label="Central do Dia do vendedor" className="motyq-day-center mb-6 overflow-hidden rounded-[30px] border border-slate-200 bg-[#f7f9fc] p-4 text-slate-900 shadow-sm md:p-7">
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="text-[10px] font-black uppercase tracking-[.17em] text-emerald-700">MOTYQ · CENTRAL DO DIA</p>
@@ -161,7 +161,7 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
         <p className="mt-1 text-[11px] opacity-75">{tile.hint}</p>
       </div>)}
     </div>
-    <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
+    <div className="motyq-day-main mt-4 grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
       <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2"><CalendarClock size={17} className="text-amber-700"/><h3 className="font-bold">Prioridades de hoje</h3></div>
@@ -178,7 +178,7 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
             </div>
             <span className={'rounded-full px-2 py-1 text-[10px] font-semibold '+(tone==='red'?'bg-red-50 text-red-700':tone==='amber'?'bg-amber-50 text-amber-800':'bg-blue-50 text-blue-700')}>{label}</span>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="motyq-day-client-actions mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={() => openCrm({action:'contact',leadId:lead.id,tab:'agenda'})} className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-bold text-white">Registrar contato</button>
             <button type="button" onClick={() => openCrm({action:'lead',leadId:lead.id})} className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-700">Abrir ficha</button>
             {waLink(lead.phone)&&<a href={waLink(lead.phone)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-3 py-2 text-[11px] font-bold text-emerald-700"><MessageCircle size={13}/> WhatsApp</a>}
