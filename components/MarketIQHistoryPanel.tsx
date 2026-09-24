@@ -38,7 +38,8 @@ const classTone: Record<MarketIQCommercialClass, string> = {
 const classDestination = (item: MarketIQEvaluation) => item.commercialDestination || (item.commercialClass === 'A' || item.commercialClass === 'B' ? 'SHOWROOM' : item.commercialClass === 'C' ? 'OUTLET' : item.commercialClass ? 'REPASSE' : '');
 
 const readCurrentPlate = () => {
-  const labels = Array.from(document.querySelectorAll('label'));
+  const marketIq = Array.from(document.querySelectorAll('p')).find(node => String(node.textContent || '').includes('MOTYQ MARKETIQ · V2'))?.closest('header')?.parentElement;
+  const labels = Array.from(marketIq?.querySelectorAll('label') || []);
   for (const label of labels) {
     const text = String(label.textContent || '').trim().toUpperCase();
     if (!text.startsWith('PLACA')) continue;
@@ -72,22 +73,19 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId, currentUser
   }, []);
 
   const load = async (plateValue?: string) => {
-    const target = cleanPlate(plateValue || plate || readCurrentPlate());
+    const target = cleanPlate(plateValue ?? plate);
     setPlate(target);
     setSelected(null);
-    if (!target) {
-      setItems([]);
-      setError('Informe a placa na avaliação para consultar o histórico.');
-      return;
-    }
     setLoading(true);
     setError('');
     try {
-      setItems(await marketIqEvaluationService.listByPlate(companyId, storeId, target));
+      setItems(target
+        ? await marketIqEvaluationService.listByPlate(companyId, storeId, target)
+        : await marketIqEvaluationService.listByStore(companyId, storeId));
     } catch (e) {
       console.error('MarketIQ history load failed', e);
       setItems([]);
-      setError('Não foi possível carregar o histórico desta placa.');
+      setError('Não foi possível carregar as avaliações da unidade.');
     } finally {
       setLoading(false);
     }
@@ -140,7 +138,7 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId, currentUser
 
   return <>
     {visible && !open && <button
-      onClick={() => { setOpen(true); void load(readCurrentPlate()); }}
+      onClick={() => { const current=readCurrentPlate(); setOpen(true); void load(current); }}
       className="fixed right-[74px] top-[27px] z-[625] flex h-10 items-center gap-2 rounded-xl border border-cyan-300/20 bg-[#11191b]/95 px-3 text-xs font-bold text-cyan-200 shadow-xl backdrop-blur hover:border-cyan-300/40"
       title="Histórico de avaliações MarketIQ"
     ><History size={15}/>HISTÓRICO</button>}
@@ -150,25 +148,35 @@ const MarketIQHistoryPanel: React.FC<Props> = ({ companyId, storeId, currentUser
         <header className="flex items-start justify-between border-b border-white/10 p-5 md:p-6">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.18em] text-cyan-300">MOTYQ MARKETIQ · HISTÓRICO</p>
-            <h3 className="mt-1 text-xl font-semibold">Avaliações da placa {plate || '—'}</h3>
+            <h3 className="mt-1 text-xl font-semibold">{plate ? `Avaliações da placa ${plate}` : 'Histórico de avaliações da unidade'}</h3>
             <p className="mt-1 text-sm text-zinc-500">Histórico permanente da unidade ativa{isAdmin ? ' · administrador pode excluir registros' : ''}</p>
           </div>
           <button onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 text-zinc-400 hover:text-white"><X size={18}/></button>
         </header>
 
         <div className="p-4 md:p-6">
+          <form onSubmit={event => {event.preventDefault();void load(plate);}} className="mb-4 flex flex-wrap items-end gap-2">
+            <label className="min-w-[180px] flex-1 text-xs font-semibold text-zinc-500">
+              Pesquisar pela placa
+              <input value={plate} onChange={event=>setPlate(cleanPlate(event.target.value).slice(0,7))}
+                maxLength={7} placeholder="Digite a placa" autoComplete="off"
+                className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 font-mono text-sm font-bold uppercase text-slate-800 outline-none focus:border-cyan-500"/>
+            </label>
+            <button type="submit" className="h-11 rounded-xl bg-cyan-700 px-4 text-xs font-bold text-white">BUSCAR</button>
+            <button type="button" onClick={()=>void load('')} className="h-11 rounded-xl border border-slate-200 px-4 text-xs font-bold text-slate-700">VER TODAS</button>
+          </form>
           {!!notice && <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[.06] px-4 py-3 text-sm font-semibold text-emerald-200">{notice}</div>}
           {loading && <div className="rounded-2xl border border-white/10 bg-white/[.025] p-5 text-sm text-zinc-400">Carregando avaliações...</div>}
           {!loading && error && <div className="rounded-2xl border border-amber-300/15 bg-amber-300/[.04] p-5 text-sm text-amber-100">{error}</div>}
-          {!loading && !error && !items.length && <div className="rounded-2xl border border-white/10 bg-white/[.025] p-5 text-sm text-zinc-400">Ainda não existe avaliação salva para esta placa.</div>}
+          {!loading && !error && !items.length && <div className="rounded-2xl border border-white/10 bg-white/[.025] p-5 text-sm text-zinc-400">{plate ? 'Ainda não existe avaliação salva para esta placa.' : 'Ainda não existem avaliações salvas nesta unidade.'}</div>}
 
           {!loading && rows.length > 0 && <div className="space-y-3">
             {rows.map(({ item, index, buyDelta, fipeDelta }) => <div key={item.id} className={`rounded-2xl border p-4 ${index === 0 ? 'border-cyan-300/25 bg-cyan-300/[.035]' : 'border-white/10 bg-white/[.02]'}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <strong className="text-base">{item.vehicle || 'Veículo sem descrição'}</strong>
-                    {index === 0 && <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[.05] px-2 py-0.5 text-[9px] font-black uppercase text-cyan-300">ÚLTIMA</span>}
+                    <strong className="text-base">{item.plate} · {item.vehicle || 'Veículo sem descrição'}</strong>
+                    {index === 0 && plate && <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[.05] px-2 py-0.5 text-[9px] font-black uppercase text-cyan-300">ÚLTIMA</span>}
                     <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${statusTone(item.status)}`}>{statusLabel(item.status)}</span>
                     {item.commercialClass && <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black ${classTone[item.commercialClass]}`}>{item.commercialClass} · {classDestination(item)}</span>}
                     {!!item.photos?.length && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.04] px-2 py-0.5 text-[9px] font-black text-amber-200">{item.photos.length} FOTO(S)</span>}
