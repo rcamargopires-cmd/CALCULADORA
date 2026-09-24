@@ -100,7 +100,7 @@ const StockCapitalControl:React.FC<Props>=({user,stock,history})=>{
       {sharedLoading&&source==='shared'&&<span className="text-xs text-slate-500">Carregando base compartilhada...</span>}
       {sharedError&&source==='shared'&&<span className="text-xs text-amber-700">{sharedError}</span>}
     </div>
-    {sharedActive&&<p className="mt-2 rounded-xl bg-cyan-50 p-3 text-xs text-cyan-900">
+    {sharedActive&&shared&&<p className="mt-2 rounded-xl bg-cyan-50 p-3 text-xs text-cyan-900">
       Fonte: {shared.sourceFile||'arquivo não informado'} · Atualizado: {shared.sourceUpdatedAt||shared.importedAt||'não informado'} · {shared.items.length} veículos no grupo.
       Os totais abaixo consideram a localização selecionada.</p>}
     {sharedActive&&unit==='OUTLET'&&<p className="mt-2 text-xs text-slate-600">Filtro exato: <strong>Localização = OUTLET</strong>. “Estoque Atual” identifica a empresa detentora (por exemplo, ABRAO REPASSE).</p>
