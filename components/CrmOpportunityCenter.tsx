@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CalendarClock, CarFront, CheckCircle2, Clock3, Flame, MessageCircle,
   Radar, UserRound, X
@@ -79,7 +80,7 @@ const dateBucket = (lead: ShowroomPassage, start: number, end: number) => {
     ? 'idle' : 'no_due';
 };
 
-const QuickContact: React.FC<{
+export const QuickContact: React.FC<{
   lead: ShowroomPassage;
   user: User;
   onClose: () => void;
@@ -115,7 +116,7 @@ const QuickContact: React.FC<{
     }
   };
 
-  return <div className="fixed inset-0 z-[660] grid place-items-center overflow-y-auto bg-slate-950/65 p-3" onClick={onClose}>
+  return createPortal(<div className="fixed inset-0 z-[660] grid place-items-center overflow-y-auto bg-slate-950/65 p-3" onClick={onClose}>
     <div className="w-full max-w-lg rounded-[26px] border border-slate-200 bg-white p-5 shadow-2xl md:p-6" onClick={e => e.stopPropagation()}>
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -155,7 +156,7 @@ const QuickContact: React.FC<{
         {saving ? 'SALVANDO...' : 'REGISTRAR ATENDIMENTO'}
       </button>
     </div>
-  </div>;
+  </div>, document.body);
 };
 
 const CustomerRow: React.FC<{

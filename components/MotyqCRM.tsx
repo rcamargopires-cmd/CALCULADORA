@@ -13,7 +13,8 @@ import { auth } from '../firebase';
 import { GroupStockItem, groupStockService } from '../services/groupStockService';
 import { CrmStockMatch, matchGroupStock } from '../services/crmStockMatchService';
 import CustomerAttendanceDossier from './CustomerAttendanceDossier';
-import CrmOpportunityCenter from './CrmOpportunityCenter';
+import CrmOpportunityCenter, { QuickContact } from './CrmOpportunityCenter';
+import CrmMyPortfolio from './CrmMyPortfolio';
 
 type Props={user:User};
 type Column={status:ShowroomPassageStatus;label:string;hint:string};
@@ -92,6 +93,8 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const[onlyMine,setOnlyMine]=useState(false);
   const[createOpen,setCreateOpen]=useState(false);
   const[selectedCustomer,setSelectedCustomer]=useState<ShowroomPassage|null>(null);
+  const[quickContact,setQuickContact]=useState<ShowroomPassage|null>(null);
+  const[showAdvanced,setShowAdvanced]=useState(false);
   const[busyId,setBusyId]=useState('');
   const[draggedLeadId,setDraggedLeadId]=useState('');
   const[dragOverStatus,setDragOverStatus]=useState<ShowroomPassageStatus|null>(null);
@@ -139,11 +142,12 @@ const MotyqCRM:React.FC<Props>=({user})=>{
     const receive=(event:Event)=>{
       const detail=(event as CustomEvent<{action?:'lead'|'contact';leadId?:string;tab?:'agenda'|'stock'}>).detail||{};
       setDashboardRequest({nonce:Date.now(),...detail});
+      if(isSeller&&detail.action==='contact'&&detail.leadId){const lead=items.find(item=>item.id===detail.leadId);if(lead)setQuickContact(lead);}
       setOpen(true);
     };
     window.addEventListener('motyq:open-crm',receive);
     return()=>window.removeEventListener('motyq:open-crm',receive);
-  },[]);
+  },[items,isSeller]);
 
   useEffect(()=>{
     if(dashboardRequest?.action!=='lead'||!dashboardRequest.leadId)return;
@@ -402,6 +406,10 @@ const MotyqCRM:React.FC<Props>=({user})=>{
         </header>
 
         <div className="space-y-5 p-4 md:p-6">
+          {isSeller&&<CrmMyPortfolio items={items} stock={groupStock}
+            onOpen={setSelectedCustomer} onContact={setQuickContact} onAdvanced={()=>setShowAdvanced(true)}/>}
+          {(!isSeller||showAdvanced)&&<>
+          {isSeller&&<button type="button" onClick={()=>setShowAdvanced(false)} className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-xs font-bold text-emerald-700">← Voltar à minha carteira</button>}
           <section className="grid gap-3 md:grid-cols-4">
             <Metric label="Leads ativos" value={metrics.active} icon={<UsersRound size={17}/>} />
             <Metric label="Follow-ups atrasados" value={metrics.overdue} icon={<CalendarClock size={17}/>} alert={metrics.overdue>0}/>
@@ -494,9 +502,11 @@ const MotyqCRM:React.FC<Props>=({user})=>{
               })}
             </div>
           </section>
+          </>}
         </div>
       </div>
 
+      {quickContact&&<QuickContact key={quickContact.id} lead={items.find(item=>item.id===quickContact.id)||quickContact} user={user} onClose={()=>setQuickContact(null)} onSaved={msg=>{setQuickContact(null);setMessage(msg);}}/>}
       {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} stockItems={groupStock} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
       {selectedCustomer&&<CustomerAttendanceDossier selected={selectedCustomer} items={items} user={user} stockItems={groupStock} onClose={()=>setSelectedCustomer(null)} />}
     </div>}
