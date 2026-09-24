@@ -30,6 +30,7 @@ import EvaluationDecisionBridge from './EvaluationDecisionBridge';
 import EvaluatorWorkspace from './EvaluatorWorkspace';
 import MotyqCRM from './MotyqCRM';
 import MobileSellerQuickActions from './MobileSellerQuickActions';
+import SellerMobileHome from './SellerMobileHome';
 
 const Safe = ({ name, children }: { name: string; children: React.ReactNode }) => (
   <ModuleErrorBoundary name={name}>{children}</ModuleErrorBoundary>
@@ -53,6 +54,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => <>
   {user && ['seller', 'user'].includes(String(user.role)) && <>
     <Safe name="SellerAgendaDock"><SellerAgendaDock /></Safe>
     <Safe name="MobileSellerQuickActions"><MobileSellerQuickActions /></Safe>
+    <Safe name="SellerMobileHome"><SellerMobileHome /></Safe>
     <Safe name="SellerDeliveryAgendaShortcut"><SellerDeliveryAgendaShortcut /></Safe>
     <Safe name="SellerShowroomHistory"><SellerShowroomHistory user={user}/></Safe>
   </>}
