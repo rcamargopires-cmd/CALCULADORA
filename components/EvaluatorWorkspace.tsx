@@ -6,6 +6,7 @@ import { User } from '../types';
 import { companyIdForUser } from '../services/companyService';
 import { storeIdForUser } from '../services/storeService';
 import { EvaluationQueueRequest, evaluationQueueService } from '../services/evaluationQueueService';
+import EvaluatorHistory from './EvaluatorHistory';
 
 const ACTIVE_EVALUATION_REQUEST_KEY = 'motyq:active-evaluation-request-v2';
 const money = (value?: number) => typeof value === 'number' && Number.isFinite(value)
@@ -143,6 +144,7 @@ const EvaluatorWorkspace: React.FC<{ user: User }> = ({ user }) => {
           </div>}
         </div>
       </section>
+      <EvaluatorHistory companyId={companyId} storeId={storeId}/>
     </main>
   </div>;
 };
