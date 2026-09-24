@@ -150,6 +150,14 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   },[items,isSeller]);
 
   useEffect(()=>{
+    if(!isSeller||dashboardRequest?.action!=='contact'||!dashboardRequest.leadId)return;
+    const customer=items.find(item=>item.id===dashboardRequest.leadId);
+    if(!customer)return;
+    setQuickContact(customer);
+    setDashboardRequest(current=>current?.nonce===dashboardRequest.nonce?{...current,action:undefined}:current);
+  },[items,dashboardRequest,isSeller]);
+
+  useEffect(()=>{
     if(dashboardRequest?.action!=='lead'||!dashboardRequest.leadId)return;
     const customer=items.find(item=>item.id===dashboardRequest.leadId);
     if(!customer)return;
