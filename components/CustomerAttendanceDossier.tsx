@@ -229,7 +229,7 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
           <Info label="Origem" value={SOURCE[latest.leadSource||'']||latest.sourceLabel||(latest.origin==='requested'?'Pedido de vendedor':'Passagem de loja')} />
           <Info label="Placa da troca" value={latest.tradeInPlate||'—'} />
           <Info label="Próximo follow-up" value={latest.nextFollowUpAt?dateTime(latest.nextFollowUpAt):'—'} />
-        </section>
+        </section}
 
         <button type="button" onClick={()=>setShowDetails(v=>!v)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700">{showDetails?'Ocultar dados adicionais':'Ver dados adicionais e histórico'}</button>
         {showDetails&&(latest.customerEmail||latest.purchaseTimeline||latest.preferredContact||latest.desiredEntry||latest.desiredPayment)&&<section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
