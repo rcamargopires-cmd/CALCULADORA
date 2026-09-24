@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CarFront, Clock3, FileText, History, Mail, MessageSquareText, PencilLine,
   Phone, Repeat2, Save, UserRound, WalletCards, X
@@ -181,7 +182,7 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
     }finally{setSaving(false);}
   };
 
-  return <div className="fixed inset-0 z-[640] overflow-y-auto bg-slate-950/65 p-3 backdrop-blur-sm md:p-6" onClick={onClose}>
+  return createPortal(<div className="fixed inset-0 z-[640] overflow-y-auto bg-slate-950/65 p-3 backdrop-blur-sm md:p-6" onClick={onClose}>
     <div className="mx-auto max-w-6xl overflow-hidden rounded-[30px] border border-slate-200 bg-[#f7f9fc] shadow-2xl" onClick={event=>event.stopPropagation()}>
       <header className="flex flex-col gap-4 border-b border-slate-200 bg-white p-5 md:flex-row md:items-start md:justify-between md:p-7">
         <div className="flex gap-3">
@@ -298,7 +299,7 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
         </section>
       </div>
     </div>
-  </div>;
+  </div>, document.body);
 };
 
 const Card=({icon,label,value,hint}:{icon:React.ReactNode;label:string;value:string;hint?:string})=><div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mb-3 grid h-8 w-8 place-items-center rounded-xl bg-slate-100 text-slate-600">{icon}</div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">{label}</p><p className="mt-1 break-words text-base font-semibold text-slate-900">{value}</p>{hint&&<p className="mt-1 text-[11px] text-slate-400">{hint}</p>}</div>;
