@@ -52,9 +52,9 @@ const StockCapitalControl:React.FC<Props>=({user,stock,history})=>{
   const latestReference=reference&&reference<=today?reference:today;
   const ageOfSource=reference&&reference<=today?Math.max(0,Math.round((new Date(today+'T12:00:00').getTime()-new Date(reference+'T12:00:00').getTime())/86400000)):0;
   const observed=historyPoints.map(point=>({date:point.referenceDate,imported:point.stockValue,projected:null as number|null}));
-  const projection=Array.from({length:range+1},(_,index)=>({date:dayAfter(latestReference,index),imported:null as number|null,
+  const projection=Array.from({length:range+1},(_,index)=>({date:dayAfter(today,index),imported:null as number|null,
     projected:totalCost+totalCapital+totalDaily*(ageOfSource+index)}));
-  const chart=[...observed.filter(item=>item.date<latestReference),...projection];
+  const chart=[...observed.filter(item=>item.date<today),...projection];
   const hasActual=observed.length>0;
 
   if(!['manager','admin'].includes(user.role))return null;
