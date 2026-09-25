@@ -8,6 +8,7 @@ import type { GroupStockItem } from '../services/groupStockService';
 import { isGroupStockAvailable, matchGroupStock } from '../services/crmStockMatchService';
 import { showroomFlowService } from '../services/showroomFlowService';
 import type { ShowroomPassage, User } from '../types';
+import {requestCrmWhatsApp} from './CrmWhatsAppComposer';
 
 type ContactResult = 'talked' | 'no_answer' | 'visit' | 'proposal' | 'advanced';
 type Props = {
@@ -180,8 +181,8 @@ const CustomerRow: React.FC<{
     <div className="motyq-opportunity-actions mt-3 flex flex-wrap gap-2">
       <button type="button" onClick={onContact} className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-bold text-white">Registrar contato</button>
       <button type="button" onClick={onOpen} className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-700">Abrir ficha</button>
-      {wa && <a href={'https://wa.me/' + wa} target="_blank" rel="noopener noreferrer"
-        className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-700"><MessageCircle size={13}/> WhatsApp</a>}
+      {wa && <button type="button" onClick={()=>requestCrmWhatsApp(lead,lead.status==='proposal'?'proposal':'auto')}
+        className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-700"><MessageCircle size={13}/> WhatsApp</button>}
     </div>
   </div>;
 };

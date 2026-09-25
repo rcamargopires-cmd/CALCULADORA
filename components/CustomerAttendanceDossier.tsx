@@ -9,6 +9,7 @@ import { showroomFlowService } from '../services/showroomFlowService';
 import type { GroupStockItem } from '../services/groupStockService';
 import CrmCommercialProposals from './CrmCommercialProposals';
 import CrmPersonalizedCatalog from './CrmPersonalizedCatalog';
+import {requestCrmWhatsApp} from './CrmWhatsAppComposer';
 
 type Props={selected:ShowroomPassage;items:ShowroomPassage[];user:User;stockItems?:GroupStockItem[];onClose:()=>void;onContact?: (lead:ShowroomPassage)=>void;};
 
@@ -213,8 +214,8 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
           <p className="mt-1 text-sm font-semibold text-slate-900">{latest.nextFollowUpAt?'Retornar: '+dateTime(latest.nextFollowUpAt):'Definir e agendar o próximo contato'}</p>
           <p className="mt-1 text-xs text-slate-500">{latest.desiredVehicle||latest.interestModel||'Interesse ainda não informado'} · {STATUS[latest.status]}</p>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {cleanPhone(latest.phone).length>=10&&<a href={'https://wa.me/'+(cleanPhone(latest.phone).length<=11?'55':'')+cleanPhone(latest.phone)}
-              target="_blank" rel="noopener noreferrer" className="grid min-h-11 place-items-center rounded-xl bg-emerald-600 px-2 text-xs font-bold text-white">WhatsApp</a>}
+            {cleanPhone(latest.phone).length>=10&&<button type="button" onClick={()=>requestCrmWhatsApp(latest,latest.status==='proposal'?'proposal':'auto')}
+              className="grid min-h-11 place-items-center rounded-xl bg-emerald-600 px-2 text-xs font-bold text-white">WhatsApp</button>}
             {onContact&&<button type="button" onClick={()=>onContact(latest)} className="min-h-11 rounded-xl bg-slate-900 px-2 text-xs font-bold text-white">Registrar contato</button>}
             <button type="button" onClick={()=>setEditing(true)} className="min-h-11 rounded-xl border border-slate-200 px-2 text-xs font-bold text-slate-700">Agendar / editar</button>
             <button type="button" onClick={()=>document.getElementById('motyq-dossier-proposals')?.scrollIntoView({behavior:'smooth'})} className="min-h-11 rounded-xl border border-slate-200 px-2 text-xs font-bold text-slate-700">Nova proposta</button>

@@ -10,6 +10,7 @@ import { isGroupStockAvailable, matchGroupStock } from '../services/crmStockMatc
 import { companyScopeService } from '../services/companyScopeService';
 import { storeScopeService } from '../services/storeScopeService';
 import { sellerPerformanceService } from '../services/sellerPerformanceService';
+import { requestCrmWhatsApp } from './CrmWhatsAppComposer';
 
 type Props = { user: User; onStartNewCalculation: () => void };
 type Navigation = { action?: 'lead' | 'contact'; leadId?: string; tab?: 'agenda' | 'stock' };
@@ -181,7 +182,8 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
           <div className="motyq-day-client-actions mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={() => openCrm({action:'contact',leadId:lead.id,tab:'agenda'})} className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-bold text-white">Registrar contato</button>
             <button type="button" onClick={() => openCrm({action:'lead',leadId:lead.id})} className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-700">Abrir ficha</button>
-            {waLink(lead.phone)&&<a href={waLink(lead.phone)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-3 py-2 text-[11px] font-bold text-emerald-700"><MessageCircle size={13}/> WhatsApp</a>}
+            {waLink(lead.phone)&&<button type="button" onClick={()=>requestCrmWhatsApp(lead,lead.status==='proposal'?'proposal':label.startsWith('Retorno hoje')?'today':'follow_up')}
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-3 py-2 text-[11px] font-bold text-emerald-700"><MessageCircle size={13}/> WhatsApp</button>}
           </div>
         </article>)}
         {priorities.length>4 && <button type="button" onClick={() => openCrm({tab:'agenda'})} className="mt-2 text-xs font-bold text-emerald-700">Ver mais {priorities.length-4} prioridade(s) no CRM</button>}

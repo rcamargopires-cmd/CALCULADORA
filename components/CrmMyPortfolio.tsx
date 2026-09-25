@@ -3,6 +3,7 @@ import {ArrowRight,CalendarClock,CarFront,CheckCircle2,ClipboardList,MessageCirc
 import type {GroupStockItem} from '../services/groupStockService';
 import type {ShowroomPassage} from '../types';
 import {matchGroupStock} from '../services/crmStockMatchService';
+import {requestCrmWhatsApp} from './CrmWhatsAppComposer';
 
 type Tab='late'|'today'|'cars'|'proposal'|'all';
 type Props={items:ShowroomPassage[];stock:GroupStockItem[];onOpen:(lead:ShowroomPassage)=>void;onContact:(lead:ShowroomPassage)=>void;onAdvanced:()=>void};
@@ -65,8 +66,8 @@ const Mine:React.FC<Props>=({items,stock,onOpen,onContact,onAdvanced})=>{
           </div><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-emerald-700">{item.status==='proposal'?'Em proposta':item.status==='sale'?'Vendido':item.status==='no_deal'?'Encerrado':'Em atendimento'}</span></div>
           {tab==='cars'&&(matches.get(item.id)||[]).length>0&&<p className="mt-2 text-xs font-semibold text-emerald-800">{matches.get(item.id)!.length} sugestão(ões) no estoque. Confira disponibilidade e reservas antes de enviar.</p>}
           <div className="mt-3 grid grid-cols-3 gap-2">
-            {wa?<a href={'https://wa.me/'+wa} target="_blank" rel="noopener noreferrer"
-              className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl bg-emerald-600 px-1 text-[11px] font-bold text-white"><MessageCircle size={14}/> WhatsApp</a>
+            {wa?<button type="button" onClick={()=>requestCrmWhatsApp(item,tab==='cars'?'stock':tab==='proposal'?'proposal':tab==='today'?'today':'follow_up',(matches.get(item.id)||[])[0]?.item)}
+              className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl bg-emerald-600 px-1 text-[11px] font-bold text-white"><MessageCircle size={14}/> WhatsApp</button>
               :<span className="grid min-h-10 place-items-center rounded-xl bg-slate-100 text-[10px] text-slate-400">Sem telefone</span>}
             <button type="button" onClick={()=>onContact(item)} className="min-h-10 rounded-xl bg-slate-900 px-1 text-[11px] font-bold text-white">Registrar contato</button>
             <button type="button" onClick={()=>onOpen(item)} className="min-h-10 rounded-xl border border-slate-300 bg-white px-1 text-[11px] font-bold text-slate-700">Abrir ficha</button>

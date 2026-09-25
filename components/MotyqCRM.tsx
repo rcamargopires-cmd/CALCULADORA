@@ -15,6 +15,7 @@ import { CrmStockMatch, matchGroupStock } from '../services/crmStockMatchService
 import CustomerAttendanceDossier from './CustomerAttendanceDossier';
 import CrmOpportunityCenter, { QuickContact } from './CrmOpportunityCenter';
 import CrmMyPortfolio from './CrmMyPortfolio';
+import CrmWhatsAppComposerHost, { requestCrmWhatsApp } from './CrmWhatsAppComposer';
 
 type Props={user:User};
 type Column={status:ShowroomPassageStatus;label:string;hint:string};
@@ -396,6 +397,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
 
   return <>
     {navButton}
+    <CrmWhatsAppComposerHost user={user}/>
     {open&&<div className="fixed inset-0 z-[610] overflow-y-auto bg-slate-950/55 p-2 backdrop-blur-sm md:p-5" onClick={()=>setOpen(false)}>
       <div className="mx-auto min-h-[90vh] max-w-[1780px] overflow-hidden rounded-[30px] border border-slate-200 bg-[#f5f7fb] shadow-2xl" onClick={e=>e.stopPropagation()}>
         <header className="sticky top-0 z-20 flex flex-col gap-4 border-b border-slate-200 bg-white/95 p-5 backdrop-blur md:flex-row md:items-center md:justify-between md:px-7">
@@ -538,7 +540,7 @@ const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onDragStart,on
       {item.nextFollowUpAt&&<p className={`flex items-center gap-2 ${overdue?'font-semibold text-red-700':''}`}><CalendarClock size={13}/><span>{overdue?'Atrasado · ':''}{new Date(item.nextFollowUpAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span></p>}
     </div>
     <div className="mt-3 grid grid-cols-2 gap-2">
-      {wa?<button type="button" onClick={()=>window.open(wa,'_blank','noopener,noreferrer')} className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-2 text-[11px] font-bold text-emerald-700"><MessageCircle size={13}/> WhatsApp</button>:<div/>}
+      {wa?<button type="button" onClick={()=>requestCrmWhatsApp(item,'auto',matches[0]?.item)} className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-2 text-[11px] font-bold text-emerald-700"><MessageCircle size={13}/> WhatsApp</button>:<div/>}
       <select disabled={busy} value={item.status} onChange={e=>onMove(e.target.value as ShowroomPassageStatus)} title="Mover etapa" className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-700 outline-none md:hidden">
         {COLUMNS.map(col=><option key={col.status} value={col.status}>{col.label}</option>)}
       </select>
