@@ -42,6 +42,14 @@ const turboOf=(value:string)=>{
  return /\b(tb|turbo)\b/.test(normalized);
 };
 const manualHintOf=(value:string)=>/\b\d[\.,]\d\s*m\b/i.test(String(value||''))||/\bmec\b|\bmanual\b/i.test(String(value||''));
+const engineOf=(value:string)=>{
+ const match=String(value||'').toLowerCase().replace(',','.').match(/(\d)\.(\d)/);
+ return match?Number(match[1]+'.'+match[2]):0;
+};
+const comfortFamilyOf=(value:string)=>{
+ const normalized=' '+cleanBase(value)+' ';
+ return /\bcomf(?:ort)?\b/.test(normalized)||/\bc\s+plus\b/.test(normalized)||/\bc\s+style\b/.test(normalized)||/\bcomfort\s+plus\b/.test(normalized);
+};
 
 async function resolveByFipeCode(fipeCode:string,year:string){
  const code=normalizeFipeCode(fipeCode);
@@ -91,6 +99,8 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
  const targetTrim=targetTrimOf(input.model);
  const targetTurbo=turboOf(input.model);
  const targetManual=manualHintOf(input.model);
+ const targetEngine=engineOf(input.model);
+ const targetComfort=comfortFamilyOf(input.model);
  const ranked=models.map(item=>{
    const name=getName(item);
    const candidateTokens=tokens(name);
@@ -103,7 +113,11 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
    const candidateTurbo=turboOf(name);
    const turboScore=targetTurbo===candidateTurbo?0.18:(candidateTurbo&&!targetTurbo?-0.85:-0.45);
    const manualPenalty=targetManual&&/\baut\b|\bautomatico\b/.test(clean(name))?-0.75:0;
-   return {item,name,total:base+familyBonus+exactPhrase+trimBonus+trimPenalty+turboScore+manualPenalty,base,candidateTrim};
+   const candidateEngine=engineOf(name);
+   const engineScore=targetEngine&&candidateEngine?(Math.abs(targetEngine-candidateEngine)<0.01?0.95:-1.35):0;
+   const candidateComfort=comfortFamilyOf(name);
+   const comfortScore=targetComfort?(candidateComfort?0.55:-0.45):0;
+   return {item,name,total:base+familyBonus+exactPhrase+trimBonus+trimPenalty+turboScore+manualPenalty+engineScore+comfortScore,base,candidateTrim};
  }).sort((a,b)=>b.total-a.total);
  const candidates=ranked.filter(row=>row.total>=0.45&&(!targetTrim||tokens(row.name).includes(targetTrim))).slice(0,8);
  if(!candidates.length)return null;
@@ -134,7 +148,11 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
      const detailTurbo=turboOf(detailModel);
      const turboScore=targetTurbo===detailTurbo?0.18:(detailTurbo&&!targetTurbo?-0.85:-0.45);
      const manualPenalty=targetManual&&/\baut\b|\bautomatico\b/.test(clean(detailModel))?-0.75:0;
-     const total=modelScore+fuelScore+yearScore+exactBonus+trimScore+turboScore+manualPenalty;
+     const detailEngine=engineOf(detailModel);
+     const engineScore=targetEngine&&detailEngine?(Math.abs(targetEngine-detailEngine)<0.01?0.95:-1.35):0;
+     const detailComfort=comfortFamilyOf(detailModel);
+     const comfortScore=targetComfort?(detailComfort?0.55:-0.45):0;
+     const total=modelScore+fuelScore+yearScore+exactBonus+trimScore+turboScore+manualPenalty+engineScore+comfortScore;
      if(!best||total>best.total)best={detail,total,modelScore};
    }
  }
