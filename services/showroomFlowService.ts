@@ -283,7 +283,7 @@ export const showroomFlowService={
 
   recordCrmContact:async(input:{
     id:string;
-    result:'talked'|'no_answer'|'visit'|'proposal'|'advanced';
+    result:'talked'|'no_answer'|'visit'|'proposal'|'advanced'|'sale'|'bought_elsewhere'|'gave_up'|'not_interested';
     note?:string;
     nextFollowUpAt?:string;
     actor:{email:string;name:string};
@@ -294,6 +294,10 @@ export const showroomFlowService={
       visit:'Visita agendada',
       proposal:'Proposta enviada',
       advanced:'Negociação avançou',
+      sale:'Comprou conosco',
+      bought_elsewhere:'Comprou em outro lugar',
+      gave_up:'Desistiu da compra',
+      not_interested:'Não tem mais interesse',
     };
     if(!labels[input.result])throw new Error('Selecione o resultado do contato.');
     const note=String(input.note||'').trim().slice(0,1200);
@@ -306,9 +310,13 @@ export const showroomFlowService={
       if(!snap.exists())throw new Error('Atendimento não encontrado.');
       const current=normalizePassage(snap.data());
       if(!isVisiblePassage(current)||['sale','no_deal'].includes(current.status))throw new Error('Atendimento encerrado.');
-      const nextStatus=input.result==='proposal'?'proposal':input.result==='visit'&&current.status==='waiting'?'in_service':current.status;
+      const isSale=input.result==='sale';
+      const isLoss=['bought_elsewhere','gave_up','not_interested'].includes(input.result);
+      const isClosed=isSale||isLoss;
+      const nextStatus:ShowroomPassageStatus=isSale?'sale':isLoss?'no_deal':input.result==='proposal'?'proposal':input.result==='visit'&&current.status==='waiting'?'in_service':current.status;
+      const lossReason=input.result==='bought_elsewhere'?'Comprou em outro lugar':input.result==='gave_up'?'Desistiu da compra':input.result==='not_interested'?'Não tem mais interesse':'';
       const event:ShowroomPassageActivity={
-        id:auditId(),type:'contact',at:timestamp,label:labels[input.result],
+        id:auditId(),type:isClosed?'closed':'contact',at:timestamp,label:labels[input.result],
         details:note,status:nextStatus,
         byEmail:input.actor.email||'',byName:input.actor.name||'',
       };
@@ -321,7 +329,9 @@ export const showroomFlowService={
         lastContactAttemptAt:timestamp,
         ...(input.result!=='no_answer'?{lastContactAt:timestamp}:{}),
         lastContactOutcome:input.result,
-        nextFollowUpAt:follow,
+        nextFollowUpAt:isClosed?'':follow,
+        ...(isClosed?{closedAt:timestamp}:{}),
+        ...(isLoss?{lostReason:lossReason}:{}),
         notes:nextNotes,
         activityHistory:[...history,event].slice(-150),
         updatedAt:timestamp,

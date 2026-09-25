@@ -10,7 +10,7 @@ import { showroomFlowService } from '../services/showroomFlowService';
 import type { ShowroomPassage, User } from '../types';
 import {requestCrmWhatsApp} from './CrmWhatsAppComposer';
 
-type ContactResult = 'talked' | 'no_answer' | 'visit' | 'proposal' | 'advanced';
+type ContactResult = 'talked' | 'no_answer' | 'visit' | 'proposal' | 'advanced' | 'sale' | 'bought_elsewhere' | 'gave_up' | 'not_interested';
 type Props = {
   user: User;
   items: ShowroomPassage[];
@@ -22,12 +22,16 @@ type Props = {
 };
 type VehicleOpportunity = { vehicle: GroupStockItem; leads: ShowroomPassage[] };
 
-const CONTACT_RESULTS: { value: ContactResult; label: string }[] = [
-  { value: 'talked', label: 'Conversei com o cliente' },
+const CONTACT_RESULTS: { value: ContactResult; label: string; closing?: boolean; tone?: 'sale'|'loss' }[] = [
+  { value: 'talked', label: 'Conversei, continuar atendimento' },
   { value: 'no_answer', label: 'Não respondeu' },
   { value: 'visit', label: 'Agendou visita' },
-  { value: 'proposal', label: 'Enviei proposta' },
+  { value: 'proposal', label: 'Quer / recebeu proposta' },
   { value: 'advanced', label: 'Negociação avançou' },
+  { value: 'sale', label: 'Comprou conosco', closing: true, tone: 'sale' },
+  { value: 'bought_elsewhere', label: 'Comprou em outro lugar', closing: true, tone: 'loss' },
+  { value: 'gave_up', label: 'Desistiu da compra', closing: true, tone: 'loss' },
+  { value: 'not_interested', label: 'Não tem mais interesse', closing: true, tone: 'loss' },
 ];
 const activeLead = (lead: ShowroomPassage) =>
   lead.status !== 'sale' && lead.status !== 'no_deal';
@@ -98,6 +102,8 @@ export const QuickContact: React.FC<{
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const selectedOption = CONTACT_RESULTS.find(option => option.value === result);
+  const isClosing = Boolean(selectedOption?.closing);
 
   const submit = async () => {
     if (!result || saving) return;
@@ -109,7 +115,9 @@ export const QuickContact: React.FC<{
         nextFollowUpAt: followUp ? new Date(followUp).toISOString() : '',
         actor: { email: user.email, name: user.name },
       });
-      onSaved('Contato de ' + (lead.customerName || 'cliente') + ' registrado na ficha.');
+      onSaved(isClosing
+        ? ((result==='sale'?'Venda registrada. ':'Cliente encerrado. ') + (lead.customerName || 'Cliente') + ' saiu das tarefas ativas.')
+        : ('Contato de ' + (lead.customerName || 'cliente') + ' registrado na ficha.'));
     } catch (e: any) {
       setError(e?.message || 'Não foi possível registrar o contato.');
     } finally {
@@ -128,33 +136,44 @@ export const QuickContact: React.FC<{
         <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Fechar"><X size={18}/></button>
       </div>
 
-      <p className="mb-2 mt-5 text-xs font-bold text-slate-700">Qual foi o resultado?</p>
+      <p className="mb-2 mt-5 text-xs font-bold text-slate-700">O que aconteceu?</p>
       <div className="grid gap-2 sm:grid-cols-2">
-        {CONTACT_RESULTS.map(option => <button
-          key={option.value} type="button" disabled={saving}
-          onClick={() => setResult(option.value)}
-          className={'rounded-xl border px-3 py-3 text-left text-xs font-semibold transition ' +
-            (result === option.value
-              ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}
-        >{option.label}</button>)}
+        {CONTACT_RESULTS.map(option => {
+          const selected=result===option.value;
+          const activeClass=option.tone==='sale'
+            ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+            : option.tone==='loss'
+              ? 'border-red-400 bg-red-50 text-red-800'
+              : 'border-slate-800 bg-slate-50 text-slate-900';
+          return <button
+            key={option.value} type="button" disabled={saving}
+            onClick={() => { setResult(option.value); if(option.closing)setFollowUp(''); }}
+            className={'rounded-xl border px-3 py-3 text-left text-xs font-semibold transition ' +
+              (selected ? activeClass : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}
+          >{option.label}</button>;
+        })}
       </div>
+      {isClosing&&<div className={'mt-4 rounded-xl border p-3 text-xs font-semibold '+(result==='sale'?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-red-200 bg-red-50 text-red-800')}>
+        {result==='sale'
+          ? 'Ao confirmar, o cliente será marcado como VENDIDO e sairá das tarefas abertas.'
+          : 'Ao confirmar, o cliente será encerrado como SEM NEGÓCIO, o motivo ficará registrado e os follow-ups futuros serão removidos.'}
+      </div>}
       <label className="mt-4 block">
-        <span className="mb-1 block text-xs font-bold text-slate-700">Observação do contato</span>
+        <span className="mb-1 block text-xs font-bold text-slate-700">{isClosing?'Motivo / observação final (opcional)':'Observação do contato'}</span>
         <textarea rows={3} maxLength={1200} value={note} onChange={e => setNote(e.target.value)}
-          placeholder="Ex.: cliente pediu retorno após receber a simulação."
+          placeholder={isClosing?'Ex.: comprou um veículo em outra loja / decidiu adiar a compra.':'Ex.: cliente pediu retorno após receber a simulação.'}
           className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-emerald-400"/>
       </label>
-      <label className="mt-3 block">
+      {!isClosing&&<label className="mt-3 block">
         <span className="mb-1 block text-xs font-bold text-slate-700">Próximo contato</span>
         <input type="datetime-local" value={followUp} onChange={e => setFollowUp(e.target.value)}
           className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-emerald-400"/>
-      </label>
-      <p className="mt-2 text-[11px] text-slate-500">O contato entra na linha do tempo, com data e vendedor. A data é atualizada na agenda.</p>
+      </label>}
+      <p className="mt-2 text-[11px] text-slate-500">{isClosing?'O encerramento fica registrado na linha do tempo com data e vendedor.':'O contato entra na linha do tempo, com data e vendedor. A data é atualizada na agenda.'}</p>
       {error && <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-700">{error}</p>}
       <button type="button" onClick={submit} disabled={!result || saving}
         className="mt-5 w-full rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white disabled:opacity-50">
-        {saving ? 'SALVANDO...' : 'REGISTRAR ATENDIMENTO'}
+        {saving ? 'SALVANDO...' : isClosing ? (result==='sale'?'CONFIRMAR VENDA':'ENCERRAR CLIENTE') : 'REGISTRAR ATENDIMENTO'}
       </button>
     </div>
   </div>, document.body);
