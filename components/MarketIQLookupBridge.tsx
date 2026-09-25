@@ -86,9 +86,10 @@ const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-const lookupFipe = async (input: { brand: string; model: string; year: string; fuel?: string }) => {
+const lookupFipe = async (input: { brand: string; model: string; year: string; fuel?: string; fipeCode?: string }) => {
   const params = new URLSearchParams({ brand: input.brand, model: input.model, year: input.year });
   if (input.fuel) params.set('fuel', input.fuel);
+  if (input.fipeCode) params.set('fipeCode', input.fipeCode);
   params.set('_ts', String(Date.now()));
   const response = await fetch(`/api/marketiq-fipe?${params.toString()}`, { method: 'GET', cache: 'no-store' });
   if (!response.ok) return null;
@@ -340,8 +341,8 @@ const MarketIQLookupBridge: React.FC = () => {
             let fipeCode = String(plateData.fipeCode || '');
             let referenceMonth = String(plateData.referenceMonth || '');
 
-            if (!fipeValue) {
-              const fipe = await lookupFipe({ brand, model, year, fuel });
+            if (fipeCode || !fipeValue) {
+              const fipe = await lookupFipe({ brand, model, year, fuel, fipeCode });
               if (currentRequest !== requestId.current) return;
               if (fipe?.value) {
                 fipeValue = Number(fipe.value) || 0;
