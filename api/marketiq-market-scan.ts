@@ -200,8 +200,9 @@ VEÍCULO ALVO
 - Região de origem: ${storeName}
 
 REGRAS DE PREÇO
-- FIPE é referência, não teto e não piso.
-- NÃO elimine anúncio por estar abaixo ou acima da FIPE.
+- ${fipe ? `A FIPE de R$ ${fipe.toLocaleString('pt-BR')} é o TETO absoluto desta amostra.` : 'A FIPE não foi informada; não aplique teto de FIPE.'}
+- Quando houver FIPE, NÃO retorne nem use anúncio com preço acima dela.
+- Anúncios abaixo da FIPE são válidos e devem permanecer na amostra.
 - NÃO use média genérica do portal para substituir preços visíveis dos anúncios.
 - Se houver anúncios exatos a R$ 83 mil, R$ 92 mil, R$ 95 mil e outros a R$ 103 mil, os mais baratos DEVEM aparecer na amostra.
 - Quilometragem alta NÃO elimina o anúncio. Retorne a KM para o MOTYQ ponderar depois.
@@ -269,7 +270,9 @@ RETORNE APENAS JSON VÁLIDO:
 
     const parsed = parseJson(response.text || '') || {};
     const mainRaw: Comparable[] = Array.isArray(parsed?.comparables) ? parsed.comparables : [];
-    const mainNormalized = normalizeComparables(mainRaw, model, year);
+    const mainNormalizedAll = normalizeComparables(mainRaw, model, year);
+    // Regra comercial do MOTYQ: anúncios acima da FIPE não entram na amostra nem nos cálculos.
+    const mainNormalized = fipe ? mainNormalizedAll.filter(item => item.price <= fipe) : mainNormalizedAll;
     const initialExact = mainNormalized.filter(item => item.matchTier === 'exact' && item.year === year);
     const initialOfferCount = Math.max(0, Math.round(toNumber(parsed?.marketOfferCount)));
     const initialOfferScope = String(parsed?.marketOfferScope || '').toLowerCase();
@@ -300,6 +303,7 @@ REGRAS
 - Retorne os 8 a 12 menores preços válidos que conseguir confirmar.
 - NÃO descarte anúncio por KM alta.
 - NÃO descarte anúncio por preço abaixo da FIPE.
+- ${fipe ? `DESCARTE qualquer anúncio acima de R$ ${fipe.toLocaleString('pt-BR')} (FIPE alvo).` : 'Sem FIPE informada, não aplique teto de preço.'}
 - Se a página da Webmotors informar, por exemplo, 19 anúncios com esses filtros exatos, exactOfferCount deve ser 19.
 - Não confunda contagem de toda a linha/modelo com a versão exata.
 - Não invente preços nem contagem.
@@ -323,7 +327,8 @@ RETORNE APENAS JSON:
     }
 
     const auditRaw: Comparable[] = Array.isArray(auditParsed?.comparables) ? auditParsed.comparables : [];
-    const mergedNormalized = dedupeComparables(normalizeComparables([...mainRaw, ...auditRaw], model, year));
+    const mergedNormalizedAll = dedupeComparables(normalizeComparables([...mainRaw, ...auditRaw], model, year));
+    const mergedNormalized = fipe ? mergedNormalizedAll.filter(item => item.price <= fipe) : mergedNormalizedAll;
 
     const exact = sortByCompetitivePrice(mergedNormalized.filter(item => item.matchTier === 'exact' && item.year === year));
     const sameModel = sortByCompetitivePrice(mergedNormalized.filter(item => item.matchTier === 'same_model' && item.year === year));
@@ -427,7 +432,7 @@ RETORNE APENAS JSON:
       warning,
       shouldAuditExactFloor ? 'O piso de preço foi auditado em uma segunda busca focada nos anúncios exatos mais baratos.' : '',
       'O mercado observado usa a faixa inferior da amostra competitiva, evitando que anúncios caros inflem a avaliação.',
-      fipe ? `FIPE de R$ ${fipe.toLocaleString('pt-BR')} usada apenas como referência, sem excluir anúncios reais abaixo ou acima dela.` : '',
+      fipe ? `FIPE de R$ ${fipe.toLocaleString('pt-BR')} aplicada como teto: anúncios acima dela foram excluídos da amostra e dos cálculos.` : '',
       reportedOfferCount && offerSource ? offerSource : '',
       parsed?.notes ? String(parsed.notes).trim() : '',
       auditParsed?.notes ? String(auditParsed.notes).trim() : '',
