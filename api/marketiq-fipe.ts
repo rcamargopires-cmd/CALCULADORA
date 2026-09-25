@@ -50,6 +50,7 @@ const comfortFamilyOf=(value:string)=>{
  const normalized=' '+cleanBase(value)+' ';
  return /\bcomf(?:ort)?\b/.test(normalized)||/\bc\s+plus\b/.test(normalized)||/\bc\s+style\b/.test(normalized)||/\bcomfort\s+plus\b/.test(normalized);
 };
+const alphaNumFamilyOf=(value:string)=>cleanBase(value).split(' ').find(token=>/[a-z]/.test(token)&&/\d/.test(token))||'';
 
 async function resolveByFipeCode(fipeCode:string,year:string){
  const code=normalizeFipeCode(fipeCode);
@@ -101,6 +102,7 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
  const targetManual=manualHintOf(input.model);
  const targetEngine=engineOf(input.model);
  const targetComfort=comfortFamilyOf(input.model);
+ const targetAlphaNumFamily=alphaNumFamilyOf(input.model);
  const ranked=models.map(item=>{
    const name=getName(item);
    const candidateTokens=tokens(name);
@@ -117,7 +119,11 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
    const engineScore=targetEngine&&candidateEngine?(Math.abs(targetEngine-candidateEngine)<0.01?0.95:-1.35):0;
    const candidateComfort=comfortFamilyOf(name);
    const comfortScore=targetComfort?(candidateComfort?0.55:-0.45):0;
-   return {item,name,total:base+familyBonus+exactPhrase+trimBonus+trimPenalty+turboScore+manualPenalty+engineScore+comfortScore,base,candidateTrim};
+   const candidateAlphaNumFamily=alphaNumFamilyOf(name);
+   const familyExactScore=targetAlphaNumFamily&&candidateAlphaNumFamily
+     ? (targetAlphaNumFamily===candidateAlphaNumFamily?1.20:-1.60)
+     : 0;
+   return {item,name,total:base+familyBonus+exactPhrase+trimBonus+trimPenalty+turboScore+manualPenalty+engineScore+comfortScore+familyExactScore,base,candidateTrim};
  }).sort((a,b)=>b.total-a.total);
  const candidates=ranked.filter(row=>row.total>=0.45&&(!targetTrim||tokens(row.name).includes(targetTrim))).slice(0,8);
  if(!candidates.length)return null;
@@ -152,7 +158,11 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
      const engineScore=targetEngine&&detailEngine?(Math.abs(targetEngine-detailEngine)<0.01?0.95:-1.35):0;
      const detailComfort=comfortFamilyOf(detailModel);
      const comfortScore=targetComfort?(detailComfort?0.55:-0.45):0;
-     const total=modelScore+fuelScore+yearScore+exactBonus+trimScore+turboScore+manualPenalty+engineScore+comfortScore;
+     const detailAlphaNumFamily=alphaNumFamilyOf(detailModel);
+     const familyExactScore=targetAlphaNumFamily&&detailAlphaNumFamily
+       ? (targetAlphaNumFamily===detailAlphaNumFamily?1.20:-1.60)
+       : 0;
+     const total=modelScore+fuelScore+yearScore+exactBonus+trimScore+turboScore+manualPenalty+engineScore+comfortScore+familyExactScore;
      if(!best||total>best.total)best={detail,total,modelScore};
    }
  }
