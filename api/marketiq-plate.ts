@@ -45,6 +45,15 @@ const stringsFrom=(value:any,out:string[]=[],depth=0):string[]=>{
   return out;
 };
 
+const normalizeDadosApiBrand=(rawBrand:any,...vehicleTexts:any[])=>{
+  const original=String(rawBrand||'').trim();
+  const corpus=[original,...vehicleTexts].map(value=>String(value||'')).join(' ').toUpperCase();
+  // Bases de placa usam abreviações de importador como I/LR. Para FIPE precisamos do fabricante canônico.
+  if(/\bLAND\s*ROVER\b|\bRANGE\s*ROVER\b|(^|[\/\s])LR([\/\s]|$)/i.test(corpus))return 'Land Rover';
+  if(/\bJAGUAR\b/i.test(corpus))return 'Jaguar';
+  return original.replace(/^I\//i,'').trim();
+};
+
 const normalizeDadosApi=(raw:any,plate:string)=>{
   const data=raw?.data&&typeof raw.data==='object'?raw.data:raw||{};
   const extra=data.extra||{};
@@ -73,7 +82,9 @@ const normalizeDadosApi=(raw:any,plate:string)=>{
     0;
 
   const model=String(data.MODELO||data.modelo||data.marcaModelo||extra.modelo||fipe.texto_modelo||'').trim();
-  const brand=String(data.MARCA||data.marca||String(data.marcaModelo||'').split('/')[0]||'').trim();
+  const registryModel=String(data.marcaModelo||extra.modelo||model).trim();
+  const rawBrand=String(data.MARCA||data.marca||String(data.marcaModelo||'').split('/')[0]||'').trim();
+  const brand=normalizeDadosApiBrand(rawBrand,registryModel,model,fipe.texto_modelo);
   const year=String(data.anoModelo||extra.ano_modelo||fipe.ano_modelo||data.ano_modelo||data.ano||'').trim();
   const manufactureYear=String(data.ano||extra.ano_fabricacao||data.anoFabricacao||'').trim();
   const fuel=String(extra.combustivel||data.combustivel||fipe.combustivel||'').trim();
@@ -82,7 +93,7 @@ const normalizeDadosApi=(raw:any,plate:string)=>{
     plate:cleanPlate(data.placa||plate)||plate,
     brand,
     model,
-    registryModel:String(data.marcaModelo||extra.modelo||model).trim(),
+    registryModel,
     year,
     manufactureYear,
     color:String(data.cor||extra.cor||'').trim(),
