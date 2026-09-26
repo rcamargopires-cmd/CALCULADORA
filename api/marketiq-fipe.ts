@@ -3,6 +3,11 @@ type NamedCode={code?:string|number;name?:string;codigo?:string|number;nome?:str
 const BASE='https://fipe.parallelum.com.br/api/v2/cars';
 const cleanBase=(value:string)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const clean=(value:string)=>cleanBase(value)
+ .replace(/\bt[ -]?cross\b/g,'tcross')
+ .replace(/\bhl\b/g,'highline')
+ .replace(/\bhig\b/g,'highline')
+ .replace(/\bcomfort\b/g,'comfortline')
+ .replace(/\bcomf\b/g,'comfortline')
  .replace(/\btitnat\b/g,'titanium')
  .replace(/\btitan\b/g,'titanium')
  .replace(/\bfrestyle\b/g,'freestyle')
@@ -16,7 +21,7 @@ const canonicalBrand=(value:string)=>clean(value)
  .replace(/^gm\s+chevrolet$/,'chevrolet')
  .replace(/^mercedes\s+benz$/,'mercedes benz');
 const ignored=new Set(['flex','gasolina','alcool','diesel','automatico','aut','mec','manual','cv','16v','8v','4p','5p','tsi','mpi','mi','total']);
-const trimTokens=new Set(['titanium','storm','freestyle','se','sel','trend','xls','xlt','limited','longitude','sport','wildtrak','highline','comfortline','exclusive','premier','lt','ltz','rs','platinum','touring','advance','audace','impetus','drive','precision','volcano','ranch','endurance','trekking']);
+const trimTokens=new Set(['titanium','storm','freestyle','se','sel','trend','xls','xlt','limited','longitude','sport','wildtrak','highline','comfortline','sense','exclusive','premier','lt','ltz','rs','platinum','touring','advance','audace','impetus','drive','precision','volcano','ranch','endurance','trekking']);
 const tokens=(value:string)=>clean(value).split(' ').filter(Boolean).filter(t=>!ignored.has(t));
 const scoreText=(target:string,candidate:string)=>{
  const a=tokens(target),b=tokens(candidate);if(!a.length||!b.length)return 0;
