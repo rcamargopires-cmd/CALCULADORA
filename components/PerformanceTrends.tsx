@@ -90,7 +90,7 @@ const PerformanceTrends: React.FC<Props> = ({ title, subtitle, data, goal, stock
   const previousStock = stockHistory.length > 1 ? stockHistory[stockHistory.length - 2] : undefined;
 
   return (
-    <section className="rounded-[30px] border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.025] p-5 md:p-7">
+    <section className="motyq-performance-trends rounded-[30px] border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.025] p-5 md:p-7">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-zinc-500"><History size={16}/><p className="text-xs font-semibold uppercase tracking-[0.14em]">Trends</p></div>
@@ -133,11 +133,11 @@ const PerformanceTrends: React.FC<Props> = ({ title, subtitle, data, goal, stock
                 <AreaChart data={monthData} margin={{ top: 10, right: 8, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`trend-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ffffff" stopOpacity={0.22}/>
-                      <stop offset="95%" stopColor="#ffffff" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.28}/>
+                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false}/>
+                  <CartesianGrid stroke="rgba(100,116,139,0.18)" vertical={false}/>
                   <XAxis dataKey="date" tickFormatter={dayLabel} tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false}/>
                   <YAxis tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} width={48}/>
                   <Tooltip
@@ -147,7 +147,7 @@ const PerformanceTrends: React.FC<Props> = ({ title, subtitle, data, goal, stock
                     formatter={(value: number) => [formatMetric(Number(value), metric), metric.label]}
                   />
                   {goal && (metric.key === 'projection' || metric.key === 'sales') && <ReferenceLine y={goal} stroke="rgba(251,191,36,0.7)" strokeDasharray="5 5" label={{ value: `Meta ${goal}`, fill: '#fbbf24', fontSize: 10, position: 'insideTopRight' }}/>} 
-                  <Area type="monotone" dataKey={metric.key} stroke="#ffffff" strokeWidth={2.5} fill={`url(#trend-${metric.key})`} activeDot={{ r: 5, fill: '#fff' }}/>
+                  <Area type="monotone" dataKey={metric.key} stroke="#2563eb" strokeWidth={3} fill={`url(#trend-${metric.key})`} activeDot={{ r: 5, fill: '#2563eb', stroke: '#ffffff', strokeWidth: 2 }}/>
                 </AreaChart>
               </ResponsiveContainer>
             </div>
