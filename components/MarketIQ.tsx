@@ -92,7 +92,7 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
    <span className="hidden sm:block"><span className="block text-[9px] font-black uppercase tracking-[.17em] text-cyan-300">MERCADO</span><span className="mt-0.5 block text-sm font-semibold">MarketIQ</span></span>
   </button>
 
-  {open&&<div className="fixed inset-0 z-[590] overflow-y-auto bg-black/80 p-3 backdrop-blur-md md:p-5" onClick={()=>setOpen(false)}>
+  {open&&<div className="fixed inset-0 z-[590] overflow-y-auto bg-black/80 p-3 backdrop-blur-md md:p-5">
    <div className="mx-auto max-w-[1500px] rounded-[28px] border border-white/10 bg-[#101315] text-white shadow-2xl" onClick={e=>e.stopPropagation()}>
     <header className="sticky top-0 z-20 flex items-start justify-between rounded-t-[28px] border-b border-white/10 bg-[#101315]/95 p-5 backdrop-blur md:px-6 md:py-5">
      <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-cyan-300">MOTYQ MARKETIQ · V2</p><h2 className="mt-1 text-2xl font-semibold">Avaliação & Precificação Inteligente</h2><p className="mt-1 text-sm text-zinc-500">{storeName} · veículo + mercado + condição + preparação + decisão</p></div>

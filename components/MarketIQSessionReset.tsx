@@ -26,11 +26,12 @@ const MarketIQSessionReset: React.FC = () => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
 
-      const clickedBackdrop = target === root;
       const button = target.closest('button');
       const clickedClose = Boolean(button && root.contains(button) && button.querySelector('svg.lucide-x'));
 
-      if (clickedBackdrop || clickedClose) {
+      // Clique fora da janela é acidental: não fecha e não apaga a avaliação em andamento.
+      // A limpeza fica restrita ao fechamento explícito pelo X.
+      if (clickedClose) {
         clearMarketIQFields(root);
       }
     };
