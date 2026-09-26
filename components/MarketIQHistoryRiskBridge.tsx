@@ -4,8 +4,9 @@ import { AlertTriangle, Shield, ShieldAlert } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-const AUCTION_OR_CLAIM_FACTOR = 0.5;
-const ARMORED_FACTOR = 0.6;
+const AUCTION_OR_CLAIM_REDUCTION = 50;
+const ARMORED_REDUCTION = 40;
+const REPASS_REDUCTION = 20;
 
 type OriginalValues = {
   market: string;
@@ -43,12 +44,14 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const [auctionOrClaim, setAuctionOrClaim] = useState(false);
   const [armored, setArmored] = useState(false);
+  const [repass, setRepass] = useState(false);
   const [message, setMessage] = useState('');
   const [reference, setReference] = useState(0);
   const [appliedReductionPct, setAppliedReductionPct] = useState(0);
   const originalRef = useRef<OriginalValues | null>(null);
   const auctionOrClaimRef = useRef(false);
   const armoredRef = useRef(false);
+  const repassRef = useRef(false);
   const referenceRef = useRef(0);
   const appliedReductionRef = useRef(0);
 
@@ -56,10 +59,12 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
     originalRef.current = null;
     auctionOrClaimRef.current = false;
     armoredRef.current = false;
+    repassRef.current = false;
     referenceRef.current = 0;
     appliedReductionRef.current = 0;
     setAuctionOrClaim(false);
     setArmored(false);
+    setRepass(false);
     setReference(0);
     setAppliedReductionPct(0);
     setMessage('');
@@ -70,7 +75,7 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
       const root = marketRoot();
       if (!root) {
         setPortalHost(null);
-        if (auctionOrClaimRef.current || armoredRef.current || originalRef.current) resetState();
+        if (auctionOrClaimRef.current || armoredRef.current || repassRef.current || originalRef.current) resetState();
         return;
       }
       const title = Array.from(root.querySelectorAll('h3')).find(el => String(el.textContent || '').trim() === 'Estado do veículo') as HTMLElement | undefined;
@@ -101,23 +106,23 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
       const id = String(detail.id || '').trim();
       if (!id) return;
       const original = originalRef.current;
-      const active = auctionOrClaimRef.current || armoredRef.current;
+      const active = auctionOrClaimRef.current || armoredRef.current || repassRef.current;
       void updateDoc(doc(db, 'operational_meta', id), {
         auctionOrClaim: auctionOrClaimRef.current,
         auctionOrClaimAdjustmentPct: auctionOrClaimRef.current ? 50 : 0,
         armored: armoredRef.current,
         armoredAdjustmentPct: armoredRef.current ? 40 : 0,
+        repassOnly: repassRef.current,
+        repassAdjustmentPct: repassRef.current ? REPASS_REDUCTION : 0,
         specialHistoryRiskActive: active,
         specialHistoryRiskAdjustmentPct: active ? appliedReductionRef.current : 0,
         specialHistoryRiskReference: active ? referenceRef.current : 0,
         specialHistoryRiskOriginalMarket: active ? Number(original?.marketNum || 0) : 0,
-        specialHistoryRiskRule: auctionOrClaimRef.current && armoredRef.current
-          ? 'sinistro_leilao+blindado'
-          : auctionOrClaimRef.current
-            ? 'sinistro_leilao'
-            : armoredRef.current
-              ? 'blindado'
-              : '',
+        specialHistoryRiskRule: [
+          auctionOrClaimRef.current ? 'sinistro_leilao' : '',
+          armoredRef.current ? 'blindado' : '',
+          repassRef.current ? 'repasse' : '',
+        ].filter(Boolean).join('+'),
         specialHistoryRiskUpdatedAt: new Date().toISOString(),
       }).catch(error => console.warn('MarketIQ: não foi possível persistir as regras especiais de histórico.', error));
     };
@@ -126,13 +131,13 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
     return () => window.removeEventListener('motyq:marketiq-persisted', persist as EventListener);
   }, []);
 
-  const applyRules = (nextAuctionOrClaim: boolean, nextArmored: boolean) => {
+  const applyRules = (nextAuctionOrClaim: boolean, nextArmored: boolean, nextRepass: boolean) => {
     const marketInput = field('Mercado observado');
     const lowInput = field('Faixa mínima');
     const highInput = field('Faixa máxima');
     const fipeInput = field('FIPE');
 
-    if (!nextAuctionOrClaim && !nextArmored) {
+    if (!nextAuctionOrClaim && !nextArmored && !nextRepass) {
       const original = originalRef.current;
       if (original) {
         setInput(marketInput, original.market);
@@ -142,10 +147,12 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
       originalRef.current = null;
       auctionOrClaimRef.current = false;
       armoredRef.current = false;
+      repassRef.current = false;
       referenceRef.current = 0;
       appliedReductionRef.current = 0;
       setAuctionOrClaim(false);
       setArmored(false);
+      setRepass(false);
       setReference(0);
       setAppliedReductionPct(0);
       setMessage('Ajustes especiais removidos. Os valores de mercado anteriores foram restaurados.');
@@ -172,8 +179,15 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
     }
 
     const original = originalRef.current;
-    const factor = nextAuctionOrClaim ? AUCTION_OR_CLAIM_FACTOR : ARMORED_FACTOR;
-    const reductionPct = Math.round((1 - factor) * 100);
+    const historyReduction = nextAuctionOrClaim
+      ? AUCTION_OR_CLAIM_REDUCTION
+      : nextArmored
+        ? ARMORED_REDUCTION
+        : 0;
+    // Sinistro/leilão e blindagem continuam usando apenas a regra histórica mais conservadora.
+    // "Repasse" é uma penalização comercial adicional de 20 pontos percentuais, como solicitado.
+    const reductionPct = Math.min(90, historyReduction + (nextRepass ? REPASS_REDUCTION : 0));
+    const factor = Math.max(0.10, 1 - (reductionPct / 100));
     const base = fipe || original.marketNum;
     const adjustedReference = base * factor;
     const scale = original.marketNum > 0 ? adjustedReference / original.marketNum : factor;
@@ -184,15 +198,22 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
 
     auctionOrClaimRef.current = nextAuctionOrClaim;
     armoredRef.current = nextArmored;
+    repassRef.current = nextRepass;
     referenceRef.current = adjustedReference;
     appliedReductionRef.current = reductionPct;
     setAuctionOrClaim(nextAuctionOrClaim);
     setArmored(nextArmored);
+    setRepass(nextRepass);
     setReference(adjustedReference);
     setAppliedReductionPct(reductionPct);
 
-    if (nextAuctionOrClaim && nextArmored) {
-      setMessage(`Duas restrições marcadas. O MOTYQ usa a regra mais conservadora, sem somar descontos: 50% abaixo da referência, base em ${money(adjustedReference)}.`);
+    if (nextRepass && (nextAuctionOrClaim || nextArmored)) {
+      const historyLabel = nextAuctionOrClaim ? 'sinistro/leilão' : 'blindado';
+      setMessage(`Regra de ${historyLabel} aplicada e, por ser veículo não interessante para estoque, mais 20 p.p. de depreciação para repasse. Redução total: ${reductionPct}% · base em ${money(adjustedReference)}.`);
+    } else if (nextRepass) {
+      setMessage(`${fipe ? 'FIPE' : 'Mercado'} com regra de repasse: veículo não interessante para estoque, referência reduzida em 20%, para ${money(adjustedReference)}.`);
+    } else if (nextAuctionOrClaim && nextArmored) {
+      setMessage(`Duas restrições históricas marcadas. O MOTYQ usa a regra mais conservadora, sem somar sinistro e blindagem: 50% abaixo da referência, base em ${money(adjustedReference)}.`);
     } else if (nextAuctionOrClaim) {
       setMessage(`${fipe ? 'FIPE' : 'Mercado'} com regra de sinistro/leilão: referência reduzida em 50%, para ${money(adjustedReference)}.`);
     } else {
@@ -204,13 +225,14 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
         active: true,
         auctionOrClaim: nextAuctionOrClaim,
         armored: nextArmored,
+        repass: nextRepass,
         adjustmentPct: reductionPct,
         reference: adjustedReference,
       },
     }));
   };
 
-  const active = auctionOrClaim || armored;
+  const active = auctionOrClaim || armored || repass;
 
   const control = <div className={`rounded-2xl border p-4 transition ${active ? 'border-red-300/30 bg-red-300/[.06]' : 'border-amber-300/20 bg-amber-300/[.035]'}`}>
     <div className="flex min-w-0 items-start gap-3">
@@ -219,19 +241,24 @@ const MarketIQHistoryRiskBridge: React.FC = () => {
       </span>
       <div>
         <p className={`text-xs font-black uppercase tracking-[.1em] ${active ? 'text-red-300' : 'text-amber-200'}`}>REGRAS ESPECIAIS DE HISTÓRICO</p>
-        <p className="mt-1 max-w-3xl text-xs leading-5 text-zinc-400">Marque restrições que derrubam o valor comercial. Sinistro/leilão usa referência de 50% da FIPE. Blindado usa referência de 60% da FIPE, ou seja, 40% abaixo. O MOTYQ recalcula automaticamente todos os limites de compra.</p>
+        <p className="mt-1 max-w-3xl text-xs leading-5 text-zinc-400">Marque restrições que derrubam o valor comercial. Sinistro/leilão usa base 50% da FIPE. Blindado usa base 60% da FIPE. Veículo não interessante para estoque aplica mais 20 p.p. de depreciação para repasse. O MOTYQ recalcula automaticamente todos os limites de compra.</p>
       </div>
     </div>
 
-    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+    <div className="mt-3 grid gap-2 sm:grid-cols-3">
       <label className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-3 text-xs ${auctionOrClaim ? 'border-red-300/30 bg-red-300/[.08] text-red-100' : 'border-white/10 bg-black/20 text-zinc-300'}`}>
         <span><strong className="block text-[10px] uppercase tracking-[.08em]">Sinistro / leilão</strong><span className="mt-0.5 block text-[10px] text-zinc-500">50% abaixo · base 50% FIPE</span></span>
-        <input type="checkbox" checked={auctionOrClaim} onChange={event => applyRules(event.target.checked, armored)} className="h-4 w-4 accent-red-500"/>
+        <input type="checkbox" checked={auctionOrClaim} onChange={event => applyRules(event.target.checked, armored, repass)} className="h-4 w-4 accent-red-500"/>
       </label>
 
       <label className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-3 text-xs ${armored ? 'border-amber-300/30 bg-amber-300/[.07] text-amber-100' : 'border-white/10 bg-black/20 text-zinc-300'}`}>
         <span className="flex items-center gap-2"><Shield size={16} className="text-amber-300"/><span><strong className="block text-[10px] uppercase tracking-[.08em]">Blindado</strong><span className="mt-0.5 block text-[10px] text-zinc-500">40% abaixo · base 60% FIPE</span></span></span>
-        <input type="checkbox" checked={armored} onChange={event => applyRules(auctionOrClaim, event.target.checked)} className="h-4 w-4 accent-amber-500"/>
+        <input type="checkbox" checked={armored} onChange={event => applyRules(auctionOrClaim, event.target.checked, repass)} className="h-4 w-4 accent-amber-500"/>
+      </label>
+
+      <label className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-3 text-xs ${repass ? 'border-orange-300/30 bg-orange-300/[.07] text-orange-100' : 'border-white/10 bg-black/20 text-zinc-300'}`}>
+        <span><strong className="block text-[10px] uppercase tracking-[.08em]">Não interessante p/ estoque</strong><span className="mt-0.5 block text-[10px] text-zinc-500">Repassar · mais 20% de depreciação</span></span>
+        <input type="checkbox" checked={repass} onChange={event => applyRules(auctionOrClaim, armored, event.target.checked)} className="h-4 w-4 accent-orange-500"/>
       </label>
     </div>
 
