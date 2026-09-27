@@ -6,6 +6,7 @@ import './motyq-light.css';
 import './motyq-light-refinements.css';
 import './motyq-light-dashboard.css';
 import './motyq-seller-mobile.css';
+import './motyq-executive-dashboard.css';
 import './services/storeScopeAdapter';
 import './services/stockBatchAdapter';
 import './services/unifiedStockAuditAdapter';
