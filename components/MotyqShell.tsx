@@ -1,0 +1,111 @@
+import React from 'react';
+import {
+  BellRing, BarChart3, Calculator, CarFront, CheckCircle2, Gauge, LayoutDashboard,
+  LogOut, MessageSquareText, RefreshCw, Save, Settings, Sparkles, Target, UsersRound,
+  ClipboardCheck, Coins,
+} from 'lucide-react';
+import type { User } from '../types';
+
+type View='dashboard'|'calculator';
+type Props={
+  user:User;
+  activeView:View;
+  children:React.ReactNode;
+  onDashboard:()=>void;
+  onCalculator:()=>void;
+  onLogout:()=>void;
+  onAdmin:()=>void;
+  onReset:()=>void;
+  onSaveOpen:()=>void;
+  onSaveClosed:()=>void;
+  onAnalyze:()=>void;
+  isAnalyzing:boolean;
+  commissionsEnabled:boolean;
+  onCommissions:()=>void;
+};
+
+const launcher=(title:string)=>{
+  const button=document.querySelector(`button[title="${title}"]`) as HTMLButtonElement|null;
+  button?.click();
+};
+const launcherStarts=(title:string)=>{
+  const button=document.querySelector(`button[title^="${title}"]`) as HTMLButtonElement|null;
+  button?.click();
+};
+
+const roleLabel=(role:string)=>role==='admin'?'Administrador':role==='manager'?'Gestor':role==='seller'||role==='user'?'Vendedor':role;
+
+const MotyqShell:React.FC<Props>=({
+  user,activeView,children,onDashboard,onCalculator,onLogout,onAdmin,onReset,onSaveOpen,onSaveClosed,
+  onAnalyze,isAnalyzing,commissionsEnabled,onCommissions,
+})=>{
+  const role=String(user.role||'');
+  const seller=role==='seller'||role==='user';
+  const manager=role==='manager'||role==='admin';
+  const crm=()=>window.dispatchEvent(new CustomEvent('motyq:open-crm',{detail:{}}));
+  return <div className="mq-shell">
+    <aside className="mq-sidebar">
+      <div className="mq-sidebar-brand"><img src="/motyq-brand.svg" alt="MOTYQ"/></div>
+      <nav className="mq-sidebar-nav">
+        <button className={'mq-nav-item '+(activeView==='dashboard'?'is-active':'')} onClick={onDashboard}>
+          <LayoutDashboard size={18}/><span>{seller?'Meu dia':'Visão geral'}</span>
+        </button>
+        {seller&&<button className="mq-nav-item" onClick={crm}><MessageSquareText size={18}/><span>CRM</span></button>}
+        <button className={'mq-nav-item '+(activeView==='calculator'?'is-active':'')} onClick={onCalculator}>
+          <Calculator size={18}/><span>Negociação</span>
+        </button>
+        {manager&&<button className="mq-nav-item" onClick={()=>launcher('Avaliações Motyq')}><ClipboardCheck size={18}/><span>Avaliações</span></button>}
+        {manager&&<button className="mq-nav-item" onClick={()=>launcher('Estoque Motyq')}><CarFront size={18}/><span>Estoque</span></button>}
+        {manager&&<button className="mq-nav-item" onClick={()=>launcherStarts('MarketIQ')}><Gauge size={18}/><span>MarketIQ</span></button>}
+        {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><UsersRound size={18}/><span>Gestão</span></button>}
+        {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><BarChart3 size={18}/><span>Relatórios</span></button>}
+        {role==='admin'&&<button className="mq-nav-item" onClick={()=>launcher('Administração Motyq')}><Settings size={18}/><span>Administração</span></button>}
+      </nav>
+      <div className="mq-sidebar-foot"><span>MOTYQ Intelligence</span><strong>Veja. Decida. Aja.</strong></div>
+    </aside>
+
+    <section className="mq-main">
+      <header className="mq-topbar">
+        <div className="mq-mobile-brand"><img src="/motyq-brand.svg" alt="MOTYQ"/></div>
+        <div id="motyq-environment-header-slot" className="mq-environment-slot"/>
+        <div className="mq-topbar-spacer"/>
+        {manager&&<button className="mq-top-icon" title="Avaliações" onClick={()=>launcher('Avaliações Motyq')}><BellRing size={18}/></button>}
+        <div className="mq-user">
+          <span className={'mq-avatar '+(role==='admin'?'is-admin':'')}>{String(user.name||'U').charAt(0).toUpperCase()}</span>
+          <span className="mq-user-copy"><strong>{user.name}</strong><small>{roleLabel(role)}</small></span>
+        </div>
+        <button className="mq-top-icon" title="Sair" onClick={onLogout}><LogOut size={17}/></button>
+      </header>
+
+      <div className="mq-contextbar">
+        <div>
+          <span className="mq-context-eyebrow">{activeView==='dashboard'?'CENTRAL OPERACIONAL':'NEGOCIAÇÃO'}</span>
+          <h1>{activeView==='dashboard'?(seller?'Meu dia':'Visão geral'):'Nova negociação'}</h1>
+        </div>
+        <div className="mq-context-actions">
+          {activeView==='dashboard'?<>
+            {manager&&<button className="mq-action secondary" onClick={()=>launcher('Avaliações Motyq')}><ClipboardCheck size={16}/> Avaliações</button>}
+            <button className="mq-action primary" onClick={onCalculator}><Target size={16}/> Nova negociação</button>
+          </>:<>
+            {commissionsEnabled&&manager&&<button className="mq-action secondary" onClick={onCommissions}><Coins size={16}/> Comissões</button>}
+            <button className="mq-action secondary" onClick={onReset}><RefreshCw size={16}/> Limpar</button>
+            <button className="mq-action secondary" onClick={onSaveOpen}><Save size={16}/> Salvar</button>
+            <button className="mq-action success" onClick={onSaveClosed}><CheckCircle2 size={16}/> Fechar venda</button>
+            <button className="mq-action ai" onClick={onAnalyze} disabled={isAnalyzing}><Sparkles size={16}/> {isAnalyzing?'Analisando...':'Análise IA'}</button>
+          </>}
+        </div>
+      </div>
+
+      <main className={'mq-workspace '+(activeView==='dashboard'?'is-dashboard':'is-calculator')}>{children}</main>
+    </section>
+
+    <nav className="mq-mobile-nav">
+      <button className={activeView==='dashboard'?'is-active':''} onClick={onDashboard}><LayoutDashboard size={19}/><span>Hoje</span></button>
+      {seller&&<button onClick={crm}><MessageSquareText size={19}/><span>CRM</span></button>}
+      <button className={activeView==='calculator'?'is-active':''} onClick={onCalculator}><Calculator size={19}/><span>Negócio</span></button>
+      {manager&&<button onClick={()=>launcherStarts('MarketIQ')}><Gauge size={19}/><span>MarketIQ</span></button>}
+      {manager&&<button onClick={()=>launcher('Operação Motyq')}><UsersRound size={19}/><span>Mais</span></button>}
+    </nav>
+  </div>;
+};
+export default MotyqShell;

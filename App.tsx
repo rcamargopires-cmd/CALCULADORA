@@ -22,6 +22,7 @@ import { userService } from './services/userService';
 import { configService } from './services/configService';
 import { calculateCommission } from './utils/commission';
 import { dealTenantService } from './services/dealTenantService';
+import MotyqShell from './components/MotyqShell';
 
 const getInitialData = (): DealData => ({
   licensePlate: '',
@@ -218,30 +219,29 @@ const App: React.FC = () => {
   if (!fieldConfig || !commissionConfig || !bankRates) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white">Carregando configurações...</div>;
 
   return (
-    <div className={`motyq-app-shell min-h-screen bg-zinc-950 p-3 md:p-8 font-sans text-white ${user.role === 'seller' || user.role === 'user' ? 'motyq-seller-shell' : ''}`}>
+    <div className={`motyq-app-shell min-h-screen font-sans ${user.role === 'seller' || user.role === 'user' ? 'motyq-seller-shell' : ''}`}>
       <RateCalculatorModal isOpen={isRateModalOpen} onClose={() => setIsRateModalOpen(false)} initialFinancedAmount={data.payments.financing} />
       <AdminPanel isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} currentUser={user} onConfigUpdate={handleConfigUpdate} setToast={setToast} />
       {toast && <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>{toast.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}<span className="text-sm font-bold uppercase tracking-wider">{toast.message}</span></div>}
       {itemToDelete && <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"><div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200"><div className={`flex items-center gap-3 mb-4 ${itemToDelete === 'FORM_RESET' ? 'text-amber-400' : 'text-red-400'}`}>{itemToDelete === 'FORM_RESET' ? <RefreshCw size={24} /> : <AlertTriangle size={24} />}<h3 className="text-lg font-bold">{itemToDelete === 'FORM_RESET' ? 'Limpar Formulário' : 'Confirmar Exclusão'}</h3></div><p className="text-zinc-400 text-sm mb-6">{itemToDelete === 'FORM_RESET' ? 'Tem certeza que deseja limpar todos os dados preenchidos? Esta ação não pode ser desfeita.' : 'Tem certeza que deseja excluir esta negociação permanentemente? Esta ação não pode ser desfeita.'}</p><div className="flex gap-3"><button onClick={() => setItemToDelete(null)} className="flex-1 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors text-sm font-bold">CANCELAR</button><button onClick={confirmDeleteDeal} className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors text-sm font-bold ${itemToDelete === 'FORM_RESET' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-600 hover:bg-red-700'}`}>{itemToDelete === 'FORM_RESET' ? 'LIMPAR' : 'EXCLUIR'}</button></div></div></div>}
       <CommissionModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} currentDeal={data} currentProfit={data.closingType === 'banking' ? results.profitWithBank : results.profit} commissionConfig={commissionConfig} history={user.role === 'admin' ? history : history.filter(h => h.userId === user.id)} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} onDelete={handleDeleteDeal} currentUserRole={user.role} />
 
-      <div className="motyq-main-wrap max-w-6xl mx-auto">
-        <div className="motyq-account-bar bg-zinc-900 border-b border-zinc-800 -mx-3 md:-mx-8 -mt-3 md:-mt-8 px-3 md:px-8 py-3 mb-5 md:mb-8 flex justify-between items-center shadow-lg">
-          <div className="flex items-center gap-2"><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-black ${user.role === 'admin' ? 'bg-red-500' : 'bg-blue-500'}`}>{user.name.charAt(0).toUpperCase()}</div><div className="flex flex-col"><span className="text-sm font-bold text-white leading-none">{user.name}</span><span className="text-[10px] text-zinc-400 uppercase tracking-wider">{user.role === 'admin' ? 'Administrador' : user.role === 'manager' ? 'Gestor' : 'Vendedor'}</span></div></div>
-          <div className="flex items-center gap-4">{user.role === 'admin' && <button onClick={() => setIsAdminPanelOpen(true)} className="flex items-center gap-2 text-xs font-bold bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-3 py-1.5 rounded transition-colors text-red-400"><ShieldCheck size={14} /> PAINEL ADMIN</button>}<div className="h-6 w-px bg-zinc-700"></div><button onClick={handleLogout} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white transition-colors"><LogOut size={14} /> SAIR</button></div>
-        </div>
-
-        <header className="motyq-main-header flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-8 gap-3 md:gap-4">
-          <div className="motyq-header-brand flex items-center gap-4">
-            <div className="flex items-center gap-2"><Calculator className="w-8 h-8 text-amber-400" /><h1 className="text-3xl font-black text-white">MOTYQ</h1></div>
-            <nav className="motyq-main-nav flex bg-zinc-900 border border-zinc-800 p-1 rounded-lg ml-4">
-              <button onClick={() => setActiveView('dashboard')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'dashboard' ? 'bg-amber-400 text-black shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}><LayoutDashboard size={14} /> DASHBOARD</button>
-              <button onClick={() => setActiveView('calculator')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'calculator' ? 'bg-amber-400 text-black shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}><CalcIcon size={14} /> NOVA NEGOCIAÇÃO</button>
-            </nav>
-          </div>
-          <div className="motyq-calculator-actions flex gap-3 flex-wrap">{commissionConfig.enabled && (user.role === 'admin' || user.role === 'manager') && <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 border border-amber-500/30 text-amber-400 rounded hover:bg-zinc-700 hover:border-amber-400 transition-all shadow-sm font-bold active:scale-95" onClick={() => setIsCommissionModalOpen(true)}><Coins size={18} /> Minhas Comissões</button>}<button onClick={handleReset} className="flex items-center gap-2 px-4 py-2 bg-zinc-800 border border-zinc-700 text-zinc-300 rounded hover:bg-zinc-700 transition-colors shadow-sm font-medium"><RefreshCw size={18} /> Limpar</button><button onClick={() => handleSave('open')} className="flex items-center gap-2 px-4 py-2 bg-blue-600 border border-blue-500 text-white rounded hover:bg-blue-500 transition-colors shadow-sm font-bold"><Save size={18} /> Salvar</button><button onClick={() => handleSave('closed')} className="flex items-center gap-2 px-4 py-2 bg-green-600 border border-green-500 text-white rounded hover:bg-green-500 transition-colors shadow-sm font-bold"><CheckCircle size={18} /> FECHAR VENDA</button><button onClick={handleAnalyze} disabled={isAnalyzing} className="flex items-center gap-2 px-4 py-2 bg-amber-400 text-black font-bold rounded shadow hover:bg-amber-500 transition-colors disabled:opacity-50"><Sparkles size={18} /> {isAnalyzing ? 'Analisando...' : 'Análise IA'}</button></div>
-        </header>
-
+      <div className="motyq-main-wrap">
+        <MotyqShell
+          user={user}
+          activeView={activeView}
+          onDashboard={() => setActiveView('dashboard')}
+          onCalculator={() => { handleResetNoConfirm(); setActiveView('calculator'); }}
+          onLogout={handleLogout}
+          onAdmin={() => setIsAdminPanelOpen(true)}
+          onReset={handleReset}
+          onSaveOpen={() => handleSave('open')}
+          onSaveClosed={() => handleSave('closed')}
+          onAnalyze={handleAnalyze}
+          isAnalyzing={isAnalyzing}
+          commissionsEnabled={Boolean(commissionConfig.enabled)}
+          onCommissions={() => setIsCommissionModalOpen(true)}
+        >
         {activeView === 'dashboard' ? <Dashboard history={history} users={users} currentUser={user} commissionConfig={commissionConfig} onStartNewCalculation={() => { handleResetNoConfirm(); setActiveView('calculator'); }} onDelete={handleDeleteDeal} /> : <>
           <div className="bg-zinc-900 p-6 rounded-lg shadow-sm border border-zinc-800 mb-6 relative overflow-hidden">
             {data.stockDays >= 31 && <div className={`absolute top-0 left-0 right-0 h-1 ${stockStatus.color}`}></div>}
@@ -267,6 +267,7 @@ const App: React.FC = () => {
             </section></div>
           </div>
         </>}
+        </MotyqShell>
       </div>
 
       {duplicateDeal && <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-zinc-900 border border-zinc-800 rounded-xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-200"><div className="flex items-center gap-3 text-amber-400 mb-4"><AlertOctagon size={24} /><h3 className="text-lg font-bold text-white">Placa Duplicada</h3></div><p className="text-zinc-400 text-sm mb-6 leading-relaxed">Já existe uma negociação registrada com a placa <strong className="text-amber-300">{data.licensePlate}</strong> nesta unidade. Deseja atualizar o registro existente ou criar um novo?</p><div className="flex flex-col gap-3"><button onClick={() => handleSave(duplicateDeal.status, duplicateDeal.id)} disabled={isSaving} className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-black font-bold rounded-lg transition-colors flex items-center justify-center gap-2"><RefreshCw size={18} className={isSaving ? 'animate-spin' : ''} /> ATUALIZAR EXISTENTE</button><button onClick={() => handleSave(duplicateDeal.status, undefined, true)} disabled={isSaving} className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">CRIAR NOVO MESMO ASSIM</button><button onClick={() => setDuplicateDeal(null)} disabled={isSaving} className="w-full py-3 bg-transparent hover:bg-zinc-800 text-zinc-500 font-bold rounded-lg transition-colors">CANCELAR</button></div></div></div>}
