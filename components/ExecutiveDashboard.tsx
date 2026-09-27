@@ -341,12 +341,36 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   const proposals = leads.filter(item => item.status === 'proposal').length;
 
   const openCrm = () => window.dispatchEvent(new CustomEvent('motyq:open-crm', { detail: {} }));
+  const openMarketIQ = () => {
+    const button = document.querySelector('button[title^="MarketIQ"]') as HTMLButtonElement | null;
+    button?.click();
+  };
+  const goOverview = () => document.querySelector('.motyq-exec')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const goReports = () => document.querySelector('.mx-team-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
   return (
     <main className="motyq-exec">
       <div className="motyq-exec__glow motyq-exec__glow--one" />
       <div className="motyq-exec__glow motyq-exec__glow--two" />
 
+      <div className="mx-dashboard-shell">
+        <aside className="mx-side-nav" aria-label="Navegação rápida do dashboard">
+          <div className="mx-side-brand"><img src="/motyq-brand.svg" alt="MOTYQ" /></div>
+          <nav>
+            <button className="mx-side-link mx-side-link--active" onClick={goOverview}><Activity size={18}/><span>Visão Geral</span></button>
+            <button className="mx-side-link" onClick={() => setFocus('stock')}><CarFront size={18}/><span>Estoque</span></button>
+            <button className="mx-side-link" onClick={openMarketIQ}><Gauge size={18}/><span>MarketIQ</span></button>
+            <button className="mx-side-link" onClick={openCrm}><Target size={18}/><span>Vendas</span></button>
+            <button className="mx-side-link" onClick={() => setFocus('margin')}><UsersRound size={18}/><span>Gestão</span></button>
+            <button className="mx-side-link" onClick={goReports}><BarChart3 size={18}/><span>Relatórios</span></button>
+          </nav>
+          <div className="mx-side-foot">
+            <span>MOTYQ Intelligence</span>
+            <strong>Veja. Decida. Aja.</strong>
+          </div>
+        </aside>
+
+        <div className="mx-dashboard-body">
       <header className="mx-topbar">
         <div className="mx-brand-wrap">
           <img src="/motyq-brand.svg" alt="MOTYQ" className="mx-brand" />
@@ -390,11 +414,11 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
           <span>{hotOpportunities.length} quentes agora</span>
           <ChevronRight className="mx-kpi-chevron" size={17} />
         </button>
-        <button className="mx-kpi-card" onClick={() => setFocus('evaluations')}>
-          <div className="mx-kpi-icon"><Gauge size={20} /></div>
-          <div className="mx-kpi-label">Avaliações</div>
-          <strong>{pendingEvaluations.length}</strong>
-          <span>{staleEvaluations.length ? `${staleEvaluations.length} acima de 2h` : 'fila sob controle'}</span>
+        <button className="mx-kpi-card" onClick={() => setFocus('margin')}>
+          <div className="mx-kpi-icon"><BarChart3 size={20} /></div>
+          <div className="mx-kpi-label">Vendas no mês</div>
+          <strong>{actualSales}</strong>
+          <span>Projeção {projection.toFixed(1)} · meta {goals.store}</span>
           <ChevronRight className="mx-kpi-chevron" size={17} />
         </button>
       </section>
@@ -522,6 +546,8 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
         <span>{stock.length ? `${stock.length} veículos lidos` : 'Estoque aguardando importação'}</span>
         <span>{history.length} negociação(ões) registradas</span>
       </footer>
+        </div>
+      </div>
 
       {focus && (
         <div className="mx-drawer-backdrop" onClick={() => setFocus(null)}>
