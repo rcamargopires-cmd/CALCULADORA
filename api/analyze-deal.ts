@@ -59,6 +59,99 @@ const ensureManagementScope=(actor:any,targetCompany:string)=>{
   if(role==='manager'&&targetCompany!==companyOf(actor))throw Object.assign(new Error('cross_company_forbidden'),{status:403});
 };
 
+const safeDocId=(value:any)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,120);
+const sellerKeyOf=(value:any)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const uniqueEmails=(items:any[])=>Array.from(new Set(items.map(item=>emailOf(item)).filter(Boolean)));
+const zeroPerformanceSeller=(name:string)=>({
+  seller:name,
+  sellerKey:sellerKeyOf(name),
+  passages:0,
+  orders:0,
+  flowTotal:0,
+  orderPercent:0,
+  workInPeriod:0,
+  avgContactsPerDay:0,
+  evaluations:0,
+  evaluationRate:0,
+  closing:0,
+  syonetSales:0,
+  closingPercent:0,
+  marginPerCar:0,
+  marginTotal:0,
+  marginPercent:0,
+  captureQty:0,
+  capturePercent:0,
+  pipeline:0,
+  projection:0,
+  additionalPurchase:0,
+});
+
+const reconcileOperationalSellers=async(companyId:string,users:any[],stores:any[])=>{
+  const activeSellers=users.filter((user:any)=>
+    user?.status==='active' &&
+    (user?.role==='seller'||user?.role==='user') &&
+    emailOf(user?.email)
+  );
+  if(!activeSellers.length)return;
+
+  for(const store of stores){
+    const storeId=String(store?.id||'').trim();
+    if(!storeId)continue;
+    const storeSellers=activeSellers.filter((user:any)=>String(user?.storeId||'').trim()===storeId);
+    if(!storeSellers.length)continue;
+
+    const queueDocId=safeDocId(`${companyId}_${storeId}`);
+    const queue:any=await motyqFirestore.get('showroom_queue',queueDocId).catch(()=>null);
+    const excluded=new Set((Array.isArray(queue?.excludedSellerEmails)?queue.excludedSellerEmails:[]).map(emailOf));
+    const existingSellers=Array.isArray(queue?.sellers)?queue.sellers:[];
+    const existingEmails=new Set(existingSellers.map((item:any)=>emailOf(item?.email)));
+    const additions=storeSellers
+      .filter((user:any)=>!existingEmails.has(emailOf(user.email))&&!excluded.has(emailOf(user.email)))
+      .map((user:any)=>({id:user.id||user.email,email:emailOf(user.email),name:String(user.name||user.email),available:true}));
+    if(additions.length){
+      const sellers=[...existingSellers,...additions];
+      const turnOrder=uniqueEmails([
+        ...(Array.isArray(queue?.turnOrder)?queue.turnOrder:[]),
+        ...sellers.map((item:any)=>item.email),
+      ]);
+      await motyqFirestore.patch('showroom_queue',queueDocId,{
+        id:queueDocId,
+        companyId,
+        storeId,
+        sellers,
+        nextIndex:Number(queue?.nextIndex||0),
+        turnOrder,
+        pausedSellers:Array.isArray(queue?.pausedSellers)?queue.pausedSellers:[],
+        excludedSellerEmails:Array.isArray(queue?.excludedSellerEmails)?queue.excludedSellerEmails:[],
+        auditLog:Array.isArray(queue?.auditLog)?queue.auditLog:[],
+        updatedAt:new Date().toISOString(),
+      });
+    }
+  }
+
+  const current:any=await motyqFirestore.get('operational_meta','current').catch(()=>null);
+  const latestDate=String(current?.latestPerformanceDate||'').trim();
+  if(!latestDate)return;
+  const performanceId=`performance_${safeDocId(latestDate)}`;
+  const snapshot:any=await motyqFirestore.get('operational_meta',performanceId).catch(()=>null);
+  if(!snapshot||!Array.isArray(snapshot?.sellers))return;
+
+  const snapshotCompany=String(snapshot?.companyId||'').trim();
+  if(snapshotCompany&&snapshotCompany!==companyId)return;
+  const snapshotStore=String(snapshot?.storeId||'').trim();
+  const relevantSellers=activeSellers.filter((user:any)=>!snapshotStore||String(user?.storeId||'').trim()===snapshotStore);
+  const existingKeys=new Set(snapshot.sellers.map((item:any)=>sellerKeyOf(item?.seller)));
+  const missing=relevantSellers
+    .filter((user:any)=>!existingKeys.has(sellerKeyOf(user?.name)))
+    .map((user:any)=>zeroPerformanceSeller(String(user.name||user.email)));
+  if(missing.length){
+    await motyqFirestore.patch('operational_meta',performanceId,{
+      sellers:[...snapshot.sellers,...missing],
+      updatedAt:new Date().toISOString(),
+    });
+  }
+};
+
 const managementContext=async(actor:any,companyId:string)=>{
   ensureManagementScope(actor,companyId);
   const actorRole=roleOf(actor);
@@ -98,6 +191,7 @@ const managementContext=async(actor:any,companyId:string)=>{
       companyId,
     }];
   }
+  await reconcileOperationalSellers(companyId,users,stores);
   return {companyId,users,stores};
 };
 
@@ -131,6 +225,10 @@ const handleUserManagement=async(req:any,res:any)=>{
         }
       }
       const saved=await motyqFirestore.patch('users',input.email,input);
+      if(input.role==='seller'||input.role==='user'){
+        const context=await managementContext(actor,companyId);
+        await reconcileOperationalSellers(companyId,context.users,context.stores);
+      }
       return res.status(200).json({user:saved});
     }
 
