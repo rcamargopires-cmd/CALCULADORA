@@ -70,6 +70,24 @@ const managementContext=async(actor:any,companyId:string)=>{
       ? multistore.stores.filter((item:any)=>String(item?.companyId||'abrao-reze')===companyId&&item?.active!==false)
       : [];
   }
+  if(!stores.length && companyId==='abrao-reze'){
+    stores=[{
+      id:'outlet-sorocaba',
+      code:'OUTLET',
+      name:'Outlet Sorocaba',
+      active:true,
+      companyId:'abrao-reze',
+    }];
+  }
+  if(!stores.length && actor?.storeId){
+    stores=[{
+      id:String(actor.storeId),
+      code:'ATUAL',
+      name:String(actor.storeName||actor.unitName||'Unidade atual'),
+      active:true,
+      companyId,
+    }];
+  }
   return {companyId,users,stores};
 };
 
