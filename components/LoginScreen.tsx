@@ -207,7 +207,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               <div className="flex justify-end"><button type="button" onClick={handlePasswordReset} disabled={isLoading} className="text-xs font-medium text-slate-500 hover:text-slate-900 disabled:opacity-50">Esqueci minha senha</button></div>
             )}
 
-            <button type="submit" disabled={isLoading} className="h-12 w-full rounded-2xl bg-[#2563EB] text-sm font-semibold text-white shadow-sm shadow-blue-500/20 transition hover:bg-[#1D4ED8] focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:opacity-50">
+            <button type="submit" disabled={isLoading} className="motyq-login-primary h-12 w-full rounded-2xl text-sm font-semibold transition disabled:opacity-50">
               {isLoading ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar senha e ativar acesso'}
             </button>
           </form>
