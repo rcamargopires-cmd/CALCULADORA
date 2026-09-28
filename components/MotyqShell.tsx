@@ -64,6 +64,7 @@ const MotyqShell:React.FC<Props>=({
     if(!seller)return;
     const sync=()=>{
       document.querySelectorAll<HTMLButtonElement>('button').forEach(button=>{
+        if(button.closest('.mq-sidebar')) return;
         if(integratedSellerLauncher(button)) button.setAttribute('data-motyq-sidebar-integrated','true');
       });
     };
