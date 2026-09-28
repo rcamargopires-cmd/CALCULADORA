@@ -35,7 +35,7 @@ const launcherStarts=(title:string)=>{
 const launcherText=(text:string)=>{
   const normalized=text.toLowerCase();
   const button=Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
-    .find(item=>String(item.textContent||'').replace(/\s+/g,' ').trim().toLowerCase().includes(normalized));
+    .find(item=>!item.closest('.mq-sidebar') && String(item.textContent||'').replace(/\s+/g,' ').trim().toLowerCase().includes(normalized));
   button?.click();
 };
 
