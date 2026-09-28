@@ -150,6 +150,7 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
  const targetYear=requestedYears.length?requestedYears[requestedYears.length-1]:0;
  const fuelWanted=clean(input.fuel||'');
  let best:any=null;
+ const resolved:any[]=[];
  for(const candidate of candidates){
    const modelCode=getCode(candidate.item);
    const years=await getJson(`${BASE}/brands/${brandCode}/models/${modelCode}/years`) as NamedCode[];
@@ -183,10 +184,32 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
        ? (targetAlphaNumFamily===detailAlphaNumFamily?1.20:-1.60)
        : 0;
      const total=modelScore+fuelScore+yearScore+exactBonus+trimScore+turboScore+transmissionScore+engineScore+comfortScore+familyExactScore;
-     if(!best||total>best.total)best={detail,total,modelScore};
+     const resolvedRow={detail,total,modelScore,detailModel,detailAutomatic,detailManual};
+     resolved.push(resolvedRow);
+     if(!best||total>best.total)best=resolvedRow;
    }
  }
  if(!best?.detail)return null;
+ if(!targetAutomatic&&!targetManual){
+   const autoRows=resolved.filter(row=>row.detailAutomatic).sort((a,b)=>b.total-a.total);
+   const manualRows=resolved.filter(row=>row.detailManual).sort((a,b)=>b.total-a.total);
+   const bestAuto=autoRows[0],bestManual=manualRows[0];
+   if(bestAuto&&bestManual&&Math.abs(bestAuto.total-bestManual.total)<0.9){
+     const toAlternative=(row:any)=>({
+       model:String(row.detail?.model||row.detail?.Modelo||row.detailModel||''),
+       year:Number(row.detail?.modelYear||row.detail?.AnoModelo||targetYear||0),
+       fuel:String(row.detail?.fuel||row.detail?.Combustivel||''),
+       value:parseValue(row.detail?.price||row.detail?.Valor),
+       fipeCode:String(row.detail?.codeFipe||row.detail?.CodigoFipe||''),
+       transmission:row.detailAutomatic?'automatico':'manual',
+       score:row.total,
+     });
+     const alternatives=[toAlternative(bestAuto),toAlternative(bestManual)].filter(item=>item.value&&item.fipeCode);
+     if(alternatives.length===2){
+       return {ambiguous:true,reason:'transmission',alternatives};
+     }
+   }
+ }
  const value=parseValue(best.detail.price||best.detail.Valor);
  if(!value||value<10000)return null;
  return {
@@ -206,5 +229,5 @@ export default async function handler(req:any,res:any){
  if(!['POST','GET'].includes(req.method))return res.status(405).json({error:'method_not_allowed'});
  const brand=String(source?.brand||'').trim(),model=String(source?.model||'').trim(),year=String(source?.year||'').trim(),fuel=String(source?.fuel||'').trim(),fipeCode=String(source?.fipeCode||'').trim();
  if(!brand||!model||!year)return res.status(400).json({error:'missing_vehicle_data'});
- try{const result=await resolveFipe({brand,model,year,fuel,fipeCode});if(!result?.value)return res.status(404).json({error:'fipe_not_found'});return res.status(200).json(result);}catch(error:any){console.error('MarketIQ FIPE lookup failed',error);return res.status(500).json({error:'lookup_failed',detail:String(error?.message||error)});}
+ try{const result:any=await resolveFipe({brand,model,year,fuel,fipeCode});if(result?.ambiguous)return res.status(200).json(result);if(!result?.value)return res.status(404).json({error:'fipe_not_found'});return res.status(200).json(result);}catch(error:any){console.error('MarketIQ FIPE lookup failed',error);return res.status(500).json({error:'lookup_failed',detail:String(error?.message||error)});}
 }
