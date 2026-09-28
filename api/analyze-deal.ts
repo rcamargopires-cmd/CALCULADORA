@@ -61,7 +61,17 @@ const ensureManagementScope=(actor:any,targetCompany:string)=>{
 
 const managementContext=async(actor:any,companyId:string)=>{
   ensureManagementScope(actor,companyId);
-  const users=await motyqFirestore.query('users',[{field:'companyId',value:companyId}],250);
+  const actorRole=roleOf(actor);
+  let users:any[]=[];
+  if(actorRole==='admin'){
+    const allUsers=await motyqFirestore.query('users',[],500);
+    users=allUsers.filter((user:any)=>{
+      const rawCompany=String(user?.companyId||'').trim();
+      return rawCompany===companyId || !rawCompany;
+    });
+  }else{
+    users=await motyqFirestore.query('users',[{field:'companyId',value:companyId}],250);
+  }
   const scope:any=await motyqFirestore.get('director_scope',companyId).catch(()=>null);
   let stores=Array.isArray(scope?.stores)?scope.stores.filter((item:any)=>String(item?.companyId||companyId)===companyId&&item?.active!==false):[];
   if(!stores.length){
