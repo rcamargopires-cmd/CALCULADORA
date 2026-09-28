@@ -507,3 +507,29 @@ body.motyq-graphite{
     border-radius:0!important;
   }
 }
+
+
+/* Login CTA: isolated from global legacy button rules. */
+body.motyq-graphite .motyq-login-primary{
+  appearance:none!important;
+  border:1px solid #2563eb!important;
+  background:#2563eb!important;
+  background-image:none!important;
+  color:#ffffff!important;
+  -webkit-text-fill-color:#ffffff!important;
+  box-shadow:0 8px 18px rgba(37,99,235,.18)!important;
+  cursor:pointer;
+}
+
+body.motyq-graphite .motyq-login-primary:hover{
+  border-color:#1d4ed8!important;
+  background:#1d4ed8!important;
+  background-image:none!important;
+  color:#ffffff!important;
+  -webkit-text-fill-color:#ffffff!important;
+}
+
+body.motyq-graphite .motyq-login-primary:focus-visible{
+  outline:3px solid rgba(37,99,235,.20)!important;
+  outline-offset:2px!important;
+}
