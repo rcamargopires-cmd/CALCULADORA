@@ -21,7 +21,7 @@ const canonicalBrand=(value:string)=>clean(value)
  .replace(/^gm\s+chevrolet$/,'chevrolet')
  .replace(/^mercedes\s+benz$/,'mercedes benz');
 const ignored=new Set(['flex','gasolina','alcool','diesel','automatico','aut','mec','manual','cv','16v','8v','4p','5p','tsi','mpi','mi','total']);
-const trimTokens=new Set(['titanium','storm','freestyle','se','sel','trend','xls','xlt','limited','longitude','sport','wildtrak','highline','comfortline','sense','exclusive','premier','lt','ltz','rs','platinum','touring','advance','audace','impetus','drive','precision','volcano','ranch','endurance','trekking']);
+const trimTokens=new Set(['exl','ex','exs','lx','lxl','dx','cx','personal','titanium','storm','freestyle','se','sel','trend','xls','xlt','limited','longitude','sport','wildtrak','highline','comfortline','sense','exclusive','premier','lt','ltz','rs','platinum','touring','advance','audace','impetus','drive','precision','volcano','ranch','endurance','trekking']);
 const tokens=(value:string)=>clean(value).split(' ').filter(Boolean).filter(t=>!ignored.has(t));
 const scoreText=(target:string,candidate:string)=>{
  const a=tokens(target),b=tokens(candidate);if(!a.length||!b.length)return 0;
@@ -47,6 +47,7 @@ const turboOf=(value:string)=>{
  return /\b(tb|turbo)\b/.test(normalized);
 };
 const manualHintOf=(value:string)=>/\b\d[\.,]\d\s*m\b/i.test(String(value||''))||/\bmec\b|\bmanual\b/i.test(String(value||''));
+const automaticHintOf=(value:string)=>/\baut\b|\bautomatico\b|\bcvt\b/i.test(cleanBase(value));
 const engineOf=(value:string)=>{
  const match=String(value||'').toLowerCase().replace(',','.').match(/(\d)\.(\d)/);
  return match?Number(match[1]+'.'+match[2]):0;
@@ -105,6 +106,7 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
  const targetTrim=targetTrimOf(input.model);
  const targetTurbo=turboOf(input.model);
  const targetManual=manualHintOf(input.model);
+ const targetAutomatic=automaticHintOf(input.model);
  const targetEngine=engineOf(input.model);
  const targetComfort=comfortFamilyOf(input.model);
  const targetAlphaNumFamily=alphaNumFamilyOf(input.model);
@@ -119,7 +121,9 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
    const trimPenalty=targetTrim&&candidateTrim&&candidateTrim!==targetTrim?-0.65:targetTrim&&!candidateTokens.includes(targetTrim)?-0.45:0;
    const candidateTurbo=turboOf(name);
    const turboScore=targetTurbo===candidateTurbo?0.18:(candidateTurbo&&!targetTurbo?-0.85:-0.45);
-   const manualPenalty=targetManual&&/\baut\b|\bautomatico\b/.test(clean(name))?-0.75:0;
+   const candidateAutomatic=automaticHintOf(name);
+   const candidateManual=manualHintOf(name);
+   const transmissionScore=targetAutomatic?(candidateAutomatic?0.95:(candidateManual?-1.45:-0.35)):targetManual?(candidateManual?0.95:(candidateAutomatic?-1.45:-0.35)):0;
    const candidateEngine=engineOf(name);
    const engineScore=targetEngine&&candidateEngine?(Math.abs(targetEngine-candidateEngine)<0.01?0.95:-1.35):0;
    const candidateComfort=comfortFamilyOf(name);
@@ -128,10 +132,19 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
    const familyExactScore=targetAlphaNumFamily&&candidateAlphaNumFamily
      ? (targetAlphaNumFamily===candidateAlphaNumFamily?1.20:-1.60)
      : 0;
-   return {item,name,total:base+familyBonus+exactPhrase+trimBonus+trimPenalty+turboScore+manualPenalty+engineScore+comfortScore+familyExactScore,base,candidateTrim};
+   return {item,name,total:base+familyBonus+exactPhrase+trimBonus+trimPenalty+turboScore+transmissionScore+engineScore+comfortScore+familyExactScore,base,candidateTrim,candidateAutomatic,candidateManual};
  }).sort((a,b)=>b.total-a.total);
  const candidates=ranked.filter(row=>row.total>=0.45&&(!targetTrim||tokens(row.name).includes(targetTrim))).slice(0,8);
  if(!candidates.length)return null;
+ if(!targetAutomatic&&!targetManual){
+   const comparable=candidates.filter(row=>!targetTrim||row.candidateTrim===targetTrim);
+   const hasAuto=comparable.some(row=>row.candidateAutomatic);
+   const hasManual=comparable.some(row=>row.candidateManual);
+   if(hasAuto&&hasManual){
+     const top=comparable[0],next=comparable.find(row=>row.candidateAutomatic!==top?.candidateAutomatic||row.candidateManual!==top?.candidateManual);
+     if(top&&next&&Math.abs(top.total-next.total)<0.75)return null;
+   }
+ }
 
  const requestedYears=yearsFrom(input.year);
  const targetYear=requestedYears.length?requestedYears[requestedYears.length-1]:0;
@@ -158,7 +171,9 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
      const trimScore=targetTrim&&tokens(detailModel).includes(targetTrim)?0.35:0;
      const detailTurbo=turboOf(detailModel);
      const turboScore=targetTurbo===detailTurbo?0.18:(detailTurbo&&!targetTurbo?-0.85:-0.45);
-     const manualPenalty=targetManual&&/\baut\b|\bautomatico\b/.test(clean(detailModel))?-0.75:0;
+     const detailAutomatic=automaticHintOf(detailModel);
+     const detailManual=manualHintOf(detailModel);
+     const transmissionScore=targetAutomatic?(detailAutomatic?0.95:(detailManual?-1.45:-0.35)):targetManual?(detailManual?0.95:(detailAutomatic?-1.45:-0.35)):0;
      const detailEngine=engineOf(detailModel);
      const engineScore=targetEngine&&detailEngine?(Math.abs(targetEngine-detailEngine)<0.01?0.95:-1.35):0;
      const detailComfort=comfortFamilyOf(detailModel);
@@ -167,7 +182,7 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
      const familyExactScore=targetAlphaNumFamily&&detailAlphaNumFamily
        ? (targetAlphaNumFamily===detailAlphaNumFamily?1.20:-1.60)
        : 0;
-     const total=modelScore+fuelScore+yearScore+exactBonus+trimScore+turboScore+manualPenalty+engineScore+comfortScore+familyExactScore;
+     const total=modelScore+fuelScore+yearScore+exactBonus+trimScore+turboScore+transmissionScore+engineScore+comfortScore+familyExactScore;
      if(!best||total>best.total)best={detail,total,modelScore};
    }
  }
