@@ -45,6 +45,73 @@ const stringsFrom=(value:any,out:string[]=[],depth=0):string[]=>{
   return out;
 };
 
+const matchClean=(value:any)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const matchTokens=(value:any)=>matchClean(value).split(' ').filter(Boolean).filter(token=>!new Set(['flex','flexone','gasolina','alcool','diesel','16v','8v','4p','5p']).has(token));
+const transmissionOf=(value:any)=>{
+  const text=' '+matchClean(value)+' ';
+  if(/\b(aut|automatico|cvt)\b/.test(text))return 'auto';
+  if(/\b(mec|mecanico|manual)\b/.test(text))return 'manual';
+  return '';
+};
+const engineLitersOf=(value:any)=>{
+  const text=String(value||'').toLowerCase().replace(',','.');
+  const direct=text.match(/\b([1-6])\.(\d)\b/);
+  if(direct)return Number(direct[1]+'.'+direct[2]);
+  const cc=Number(String(value||'').replace(/\D/g,''));
+  if(cc>=600&&cc<=7000)return Math.round((cc/1000)*10)/10;
+  return 0;
+};
+const vehicleTrimOf=(value:any)=>{
+  const known=new Set(['exl','ex','exs','lx','lxl','dx','cx','personal','highline','comfortline','limited','platinum','premier','touring','sense','advance','audace','impetus','drive','precision','volcano','ranch','endurance','trekking','titanium','freestyle','wildtrak']);
+  return matchTokens(value).find(token=>known.has(token))||'';
+};
+const overlapScore=(target:any,candidate:any)=>{
+  const a=matchTokens(target),b=matchTokens(candidate);
+  if(!a.length||!b.length)return 0;
+  const matched=a.filter(token=>b.includes(token)).length;
+  return matched/Math.max(a.length,1);
+};
+const selectDadosApiFipe=(data:any,extra:any,rows:any[],targetYear:number)=>{
+  if(!rows.length)return {};
+  const rootCode=String(data.codigo_fipe||data.codigoFipe||'').trim();
+  const listModel=Array.isArray(data.listamodelo)?data.listamodelo.join(' '):'';
+  const identity=[
+    data.MODELO,data.modelo,data.marcaModelo,data.VERSAO,data.versao,data.SUBMODELO,data.submodelo,
+    listModel,extra.modelo,extra.grupo,extra.caixa_cambio,extra.cambio,
+  ].filter(Boolean).join(' ');
+  const targetTransmission=transmissionOf(identity);
+  const targetEngine=engineLitersOf(extra.cilindradas)||engineLitersOf(identity);
+  const targetTrim=vehicleTrimOf(identity);
+  const ranked=rows.map((row:any,index:number)=>{
+    const candidate=String(row?.texto_modelo||row?.modelo||'');
+    const candidateYear=Number(row?.ano_modelo||row?.anoModelo||0)||0;
+    const candidateTransmission=transmissionOf(candidate);
+    const candidateEngine=engineLitersOf(candidate);
+    const candidateTrim=vehicleTrimOf(candidate);
+    let score=overlapScore(identity,candidate)*8;
+    if(targetYear&&candidateYear===targetYear)score+=6;
+    else if(targetYear&&candidateYear&&candidateYear!==targetYear)score-=12;
+    if(rootCode&&String(row?.codigo_fipe||'').trim()===rootCode)score+=20;
+    if(targetTrim)score+=candidateTrim===targetTrim?7:(candidateTrim?-10:-4);
+    if(targetTransmission)score+=candidateTransmission===targetTransmission?8:(candidateTransmission?-14:-5);
+    if(targetEngine&&candidateEngine)score+=Math.abs(targetEngine-candidateEngine)<0.11?7:-12;
+    return {row,index,score,candidateTransmission,candidateEngine,candidateTrim};
+  }).sort((a:any,b:any)=>b.score-a.score||a.index-b.index);
+  const best=ranked[0];
+  const second=ranked[1];
+  const ambiguous=Boolean(
+    best&&second&&
+    Math.abs(best.score-second.score)<1.25&&
+    (
+      (best.candidateTransmission&&second.candidateTransmission&&best.candidateTransmission!==second.candidateTransmission)||
+      (best.candidateEngine&&second.candidateEngine&&Math.abs(best.candidateEngine-second.candidateEngine)>0.11)||
+      (best.candidateTrim&&second.candidateTrim&&best.candidateTrim!==second.candidateTrim)
+    )
+  );
+  if(ambiguous&&!rootCode&&!targetTransmission&&!targetEngine)return {};
+  return best?.row||{};
+};
+
 const normalizeDadosApiBrand=(rawBrand:any,...vehicleTexts:any[])=>{
   const original=String(rawBrand||'').trim();
   const corpus=[original,...vehicleTexts].map(value=>String(value||'')).join(' ').toUpperCase();
@@ -59,8 +126,7 @@ const normalizeDadosApi=(raw:any,plate:string)=>{
   const extra=data.extra||{};
   const targetYear=Number(data.anoModelo||extra.ano_modelo||data.ano_modelo||data.ano||0)||0;
   const fipeRows=Array.isArray(data?.fipe?.dados)?data.fipe.dados:[];
-  const matchingFipe=fipeRows.find((row:any)=>Number(row?.ano_modelo||row?.anoModelo||0)===targetYear);
-  const fipe=matchingFipe||fipeRows[0]||{};
+  const fipe=selectDadosApiFipe(data,extra,fipeRows,targetYear);
   const restrictions=[
     extra.restricao_1,extra.restricao_2,extra.restricao_3,extra.restricao_4,
     data.restricoes,data.restricao,data.situacao,
@@ -104,7 +170,7 @@ const normalizeDadosApi=(raw:any,plate:string)=>{
     situation:String(data.situacao||extra.situacao_veiculo||'').trim(),
     restrictions:Array.from(new Set(restrictions)),
     fipeValue,
-    fipeCode:String(fipe.codigo_fipe||data.codigo_fipe||'').trim(),
+    fipeCode:String(data.codigo_fipe||data.codigoFipe||fipe.codigo_fipe||'').trim(),
     referenceMonth:String(fipe.mes_referencia||data.mes_referencia||'').trim(),
     confidence:model&&year?100:70,
     flags:{auctionOrClaim,armored},
