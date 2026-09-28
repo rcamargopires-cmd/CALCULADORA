@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Activity, AlertTriangle, ArrowRight, BarChart3, BellRing, CarFront, ChevronRight,
   CircleDollarSign, Clock3, Gauge, RefreshCw, Target, TrendingUp, UsersRound, X,
@@ -127,6 +128,25 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   const [leads, setLeads] = useState<ShowroomPassage[]>([]);
   const [loading, setLoading] = useState(true);
   const [focus, setFocus] = useState<FocusPanel>(null);
+
+  useEffect(() => {
+    if (!focus) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarGap = Math.max(window.innerWidth - document.documentElement.clientWidth, 0);
+    document.body.style.overflow = 'hidden';
+    if (scrollbarGap > 0) document.body.style.paddingRight = `${scrollbarGap}px`;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFocus(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape);
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [focus]);
+
   const [scope, setScope] = useState(() => ({
     companyId: companyScopeService.get(currentUser),
     storeId: storeScopeService.get(currentUser),
@@ -522,8 +542,8 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
         <span>{history.length} negociação(ões) registradas</span>
       </footer>
 
-      {focus && (
-        <div className="mx-drawer-backdrop" onClick={() => setFocus(null)}>
+      {focus && createPortal(
+        <div className="mx-drawer-backdrop" onClick={() => setFocus(null)} role="presentation">
           <aside className="mx-drawer" onClick={event => event.stopPropagation()}>
             <div className="mx-drawer-head">
               <div>
@@ -592,7 +612,8 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
               </div>
             )}
           </aside>
-        </div>
+        </div>,
+        document.body,
       )}
     </main>
   );
