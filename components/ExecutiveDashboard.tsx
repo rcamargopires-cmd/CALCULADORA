@@ -10,7 +10,7 @@ import {
   CommissionConfig, OperationalPerformanceSeller, OperationalPerformanceSnapshot,
   OperationalStockItem, SavedCalculation, ShowroomPassage, User,
 } from '../types';
-import { operationalDataService } from '../services/operationalDataService';
+import { normalize, operationalDataService } from '../services/operationalDataService';
 import { evaluationQueueService, EvaluationQueueRequest } from '../services/evaluationQueueService';
 import { showroomFlowService } from '../services/showroomFlowService';
 import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companyScopeService';
@@ -222,7 +222,42 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   }, [scope.companyId, scope.storeId]);
 
   const total = useMemo(() => totalFromSnapshot(snapshot), [snapshot]);
-  const sellers = snapshot?.sellers || [];
+  const importedSellers = snapshot?.sellers || [];
+  const sellers = useMemo(() => {
+    const existing = new Set(importedSellers.map(item => normalize(String(item.seller || ''))));
+    const roster = users.filter(user =>
+      user.status === 'active' &&
+      (user.role === 'seller' || user.role === 'user') &&
+      (!user.companyId || user.companyId === scope.companyId) &&
+      (!user.storeId || user.storeId === scope.storeId)
+    );
+    const missing: OperationalPerformanceSeller[] = roster
+      .filter(user => !existing.has(normalize(String(user.name || ''))))
+      .map(user => ({
+        seller: user.name || user.email,
+        sellerKey: normalize(user.name || user.email),
+        passages: 0,
+        orders: 0,
+        flowTotal: 0,
+        orderPercent: 0,
+        workInPeriod: 0,
+        avgContactsPerDay: 0,
+        evaluations: 0,
+        evaluationRate: 0,
+        closing: 0,
+        syonetSales: 0,
+        closingPercent: 0,
+        marginPerCar: 0,
+        marginTotal: 0,
+        marginPercent: 0,
+        captureQty: 0,
+        capturePercent: 0,
+        pipeline: 0,
+        projection: 0,
+        additionalPurchase: 0,
+      }));
+    return [...importedSellers, ...missing];
+  }, [importedSellers, users, scope.companyId, scope.storeId]);
 
   const stockValue = useMemo(() => stock.reduce((sum, item) => sum + Number(item.cost || 0), 0), [stock]);
   const ageBands = useMemo(() => {
@@ -271,7 +306,7 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   const actualSales = officialClosingCount(total);
 
   const sellerRows = useMemo(() => sellers.map(seller => {
-    const user = users.find(item => String(item.name || '').trim().toLowerCase() === String(seller.seller || '').trim().toLowerCase());
+    const user = users.find(item => normalize(String(item.name || '')) === normalize(String(seller.seller || '')));
     const sellerGoal = Number(user?.goals?.monthly || 15);
     const marginGoal = Number(user?.goals?.margin || goals.margin);
     const sales = officialClosingCount(seller);
