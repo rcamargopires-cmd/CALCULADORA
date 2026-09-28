@@ -4,7 +4,6 @@ import { Company, SellerGoals, Store, User, UserRole, UserStatus } from '../type
 import { userService } from '../services/userService';
 import { companyIdForUser, companyService, DEFAULT_COMPANY } from '../services/companyService';
 import { COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
-import { storeCompanyId, storeService } from '../services/storeService';
 
 const roleLabel = (role: UserRole) =>
   role === 'admin' ? 'Administrador master' :
@@ -46,13 +45,12 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const load = async (targetCompany = companyId) => {
     setError('');
     try {
-      const [userList, storeList, companyList] = await Promise.all([
-        userService.getForManagement(currentUser, targetCompany),
-        isAdmin ? storeService.getAll() : storeService.getDirectorStores(targetCompany),
+      const [context, companyList] = await Promise.all([
+        userService.getManagementContext(currentUser, targetCompany),
         isAdmin ? companyService.getAll() : Promise.resolve([] as Company[]),
       ]);
-      setUsers(userList);
-      setStores(storeList.filter(store => store.active && storeCompanyId(store) === targetCompany));
+      setUsers(context.users);
+      setStores(context.stores.filter(store => store.active !== false));
       if (isAdmin) setCompanies(companyList);
     } catch (cause: any) {
       console.error('Equipe & Usuários: falha ao carregar escopo.', cause);
