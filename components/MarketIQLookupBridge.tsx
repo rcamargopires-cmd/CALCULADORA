@@ -340,6 +340,7 @@ const MarketIQLookupBridge: React.FC = () => {
             let fipeValue = Number(plateData.fipeValue) || 0;
             let fipeCode = String(plateData.fipeCode || '');
             let referenceMonth = String(plateData.referenceMonth || '');
+            let resolvedModel = model;
 
             if (fipeCode || !fipeValue) {
               const fipe = await lookupFipe({ brand, model, year, fuel, fipeCode });
@@ -348,16 +349,17 @@ const MarketIQLookupBridge: React.FC = () => {
                 fipeValue = Number(fipe.value) || 0;
                 fipeCode = String(fipe.fipeCode || fipeCode);
                 referenceMonth = String(fipe.referenceMonth || referenceMonth);
+                resolvedModel = String(fipe.model || model).trim() || model;
               }
             }
 
-            fill({ model, year, km: stockItem?.km, fipe: fipeValue });
+            fill({ model: resolvedModel, year, km: stockItem?.km, fipe: fipeValue });
             const currentUser = auth.currentUser;
             if (currentUser) {
               void marketIqVehicleCacheService.save({
                 plate,
                 brand,
-                model,
+                model: resolvedModel,
                 year,
                 fuel,
                 renavam: String(plateData.renavam || ''),
@@ -387,7 +389,7 @@ const MarketIQLookupBridge: React.FC = () => {
                   ? ` · Restrição: ${restrictions[0]}.`
                   : '';
             const sourceText = plateData.provider === 'dadosapi' ? 'DadosAPI' : 'consulta de placa';
-            setNotice({ kind: flags.auctionOrClaim || flags.armored ? 'warn' : 'ok', text: `${model} · ano/modelo ${year}${location ? ` · ${location}` : ''}. Identificado automaticamente pela ${sourceText}${referenceMonth ? ` · FIPE ${referenceMonth}` : ''}.${riskText}` });
+            setNotice({ kind: flags.auctionOrClaim || flags.armored ? 'warn' : 'ok', text: `${resolvedModel} · ano/modelo ${year}${location ? ` · ${location}` : ''}. Identificado automaticamente pela ${sourceText}${referenceMonth ? ` · FIPE ${referenceMonth}` : ''}.${riskText}` });
             setExternal(null);
             return;
           }
