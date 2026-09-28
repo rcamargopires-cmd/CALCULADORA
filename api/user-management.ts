@@ -60,7 +60,13 @@ const managementContext=async(actor:any,companyId:string)=>{
   ensureManagerScope(actor,companyId);
   const users=await motyqFirestore.query('users',[{field:'companyId',value:companyId}],250);
   const scope:any=await motyqFirestore.get('director_scope',companyId).catch(()=>null);
-  const stores=Array.isArray(scope?.stores)?scope.stores.filter((item:any)=>String(item?.companyId||companyId)===companyId&&item?.active!==false):[];
+  let stores=Array.isArray(scope?.stores)?scope.stores.filter((item:any)=>String(item?.companyId||companyId)===companyId&&item?.active!==false):[];
+  if(!stores.length){
+    const multistore:any=await motyqFirestore.get('config','multistore').catch(()=>null);
+    stores=Array.isArray(multistore?.stores)
+      ? multistore.stores.filter((item:any)=>String(item?.companyId||'abrao-reze')===companyId&&item?.active!==false)
+      : [];
+  }
   return {companyId,users,stores};
 };
 
