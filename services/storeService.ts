@@ -83,7 +83,7 @@ export const storeCompanyId = (store?: Pick<Store, 'companyId'> | null) => store
 export const storeService = {
   getAll: async (): Promise<Store[]> => {
     const profile = await currentProfile();
-    if (profile?.role === 'director') {
+    if (profile?.role === 'director' || profile?.role === 'manager') {
       return readDirectorStores(profile.companyId || DEFAULT_COMPANY_ID);
     }
     return readMasterStores();
