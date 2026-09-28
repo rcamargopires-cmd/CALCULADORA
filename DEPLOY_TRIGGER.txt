@@ -1,2 +1,2 @@
-Deploy trigger: Firebase service account enabled for secure team management.
-Timestamp: 2026-09-28 16:47 BRT
+Deploy trigger: corrected full Firebase service account JSON.
+Timestamp: 2026-09-28 17:09 BRT
