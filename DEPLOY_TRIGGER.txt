@@ -1,2 +1,2 @@
-MOTYQ production deploy trigger for CRM customer dossier
-2026-09-18 17:50 BRT
+Deploy trigger: Firebase service account enabled for secure team management.
+Timestamp: 2026-09-28 16:47 BRT
