@@ -153,7 +153,7 @@ const SellerShowroomHistory: React.FC<Props> = ({ user }) => {
       type="button"
       onClick={() => setOpen(true)}
       title="Abrir meu histórico de atendimentos"
-      className="flex items-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs font-bold text-zinc-500 transition-all hover:text-zinc-300"
+      className="mq-nav-item"
     >
       <History size={14}/>
       ATENDIMENTOS
