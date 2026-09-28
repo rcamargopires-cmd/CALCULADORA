@@ -533,3 +533,17 @@ body.motyq-graphite .motyq-login-primary:focus-visible{
   outline:3px solid rgba(37,99,235,.20)!important;
   outline-offset:2px!important;
 }
+
+
+/* Legacy launchers injected into the sidebar now follow the unified navigation. */
+.mq-sidebar .motyq-crm-legacy-nav{
+  display:none!important;
+}
+
+.mq-sidebar a.mq-nav-item{
+  text-decoration:none!important;
+}
+
+.mq-sidebar a.mq-nav-item:visited{
+  color:#d7e3ec!important;
+}
