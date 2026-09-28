@@ -460,3 +460,50 @@ body.motyq-graphite .motyq-app-shell{
 @media(max-width:1020px){
   .mq-nav-section{display:none!important}
 }
+
+
+/* Viewport-safe executive drawers and overflow guards. */
+body.motyq-graphite{
+  max-width:100%;
+  overflow-x:clip!important;
+}
+
+.mq-shell,
+.mq-main,
+.mq-workspace{
+  max-width:100%;
+  min-width:0;
+}
+
+.mx-drawer-backdrop{
+  box-sizing:border-box!important;
+  width:100vw!important;
+  max-width:100vw!important;
+  height:100dvh!important;
+  overflow:hidden!important;
+  padding:12px!important;
+}
+
+.mx-drawer{
+  flex:0 1 560px!important;
+  width:min(560px,calc(100vw - 24px))!important;
+  max-width:calc(100vw - 24px)!important;
+  height:calc(100dvh - 24px)!important;
+  max-height:calc(100dvh - 24px)!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior:contain;
+}
+
+@media(max-width:720px){
+  .mx-drawer-backdrop{
+    padding:0!important;
+  }
+  .mx-drawer{
+    width:100vw!important;
+    max-width:100vw!important;
+    height:100dvh!important;
+    max-height:100dvh!important;
+    border-radius:0!important;
+  }
+}
