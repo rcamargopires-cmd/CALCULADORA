@@ -156,6 +156,17 @@ export const motyqFirestore = {
     return { id: docIdFromName(body.name), ...fieldsToObject(body.fields || {}) };
   },
 
+  delete: async (collection: string, id: string) => {
+    const { docsBase } = ctx();
+    const response = await fetch(`${docsBase}/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    if (response.status === 404) return false;
+    if (!response.ok) throw new Error(`firestore_delete_${response.status}`);
+    return true;
+  },
+
   query: async (
     collection: string,
     filters: Array<{ field: string; op?: 'EQUAL'; value: any }>,
