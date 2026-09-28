@@ -20,8 +20,8 @@
   --mq-green:#16a085;
   --mq-amber:#f59e0b;
   --mq-red:#dc5a5a;
-  --mq-sidebar:#17324a;
-  --mq-sidebar-2:#1d3c57;
+  --mq-sidebar:#2c4a61;
+  --mq-sidebar-2:#3a5b74;
 }
 
 html,
@@ -44,13 +44,13 @@ body.motyq-graphite .motyq-app-shell{
 }
 
 .mq-sidebar{
-  border-right:1px solid rgba(255,255,255,.08)!important;
-  background:linear-gradient(180deg,var(--mq-sidebar) 0%,#142d43 100%)!important;
-  box-shadow:12px 0 34px rgba(23,50,74,.08)!important;
+  border-right:1px solid rgba(255,255,255,.12)!important;
+  background:linear-gradient(180deg,var(--mq-sidebar) 0%,var(--mq-sidebar-2) 100%)!important;
+  box-shadow:10px 0 28px rgba(23,50,74,.07)!important;
 }
 
 .mq-sidebar-brand{
-  border-bottom-color:rgba(255,255,255,.10)!important;
+  border-bottom-color:rgba(255,255,255,.14)!important;
 }
 
 .mq-sidebar-brand img{
@@ -58,32 +58,32 @@ body.motyq-graphite .motyq-app-shell{
 }
 
 .mq-nav-item{
-  color:#c2d2df!important;
+  color:#d7e3ec!important;
 }
 
 .mq-nav-item svg{
-  color:#9fb9cc!important;
+  color:#bdd0dd!important;
 }
 
 .mq-nav-item:hover{
   color:#fff!important;
-  background:rgba(255,255,255,.075)!important;
-  border-color:rgba(255,255,255,.10)!important;
+  background:rgba(255,255,255,.10)!important;
+  border-color:rgba(255,255,255,.12)!important;
 }
 
 .mq-nav-item.is-active{
   color:#fff!important;
-  border-color:rgba(113,196,255,.45)!important;
-  background:linear-gradient(135deg,#2563eb,#2f80ed)!important;
-  box-shadow:0 8px 22px rgba(37,99,235,.20),inset 0 1px 0 rgba(255,255,255,.16)!important;
+  border-color:rgba(113,196,255,.42)!important;
+  background:linear-gradient(135deg,#2563eb,#3b82f6)!important;
+  box-shadow:0 8px 20px rgba(37,99,235,.18),inset 0 1px 0 rgba(255,255,255,.16)!important;
 }
 
 .mq-sidebar-foot{
   border-top-color:rgba(255,255,255,.10)!important;
 }
 
-.mq-sidebar-foot span{color:#89a9bf!important}
-.mq-sidebar-foot strong{color:#c3d5e2!important}
+.mq-sidebar-foot span{color:#b6cad8!important}
+.mq-sidebar-foot strong{color:#e2ebf2!important}
 
 .mq-topbar{
   border-bottom:1px solid var(--mq-border)!important;
