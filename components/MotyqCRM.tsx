@@ -387,8 +387,8 @@ const MotyqCRM:React.FC<Props>=({user})=>{
 
   const navButton=slot?createPortal(
     <button type="button" onClick={()=>setOpen(true)} title="MOTYQ CRM"
-      className="flex items-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs font-bold text-emerald-700 transition-all hover:bg-emerald-50 hover:text-emerald-800">
-      <UsersRound size={14}/> CRM
+      className="mq-nav-item motyq-crm-legacy-nav">
+      <UsersRound size={18}/> <span>CRM</span>
       {metrics.overdue>0&&<span className="grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] text-white">{metrics.overdue}</span>}
     </button>,slot
   ):null;
