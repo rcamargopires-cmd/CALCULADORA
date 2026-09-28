@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import {
   Archive, BellRing, BarChart3, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard,
-  ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Settings, Sparkles, Target, UsersRound,
+  ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Settings, Sparkles, Target, UserCog, UsersRound,
   ClipboardCheck, Coins,
 } from 'lucide-react';
 import type { User } from '../types';
@@ -101,6 +101,7 @@ const MotyqShell:React.FC<Props>=({
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Estoque Motyq')}><CarFront size={18}/><span>Estoque</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcherStarts('MarketIQ')}><Gauge size={18}/><span>MarketIQ</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><UsersRound size={18}/><span>Gestão</span></button>}
+        {manager&&<button className="mq-nav-item" onClick={()=>launcher('Equipe & Usuários')}><UserCog size={18}/><span>Equipe</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><BarChart3 size={18}/><span>Relatórios</span></button>}
         {role==='admin'&&<button className="mq-nav-item" onClick={()=>launcher('Administração Motyq')}><Settings size={18}/><span>Administração</span></button>}
       </nav>
