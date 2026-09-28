@@ -452,8 +452,7 @@ body.motyq-graphite .motyq-app-shell{
 }
 
 @media (min-width:721px){
-  body.motyq-graphite button[data-motyq-sidebar-integrated="true"],
-  body.motyq-graphite div:has(> button[data-motyq-sidebar-integrated="true"]){
+  body.motyq-graphite button[data-motyq-sidebar-integrated="true"]{
     display:none!important;
   }
 }
