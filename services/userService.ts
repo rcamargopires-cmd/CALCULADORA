@@ -11,8 +11,8 @@ const managementRequest = async (method: 'GET' | 'POST' | 'DELETE', body?: any, 
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error('Sua sessão expirou. Entre novamente no Motyq.');
   const token = await currentUser.getIdToken();
-  const suffix = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
-  const response = await fetch(`/api/user-management${suffix}`, {
+  const suffix = companyId ? `&companyId=${encodeURIComponent(companyId)}` : '';
+  const response = await fetch(`/api/analyze-deal?action=user-management${suffix}`, {
     method,
     cache: 'no-store',
     headers: {
