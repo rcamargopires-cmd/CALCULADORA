@@ -61,6 +61,11 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   useEffect(() => { if (open) void load(); }, [open]);
 
   useEffect(() => {
+    if (!editingUser || form.storeId || stores.length !== 1) return;
+    setForm(current => ({ ...current, storeId: stores[0].id }));
+  }, [editingUser, form.storeId, stores]);
+
+  useEffect(() => {
     if (!isAdmin) return;
     const sync = (event: Event) => {
       const next = String((event as CustomEvent<{ companyId?: string }>).detail?.companyId || '');
