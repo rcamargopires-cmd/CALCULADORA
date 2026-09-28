@@ -45,10 +45,38 @@ service cloud.firestore {
 
     match /users/{email} {
       allow read: if isAuthenticated() && (
-        request.auth.token.email == email || isAdmin() ||
-        ((role() == 'manager' || role() == 'seller' || role() == 'user') && sameStore(resource.data))
+        request.auth.token.email == email ||
+        isAdmin() ||
+        (role() == 'manager' && sameCompany(resource.data)) ||
+        ((role() == 'seller' || role() == 'user') && sameStore(resource.data))
       );
-      allow write: if isAdmin();
+
+      allow create: if isAdmin() || (
+        role() == 'manager' &&
+        sameCompany(request.resource.data) &&
+        request.resource.data.companyId == myCompany() &&
+        request.resource.data.email == email &&
+        request.resource.data.role in ['manager', 'seller', 'user', 'reception', 'evaluator']
+      );
+
+      allow update: if isAdmin() || (
+        role() == 'manager' &&
+        sameCompany(resource.data) &&
+        sameCompany(request.resource.data) &&
+        resource.data.companyId == request.resource.data.companyId &&
+        request.resource.data.companyId == myCompany() &&
+        resource.data.email == request.resource.data.email &&
+        request.resource.data.email == email &&
+        resource.data.role in ['manager', 'seller', 'user', 'reception', 'evaluator'] &&
+        request.resource.data.role in ['manager', 'seller', 'user', 'reception', 'evaluator']
+      );
+
+      allow delete: if isAdmin() || (
+        role() == 'manager' &&
+        sameCompany(resource.data) &&
+        resource.data.role in ['manager', 'seller', 'user', 'reception', 'evaluator'] &&
+        request.auth.token.email != email
+      );
     }
 
     match /deals/{dealId} {
@@ -105,7 +133,9 @@ service cloud.firestore {
     }
 
     match /director_scope/{companyId} {
-      allow read: if isAdmin() || (isDirector() && companyId == myCompany() && resource.data.companyId == myCompany());
+      allow read: if isAdmin() ||
+        (isDirector() && companyId == myCompany() && resource.data.companyId == myCompany()) ||
+        (role() == 'manager' && companyId == myCompany() && resource.data.companyId == myCompany());
       allow write: if isAdmin();
     }
 
