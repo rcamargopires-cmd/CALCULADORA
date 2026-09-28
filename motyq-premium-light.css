@@ -430,3 +430,34 @@ body.motyq-graphite .motyq-app-shell{
     color:#2563eb!important;
   }
 }
+
+
+/* Seller tools consolidated into the left navigation. */
+.mq-sidebar-nav{
+  min-height:0;
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,.18) transparent;
+}
+
+.mq-nav-section{
+  margin:12px 10px 2px;
+  padding:8px 4px 2px;
+  border-top:1px solid rgba(255,255,255,.10);
+  color:rgba(226,235,242,.60);
+  font-size:8px;
+  font-weight:850;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+
+@media (min-width:721px){
+  body.motyq-graphite button[data-motyq-sidebar-integrated="true"],
+  body.motyq-graphite div:has(> button[data-motyq-sidebar-integrated="true"]){
+    display:none!important;
+  }
+}
+
+@media(max-width:1020px){
+  .mq-nav-section{display:none!important}
+}
