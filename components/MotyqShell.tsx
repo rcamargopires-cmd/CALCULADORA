@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
-  BellRing, BarChart3, Calculator, CarFront, CheckCircle2, Gauge, LayoutDashboard,
-  LogOut, MessageSquareText, RefreshCw, Save, Settings, Sparkles, Target, UsersRound,
+  Archive, BellRing, BarChart3, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard,
+  ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Settings, Sparkles, Target, UsersRound,
   ClipboardCheck, Coins,
 } from 'lucide-react';
 import type { User } from '../types';
@@ -32,6 +32,22 @@ const launcherStarts=(title:string)=>{
   const button=document.querySelector(`button[title^="${title}"]`) as HTMLButtonElement|null;
   button?.click();
 };
+const launcherText=(text:string)=>{
+  const normalized=text.toLowerCase();
+  const button=Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+    .find(item=>String(item.textContent||'').replace(/\s+/g,' ').trim().toLowerCase().includes(normalized));
+  button?.click();
+};
+
+const integratedSellerLauncher=(button:HTMLButtonElement)=>{
+  const title=String(button.getAttribute('title')||'');
+  const text=String(button.textContent||'').replace(/\s+/g,' ').trim();
+  return title==='Minha Agenda Motyq'
+    || title==='Histórico de Fechamentos'
+    || title==='AssetGuard'
+    || text.includes('Smart Alerts')
+    || text==='TradeCheck';
+};
 
 const roleLabel=(role:string)=>role==='admin'?'Administrador':role==='manager'?'Gestor':role==='seller'||role==='user'?'Vendedor':role;
 
@@ -43,6 +59,24 @@ const MotyqShell:React.FC<Props>=({
   const seller=role==='seller'||role==='user';
   const manager=role==='manager'||role==='admin';
   const crm=()=>window.dispatchEvent(new CustomEvent('motyq:open-crm',{detail:{}}));
+
+  useEffect(()=>{
+    if(!seller)return;
+    const sync=()=>{
+      document.querySelectorAll<HTMLButtonElement>('button').forEach(button=>{
+        if(integratedSellerLauncher(button)) button.setAttribute('data-motyq-sidebar-integrated','true');
+      });
+    };
+    sync();
+    const observer=new MutationObserver(sync);
+    observer.observe(document.body,{childList:true,subtree:true});
+    return()=>{
+      observer.disconnect();
+      document.querySelectorAll<HTMLButtonElement>('[data-motyq-sidebar-integrated="true"]')
+        .forEach(button=>button.removeAttribute('data-motyq-sidebar-integrated'));
+    };
+  },[seller]);
+
   return <div className="mq-shell">
     <aside className="mq-sidebar">
       <div className="mq-sidebar-brand"><img src="/motyq-brand.svg" alt="MOTYQ"/></div>
@@ -54,6 +88,14 @@ const MotyqShell:React.FC<Props>=({
         <button className={'mq-nav-item '+(activeView==='calculator'?'is-active':'')} onClick={onCalculator}>
           <Calculator size={18}/><span>Negociação</span>
         </button>
+        {seller&&<>
+          <div className="mq-nav-section">Operação</div>
+          <button className="mq-nav-item" onClick={()=>launcher('Minha Agenda Motyq')}><ListTodo size={18}/><span>Ações do dia</span></button>
+          <button className="mq-nav-item" onClick={()=>launcher('Histórico de Fechamentos')}><Archive size={18}/><span>Resultados</span></button>
+          <button className="mq-nav-item" onClick={()=>launcherText('TradeCheck')}><Search size={18}/><span>TradeCheck</span></button>
+          <button className="mq-nav-item" onClick={()=>launcherText('Smart Alerts')}><BellRing size={18}/><span>Alertas</span></button>
+          <button className="mq-nav-item" onClick={()=>launcher('AssetGuard')}><KeyRound size={18}/><span>AssetGuard</span></button>
+        </>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Avaliações Motyq')}><ClipboardCheck size={18}/><span>Avaliações</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Estoque Motyq')}><CarFront size={18}/><span>Estoque</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcherStarts('MarketIQ')}><Gauge size={18}/><span>MarketIQ</span></button>}
