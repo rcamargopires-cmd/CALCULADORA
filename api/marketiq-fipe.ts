@@ -136,15 +136,6 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
  }).sort((a,b)=>b.total-a.total);
  const candidates=ranked.filter(row=>row.total>=0.45&&(!targetTrim||tokens(row.name).includes(targetTrim))).slice(0,8);
  if(!candidates.length)return null;
- if(!targetAutomatic&&!targetManual){
-   const comparable=candidates.filter(row=>!targetTrim||row.candidateTrim===targetTrim);
-   const hasAuto=comparable.some(row=>row.candidateAutomatic);
-   const hasManual=comparable.some(row=>row.candidateManual);
-   if(hasAuto&&hasManual){
-     const top=comparable[0],next=comparable.find(row=>row.candidateAutomatic!==top?.candidateAutomatic||row.candidateManual!==top?.candidateManual);
-     if(top&&next&&Math.abs(top.total-next.total)<0.75)return null;
-   }
- }
 
  const requestedYears=yearsFrom(input.year);
  const targetYear=requestedYears.length?requestedYears[requestedYears.length-1]:0;
