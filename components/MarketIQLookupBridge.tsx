@@ -113,12 +113,28 @@ const lookupPlate = async (plate: string) => {
 
 type Notice = { kind: 'ok' | 'warn' | 'loading'; text: string } | null;
 type ExternalVehicle = { plate: string };
+type FipeChoice = {
+  model: string;
+  year: number;
+  fuel: string;
+  value: number;
+  fipeCode: string;
+  transmission?: string;
+};
+type FipeChoiceContext = {
+  plate: string;
+  brand: string;
+  year: string;
+  fuel: string;
+  options: FipeChoice[];
+};
 
 const MarketIQLookupBridge: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [snapshot, setSnapshot] = useState<GroupStockSnapshot | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [external, setExternal] = useState<ExternalVehicle | null>(null);
+  const [fipeChoices, setFipeChoices] = useState<FipeChoiceContext | null>(null);
   const [readingCrlv, setReadingCrlv] = useState(false);
   const lastPlate = useRef('');
   const requestId = useRef(0);
@@ -279,12 +295,14 @@ const MarketIQLookupBridge: React.FC = () => {
         lastPlate.current = '';
         setNotice(null);
         setExternal(null);
+        setFipeChoices(null);
         return;
       }
       if (plate === lastPlate.current) return;
 
       lastPlate.current = plate;
       setExternal(null);
+      setFipeChoices(null);
       const currentRequest = ++requestId.current;
       setNotice({ kind: 'loading', text: `Consultando ${plate} pela placa...` });
 
@@ -350,6 +368,22 @@ const MarketIQLookupBridge: React.FC = () => {
                 fipeCode = String(fipe.fipeCode || fipeCode);
                 referenceMonth = String(fipe.referenceMonth || referenceMonth);
                 resolvedModel = String(fipe.model || model).trim() || model;
+              } else if (fipe?.ambiguous && Array.isArray(fipe.alternatives) && fipe.alternatives.length) {
+                setFipeChoices({
+                  plate,
+                  brand,
+                  year,
+                  fuel,
+                  options: fipe.alternatives.map((item: any) => ({
+                    model: String(item.model || ''),
+                    year: Number(item.year || year) || Number(year) || 0,
+                    fuel: String(item.fuel || fuel),
+                    value: Number(item.value) || 0,
+                    fipeCode: String(item.fipeCode || ''),
+                    transmission: String(item.transmission || ''),
+                  })).filter((item: FipeChoice) => item.value && item.fipeCode),
+                });
+                setNotice({ kind: 'warn', text: 'Encontrei mais de uma FIPE válida para esta versão. Confirme o câmbio abaixo para aplicar o valor correto.' });
               }
             }
 
@@ -432,10 +466,64 @@ const MarketIQLookupBridge: React.FC = () => {
     return () => document.removeEventListener('input', onInput, true);
   }, [snapshot, user]);
 
-  if ((!notice && !external) || !marketVisible()) return null;
+  const applyFipeChoice = async (choice: FipeChoice) => {
+    if (!fipeChoices || !user) return;
+    fill({
+      model: choice.model,
+      year: String(choice.year || fipeChoices.year),
+      fipe: choice.value,
+    });
+    const companyId = companyScopeService.get(user);
+    const storeId = storeScopeService.get(user);
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      void marketIqVehicleCacheService.save({
+        plate: fipeChoices.plate,
+        brand: fipeChoices.brand,
+        model: choice.model,
+        year: String(choice.year || fipeChoices.year),
+        fuel: choice.fuel || fipeChoices.fuel,
+        fipeCode: choice.fipeCode,
+        lastFipeValue: choice.value,
+        lastFipeReference: '',
+        source: 'dadosapi',
+        companyId,
+        storeId,
+        identifiedAt: new Date().toISOString(),
+        identifiedBy: currentUser.email || currentUser.uid,
+      }).catch(() => undefined);
+    }
+    setNotice({ kind: 'ok', text: `${choice.model} · FIPE confirmada em ${choice.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` });
+    setFipeChoices(null);
+  };
+
+  if ((!notice && !external && !fipeChoices) || !marketVisible()) return null;
 
   return <div className="fixed right-5 top-24 z-[615] w-[min(92vw,390px)] space-y-3">
     {notice && <div className={`rounded-2xl border px-4 py-3 text-xs shadow-2xl backdrop-blur-xl ${notice.kind === 'ok' ? 'border-emerald-300/25 bg-emerald-950/90 text-emerald-100' : notice.kind === 'warn' ? 'border-amber-300/25 bg-amber-950/90 text-amber-100' : 'border-cyan-300/20 bg-cyan-950/90 text-cyan-100'}`}>{notice.text}</div>}
+    {fipeChoices && <div className="rounded-2xl border border-amber-300/30 bg-white/95 p-4 text-slate-900 shadow-2xl backdrop-blur-xl">
+      <div className="mb-3">
+        <p className="text-[9px] font-black uppercase tracking-[.16em] text-amber-700">CONFIRMAR VERSÃO FIPE</p>
+        <p className="mt-1 text-sm font-semibold">Escolha o câmbio deste veículo</p>
+      </div>
+      <div className="grid gap-2">
+        {fipeChoices.options.map(choice => (
+          <button
+            key={choice.fipeCode}
+            type="button"
+            onClick={() => void applyFipeChoice(choice)}
+            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-sky-300 hover:bg-sky-50"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-slate-900">{choice.transmission === 'automatico' ? 'Automático' : choice.transmission === 'manual' ? 'Manual' : 'Versão FIPE'}</span>
+              <span className="mt-1 block truncate text-[11px] text-slate-500">{choice.model}</span>
+              <span className="mt-1 block text-[10px] text-slate-400">Código {choice.fipeCode}</span>
+            </span>
+            <strong className="shrink-0 text-sm text-sky-700">{choice.value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong>
+          </button>
+        ))}
+      </div>
+    </div>}
     {external && <div className="rounded-2xl border border-white/10 bg-[#11191b]/95 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="mb-3">
         <p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VALIDAR CRLV-E</p>
