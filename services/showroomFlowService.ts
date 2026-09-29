@@ -243,7 +243,7 @@ export const showroomFlowService={
 
   updateCrmLead:async(
     id:string,
-    patch:Partial<Pick<ShowroomPassage,'customerName'|'phone'|'interestModel'|'desiredVehicle'|'customerEmail'|'purchaseTimeline'|'preferredContact'|'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'|'futureContactAt'|'futureContactReason'|'futureContactNote'|'futureContactStatus'|'hibernatedAt'|'reactivatedAt'>>,
+    patch:Partial<Pick<ShowroomPassage,'customerName'|'phone'|'interestModel'|'desiredVehicle'|'customerEmail'|'purchaseTimeline'|'preferredContact'|'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'|'futureContactAt'|'futureContactReason'|'futureContactNote'|'futureContactStatus'|'hibernatedAt'|'reactivatedAt'|'archivedAt'|'archiveReason'>>,
     actor?:{email?:string;name?:string},
   )=>{
     const timestamp=now();
