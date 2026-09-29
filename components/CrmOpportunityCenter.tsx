@@ -90,7 +90,8 @@ export const QuickContact: React.FC<{
   user: User;
   onClose: () => void;
   onSaved: (message: string, result?: ContactResult) => void;
-}> = ({ lead, user, onClose, onSaved }) => {
+  onScheduleFuture?: () => void;
+}> = ({ lead, user, onClose, onSaved, onScheduleFuture }) => {
   const [result, setResult] = useState<ContactResult | ''>('');
   const [note, setNote] = useState('');
   const [followUp, setFollowUp] = useState(() => {
@@ -102,11 +103,12 @@ export const QuickContact: React.FC<{
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const isAlreadyClosed = lead.status === 'sale' || lead.status === 'no_deal';
   const selectedOption = CONTACT_RESULTS.find(option => option.value === result);
   const isClosing = Boolean(selectedOption?.closing);
 
   const submit = async () => {
-    if (!result || saving) return;
+    if (isAlreadyClosed || !result || saving) return;
     setSaving(true);
     setError('');
     try {
@@ -139,6 +141,18 @@ export const QuickContact: React.FC<{
         <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Fechar"><X size={18}/></button>
       </div>
 
+      {isAlreadyClosed ? <>
+        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-bold text-amber-900">Atendimento encerrado</p>
+          <p className="mt-1 text-xs leading-5 text-amber-700">
+            {lead.status==='sale'?'Este cliente já está marcado como vendido.':'Este cliente já está encerrado como perdido.'}
+          </p>
+        </div>
+        {onScheduleFuture&&<button type="button" onClick={onScheduleFuture}
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 text-sm font-bold text-white hover:bg-violet-700">
+          <CalendarClock size={16}/> Agendar contato futuro
+        </button>}
+      </> : <>
       <p className="mb-2 mt-5 text-xs font-bold text-slate-700">O que aconteceu?</p>
       <div className="grid gap-2 sm:grid-cols-2">
         {CONTACT_RESULTS.map(option => {
