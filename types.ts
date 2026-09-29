@@ -103,6 +103,8 @@ export interface ShowroomPassage {
   futureContactStatus?:'scheduled'|'reactivated'|'cancelled';
   hibernatedAt?:string;
   reactivatedAt?:string;
+  archivedAt?:string;
+  archiveReason?:string;
   crmProposals?:CrmProposalSnapshot[];
   whatsappThreadId?:string;
   activityHistory?:ShowroomPassageActivity[];
