@@ -570,6 +570,64 @@ const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFutu
   </article>;
 };
 
+const futureDateValue=(months:number)=>{
+  const date=new Date();
+  date.setMonth(date.getMonth()+months);
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+};
+
+const FutureContactModal=({lead,user,onClose,onSaved}:{lead:ShowroomPassage;user:User;onClose:()=>void;onSaved:()=>void})=>{
+  const[date,setDate]=useState(futureDateValue(24));
+  const[reason,setReason]=useState('Comprou outro veículo');
+  const[note,setNote]=useState('');
+  const[saving,setSaving]=useState(false);
+  const[error,setError]=useState('');
+  const save=async()=>{
+    const due=new Date(`${date}T00:00:00`);
+    if(!date||Number.isNaN(due.getTime())||due.getTime()<=Date.now()){setError('Escolha uma data futura.');return;}
+    setSaving(true);setError('');
+    try{
+      await showroomFlowService.scheduleFutureContact({id:lead.id,futureContactAt:due.toISOString(),reason,note,actorEmail:user.email,actorName:user.name});
+      onSaved();
+    }catch(error:any){setError(error?.message||'Não foi possível agendar o contato futuro.');}
+    finally{setSaving(false);}
+  };
+  return <div className="fixed inset-0 z-[690] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl" onClick={e=>e.stopPropagation()}>
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-violet-700">RELACIONAMENTO FUTURO</p><h3 className="mt-1 text-2xl font-semibold">Agendar retorno</h3><p className="mt-1 text-sm text-slate-500">{lead.customerName} sairá do Kanban e voltará à sua rotina na data escolhida.</p></div><button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-500"><X size={17}/></button></div>
+      <div className="mt-5 grid grid-cols-3 gap-2">
+        <button type="button" onClick={()=>setDate(futureDateValue(6))} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">6 meses</button>
+        <button type="button" onClick={()=>setDate(futureDateValue(12))} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">1 ano</button>
+        <button type="button" onClick={()=>setDate(futureDateValue(24))} className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700">2 anos</button>
+      </div>
+      <label className="mt-4 block"><span className="text-xs font-semibold text-slate-500">Data do próximo contato</span><input type="date" value={date} min={futureDateValue(0)} onChange={e=>setDate(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-violet-400"/></label>
+      <label className="mt-4 block"><span className="text-xs font-semibold text-slate-500">Motivo</span><select value={reason} onChange={e=>setReason(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-violet-400"><option>Comprou outro veículo</option><option>Troca programada</option><option>Aguardando quitar financiamento</option><option>Sem momento agora</option><option>Outro</option></select></label>
+      <label className="mt-4 block"><span className="text-xs font-semibold text-slate-500">Observação opcional</span><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Ex.: comprou Nivus em 09/2026, retomar na época de troca." className="mt-1.5 min-h-24 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-violet-400"/></label>
+      {error&&<div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <button disabled={saving} onClick={()=>void save()} className="mt-5 h-12 w-full rounded-2xl bg-violet-600 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50">{saving?'Agendando...':'Arquivar e agendar contato'}</button>
+    </div>
+  </div>;
+};
+
+const FutureContactsPanel=({items,user,onClose,onOpen,onReactivated}:{items:ShowroomPassage[];user:User;onClose:()=>void;onOpen:(item:ShowroomPassage)=>void;onReactivated:()=>void})=>{
+  const[saving,setSaving]=useState('');
+  const reactivate=async(item:ShowroomPassage)=>{
+    setSaving(item.id);
+    try{await showroomFlowService.reactivateFutureContact({id:item.id,actorEmail:user.email,actorName:user.name});onReactivated();}
+    finally{setSaving('');}
+  };
+  const due=(item:ShowroomPassage)=>item.futureContactAt&&new Date(item.futureContactAt).getTime()<=Date.now();
+  return <div className="fixed inset-0 z-[680] overflow-y-auto bg-slate-950/65 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="mx-auto mt-5 max-w-4xl rounded-[30px] border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl md:p-7" onClick={e=>e.stopPropagation()}>
+      <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-violet-700">CARTEIRA HIBERNADA</p><h3 className="mt-1 text-2xl font-semibold">Clientes futuros</h3><p className="mt-1 text-sm text-slate-500">Fora do Kanban até chegar a hora certa de retomar.</p></div><button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-500"><X size={18}/></button></div>
+      <div className="mt-5 space-y-3">{items.map(item=><article key={item.id} className={`rounded-2xl border p-4 ${due(item)?'border-amber-200 bg-amber-50':'border-slate-200 bg-slate-50'}`}>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><button onClick={()=>onOpen(item)} className="text-left font-bold text-slate-900 underline decoration-violet-300 underline-offset-4">{item.customerName||'Cliente'}</button><p className="mt-1 text-xs text-slate-500">{item.futureContactReason||'Relacionamento futuro'} · {item.assignedSellerName||'Sem vendedor'}</p>{item.futureContactNote&&<p className="mt-1 text-xs text-slate-500">{item.futureContactNote}</p>}</div>
+        <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1.5 text-xs font-bold ${due(item)?'bg-amber-100 text-amber-800':'bg-violet-100 text-violet-700'}`}>{due(item)?'VENCIDO · ':''}{item.futureContactAt?new Date(item.futureContactAt).toLocaleDateString('pt-BR'):'Sem data'}</span><button disabled={saving===item.id} onClick={()=>void reactivate(item)} className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Reativar no CRM</button></div></div>
+      </article>)}
+      {!items.length&&<div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">Nenhum cliente agendado para relacionamento futuro.</div>}</div>
+    </div>
+  </div>;
+};
 const NewLeadModal=({user,companyId,storeId,sellers,stockItems,onClose,onCreated}:{user:User;companyId:string;storeId:string;sellers:User[];stockItems:GroupStockItem[];onClose:()=>void;onCreated:()=>void})=>{
   const[name,setName]=useState('');const[phone,setPhone]=useState('');const[model,setModel]=useState('');const[seller,setSeller]=useState('');const[source,setSource]=useState<CrmLeadSource>('manual');const[temp,setTemp]=useState<CrmLeadTemperature>('warm');const[notes,setNotes]=useState('');const[follow,setFollow]=useState('');const[saving,setSaving]=useState(false);const[error,setError]=useState('');
   const liveMatches=useMemo(()=>matchGroupStock(stockItems,model,4),[stockItems,model]);
