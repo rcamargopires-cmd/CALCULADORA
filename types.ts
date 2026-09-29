@@ -37,7 +37,7 @@ export type ShowroomPassageStatus='waiting'|'in_service'|'evaluation'|'proposal'
 export type ShowroomPassageOrigin='walk_in'|'requested';
 export type CrmLeadSource='showroom'|'whatsapp'|'web'|'instagram'|'manual'|'other';
 export type CrmLeadTemperature='hot'|'warm'|'cold';
-export type ShowroomPassageActivityType='created'|'assumed'|'status'|'note'|'follow_up'|'correction'|'contact'|'closed';
+export type ShowroomPassageActivityType='created'|'assumed'|'status'|'note'|'follow_up'|'future_contact'|'correction'|'contact'|'closed';
 export type CrmProposalStatus='draft'|'sent'|'accepted'|'rejected';
 export interface CrmProposalSnapshot {
   id:string;
@@ -97,6 +97,12 @@ export interface ShowroomPassage {
   desiredEntry?:number;
   desiredPayment?:number;
   lostReason?:string;
+  futureContactAt?:string;
+  futureContactReason?:string;
+  futureContactNote?:string;
+  futureContactStatus?:'scheduled'|'reactivated'|'cancelled';
+  hibernatedAt?:string;
+  reactivatedAt?:string;
   crmProposals?:CrmProposalSnapshot[];
   whatsappThreadId?:string;
   activityHistory?:ShowroomPassageActivity[];
