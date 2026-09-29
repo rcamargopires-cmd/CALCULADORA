@@ -371,12 +371,31 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const moveLead=async(item:ShowroomPassage,status:ShowroomPassageStatus)=>{
     if(!item||item.status===status||busyId===item.id)return;
     const previousStatus=item.status;
+    const previousArchivedAt=item.archivedAt;
+    const sold=status==='sale';
+    const archivedAt=sold?new Date().toISOString():item.archivedAt;
     setBusyId(item.id);setMessage('');
-    setItems(current=>current.map(row=>row.id===item.id?{...row,status,updatedAt:new Date().toISOString()}:row));
+    setItems(current=>current.map(row=>row.id===item.id?{
+      ...row,
+      status,
+      ...(sold?{archivedAt,archiveReason:'Venda concluída'}:{}),
+      updatedAt:new Date().toISOString()
+    }:row));
     try{
-      await showroomFlowService.updateCrmLead(item.id,{status});
+      await showroomFlowService.updateCrmLead(item.id,{
+        status,
+        ...(sold?{archivedAt,archiveReason:'Venda concluída'}:{})
+      });
+      if(sold){
+        setFutureLead({...item,status:'sale',archivedAt,archiveReason:'Venda concluída'});
+        setMessage('Venda concluída. Cliente retirado do Kanban. Programe o próximo relacionamento.');
+      }
     }catch(error:any){
-      setItems(current=>current.map(row=>row.id===item.id?{...row,status:previousStatus}:row));
+      setItems(current=>current.map(row=>row.id===item.id?{
+        ...row,
+        status:previousStatus,
+        archivedAt:previousArchivedAt
+      }:row));
       setMessage(error?.message||'Não foi possível mover o lead.');
     }finally{
       setBusyId('');
@@ -533,7 +552,8 @@ const MotyqCRM:React.FC<Props>=({user})=>{
           const lead=items.find(item=>item.id===quickContact.id)||quickContact;
           setQuickContact(null);
           setMessage(msg);
-          if(result==='bought_elsewhere'||result==='sale')setFutureLead(lead);
+          if(result==='bought_elsewhere')setFutureLead(lead);
+          if(result==='sale')setFutureLead({...lead,status:'sale',archivedAt:new Date().toISOString(),archiveReason:'Venda concluída'});
         }}
       />}
       {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} stockItems={groupStock} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
