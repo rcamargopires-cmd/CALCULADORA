@@ -140,13 +140,44 @@ const reconcileOperationalSellers=async(companyId:string,users:any[],stores:any[
   if(snapshotCompany&&snapshotCompany!==companyId)return;
   const snapshotStore=String(snapshot?.storeId||'').trim();
   const relevantSellers=activeSellers.filter((user:any)=>!snapshotStore||String(user?.storeId||'').trim()===snapshotStore);
-  const existingKeys=new Set(snapshot.sellers.map((item:any)=>sellerKeyOf(item?.seller)));
+  const firstNameCounts=new Map<string,number>();
+  relevantSellers.forEach((user:any)=>{
+    const first=sellerKeyOf(user?.name).split(' ')[0]||'';
+    if(first)firstNameCounts.set(first,(firstNameCounts.get(first)||0)+1);
+  });
+  const matchesUser=(sellerName:any,userName:any)=>{
+    const seller=sellerKeyOf(sellerName);
+    const user=sellerKeyOf(userName);
+    if(!seller||!user)return false;
+    if(seller===user)return true;
+    const sellerParts=seller.split(' ').filter(Boolean);
+    const userParts=user.split(' ').filter(Boolean);
+    return sellerParts.length===1&&sellerParts[0]===userParts[0]&&firstNameCounts.get(sellerParts[0])===1;
+  };
+  const hasPerformanceData=(row:any)=>
+    Number(row?.closing||0)!==0||
+    Number(row?.flowTotal||0)!==0||
+    Number(row?.marginPercent||0)!==0||
+    Number(row?.capturePercent||0)!==0||
+    Number(row?.projection||0)!==0;
+
+  const cleanedSellers=snapshot.sellers.filter((row:any)=>{
+    const user=relevantSellers.find((candidate:any)=>matchesUser(row?.seller,candidate?.name));
+    if(!user)return true;
+    const siblings=snapshot.sellers.filter((candidate:any)=>matchesUser(candidate?.seller,user?.name));
+    if(siblings.length<2)return true;
+    const dataRow=siblings.find((candidate:any)=>hasPerformanceData(candidate));
+    return !(dataRow&&dataRow!==row&&!hasPerformanceData(row));
+  });
+
   const missing=relevantSellers
-    .filter((user:any)=>!existingKeys.has(sellerKeyOf(user?.name)))
+    .filter((user:any)=>!cleanedSellers.some((row:any)=>matchesUser(row?.seller,user?.name)))
     .map((user:any)=>zeroPerformanceSeller(String(user.name||user.email)));
-  if(missing.length){
+  const nextSellers=[...cleanedSellers,...missing];
+  const changed=nextSellers.length!==snapshot.sellers.length||missing.length>0;
+  if(changed){
     await motyqFirestore.patch('operational_meta',performanceId,{
-      sellers:[...snapshot.sellers,...missing],
+      sellers:nextSellers,
       updatedAt:new Date().toISOString(),
     });
   }
