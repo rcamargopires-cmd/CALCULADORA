@@ -97,6 +97,7 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
   }, [user.email, user.goals?.monthly, companyId, storeId]);
 
   const active = useMemo(() => leads.filter(isActive), [leads]);
+  const dueFuture = useMemo(() => leads.filter(lead => lead.futureContactStatus === 'scheduled' && lead.futureContactAt && new Date(lead.futureContactAt).getTime() <= now), [leads, now]);
   const startOfDay = new Date(now); startOfDay.setHours(0,0,0,0);
   const endOfDay = new Date(startOfDay);endOfDay.setDate(endOfDay.getDate()+1);
 
@@ -113,6 +114,13 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
         negotiation.push({lead,label:'Proposta sem retorno agendado',tone:'amber'});
       }
     });
+    dueFuture.forEach(lead => {
+      const due = lead.futureContactAt ? new Date(lead.futureContactAt).getTime() : NaN;
+      const label = Number.isFinite(due) && due < startOfDay.getTime()
+        ? 'Relacionamento futuro atrasado'
+        : 'Relacionamento futuro para hoje';
+      today.push({lead,label,tone:'blue'});
+    });
     late.sort((a,b) => String(a.lead.nextFollowUpAt).localeCompare(String(b.lead.nextFollowUpAt)));
     today.sort((a,b) => String(a.lead.nextFollowUpAt).localeCompare(String(b.lead.nextFollowUpAt)));
     idle.sort((a,b) => String(a.lead.lastContactAt || a.lead.createdAt).localeCompare(String(b.lead.lastContactAt || b.lead.createdAt)));
@@ -121,7 +129,7 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
       overdue:late.length,
       proposals:active.filter(lead => lead.status === 'proposal').length,
     };
-  }, [active, now, endOfDay.getTime()]);
+  }, [active, dueFuture, now, startOfDay.getTime(), endOfDay.getTime()]);
 
   const opportunities = useMemo(() => {
     const available = stock.filter(isGroupStockAvailable);
@@ -180,7 +188,9 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
             <span className={'rounded-full px-2 py-1 text-[10px] font-semibold '+(tone==='red'?'bg-red-50 text-red-700':tone==='amber'?'bg-amber-50 text-amber-800':'bg-blue-50 text-blue-700')}>{label}</span>
           </div>
           <div className="motyq-day-client-actions mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => openCrm({action:'contact',leadId:lead.id,tab:'agenda'})} className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-bold text-white">Registrar contato</button>
+            {lead.futureContactStatus==='scheduled'
+              ? <button type="button" onClick={async()=>{await showroomFlowService.reactivateFutureContact({id:lead.id,actorEmail:user.email,actorName:user.name});openCrm({action:'lead',leadId:lead.id,tab:'agenda'});}} className="rounded-lg bg-violet-600 px-3 py-2 text-[11px] font-bold text-white">Reativar no CRM</button>
+              : <button type="button" onClick={() => openCrm({action:'contact',leadId:lead.id,tab:'agenda'})} className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-bold text-white">Registrar contato</button>}
             <button type="button" onClick={() => openCrm({action:'lead',leadId:lead.id})} className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-700">Abrir ficha</button>
             {waLink(lead.phone)&&<button type="button" onClick={()=>requestCrmWhatsApp(lead,lead.status==='proposal'?'proposal':label.startsWith('Retorno hoje')?'today':'follow_up')}
               className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-3 py-2 text-[11px] font-bold text-emerald-700"><MessageCircle size={13}/> WhatsApp</button>}
