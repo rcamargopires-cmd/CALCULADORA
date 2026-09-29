@@ -113,7 +113,9 @@ export const QuickContact: React.FC<{
     setError('');
     try {
       await showroomFlowService.recordCrmContact({
-        id: lead.id, result, note,
+        id: lead.id,
+        result,
+        note,
         nextFollowUpAt: followUp ? new Date(followUp).toISOString() : '',
         actor: { email: user.email, name: user.name },
       });
@@ -130,70 +132,92 @@ export const QuickContact: React.FC<{
     }
   };
 
-  return createPortal(<div className="fixed inset-0 z-[660] grid place-items-center overflow-y-auto bg-slate-950/65 p-3" onClick={onClose}>
-    <div className="w-full max-w-lg rounded-[26px] border border-slate-200 bg-white p-5 shadow-2xl md:p-6" onClick={e => e.stopPropagation()}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[.15em] text-emerald-700">MOTYQ · ATENDIMENTO RÁPIDO</p>
-          <h3 className="mt-1 text-xl font-semibold text-slate-900">{lead.customerName || 'Cliente'}</h3>
-          <p className="mt-1 text-xs text-slate-500">{lead.desiredVehicle || lead.interestModel || 'Interesse não informado'}</p>
+  return createPortal(
+    <div className="fixed inset-0 z-[660] grid place-items-center overflow-y-auto bg-slate-950/65 p-3" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-[26px] border border-slate-200 bg-white p-5 shadow-2xl md:p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[.15em] text-emerald-700">MOTYQ · ATENDIMENTO RÁPIDO</p>
+            <h3 className="mt-1 text-xl font-semibold text-slate-900">{lead.customerName || 'Cliente'}</h3>
+            <p className="mt-1 text-xs text-slate-500">{lead.desiredVehicle || lead.interestModel || 'Interesse não informado'}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Fechar"><X size={18}/></button>
         </div>
-        <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Fechar"><X size={18}/></button>
-      </div>
 
-      {isAlreadyClosed ? <>
-        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-bold text-amber-900">Atendimento encerrado</p>
-          <p className="mt-1 text-xs leading-5 text-amber-700">
-            {lead.status==='sale'?'Este cliente já está marcado como vendido.':'Este cliente já está encerrado como perdido.'}
-          </p>
-        </div>
-        {onScheduleFuture&&<button type="button" onClick={onScheduleFuture}
-          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 text-sm font-bold text-white hover:bg-violet-700">
-          <CalendarClock size={16}/> Agendar contato futuro
-        </button>}
-      </> : <>
-      <p className="mb-2 mt-5 text-xs font-bold text-slate-700">O que aconteceu?</p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {CONTACT_RESULTS.map(option => {
-          const selected=result===option.value;
-          const activeClass=option.tone==='sale'
-            ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-            : option.tone==='loss'
-              ? 'border-red-400 bg-red-50 text-red-800'
-              : 'border-slate-800 bg-slate-50 text-slate-900';
-          return <button
-            key={option.value} type="button" disabled={saving}
-            onClick={() => { setResult(option.value); if(option.closing)setFollowUp(''); }}
-            className={'rounded-xl border px-3 py-3 text-left text-xs font-semibold transition ' +
-              (selected ? activeClass : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}
-          >{option.label}</button>;
-        })}
+        {isAlreadyClosed ? (
+          <>
+            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-bold text-amber-900">Atendimento encerrado</p>
+              <p className="mt-1 text-xs leading-5 text-amber-700">
+                {lead.status==='sale'
+                  ? 'Este cliente já está marcado como vendido. Você pode programar o próximo relacionamento.'
+                  : 'Este cliente já está encerrado como perdido. Você pode programar uma retomada futura.'}
+              </p>
+            </div>
+            {onScheduleFuture && (
+              <button type="button" onClick={onScheduleFuture}
+                className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 text-sm font-bold text-white hover:bg-violet-700">
+                <CalendarClock size={16}/> Agendar contato futuro
+              </button>
+            )}
+            <button type="button" onClick={onClose}
+              className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600">
+              Fechar
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mb-2 mt-5 text-xs font-bold text-slate-700">O que aconteceu?</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {CONTACT_RESULTS.map(option => {
+                const selected=result===option.value;
+                const activeClass=option.tone==='sale'
+                  ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                  : option.tone==='loss'
+                    ? 'border-red-400 bg-red-50 text-red-800'
+                    : 'border-slate-800 bg-slate-50 text-slate-900';
+                return <button
+                  key={option.value}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => { setResult(option.value); if(option.closing)setFollowUp(''); }}
+                  className={'rounded-xl border px-3 py-3 text-left text-xs font-semibold transition ' +
+                    (selected ? activeClass : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}
+                >{option.label}</button>;
+              })}
+            </div>
+
+            {isClosing&&<div className={'mt-4 rounded-xl border p-3 text-xs font-semibold '+(result==='sale'?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-red-200 bg-red-50 text-red-800')}>
+              {result==='sale'
+                ? 'Ao confirmar, o cliente será marcado como VENDIDO e sairá das tarefas abertas.'
+                : 'Ao confirmar, o cliente será encerrado como SEM NEGÓCIO, o motivo ficará registrado e os follow-ups futuros serão removidos.'}
+            </div>}
+
+            <label className="mt-4 block">
+              <span className="mb-1 block text-xs font-bold text-slate-700">{isClosing?'Motivo / observação final (opcional)':'Observação do contato'}</span>
+              <textarea rows={3} maxLength={1200} value={note} onChange={e => setNote(e.target.value)}
+                placeholder={isClosing?'Ex.: comprou um veículo em outra loja / decidiu adiar a compra.':'Ex.: cliente pediu retorno após receber a simulação.'}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-emerald-400"/>
+            </label>
+
+            {!isClosing&&<label className="mt-3 block">
+              <span className="mb-1 block text-xs font-bold text-slate-700">Próximo contato</span>
+              <input type="datetime-local" value={followUp} onChange={e => setFollowUp(e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-emerald-400"/>
+            </label>}
+
+            <p className="mt-2 text-[11px] text-slate-500">{isClosing?'O encerramento fica registrado na linha do tempo com data e vendedor.':'O contato entra na linha do tempo, com data e vendedor. A data é atualizada na agenda.'}</p>
+            {error && <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-700">{error}</p>}
+            <button type="button" onClick={submit} disabled={!result || saving}
+              className="mt-5 w-full rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white disabled:opacity-50">
+              {saving ? 'SALVANDO...' : isClosing ? (result==='sale'?'CONFIRMAR VENDA':'ENCERRAR CLIENTE') : 'REGISTRAR ATENDIMENTO'}
+            </button>
+          </>
+        )}
       </div>
-      {isClosing&&<div className={'mt-4 rounded-xl border p-3 text-xs font-semibold '+(result==='sale'?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-red-200 bg-red-50 text-red-800')}>
-        {result==='sale'
-          ? 'Ao confirmar, o cliente será marcado como VENDIDO e sairá das tarefas abertas.'
-          : 'Ao confirmar, o cliente será encerrado como SEM NEGÓCIO, o motivo ficará registrado e os follow-ups futuros serão removidos.'}
-      </div>}
-      <label className="mt-4 block">
-        <span className="mb-1 block text-xs font-bold text-slate-700">{isClosing?'Motivo / observação final (opcional)':'Observação do contato'}</span>
-        <textarea rows={3} maxLength={1200} value={note} onChange={e => setNote(e.target.value)}
-          placeholder={isClosing?'Ex.: comprou um veículo em outra loja / decidiu adiar a compra.':'Ex.: cliente pediu retorno após receber a simulação.'}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-emerald-400"/>
-      </label>
-      {!isClosing&&<label className="mt-3 block">
-        <span className="mb-1 block text-xs font-bold text-slate-700">Próximo contato</span>
-        <input type="datetime-local" value={followUp} onChange={e => setFollowUp(e.target.value)}
-          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-emerald-400"/>
-      </label>}
-      <p className="mt-2 text-[11px] text-slate-500">{isClosing?'O encerramento fica registrado na linha do tempo com data e vendedor.':'O contato entra na linha do tempo, com data e vendedor. A data é atualizada na agenda.'}</p>
-      {error && <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-700">{error}</p>}
-      <button type="button" onClick={submit} disabled={!result || saving}
-        className="mt-5 w-full rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white disabled:opacity-50">
-        {saving ? 'SALVANDO...' : isClosing ? (result==='sale'?'CONFIRMAR VENDA':'ENCERRAR CLIENTE') : 'REGISTRAR ATENDIMENTO'}
-      </button>
-    </div>
-  </div>, document.body);
+    </div>,
+    document.body
+  );
 };
 
 const CustomerRow: React.FC<{
