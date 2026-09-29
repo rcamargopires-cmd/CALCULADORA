@@ -548,6 +548,11 @@ const MotyqCRM:React.FC<Props>=({user})=>{
         lead={items.find(item=>item.id===quickContact.id)||quickContact}
         user={user}
         onClose={()=>setQuickContact(null)}
+        onScheduleFuture={()=>{
+          const lead=items.find(item=>item.id===quickContact.id)||quickContact;
+          setQuickContact(null);
+          setFutureLead(lead);
+        }}
         onSaved={(msg,result)=>{
           const lead=items.find(item=>item.id===quickContact.id)||quickContact;
           setQuickContact(null);
