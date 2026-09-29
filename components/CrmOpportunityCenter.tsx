@@ -89,7 +89,7 @@ export const QuickContact: React.FC<{
   lead: ShowroomPassage;
   user: User;
   onClose: () => void;
-  onSaved: (message: string) => void;
+  onSaved: (message: string, result?: ContactResult) => void;
 }> = ({ lead, user, onClose, onSaved }) => {
   const [result, setResult] = useState<ContactResult | ''>('');
   const [note, setNote] = useState('');
@@ -115,9 +115,12 @@ export const QuickContact: React.FC<{
         nextFollowUpAt: followUp ? new Date(followUp).toISOString() : '',
         actor: { email: user.email, name: user.name },
       });
-      onSaved(isClosing
-        ? ((result==='sale'?'Venda registrada. ':'Cliente encerrado. ') + (lead.customerName || 'Cliente') + ' saiu das tarefas ativas.')
-        : ('Contato de ' + (lead.customerName || 'cliente') + ' registrado na ficha.'));
+      onSaved(
+        isClosing
+          ? ((result==='sale'?'Venda registrada. ':'Cliente encerrado. ') + (lead.customerName || 'Cliente') + ' saiu das tarefas ativas.')
+          : ('Contato de ' + (lead.customerName || 'cliente') + ' registrado na ficha.'),
+        result
+      );
     } catch (e: any) {
       setError(e?.message || 'Não foi possível registrar o contato.');
     } finally {
