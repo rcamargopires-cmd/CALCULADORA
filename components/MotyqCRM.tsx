@@ -533,7 +533,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
           const lead=items.find(item=>item.id===quickContact.id)||quickContact;
           setQuickContact(null);
           setMessage(msg);
-          if(result==='bought_elsewhere')setFutureLead(lead);
+          if(result==='bought_elsewhere'||result==='sale')setFutureLead(lead);
         }}
       />}
       {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} stockItems={groupStock} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
@@ -601,7 +601,7 @@ const futureDateValue=(months:number)=>{
 
 const FutureContactModal=({lead,user,onClose,onSaved}:{lead:ShowroomPassage;user:User;onClose:()=>void;onSaved:()=>void})=>{
   const[date,setDate]=useState(futureDateValue(24));
-  const[reason,setReason]=useState('Comprou outro veículo');
+  const[reason,setReason]=useState(lead.status==='sale'?'Troca programada':'Comprou outro veículo');
   const[note,setNote]=useState('');
   const[saving,setSaving]=useState(false);
   const[error,setError]=useState('');
@@ -617,14 +617,14 @@ const FutureContactModal=({lead,user,onClose,onSaved}:{lead:ShowroomPassage;user
   };
   return <div className="fixed inset-0 z-[690] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" onClick={onClose}>
     <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl" onClick={e=>e.stopPropagation()}>
-      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-violet-700">RELACIONAMENTO FUTURO</p><h3 className="mt-1 text-2xl font-semibold">Agendar retorno</h3><p className="mt-1 text-sm text-slate-500">{lead.customerName} sairá do Kanban e voltará à sua rotina na data escolhida.</p></div><button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-500"><X size={17}/></button></div>
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-violet-700">RELACIONAMENTO FUTURO</p><h3 className="mt-1 text-2xl font-semibold">Agendar retorno</h3><p className="mt-1 text-sm text-slate-500">{lead.customerName} já sai do Kanban agora e volta à sua rotina somente na data escolhida.</p></div><button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-500"><X size={17}/></button></div>
       <div className="mt-5 grid grid-cols-3 gap-2">
         <button type="button" onClick={()=>setDate(futureDateValue(6))} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">6 meses</button>
         <button type="button" onClick={()=>setDate(futureDateValue(12))} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">1 ano</button>
         <button type="button" onClick={()=>setDate(futureDateValue(24))} className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700">2 anos</button>
       </div>
       <label className="mt-4 block"><span className="text-xs font-semibold text-slate-500">Data do próximo contato</span><input type="date" value={date} min={futureDateValue(0)} onChange={e=>setDate(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-violet-400"/></label>
-      <label className="mt-4 block"><span className="text-xs font-semibold text-slate-500">Motivo</span><select value={reason} onChange={e=>setReason(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-violet-400"><option>Comprou outro veículo</option><option>Troca programada</option><option>Aguardando quitar financiamento</option><option>Sem momento agora</option><option>Outro</option></select></label>
+      <label className="mt-4 block"><span className="text-xs font-semibold text-slate-500">Motivo</span><select value={reason} onChange={e=>setReason(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-violet-400"><option>Comprou outro veículo</option><option>Troca programada</option><option>Cliente comprou conosco</option><option>Aguardando quitar financiamento</option><option>Sem momento agora</option><option>Outro</option></select></label>
       <label className="mt-4 block"><span className="text-xs font-semibold text-slate-500">Observação opcional</span><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Ex.: comprou Nivus em 09/2026, retomar na época de troca." className="mt-1.5 min-h-24 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-violet-400"/></label>
       {error&&<div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       <button disabled={saving} onClick={()=>void save()} className="mt-5 h-12 w-full rounded-2xl bg-violet-600 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50">{saving?'Agendando...':'Arquivar e agendar contato'}</button>
