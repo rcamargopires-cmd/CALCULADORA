@@ -567,10 +567,16 @@ const MotyqCRM:React.FC<Props>=({user})=>{
 const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFuture,onArchive,onDragStart,onDragEnd}:{item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onOpen:()=>void;onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onScheduleFuture:()=>void;onArchive:()=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
   const source=sourceOf(item),temp=temperatureOf(item),wa=whatsappUrl(item.phone),overdue=isOverdue(item.nextFollowUpAt)&&!['sale','no_deal'].includes(item.status);
   const TempIcon=temp==='hot'?Flame:temp==='cold'?Snowflake:SunMedium;
-  return <article draggable={!busy} onDragStart={onDragStart} onDragEnd={onDragEnd} className={`cursor-grab rounded-2xl border bg-white p-3.5 shadow-sm transition active:cursor-grabbing ${dragging?'scale-[.98] opacity-45 shadow-none':overdue?'border-red-200 ring-1 ring-red-100':'border-slate-200'}`}>
+  return <article className={`rounded-2xl border bg-white p-3.5 shadow-sm transition ${dragging?'scale-[.98] opacity-45 shadow-none':overdue?'border-red-200 ring-1 ring-red-100':'border-slate-200'}`}>
     <div className="flex items-start justify-between gap-2">
       <div className="flex min-w-0 items-start gap-2">
-        <span title="Arraste para outra etapa" className="mt-0.5 hidden shrink-0 text-slate-300 md:block"><GripVertical size={16}/></span>
+        <span
+          title="Arraste para outra etapa"
+          draggable={!busy}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          className="mt-0.5 hidden shrink-0 cursor-grab text-slate-300 active:cursor-grabbing md:block"
+        ><GripVertical size={16}/></span>
         <div className="min-w-0"><button type="button" onClick={event=>{event.stopPropagation();onOpen();}} className="text-left font-semibold text-slate-900 underline decoration-emerald-300/70 underline-offset-4 hover:text-emerald-700">{item.customerName||'Cliente'}</button><p className="mt-0.5 text-[11px] text-slate-400">{ageLabel(item.createdAt)} · {SOURCE[source]}</p><p className="mt-0.5 text-[9px] font-bold uppercase tracking-[.1em] text-emerald-600">Abrir ficha</p></div>
       </div>
       <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${temp==='hot'?'bg-red-50 text-red-700':temp==='cold'?'bg-sky-50 text-sky-700':'bg-amber-50 text-amber-700'}`}><TempIcon size={11}/>{TEMP[temp]}</span>
@@ -585,7 +591,12 @@ const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFutu
       <select disabled={busy} value={item.status} onChange={e=>onMove(e.target.value as ShowroomPassageStatus)} title="Mover etapa" className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-700 outline-none md:hidden">
         {COLUMNS.map(col=><option key={col.status} value={col.status}>{col.label}</option>)}
       </select>
-      <div className="hidden items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-bold text-slate-400 md:flex"><GripVertical size={12}/> ARRASTE</div>
+      <div
+        draggable={!busy}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        className="hidden cursor-grab items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-bold text-slate-400 active:cursor-grabbing md:flex"
+      ><GripVertical size={12}/> ARRASTE</div>
     </div>
     {item.status==='no_deal'&&<div className="mt-2 grid grid-cols-2 gap-2">
       <button type="button" draggable={false}
@@ -635,7 +646,8 @@ const FutureContactModal=({lead,user,onClose,onSaved}:{lead:ShowroomPassage;user
     }catch(error:any){setError(error?.message||'Não foi possível agendar o contato futuro.');}
     finally{setSaving(false);}
   };
-  return <div className="fixed inset-0 z-[690] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" onClick={onClose}>
+  if(typeof document==='undefined')return null;
+  return createPortal(<div className="fixed inset-0 z-[9999] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" onClick={onClose}>
     <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl" onClick={e=>e.stopPropagation()}>
       <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-violet-700">RELACIONAMENTO FUTURO</p><h3 className="mt-1 text-2xl font-semibold">Agendar retorno</h3><p className="mt-1 text-sm text-slate-500">{lead.customerName} já sai do Kanban agora e volta à sua rotina somente na data escolhida.</p></div><button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-500"><X size={17}/></button></div>
       <div className="mt-5 grid grid-cols-3 gap-2">
@@ -649,7 +661,7 @@ const FutureContactModal=({lead,user,onClose,onSaved}:{lead:ShowroomPassage;user
       {error&&<div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       <button disabled={saving} onClick={()=>void save()} className="mt-5 h-12 w-full rounded-2xl bg-violet-600 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50">{saving?'Agendando...':'Arquivar e agendar contato'}</button>
     </div>
-  </div>;
+  </div>,document.body);
 };
 
 const FutureContactsPanel=({items,user,onClose,onOpen,onReactivated}:{items:ShowroomPassage[];user:User;onClose:()=>void;onOpen:(item:ShowroomPassage)=>void;onReactivated:()=>void})=>{
