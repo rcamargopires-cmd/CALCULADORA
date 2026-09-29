@@ -72,6 +72,7 @@ const isOverdue=(iso?:string)=>{
 };
 const sourceOf=(item:ShowroomPassage):CrmLeadSource=>item.leadSource||'showroom';
 const temperatureOf=(item:ShowroomPassage):CrmLeadTemperature=>item.leadTemperature||'warm';
+const isFutureScheduled=(item:ShowroomPassage)=>item.futureContactStatus==='scheduled'&&Boolean(item.futureContactAt);
 
 const ensureSlot=()=>{
   const id='motyq-crm-nav-slot';
@@ -95,6 +96,8 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const[createOpen,setCreateOpen]=useState(false);
   const[selectedCustomer,setSelectedCustomer]=useState<ShowroomPassage|null>(null);
   const[quickContact,setQuickContact]=useState<ShowroomPassage|null>(null);
+  const[futureLead,setFutureLead]=useState<ShowroomPassage|null>(null);
+  const[showFuture,setShowFuture]=useState(false);
   const[showAdvanced,setShowAdvanced]=useState(false);
   const[busyId,setBusyId]=useState('');
   const[draggedLeadId,setDraggedLeadId]=useState('');
@@ -202,6 +205,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const filtered=useMemo(()=>{
     const needle=search.trim().toLocaleLowerCase('pt-BR');
     return items.filter(item=>{
+      if(isFutureScheduled(item))return false;
       if(sourceFilter!=='all'&&sourceOf(item)!==sourceFilter)return false;
       if(onlyMine&&String(item.assignedSellerEmail||'').toLowerCase()!==String(user.email||'').toLowerCase())return false;
       if(!needle)return true;
@@ -210,7 +214,8 @@ const MotyqCRM:React.FC<Props>=({user})=>{
     });
   },[items,search,sourceFilter,onlyMine,user.email]);
 
-  const opportunityItems=useMemo(()=>items.filter(item=>!onlyMine||String(item.assignedSellerEmail||'').toLowerCase()===String(user.email||'').toLowerCase()),[items,onlyMine,user.email]);
+  const opportunityItems=useMemo(()=>items.filter(item=>!isFutureScheduled(item)&&(!onlyMine||String(item.assignedSellerEmail||'').toLowerCase()===String(user.email||'').toLowerCase())),[items,onlyMine,user.email]);
+  const futureItems=useMemo(()=>items.filter(isFutureScheduled).sort((a,b)=>String(a.futureContactAt||'').localeCompare(String(b.futureContactAt||''))),[items]);
 
   const metrics=useMemo(()=>{
     const active=items.filter(item=>!['sale','no_deal'].includes(item.status)).length;
@@ -410,6 +415,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={()=>setShowFuture(true)} className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700"><CalendarClock size={16}/> Futuros {futureItems.length>0&&<span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black">{futureItems.length}</span>}</button>
             {canManage&&<button onClick={()=>setCreateOpen(true)} className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16}/> Novo lead</button>}
             <button onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-white text-slate-500"><X size={18}/></button>
           </div>
@@ -498,6 +504,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
                       onOpen={()=>setSelectedCustomer(item)}
                       onPatch={data=>patch(item,data)}
                       onMove={status=>moveLead(item,status)}
+                      onScheduleFuture={()=>setFutureLead(item)}
                       onDragStart={event=>{
                         if(busyId===item.id){event.preventDefault();return;}
                         setDraggedLeadId(item.id);
@@ -518,12 +525,14 @@ const MotyqCRM:React.FC<Props>=({user})=>{
 
       {quickContact&&<QuickContact key={quickContact.id} lead={items.find(item=>item.id===quickContact.id)||quickContact} user={user} onClose={()=>setQuickContact(null)} onSaved={msg=>{setQuickContact(null);setMessage(msg);}}/>}
       {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} stockItems={groupStock} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
+      {futureLead&&<FutureContactModal lead={futureLead} user={user} onClose={()=>setFutureLead(null)} onSaved={()=>{setFutureLead(null);setMessage('Cliente arquivado e contato futuro agendado.');}} />}
+      {showFuture&&<FutureContactsPanel items={futureItems} user={user} onClose={()=>setShowFuture(false)} onOpen={item=>{setShowFuture(false);setSelectedCustomer(item);}} onReactivated={()=>setMessage('Cliente reativado em Follow-up.')} />}
       {selectedCustomer&&<CustomerAttendanceDossier selected={selectedCustomer} items={items} user={user} stockItems={groupStock} onClose={()=>setSelectedCustomer(null)} onContact={setQuickContact} />}
     </div>}
   </>;
 };
 
-const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onDragStart,onDragEnd}:{item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onOpen:()=>void;onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
+const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFuture,onDragStart,onDragEnd}:{item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onOpen:()=>void;onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onScheduleFuture:()=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
   const source=sourceOf(item),temp=temperatureOf(item),wa=whatsappUrl(item.phone),overdue=isOverdue(item.nextFollowUpAt)&&!['sale','no_deal'].includes(item.status);
   const TempIcon=temp==='hot'?Flame:temp==='cold'?Snowflake:SunMedium;
   return <article draggable={!busy} onDragStart={onDragStart} onDragEnd={onDragEnd} className={`cursor-grab rounded-2xl border bg-white p-3.5 shadow-sm transition active:cursor-grabbing ${dragging?'scale-[.98] opacity-45 shadow-none':overdue?'border-red-200 ring-1 ring-red-100':'border-slate-200'}`}>
@@ -546,6 +555,7 @@ const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onDragStart,on
       </select>
       <div className="hidden items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-bold text-slate-400 md:flex"><GripVertical size={12}/> ARRASTE</div>
     </div>
+    {item.status==='no_deal'&&<button type="button" onClick={onScheduleFuture} className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 text-[11px] font-bold text-violet-700"><CalendarClock size={13}/> Agendar contato futuro</button>}
     {!['sale','no_deal'].includes(item.status)&&<div className="mt-2">
       <input type="datetime-local" value={inputDateTime(item.nextFollowUpAt)} onChange={e=>onPatch({nextFollowUpAt:e.target.value?new Date(e.target.value).toISOString():''})} className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-[11px] text-slate-600 outline-none"/>
     </div>}
