@@ -224,15 +224,53 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   const total = useMemo(() => totalFromSnapshot(snapshot), [snapshot]);
   const importedSellers = snapshot?.sellers || [];
   const sellers = useMemo(() => {
-    const existing = new Set(importedSellers.map(item => normalize(String(item.seller || ''))));
     const roster = users.filter(user =>
       user.status === 'active' &&
       (user.role === 'seller' || user.role === 'user') &&
       (!user.companyId || user.companyId === scope.companyId) &&
       (!user.storeId || user.storeId === scope.storeId)
     );
+
+    const firstNameCounts = new Map<string, number>();
+    roster.forEach(user => {
+      const first = normalize(String(user.name || '')).split(' ')[0] || '';
+      if (first) firstNameCounts.set(first, (firstNameCounts.get(first) || 0) + 1);
+    });
+
+    const matchesUser = (sellerName: string, userName: string) => {
+      const seller = normalize(sellerName);
+      const user = normalize(userName);
+      if (!seller || !user) return false;
+      if (seller === user) return true;
+      const sellerParts = seller.split(' ').filter(Boolean);
+      const userParts = user.split(' ').filter(Boolean);
+      if (sellerParts.length === 1 && userParts[0] === sellerParts[0] && firstNameCounts.get(sellerParts[0]) === 1) return true;
+      return false;
+    };
+
+    const representedUsers = new Set<string>();
+    const cleanedImported = importedSellers.filter((seller, index, all) => {
+      const matchingUser = roster.find(user => matchesUser(String(seller.seller || ''), String(user.name || '')));
+      if (matchingUser) {
+        const key = normalize(String(matchingUser.email || matchingUser.name || ''));
+        const siblings = all.filter(row => matchesUser(String(row.seller || ''), String(matchingUser.name || '')));
+        if (siblings.length > 1) {
+          const hasData = (row: OperationalPerformanceSeller) =>
+            Number(row.closing || 0) !== 0 ||
+            Number(row.flowTotal || 0) !== 0 ||
+            Number(row.marginPercent || 0) !== 0 ||
+            Number(row.capturePercent || 0) !== 0 ||
+            Number(row.projection || 0) !== 0;
+          const dataRow = siblings.find(hasData);
+          if (dataRow && dataRow !== seller && !hasData(seller)) return false;
+        }
+        representedUsers.add(key);
+      }
+      return true;
+    });
+
     const missing: OperationalPerformanceSeller[] = roster
-      .filter(user => !existing.has(normalize(String(user.name || ''))))
+      .filter(user => !representedUsers.has(normalize(String(user.email || user.name || ''))))
       .map(user => ({
         seller: user.name || user.email,
         sellerKey: normalize(user.name || user.email),
@@ -256,7 +294,7 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
         projection: 0,
         additionalPurchase: 0,
       }));
-    return [...importedSellers, ...missing];
+    return [...cleanedImported, ...missing];
   }, [importedSellers, users, scope.companyId, scope.storeId]);
 
   const stockValue = useMemo(() => stock.reduce((sum, item) => sum + Number(item.cost || 0), 0), [stock]);
@@ -306,7 +344,12 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   const actualSales = officialClosingCount(total);
 
   const sellerRows = useMemo(() => sellers.map(seller => {
-    const user = users.find(item => normalize(String(item.name || '')) === normalize(String(seller.seller || '')));
+    const sellerName = normalize(String(seller.seller || ''));
+    const exactUser = users.find(item => normalize(String(item.name || '')) === sellerName);
+    const firstNameUser = sellerName && !sellerName.includes(' ')
+      ? users.filter(item => (item.role === 'seller' || item.role === 'user') && normalize(String(item.name || '')).split(' ')[0] === sellerName)
+      : [];
+    const user = exactUser || (firstNameUser.length === 1 ? firstNameUser[0] : undefined);
     const sellerGoal = Number(user?.goals?.monthly || 15);
     const marginGoal = Number(user?.goals?.margin || goals.margin);
     const sales = officialClosingCount(seller);
