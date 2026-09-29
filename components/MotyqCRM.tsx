@@ -524,7 +524,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
                       onPatch={data=>patch(item,data)}
                       onMove={status=>moveLead(item,status)}
                       onScheduleFuture={()=>setFutureLead(item)}
-                      onArchive={()=>void patch(item,{archivedAt:new Date().toISOString(),archiveReason:item.lostReason||'Arquivado'})}
+                      onArchive={()=>void patch(item,{archivedAt:new Date().toISOString(),archiveReason:item.status==='sale'?'Venda concluída':item.lostReason||'Arquivado'})}
                       onDragStart={event=>{
                         if(busyId===item.id){event.preventDefault();return;}
                         setDraggedLeadId(item.id);
@@ -598,7 +598,7 @@ const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFutu
         className="hidden cursor-grab items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-bold text-slate-400 active:cursor-grabbing md:flex"
       ><GripVertical size={12}/> ARRASTE</div>
     </div>
-    {item.status==='no_deal'&&<div className="mt-2 grid grid-cols-2 gap-2">
+    {['no_deal','sale'].includes(item.status)&&<div className="mt-2 grid grid-cols-2 gap-2">
       <button type="button" draggable={false}
         onPointerDown={event=>event.stopPropagation()}
         onDragStart={event=>event.preventDefault()}
