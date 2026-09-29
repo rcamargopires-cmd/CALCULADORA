@@ -511,3 +511,52 @@ body.motyq-graphite .motyq-exec * {
   .motyq-exec{padding:14px;border-radius:20px}
   .mx-topbar{align-items:flex-start}
 }
+
+
+/* Motyq hero identity: emblem first, wordmark secondary. */
+.mx-brand-identity{
+  width:126px;
+  min-width:126px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  flex:0 0 auto;
+}
+
+.mx-brand.mx-brand--hero{
+  width:112px!important;
+  height:82px!important;
+  display:block;
+  object-fit:contain;
+  margin:0!important;
+  filter:drop-shadow(0 8px 18px rgba(29,116,219,.15));
+}
+
+.mx-brand-word{
+  margin-top:-2px;
+  color:#64748b;
+  font-size:10px;
+  line-height:1;
+  font-weight:650;
+  letter-spacing:.34em;
+  text-indent:.34em;
+  white-space:nowrap;
+}
+
+@media(max-width:720px){
+  .mx-brand-identity{
+    width:96px;
+    min-width:96px;
+  }
+  .mx-brand.mx-brand--hero{
+    width:82px!important;
+    height:60px!important;
+  }
+  .mx-brand-word{
+    font-size:8px;
+    letter-spacing:.28em;
+    text-indent:.28em;
+  }
+}
