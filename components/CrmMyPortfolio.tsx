@@ -22,7 +22,8 @@ const Mine:React.FC<Props>=({items,stock,onOpen,onContact,onAdvanced})=>{
   const matches=useMemo(()=>new Map(live.map(lead=>[lead.id,
     matchGroupStock(stock,String(lead.desiredVehicle||lead.interestModel||''),3)])),[items,stock]);
   const cars=live.filter(item=>(matches.get(item.id)||[]).length>0);
-  const sets:Record<Tab,ShowroomPassage[]>={late,today,cars,proposal:proposals,all:items};
+  const visibleItems=items.filter(item=>item.futureContactStatus!=='scheduled');
+  const sets:Record<Tab,ShowroomPassage[]>={late,today,cars,proposal:proposals,all:visibleItems};
   const current=sets[tab].filter(item=>{
     const q=search.toLocaleLowerCase('pt-BR').trim();
     return !q||[item.customerName,item.phone,item.desiredVehicle,item.interestModel].some(value=>String(value||'').toLocaleLowerCase('pt-BR').includes(q));
@@ -46,7 +47,7 @@ const Mine:React.FC<Props>=({items,stock,onOpen,onContact,onAdvanced})=>{
         </button>)}</div>
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={()=>{setTab('all');setSearch('');}} aria-pressed={tab==='all'}
-          className={'rounded-xl px-4 py-2 text-xs font-bold '+(tab==='all'?'bg-slate-900 text-white':'border border-slate-200 text-slate-700')}>Todos os clientes ({items.length})</button>
+          className={'rounded-xl px-4 py-2 text-xs font-bold '+(tab==='all'?'bg-slate-900 text-white':'border border-slate-200 text-slate-700')}>Todos os clientes ({visibleItems.length})</button>
         <button type="button" onClick={onAdvanced} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700">Visão do funil <ArrowRight size={13} className="ml-1 inline"/></button>
       </div>
     </div>
