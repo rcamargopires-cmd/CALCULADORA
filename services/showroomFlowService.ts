@@ -243,7 +243,7 @@ export const showroomFlowService={
 
   updateCrmLead:async(
     id:string,
-    patch:Partial<Pick<ShowroomPassage,'customerName'|'phone'|'interestModel'|'desiredVehicle'|'customerEmail'|'purchaseTimeline'|'preferredContact'|'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'>>,
+    patch:Partial<Pick<ShowroomPassage,'customerName'|'phone'|'interestModel'|'desiredVehicle'|'customerEmail'|'purchaseTimeline'|'preferredContact'|'status'|'notes'|'nextFollowUpAt'|'lastContactAt'|'leadTemperature'|'tradeInPlate'|'desiredEntry'|'desiredPayment'|'lostReason'|'futureContactAt'|'futureContactReason'|'futureContactNote'|'futureContactStatus'|'hibernatedAt'|'reactivatedAt'>>,
     actor?:{email?:string;name?:string},
   )=>{
     const timestamp=now();
@@ -277,10 +277,70 @@ export const showroomFlowService={
     if(profileChanges.length)events.push({id:auditId(),type:'contact',at:timestamp,label:'Ficha do cliente atualizada',details:profileChanges.join(', '),byEmail,byName});
     if(typeof patch.notes==='string'&&patch.notes.trim())events.push({id:auditId(),type:'note',at:timestamp,label:'Observação atualizada',details:patch.notes.trim().slice(-1200),byEmail,byName});
     if(typeof patch.nextFollowUpAt==='string'&&patch.nextFollowUpAt)events.push({id:auditId(),type:'follow_up',at:timestamp,label:'Follow-up programado',details:patch.nextFollowUpAt,byEmail,byName});
+    if(patch.futureContactStatus==='scheduled'&&patch.futureContactAt)events.push({id:auditId(),type:'future_contact',at:timestamp,label:'Contato futuro agendado',details:String(patch.futureContactReason||'Relacionamento futuro')+' · '+patch.futureContactAt,byEmail,byName});
+    if(patch.futureContactStatus==='reactivated')events.push({id:auditId(),type:'future_contact',at:timestamp,label:'Cliente reativado no CRM',details:String(patch.futureContactReason||''),status:'follow_up',byEmail,byName});
     if(events.length)next.activityHistory=arrayUnion(...events);
     await updateDoc(doc(db,'showroom_passages',id),next);
   },
 
+  scheduleFutureContact:async(input:{
+    id:string;
+    futureContactAt:string;
+    reason:string;
+    note?:string;
+    actorEmail?:string;
+    actorName?:string;
+  })=>{
+    const timestamp=now();
+    const futureContactAt=String(input.futureContactAt||'').trim();
+    if(!futureContactAt||Number.isNaN(new Date(futureContactAt).getTime()))throw new Error('Data futura inválida.');
+    const reason=String(input.reason||'Relacionamento futuro').trim();
+    const note=String(input.note||'').trim();
+    await updateDoc(doc(db,'showroom_passages',input.id),{
+      status:'no_deal' as ShowroomPassageStatus,
+      futureContactAt,
+      futureContactReason:reason,
+      futureContactNote:note,
+      futureContactStatus:'scheduled',
+      hibernatedAt:timestamp,
+      nextFollowUpAt:'',
+      closedAt:timestamp,
+      lostReason:reason,
+      activityHistory:arrayUnion({
+        id:auditId(),
+        type:'future_contact',
+        at:timestamp,
+        label:'Contato futuro agendado',
+        details:reason+' · '+futureContactAt+(note?' · '+note:''),
+        status:'no_deal',
+        byEmail:input.actorEmail||'',
+        byName:input.actorName||'',
+      }),
+      updatedAt:timestamp,
+    });
+  },
+
+  reactivateFutureContact:async(input:{id:string;actorEmail?:string;actorName?:string})=>{
+    const timestamp=now();
+    await updateDoc(doc(db,'showroom_passages',input.id),{
+      status:'follow_up' as ShowroomPassageStatus,
+      futureContactStatus:'reactivated',
+      reactivatedAt:timestamp,
+      nextFollowUpAt:timestamp,
+      closedAt:'',
+      activityHistory:arrayUnion({
+        id:auditId(),
+        type:'future_contact',
+        at:timestamp,
+        label:'Cliente reativado no CRM',
+        details:'Retorno de relacionamento futuro',
+        status:'follow_up',
+        byEmail:input.actorEmail||'',
+        byName:input.actorName||'',
+      }),
+      updatedAt:timestamp,
+    });
+  },
   recordCrmContact:async(input:{
     id:string;
     result:'talked'|'no_answer'|'visit'|'proposal'|'advanced'|'sale'|'bought_elsewhere'|'gave_up'|'not_interested';
