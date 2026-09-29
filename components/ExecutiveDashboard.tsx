@@ -446,7 +446,10 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
 
       <header className="mx-topbar">
         <div className="mx-brand-wrap">
-          <img src="/motyq-brand.svg" alt="MOTYQ" className="mx-brand" />
+          <div className="mx-brand-identity" aria-label="MOTYQ">
+            <img src="/motyq-hero-mark.svg" alt="" className="mx-brand mx-brand--hero" />
+            <span className="mx-brand-word">MOTYQ</span>
+          </div>
           <div className="mx-topbar-copy">
             <span className="mx-eyebrow">CENTRAL DE INTELIGÊNCIA OPERACIONAL</span>
             <h1>{greeting()}, {String(currentUser.name || 'gestor').split(' ')[0]}.</h1>
