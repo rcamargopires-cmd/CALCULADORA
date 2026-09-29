@@ -392,6 +392,7 @@ export const showroomFlowService={
         nextFollowUpAt:isClosed?'':follow,
         ...(isClosed?{closedAt:timestamp}:{}),
         ...(isLoss?{lostReason:lossReason}:{}),
+        ...((input.result==='gave_up'||input.result==='not_interested')?{archivedAt:timestamp,archiveReason:lossReason}:{}),
         notes:nextNotes,
         activityHistory:[...history,event].slice(-150),
         updatedAt:timestamp,
