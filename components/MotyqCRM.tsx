@@ -205,7 +205,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   const filtered=useMemo(()=>{
     const needle=search.trim().toLocaleLowerCase('pt-BR');
     return items.filter(item=>{
-      if(isFutureScheduled(item))return false;
+      if(isFutureScheduled(item)||Boolean(item.archivedAt))return false;
       if(sourceFilter!=='all'&&sourceOf(item)!==sourceFilter)return false;
       if(onlyMine&&String(item.assignedSellerEmail||'').toLowerCase()!==String(user.email||'').toLowerCase())return false;
       if(!needle)return true;
@@ -214,7 +214,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
     });
   },[items,search,sourceFilter,onlyMine,user.email]);
 
-  const opportunityItems=useMemo(()=>items.filter(item=>!isFutureScheduled(item)&&(!onlyMine||String(item.assignedSellerEmail||'').toLowerCase()===String(user.email||'').toLowerCase())),[items,onlyMine,user.email]);
+  const opportunityItems=useMemo(()=>items.filter(item=>!isFutureScheduled(item)&&!item.archivedAt&&(!onlyMine||String(item.assignedSellerEmail||'').toLowerCase()===String(user.email||'').toLowerCase())),[items,onlyMine,user.email]);
   const futureItems=useMemo(()=>items.filter(isFutureScheduled).sort((a,b)=>String(a.futureContactAt||'').localeCompare(String(b.futureContactAt||''))),[items]);
 
   const metrics=useMemo(()=>{
@@ -505,6 +505,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
                       onPatch={data=>patch(item,data)}
                       onMove={status=>moveLead(item,status)}
                       onScheduleFuture={()=>setFutureLead(item)}
+                      onArchive={()=>void patch(item,{archivedAt:new Date().toISOString(),archiveReason:item.lostReason||'Arquivado'})}
                       onDragStart={event=>{
                         if(busyId===item.id){event.preventDefault();return;}
                         setDraggedLeadId(item.id);
@@ -523,7 +524,18 @@ const MotyqCRM:React.FC<Props>=({user})=>{
         </div>
       </div>
 
-      {quickContact&&<QuickContact key={quickContact.id} lead={items.find(item=>item.id===quickContact.id)||quickContact} user={user} onClose={()=>setQuickContact(null)} onSaved={msg=>{setQuickContact(null);setMessage(msg);}}/>}
+      {quickContact&&<QuickContact
+        key={quickContact.id}
+        lead={items.find(item=>item.id===quickContact.id)||quickContact}
+        user={user}
+        onClose={()=>setQuickContact(null)}
+        onSaved={(msg,result)=>{
+          const lead=items.find(item=>item.id===quickContact.id)||quickContact;
+          setQuickContact(null);
+          setMessage(msg);
+          if(result==='bought_elsewhere')setFutureLead(lead);
+        }}
+      />}
       {createOpen&&<NewLeadModal user={user} companyId={scope.companyId} storeId={scope.storeId} sellers={sellers} stockItems={groupStock} onClose={()=>setCreateOpen(false)} onCreated={()=>{setCreateOpen(false);setMessage('Lead criado e entregue ao vendedor.');}} />}
       {futureLead&&<FutureContactModal lead={futureLead} user={user} onClose={()=>setFutureLead(null)} onSaved={()=>{setFutureLead(null);setMessage('Cliente arquivado e contato futuro agendado.');}} />}
       {showFuture&&<FutureContactsPanel items={futureItems} user={user} onClose={()=>setShowFuture(false)} onOpen={item=>{setShowFuture(false);setSelectedCustomer(item);}} onReactivated={()=>setMessage('Cliente reativado em Follow-up.')} />}
@@ -532,7 +544,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   </>;
 };
 
-const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFuture,onDragStart,onDragEnd}:{item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onOpen:()=>void;onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onScheduleFuture:()=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
+const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFuture,onArchive,onDragStart,onDragEnd}:{item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onOpen:()=>void;onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onScheduleFuture:()=>void;onArchive:()=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
   const source=sourceOf(item),temp=temperatureOf(item),wa=whatsappUrl(item.phone),overdue=isOverdue(item.nextFollowUpAt)&&!['sale','no_deal'].includes(item.status);
   const TempIcon=temp==='hot'?Flame:temp==='cold'?Snowflake:SunMedium;
   return <article draggable={!busy} onDragStart={onDragStart} onDragEnd={onDragEnd} className={`cursor-grab rounded-2xl border bg-white p-3.5 shadow-sm transition active:cursor-grabbing ${dragging?'scale-[.98] opacity-45 shadow-none':overdue?'border-red-200 ring-1 ring-red-100':'border-slate-200'}`}>
@@ -555,7 +567,18 @@ const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFutu
       </select>
       <div className="hidden items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-bold text-slate-400 md:flex"><GripVertical size={12}/> ARRASTE</div>
     </div>
-    {item.status==='no_deal'&&<button type="button" onClick={onScheduleFuture} className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 text-[11px] font-bold text-violet-700"><CalendarClock size={13}/> Agendar contato futuro</button>}
+    {item.status==='no_deal'&&<div className="mt-2 grid grid-cols-2 gap-2">
+      <button type="button" draggable={false}
+        onPointerDown={event=>event.stopPropagation()}
+        onDragStart={event=>event.preventDefault()}
+        onClick={event=>{event.preventDefault();event.stopPropagation();onScheduleFuture();}}
+        className="flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-2 text-[10px] font-bold text-violet-700"><CalendarClock size={13}/> Agendar futuro</button>
+      <button type="button" draggable={false}
+        onPointerDown={event=>event.stopPropagation()}
+        onDragStart={event=>event.preventDefault()}
+        onClick={event=>{event.preventDefault();event.stopPropagation();onArchive();}}
+        className="flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-2 text-[10px] font-bold text-slate-600">Arquivar</button>
+    </div>}
     {!['sale','no_deal'].includes(item.status)&&<div className="mt-2">
       <input type="datetime-local" value={inputDateTime(item.nextFollowUpAt)} onChange={e=>onPatch({nextFollowUpAt:e.target.value?new Date(e.target.value).toISOString():''})} className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-[11px] text-slate-600 outline-none"/>
     </div>}
