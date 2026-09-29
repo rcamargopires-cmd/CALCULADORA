@@ -296,16 +296,21 @@ export const showroomFlowService={
     if(!futureContactAt||Number.isNaN(new Date(futureContactAt).getTime()))throw new Error('Data futura inválida.');
     const reason=String(input.reason||'Relacionamento futuro').trim();
     const note=String(input.note||'').trim();
-    await updateDoc(doc(db,'showroom_passages',input.id),{
-      status:'no_deal' as ShowroomPassageStatus,
+    const ref=doc(db,'showroom_passages',input.id);
+    const snap=await getDoc(ref);
+    if(!snap.exists())throw new Error('Cliente não encontrado.');
+    const current=normalizePassage(snap.data());
+    const keepSale=current.status==='sale';
+    await updateDoc(ref,{
+      status:(keepSale?'sale':'no_deal') as ShowroomPassageStatus,
       futureContactAt,
       futureContactReason:reason,
       futureContactNote:note,
       futureContactStatus:'scheduled',
       hibernatedAt:timestamp,
       nextFollowUpAt:'',
-      closedAt:timestamp,
-      lostReason:reason,
+      closedAt:current.closedAt||timestamp,
+      ...(keepSale?{}:{lostReason:reason}),
       activityHistory:arrayUnion({
         id:auditId(),
         type:'future_contact',
@@ -393,6 +398,7 @@ export const showroomFlowService={
         ...(isClosed?{closedAt:timestamp}:{}),
         ...(isLoss?{lostReason:lossReason}:{}),
         ...((input.result==='gave_up'||input.result==='not_interested')?{archivedAt:timestamp,archiveReason:lossReason}:{}),
+        ...(isSale?{archivedAt:timestamp,archiveReason:'Venda concluída'}:{}),
         notes:nextNotes,
         activityHistory:[...history,event].slice(-150),
         updatedAt:timestamp,
