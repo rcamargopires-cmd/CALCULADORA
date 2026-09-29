@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, CheckCircle2, ListTodo, Play, RefreshCw, Save, UserCheck, X } from 'lucide-react';
-import { User } from '../types';
+import { ShowroomPassage, User } from '../types';
 import { ActionTask, actionTaskService } from '../services/actionTaskService';
+import { showroomFlowService } from '../services/showroomFlowService';
 
 type Props = {
   currentUser: User;
@@ -26,6 +27,8 @@ const SellerActionInbox: React.FC<Props> = ({ currentUser, companyId, storeId, s
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tasks, setTasks] = useState<ActionTask[]>([]);
+  const [futureLeads, setFutureLeads] = useState<ShowroomPassage[]>([]);
+  const [clock, setClock] = useState(() => Date.now());
   const [results, setResults] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState('');
   const seenTaskIds = useRef<Set<string> | null>(null);
@@ -49,6 +52,25 @@ const SellerActionInbox: React.FC<Props> = ({ currentUser, companyId, storeId, s
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser.email || !companyId || !storeId || !['seller','user'].includes(String(currentUser.role))) {
+      setFutureLeads([]);
+      return;
+    }
+    return showroomFlowService.subscribeSellerPassages(
+      companyId,
+      storeId,
+      currentUser.email,
+      rows => setFutureLeads(rows.filter(item => item.futureContactStatus === 'scheduled' && Boolean(item.futureContactAt))),
+      error => console.warn('Agenda: contatos futuros indisponíveis', error),
+    );
+  }, [currentUser.email, currentUser.role, companyId, storeId]);
 
   useEffect(() => {
     if (!currentUser.email || !companyId || !storeId) return;
@@ -90,7 +112,12 @@ const SellerActionInbox: React.FC<Props> = ({ currentUser, companyId, storeId, s
 
   const openTasks = ordered.filter(task => task.status !== 'done');
   const doneTasks = ordered.filter(task => task.status === 'done');
-  const overdue = openTasks.filter(task => task.dueDate && task.dueDate < localDate()).length;
+  const dueFuture = futureLeads
+    .filter(item => item.futureContactAt && new Date(item.futureContactAt).getTime() <= clock)
+    .sort((a,b) => String(a.futureContactAt || '').localeCompare(String(b.futureContactAt || '')));
+  const overdueFuture = dueFuture.filter(item => String(item.futureContactAt || '').slice(0,10) < localDate()).length;
+  const overdue = openTasks.filter(task => task.dueDate && task.dueDate < localDate()).length + overdueFuture;
+  const pendingCount = openTasks.length + dueFuture.length;
 
   const updateTask = async (task: ActionTask, status: ActionTask['status']) => {
     const result = String(results[task.id] || task.result || '').trim();
@@ -107,6 +134,24 @@ const SellerActionInbox: React.FC<Props> = ({ currentUser, companyId, storeId, s
     } catch (error) {
       console.error('Seller action task update error', error);
       setFeedback('Não consegui atualizar a ação.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reactivateFuture = async (lead: ShowroomPassage) => {
+    setSaving(true);
+    try {
+      await showroomFlowService.reactivateFutureContact({
+        id: lead.id,
+        actorEmail: currentUser.email,
+        actorName: currentUser.name,
+      });
+      setFeedback(`${lead.customerName || 'Cliente'} reativado no CRM em Follow-up.`);
+      window.dispatchEvent(new CustomEvent('motyq:open-crm', { detail: { action: 'lead', leadId: lead.id, tab: 'agenda' } }));
+    } catch (error) {
+      console.error('Future CRM reactivation error', error);
+      setFeedback('Não consegui reativar esse cliente agora.');
     } finally {
       setSaving(false);
     }
@@ -138,9 +183,9 @@ const SellerActionInbox: React.FC<Props> = ({ currentUser, companyId, storeId, s
         <div className="min-w-0 flex-1">
           <p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-300">MINHA AGENDA</p>
           <p className="mt-1 text-sm font-semibold text-white">Ações do dia</p>
-          <p className="mt-0.5 text-[11px] text-zinc-400">{openTasks.length ? `${openTasks.length} pendente(s)${overdue ? ` · ${overdue} atrasada(s)` : ''}` : 'Nenhuma pendência'}</p>
+          <p className="mt-0.5 text-[11px] text-zinc-400">{pendingCount ? `${pendingCount} pendente(s)${overdue ? ` · ${overdue} atrasada(s)` : ''}` : 'Nenhuma pendência'}</p>
         </div>
-        {openTasks.length > 0 && <span className={`grid min-w-7 place-items-center rounded-full px-2 py-1 text-[11px] font-black ${overdue ? 'bg-red-500 text-white' : 'bg-sky-300 text-slate-950'}`}>{openTasks.length}</span>}
+        {pendingCount > 0 && <span className={`grid min-w-7 place-items-center rounded-full px-2 py-1 text-[11px] font-black ${overdue ? 'bg-red-500 text-white' : 'bg-sky-300 text-slate-950'}`}>{pendingCount}</span>}
       </div>
     </button>
 
@@ -165,12 +210,30 @@ const SellerActionInbox: React.FC<Props> = ({ currentUser, companyId, storeId, s
           {feedback && <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-sky-300/15 bg-sky-300/[0.05] px-4 py-3 text-sm text-sky-100"><span>{feedback}</span><button onClick={() => setFeedback('')} className="text-sky-300"><X size={15}/></button></div>}
 
           <section className="grid gap-3 sm:grid-cols-3">
-            <Summary label="Pendentes" value={`${openTasks.length}`} hint={overdue ? `${overdue} atrasada(s)` : 'dentro do prazo'} />
+            <Summary label="Pendentes" value={`${pendingCount}`} hint={overdue ? `${overdue} atrasada(s)` : 'dentro do prazo'} />
             <Summary label="Em andamento" value={`${openTasks.filter(task => task.status === 'in_progress').length}`} hint="ações iniciadas" />
             <Summary label="Concluídas" value={`${doneTasks.length}`} hint="resultado registrado" />
           </section>
 
-          {loading && !tasks.length ? <div className="grid min-h-60 place-items-center text-zinc-500"><div className="text-center"><RefreshCw className="mx-auto mb-3 animate-spin"/><p>Carregando sua agenda...</p></div></div> : !ordered.length ? <div className="mt-6 rounded-[26px] border border-emerald-400/15 bg-emerald-400/[0.04] p-7 text-center"><CheckCircle2 className="mx-auto text-emerald-300"/><p className="mt-3 font-semibold text-emerald-100">Nenhuma ação atribuída.</p><p className="mt-1 text-sm text-emerald-200/60">Quando a gestão atribuir uma tarefa, ela aparecerá aqui automaticamente.</p></div> : <div className="mt-6 space-y-3">
+          {loading && !tasks.length && !dueFuture.length ? <div className="grid min-h-60 place-items-center text-zinc-500"><div className="text-center"><RefreshCw className="mx-auto mb-3 animate-spin"/><p>Carregando sua agenda...</p></div></div> : !ordered.length && !dueFuture.length ? <div className="mt-6 rounded-[26px] border border-emerald-400/15 bg-emerald-400/[0.04] p-7 text-center"><CheckCircle2 className="mx-auto text-emerald-300"/><p className="mt-3 font-semibold text-emerald-100">Nenhuma ação atribuída.</p><p className="mt-1 text-sm text-emerald-200/60">Quando a gestão atribuir uma tarefa, ela aparecerá aqui automaticamente.</p></div> : <div className="mt-6 space-y-3">
+            {dueFuture.map(lead => {
+              const isLate = String(lead.futureContactAt || '').slice(0,10) < localDate();
+              return <article key={'future_'+lead.id} className={`rounded-[24px] border p-5 ${isLate ? 'border-red-400/20 bg-red-400/[0.04]' : 'border-violet-400/20 bg-violet-400/[0.04]'}`}>
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-violet-400/12 px-2.5 py-1 text-[10px] font-black text-violet-300">RELACIONAMENTO</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.13em] text-zinc-600">CRM · Futuro</span>
+                      {isLate && <span className="rounded-full bg-red-500/15 px-2 py-1 text-[10px] font-black text-red-300">ATRASADA</span>}
+                    </div>
+                    <h3 className="mt-2 text-base font-semibold text-white">Retomar contato com {lead.customerName || 'cliente'}</h3>
+                    <p className="mt-1 text-sm leading-6 text-zinc-400">{lead.futureContactReason || 'Relacionamento futuro'}{lead.futureContactNote ? ' · ' + lead.futureContactNote : ''}</p>
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-500"><span className="flex items-center gap-1.5"><CalendarDays size={14}/> agendado para {lead.futureContactAt ? new Date(lead.futureContactAt).toLocaleDateString('pt-BR') : 'hoje'}</span></div>
+                  </div>
+                  <button disabled={saving} onClick={() => void reactivateFuture(lead)} className="rounded-xl bg-violet-400 px-4 py-2.5 text-xs font-black text-violet-950 disabled:opacity-50">REATIVAR NO CRM</button>
+                </div>
+              </article>;
+            })}
             {ordered.map(task => {
               const isOverdue = task.status !== 'done' && task.dueDate && task.dueDate < localDate();
               return <article key={task.id} className={`rounded-[24px] border p-5 ${task.status === 'done' ? 'border-emerald-400/15 bg-emerald-400/[0.035]' : isOverdue ? 'border-red-400/20 bg-red-400/[0.04]' : 'border-white/10 bg-white/[0.025]'}`}>
