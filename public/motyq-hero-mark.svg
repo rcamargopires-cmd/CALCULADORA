@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 130" role="img" aria-label="Motyq">
+  <defs>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".42" stop-color="#e9eef5"/>
+      <stop offset=".72" stop-color="#aeb9c8"/>
+      <stop offset="1" stop-color="#758194"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0fd0ff"/>
+      <stop offset=".55" stop-color="#149cff"/>
+      <stop offset="1" stop-color="#315dff"/>
+    </linearGradient>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#0f172a" flood-opacity=".18"/>
+    </filter>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="2.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <g fill="none" stroke-linejoin="round" stroke-linecap="square" filter="url(#shadow)">
+    <path d="M31 24 L82 65 L133 24 L133 41 L82 82 L31 41 Z" stroke="url(#silver)" stroke-width="10"/>
+    <path d="M31 40 L61 65 L61 98 L46 86 L46 70 L31 57 Z" stroke="url(#silver)" stroke-width="9"/>
+    <path d="M133 58 L133 98" stroke="url(#silver)" stroke-width="10"/>
+    <path d="M82 104 C94 91 102 77 119 65" stroke="url(#silver)" stroke-width="3.6"/>
+    <path d="M96 106 C104 92 111 78 123 68" stroke="url(#silver)" stroke-width="3.6"/>
+    <path d="M110 107 C115 93 120 81 127 72" stroke="url(#silver)" stroke-width="3.6"/>
+    <path d="M83 103 C95 90 103 76 120 64" stroke="url(#blue)" stroke-width="1.9" opacity=".9"/>
+    <g fill="url(#blue)" filter="url(#glow)" stroke="none">
+      <rect x="145" y="64" width="7" height="7" rx="1.8"/>
+      <rect x="145" y="79" width="7" height="7" rx="1.8"/>
+      <rect x="145" y="94" width="7" height="7" rx="1.8"/>
+    </g>
+  </g>
+</svg>
