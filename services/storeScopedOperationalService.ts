@@ -5,6 +5,7 @@ import { DEFAULT_COMPANY_ID } from './companyService';
 import { companyScopeService } from './companyScopeService';
 import { aggregatePerformanceSnapshot, normalizeOfficialSellerMetrics } from './performanceMetrics';
 import { DEFAULT_STORE_ID } from './storeService';
+import { DEMO_COMPANY_ID, DEMO_STORE_ID, demoPerformanceSnapshots, demoStockRows } from './demoSeedService';
 
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 120);
 const belongsToStore = (value: { storeId?: string }, storeId: string) => (value.storeId || DEFAULT_STORE_ID) === storeId;
@@ -111,7 +112,10 @@ export const storeScopedOperationalService = {
     const tenant = companyId || DEFAULT_COMPANY_ID;
     const current = await getStoreCurrent(storeId, tenant);
     const latest = String(current?.latestStockDate || '');
-    if (!latest) return [];
+    if (!latest) {
+      if (tenant === DEMO_COMPANY_ID && storeId === DEMO_STORE_ID) return demoStockRows();
+      return [];
+    }
 
     const scoped = await getDocs(query(
       collection(db, 'operational_stock'),
@@ -119,7 +123,9 @@ export const storeScopedOperationalService = {
       where('storeId', '==', storeId),
     ));
     const rows = scoped.docs.map(item => item.data() as OperationalStockItem).filter(item => item.snapshotDate === latest);
-    if (rows.length || tenant !== DEFAULT_COMPANY_ID || storeId !== DEFAULT_STORE_ID) return rows;
+    if (rows.length) return rows;
+    if (tenant === DEMO_COMPANY_ID && storeId === DEMO_STORE_ID) return demoStockRows();
+    if (tenant !== DEFAULT_COMPANY_ID || storeId !== DEFAULT_STORE_ID) return rows;
 
     const legacy = await getDocs(query(collection(db, 'operational_stock'), where('snapshotDate', '==', latest)));
     return legacy.docs
@@ -141,7 +147,13 @@ export const storeScopedOperationalService = {
     const tenant = companyId || DEFAULT_COMPANY_ID;
     const current = await getStoreCurrent(storeId, tenant);
     const latest = String(current?.latestPerformanceDate || '');
-    if (!latest) return null;
+    if (!latest) {
+      if (tenant === DEMO_COMPANY_ID && storeId === DEMO_STORE_ID) {
+        const snapshots = demoPerformanceSnapshots();
+        return normalizeSnapshot(snapshots[snapshots.length - 1] as OperationalPerformanceSnapshot, tenant, storeId);
+      }
+      return null;
+    }
     const scoped = await getDoc(doc(db, 'operational_meta', performanceId(storeId, latest)));
     if (scoped.exists() && belongsToCompany(scoped.data(), tenant)) {
       return normalizeSnapshot(scoped.data() as OperationalPerformanceSnapshot, tenant, storeId);
@@ -151,6 +163,10 @@ export const storeScopedOperationalService = {
       return legacy.exists()
         ? normalizeSnapshot(legacy.data() as OperationalPerformanceSnapshot, tenant, storeId)
         : null;
+    }
+    if (tenant === DEMO_COMPANY_ID && storeId === DEMO_STORE_ID) {
+      const snapshots = demoPerformanceSnapshots();
+      return normalizeSnapshot(snapshots[snapshots.length - 1] as OperationalPerformanceSnapshot, tenant, storeId);
     }
     return null;
   },
