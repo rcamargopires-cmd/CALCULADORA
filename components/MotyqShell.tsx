@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import {
   Archive, BellRing, BarChart3, Building2, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard,
-  ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Sparkles, Target, UserCog, UsersRound,
+  ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Sparkles, UsersRound,
   ClipboardCheck, Coins,
 } from 'lucide-react';
 import type { User } from '../types';
@@ -103,7 +103,6 @@ const MotyqShell:React.FC<Props>=({
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Estoque Motyq')}><CarFront size={18}/><span>Estoque</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcherStarts('MarketIQ')}><Gauge size={18}/><span>MarketIQ</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><UsersRound size={18}/><span>Gestão</span></button>}
-        {manager&&<button className="mq-nav-item" onClick={()=>launcher('Equipe & Usuários')}><UserCog size={18}/><span>Equipe</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><BarChart3 size={18}/><span>Relatórios</span></button>}
 
       </nav>
@@ -129,10 +128,7 @@ const MotyqShell:React.FC<Props>=({
           <h1>{activeView==='dashboard'?(seller?'Meu dia':'Visão geral'):'Nova negociação'}</h1>
         </div>
         <div className="mq-context-actions">
-          {activeView==='dashboard'?<>
-            {manager&&<button className="mq-action secondary" onClick={()=>launcher('Avaliações Motyq')}><ClipboardCheck size={16}/> Avaliações</button>}
-            <button className="mq-action primary" onClick={onCalculator}><Target size={16}/> Nova negociação</button>
-          </>:<>
+          {activeView==='calculator'&&<>
             {commissionsEnabled&&manager&&<button className="mq-action secondary" onClick={onCommissions}><Coins size={16}/> Comissões</button>}
             <button className="mq-action secondary" onClick={onReset}><RefreshCw size={16}/> Limpar</button>
             <button className="mq-action secondary" onClick={onSaveOpen}><Save size={16}/> Salvar</button>
