@@ -66,22 +66,18 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
 
   const enterCompany=async(company:Company)=>{
     setError('');
-    if(company.id===DEMO_COMPANY_ID){
-      setSaving('demo-enter');
-      setMessage('Preparando a operação demonstrativa com dados atualizados...');
-      try{
-        await demoSeedService.seed(currentUser);
-      }catch(cause:any){
-        setError(cause?.message||'Não foi possível preparar a empresa demo.');
-      }finally{
-        setSaving('');
-      }
-      return;
-    }
     const companyStores=stores.filter(store=>store.active&&storeCompanyId(store)===company.id);
-    const storeId=companyStores[0]?.id||'';
+    const storeId=companyStores[0]?.id||(company.id===DEMO_COMPANY_ID?'motyq-demo-principal':'');
     companyScopeService.set(company.id);
     if(storeId)storeScopeService.set(storeId);
+
+    if(company.id===DEMO_COMPANY_ID){
+      setMessage('Ambiente demo aberto. Atualizando dados demonstrativos em segundo plano...');
+      void demoSeedService.seed(currentUser).catch((cause:any)=>{
+        console.error('Demo seed failed after entering company',cause);
+        setError(cause?.message||'A demo abriu, mas parte dos dados demonstrativos não pôde ser atualizada.');
+      });
+    }
   };
 
   const createCompany=async()=>{
@@ -224,7 +220,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
           <div className="grid gap-4 xl:grid-cols-2">{cards.map(({company,stores:companyStores,users:companyUsers})=><article key={company.id} className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h2 className="truncate text-lg font-semibold">{company.name}</h2><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${company.status==='active'?'bg-emerald-50 text-emerald-700':company.status==='trial'?'bg-amber-50 text-amber-700':'bg-red-50 text-red-700'}`}>{company.status==='active'?'ATIVA':company.status==='trial'?'AVALIAÇÃO':'SUSPENSA'}</span></div><p className="mt-1 text-xs text-slate-500">{planLabel[company.plan]} · {money(PLAN_META[company.plan].price)}/mês</p></div>
-              <button disabled={company.status==='suspended'||saving==='demo-enter'} onClick={()=>void enterCompany(company)} className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white disabled:opacity-30">{company.id===DEMO_COMPANY_ID&&saving==='demo-enter'?'Preparando...':'Entrar'} <ChevronRight size={15}/></button>
+              <button disabled={company.status==='suspended'} onClick={()=>void enterCompany(company)} className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white disabled:opacity-30">Entrar <ChevronRight size={15}/></button>
             </div>
             <div className="mt-4 grid grid-cols-3 gap-2">
               <Stat label="Unidades" value={companyStores.filter(store=>store.active).length}/>
