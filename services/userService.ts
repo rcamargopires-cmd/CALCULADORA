@@ -26,6 +26,7 @@ const managementRequest = async (method: 'GET' | 'POST' | 'DELETE', body?: any, 
     const code = String(payload?.error || 'user_management_failed');
     const message =
       code === 'cross_company_forbidden' ? 'Você só pode administrar usuários da sua própria empresa.' :
+      code === 'store_forbidden' ? 'Você só pode vincular usuários às unidades da sua própria empresa.' :
       code === 'role_forbidden' || code === 'protected_user' ? 'Somente o administrador master pode alterar esse perfil.' :
       code === 'cannot_delete_self' ? 'Você não pode remover seu próprio usuário.' :
       code === 'server_firestore_not_configured' ? 'A gestão de usuários ainda não está configurada no servidor.' :
