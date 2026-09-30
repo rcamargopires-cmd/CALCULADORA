@@ -178,6 +178,7 @@ const OperationalTools: React.FC = () => {
       canAlerts={has('smartAlerts')}
       canAi={has('aiManager')}
       canReports={has('executiveInsights')}
+      isAdmin={role === 'admin'}
     />}
     {isManager && storeId && <StockHub
       storeName={storeName}
