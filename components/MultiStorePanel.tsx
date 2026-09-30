@@ -12,7 +12,6 @@ type Props = { currentUser: User; companyId: string; companyName: string };
 
 const MultiStorePanel: React.FC<Props> = ({ currentUser, companyId, companyName }) => {
   const isAdmin = currentUser.role === 'admin';
-  const isManager = currentUser.role === 'manager';
   const [open, setOpen] = useState(false);
   const [allStores, setAllStores] = useState<Store[]>([]);
   const [users, setUsers] = useState<User[]>([]);
