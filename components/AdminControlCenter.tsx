@@ -163,19 +163,19 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
   const roleLabel=(role:UserRole)=>role==='manager'?'Gestor':role==='seller'||role==='user'?'Vendedor':role==='reception'?'Recepção':role==='evaluator'?'Avaliador':role==='director'?'Diretoria':'Administrador';
 
   return <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
-    <aside className="fixed inset-y-0 left-0 z-20 hidden w-[250px] border-r border-slate-200 bg-[#17354a] p-5 text-white lg:flex lg:flex-col">
+    <aside className="fixed inset-y-0 left-0 z-20 hidden w-[250px] overflow-hidden border-r border-blue-300/20 bg-[linear-gradient(180deg,#2368b8_0%,#1f5da7_55%,#2f73c5_100%)] p-5 text-white shadow-[12px_0_36px_rgba(34,93,167,.10)] lg:flex lg:flex-col">
       <img src="/motyq-brand-light.svg" alt="MOTYQ" className="h-12 w-auto object-contain object-left"/>
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/[.06] p-4">
-        <p className="text-[9px] font-black uppercase tracking-[.18em] text-sky-200">CENTRAL MASTER</p>
-        <p className="mt-1 text-sm font-bold">Ambiente neutro</p>
-        <p className="mt-1 text-xs leading-5 text-slate-300">Nenhum dado operacional de cliente é carregado aqui.</p>
+      <div className="mt-6 rounded-2xl border border-white/55 bg-[#eef5fc] p-4 shadow-[0_14px_30px_rgba(15,23,42,.10)]">
+        <p className="text-[9px] font-black uppercase tracking-[.18em] text-[#1f6fc7]">CENTRAL MASTER</p>
+        <p className="mt-1 text-sm font-bold text-slate-900">Ambiente neutro</p>
+        <p className="mt-1 text-xs leading-5 text-slate-600">Nenhum dado operacional de cliente é carregado aqui.</p>
       </div>
       <nav className="mt-6 space-y-2">
         <button onClick={()=>setTab('companies')} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${tab==='companies'?'bg-blue-500 text-white':'text-slate-200 hover:bg-white/[.06]'}`}><Building2 size={18}/> Empresas & Planos</button>
         <button onClick={()=>setTab('users')} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${tab==='users'?'bg-blue-500 text-white':'text-slate-200 hover:bg-white/[.06]'}`}><Users size={18}/> Usuários & Acessos</button>
       </nav>
       <div className="mt-auto">
-        <button onClick={()=>signOut(auth)} className="flex w-full items-center gap-3 rounded-xl border border-white/10 px-3 py-3 text-sm font-semibold text-slate-200 hover:bg-white/[.06]"><LogOut size={17}/> Sair</button>
+        <button onClick={()=>signOut(auth)} className="flex w-full items-center gap-3 rounded-xl border border-blue-100/80 bg-white/[.03] px-3 py-3 text-sm font-semibold text-blue-50 hover:bg-white/[.10] hover:text-white"><LogOut size={17}/> Sair</button>
       </div>
     </aside>
 
