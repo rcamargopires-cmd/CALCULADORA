@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import {
   Archive, BellRing, BarChart3, Building2, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard,
-  ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Settings, Sparkles, Target, UserCog, UsersRound,
+  ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Sparkles, Target, UserCog, UsersRound,
   ClipboardCheck, Coins,
 } from 'lucide-react';
 import type { User } from '../types';
