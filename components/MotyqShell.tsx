@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
 import {
-  Archive, BellRing, BarChart3, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard,
+  Archive, BellRing, BarChart3, Building2, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard,
   ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Settings, Sparkles, Target, UserCog, UsersRound,
   ClipboardCheck, Coins,
 } from 'lucide-react';
 import type { User } from '../types';
+import { companyScopeService } from '../services/companyScopeService';
 
 type View='dashboard'|'calculator';
 type Props={
@@ -82,6 +83,7 @@ const MotyqShell:React.FC<Props>=({
     <aside className="mq-sidebar">
       <div className="mq-sidebar-brand"><img src="/motyq-brand.svg" alt="MOTYQ"/></div>
       <nav className="mq-sidebar-nav">
+        {role==='admin'&&<button className="mq-nav-item" onClick={()=>companyScopeService.enterAdminHome()}><Building2 size={18}/><span>Central Master</span></button>}
         <button className={'mq-nav-item '+(activeView==='dashboard'?'is-active':'')} onClick={onDashboard}>
           <LayoutDashboard size={18}/><span>{seller?'Meu dia':'Visão geral'}</span>
         </button>
@@ -103,7 +105,7 @@ const MotyqShell:React.FC<Props>=({
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><UsersRound size={18}/><span>Gestão</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Equipe & Usuários')}><UserCog size={18}/><span>Equipe</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><BarChart3 size={18}/><span>Relatórios</span></button>}
-        {role==='admin'&&<button className="mq-nav-item" onClick={()=>launcher('Administração Motyq')}><Settings size={18}/><span>Administração</span></button>}
+
       </nav>
       <div className="mq-sidebar-foot"><span>MOTYQ Intelligence</span><strong>Veja. Decida. Aja.</strong></div>
     </aside>
@@ -148,7 +150,9 @@ const MotyqShell:React.FC<Props>=({
       {seller&&<button onClick={crm}><MessageSquareText size={19}/><span>CRM</span></button>}
       <button className={activeView==='calculator'?'is-active':''} onClick={onCalculator}><Calculator size={19}/><span>Negócio</span></button>
       {manager&&<button onClick={()=>launcherStarts('MarketIQ')}><Gauge size={19}/><span>MarketIQ</span></button>}
-      {manager&&<button onClick={()=>launcher('Operação Motyq')}><UsersRound size={19}/><span>Mais</span></button>}
+      {role==='admin'
+        ? <button onClick={()=>companyScopeService.enterAdminHome()}><Building2 size={19}/><span>Master</span></button>
+        : manager&&<button onClick={()=>launcher('Operação Motyq')}><UsersRound size={19}/><span>Mais</span></button>}
     </nav>
   </div>;
 };
