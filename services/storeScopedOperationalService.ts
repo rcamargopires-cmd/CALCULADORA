@@ -113,7 +113,7 @@ export const storeScopedOperationalService = {
     const current = await getStoreCurrent(storeId, tenant);
     const latest = String(current?.latestStockDate || '');
     if (!latest) {
-      if (tenant === DEMO_COMPANY_ID && storeId === DEMO_STORE_ID) return demoStockRows();
+      if (tenant === DEMO_COMPANY_ID) return demoStockRows();
       return [];
     }
 
@@ -124,7 +124,7 @@ export const storeScopedOperationalService = {
     ));
     const rows = scoped.docs.map(item => item.data() as OperationalStockItem).filter(item => item.snapshotDate === latest);
     if (rows.length) return rows;
-    if (tenant === DEMO_COMPANY_ID && storeId === DEMO_STORE_ID) return demoStockRows();
+    if (tenant === DEMO_COMPANY_ID) return demoStockRows();
     if (tenant !== DEFAULT_COMPANY_ID || storeId !== DEFAULT_STORE_ID) return rows;
 
     const legacy = await getDocs(query(collection(db, 'operational_stock'), where('snapshotDate', '==', latest)));
@@ -148,7 +148,7 @@ export const storeScopedOperationalService = {
     const current = await getStoreCurrent(storeId, tenant);
     const latest = String(current?.latestPerformanceDate || '');
     if (!latest) {
-      if (tenant === DEMO_COMPANY_ID && storeId === DEMO_STORE_ID) {
+      if (tenant === DEMO_COMPANY_ID) {
         const snapshots = demoPerformanceSnapshots();
         return normalizeSnapshot(snapshots[snapshots.length - 1] as OperationalPerformanceSnapshot, tenant, storeId);
       }
@@ -164,7 +164,7 @@ export const storeScopedOperationalService = {
         ? normalizeSnapshot(legacy.data() as OperationalPerformanceSnapshot, tenant, storeId)
         : null;
     }
-    if (tenant === DEMO_COMPANY_ID && storeId === DEMO_STORE_ID) {
+    if (tenant === DEMO_COMPANY_ID) {
       const snapshots = demoPerformanceSnapshots();
       return normalizeSnapshot(snapshots[snapshots.length - 1] as OperationalPerformanceSnapshot, tenant, storeId);
     }
