@@ -83,7 +83,7 @@ const MotyqShell:React.FC<Props>=({
     <aside className="mq-sidebar">
       <div className="mq-sidebar-brand"><img src="/motyq-brand.svg" alt="MOTYQ"/></div>
       <nav className="mq-sidebar-nav">
-        {role==='admin'&&<button className="mq-nav-item" onClick={()=>launcher('Unidades da empresa')}><Store size={18}/><span>Unidades</span></button>}
+        {manager&&<button className="mq-nav-item" onClick={()=>launcher('Unidades da empresa')}><Store size={18}/><span>Unidades</span></button>}
         {role==='admin'&&<button className="mq-nav-item" onClick={()=>companyScopeService.enterAdminHome()}><Building2 size={18}/><span>Central Master</span></button>}
         <button className={'mq-nav-item '+(activeView==='dashboard'?'is-active':'')} onClick={onDashboard}>
           <LayoutDashboard size={18}/><span>{seller?'Meu dia':'Visão geral'}</span>
