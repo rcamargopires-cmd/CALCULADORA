@@ -171,8 +171,8 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
         <p className="mt-1 text-xs leading-5 text-slate-600">Nenhum dado operacional de cliente é carregado aqui.</p>
       </div>
       <nav className="mt-6 space-y-2">
-        <button onClick={()=>setTab('companies')} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${tab==='companies'?'bg-blue-500 text-white':'text-slate-200 hover:bg-white/[.06]'}`}><Building2 size={18}/> Empresas & Planos</button>
-        <button onClick={()=>setTab('users')} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${tab==='users'?'bg-blue-500 text-white':'text-slate-200 hover:bg-white/[.06]'}`}><Users size={18}/> Usuários & Acessos</button>
+        <button onClick={()=>setTab('companies')} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${tab==='companies'?'bg-[#347df4] text-white shadow-[0_10px_24px_rgba(15,72,161,.24)]':'text-blue-50/90 hover:bg-white/[.10] hover:text-white'}`}><Building2 size={18}/> Empresas & Planos</button>
+        <button onClick={()=>setTab('users')} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${tab==='users'?'bg-[#347df4] text-white shadow-[0_10px_24px_rgba(15,72,161,.24)]':'text-blue-50/90 hover:bg-white/[.10] hover:text-white'}`}><Users size={18}/> Usuários & Acessos</button>
       </nav>
       <div className="mt-auto">
         <button onClick={()=>signOut(auth)} className="flex w-full items-center gap-3 rounded-xl border border-blue-100/80 bg-white/[.03] px-3 py-3 text-sm font-semibold text-blue-50 hover:bg-white/[.10] hover:text-white"><LogOut size={17}/> Sair</button>
