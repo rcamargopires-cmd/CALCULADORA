@@ -31,6 +31,8 @@ import EvaluatorWorkspace from './EvaluatorWorkspace';
 import MotyqCRM from './MotyqCRM';
 import MobileSellerQuickActions from './MobileSellerQuickActions';
 import SellerMobileHome from './SellerMobileHome';
+import AdminControlCenter from './AdminControlCenter';
+import { ADMIN_HOME_SCOPE, COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
 
 const Safe = ({ name, children }: { name: string; children: React.ReactNode }) => (
   <ModuleErrorBoundary name={name}>{children}</ModuleErrorBoundary>
@@ -80,6 +82,7 @@ const EvaluatorMotyq = ({ user }: { user: User }) => <>
 const RoleAwareRoot: React.FC = () => {
   const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [adminScope, setAdminScope] = useState(ADMIN_HOME_SCOPE);
 
   useEffect(() => onAuthStateChanged(auth, async firebaseUser => {
     if (!firebaseUser?.email) {
@@ -89,7 +92,12 @@ const RoleAwareRoot: React.FC = () => {
     }
     try {
       const user = await userService.getUser(firebaseUser.email);
-      setProfile(user?.status === 'active' ? user : null);
+      const active = user?.status === 'active' ? user : null;
+      if (active?.role === 'admin') {
+        companyScopeService.enterAdminHome();
+        setAdminScope(ADMIN_HOME_SCOPE);
+      }
+      setProfile(active);
     } catch {
       setProfile(null);
     } finally {
@@ -97,8 +105,18 @@ const RoleAwareRoot: React.FC = () => {
     }
   }), []);
 
+  useEffect(() => {
+    const sync = (event: Event) => {
+      const next = String((event as CustomEvent<{ companyId?: string }>).detail?.companyId || '');
+      if (next) setAdminScope(next);
+    };
+    window.addEventListener(COMPANY_SCOPE_EVENT, sync);
+    return () => window.removeEventListener(COMPANY_SCOPE_EVENT, sync);
+  }, []);
+
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#f6f8fb] text-sm font-semibold text-slate-500">Carregando MOTYQ...</div>;
   if (profile?.role === 'evaluator') return <EvaluatorMotyq user={profile}/>;
+  if (profile?.role === 'admin' && adminScope === ADMIN_HOME_SCOPE) return <AdminControlCenter currentUser={profile}/>;
   return <StandardMotyq user={profile}/>;
 };
 
