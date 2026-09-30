@@ -12,6 +12,7 @@ import {
 } from '../types';
 import { normalize } from '../services/operationalDataService';
 import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
+import { DEMO_COMPANY_ID, demoStockRows, demoPerformanceSnapshots } from '../services/demoSeedService';
 import { evaluationQueueService, EvaluationQueueRequest } from '../services/evaluationQueueService';
 import { showroomFlowService } from '../services/showroomFlowService';
 import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companyScopeService';
@@ -165,8 +166,12 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
         storeScopedOperationalService.getLatestPerformance(storeId, companyId),
         getDoc(doc(db, 'config/performance')),
       ]);
-      setStock(stockData || []);
-      setSnapshot(performanceData || null);
+      const effectiveStock = companyId===DEMO_COMPANY_ID && !(stockData||[]).length ? demoStockRows() : (stockData||[]);
+      const effectivePerformance = companyId===DEMO_COMPANY_ID && !performanceData
+        ? (demoPerformanceSnapshots().slice(-1)[0] as OperationalPerformanceSnapshot)
+        : performanceData;
+      setStock(effectiveStock);
+      setSnapshot(effectivePerformance || null);
       if (perf.exists()) {
         const raw = perf.data() as any;
         setGoals({
