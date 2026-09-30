@@ -6,6 +6,7 @@ import {
   BrainCircuit,
   CheckCircle2,
   LayoutDashboard,
+  Landmark,
   ListTodo,
   PanelsTopLeft,
   Sparkles,
@@ -19,9 +20,10 @@ type Props = {
   canAlerts: boolean;
   canAi: boolean;
   canReports: boolean;
+  isAdmin: boolean;
 };
 
-type ToolKey = 'overview' | 'showroom' | 'team' | 'actions' | 'alerts' | 'ai' | 'impact' | 'reports';
+type ToolKey = 'overview' | 'showroom' | 'team' | 'director' | 'actions' | 'alerts' | 'ai' | 'impact' | 'reports';
 
 const findButton = (predicate: (button: HTMLButtonElement) => boolean) =>
   Array.from(document.querySelectorAll('button')).find(button => predicate(button as HTMLButtonElement)) as HTMLButtonElement | undefined;
@@ -63,6 +65,11 @@ const tools: Array<{
     icon: <UserCog size={19}/>,
   },
   {
+    key: 'director', eyebrow: 'Diretoria', title: 'Panorama do grupo',
+    description: 'Visão executiva do grupo, unidades, indicadores e leitura consolidada da operação.',
+    icon: <Landmark size={19}/>,
+  },
+  {
     key: 'actions', eyebrow: 'Gestão Hoje', title: 'Prioridades e execução',
     description: 'Transforme os desvios da operação em ações com responsável, prazo e resultado.',
     icon: <ListTodo size={19}/>,
@@ -89,7 +96,7 @@ const tools: Array<{
   },
 ];
 
-const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports }) => {
+const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports, isAdmin }) => {
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
 
@@ -97,6 +104,7 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
     if (key === 'alerts') return canAlerts;
     if (key === 'ai') return canAi;
     if (key === 'reports') return canReports;
+    if (key === 'director') return isAdmin;
     return true;
   };
 
@@ -110,6 +118,7 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
     if (key === 'overview') found = clickText('DASHBOARD');
     if (key === 'showroom') found = clickTitle('ShowroomFlow · passagens');
     if (key === 'team') found = clickTitle('Equipe & Usuários');
+    if (key === 'director') found = clickTitle('Diretoria · Panorama do Grupo');
     if (key === 'actions') found = clickTitle('Centro de Ação Motyq');
     if (key === 'alerts') found = clickText('Smart Alerts');
     if (key === 'ai') found = clickText('MOTYQ AI');
@@ -129,6 +138,7 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
       /* The sidebar is now the navigation source; legacy floating launchers stay available programmatically. */
       body.motyq-graphite button[title="Operação Motyq"],
       body.motyq-graphite button[title^="ShowroomFlow"],
+      body.motyq-graphite button[title="Diretoria · Panorama do Grupo"],
       body.motyq-graphite button[title="Centro de Ação Motyq"],
       body.motyq-graphite button[title="Impacto Motyq"],
       body.motyq-graphite button.fixed.bottom-20.right-5,
@@ -158,7 +168,7 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
         <header className="shrink-0 flex items-start justify-between border-b border-white/10 p-5 sm:p-6">
           <div>
             <div className="flex items-center gap-2 text-sky-300"><Sparkles size={15}/><p className="text-[10px] font-black uppercase tracking-[.18em]">OPERAÇÃO MOTYQ</p></div>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight">Uma operação, oito leituras.</h2>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">{isAdmin ? 'Uma operação, nove leituras.' : 'Uma operação, oito leituras.'}</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-500">{storeName}. Os motores continuam especializados, mas agora vivem no mesmo lugar.</p>
           </div>
           <button onClick={() => setOpen(false)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[.04] text-zinc-400"><X size={18}/></button>
@@ -170,7 +180,7 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
           </div>
 
           <div className="space-y-2.5">
-            {tools.map(tool => {
+            {tools.filter(tool => tool.key !== 'director' || isAdmin).map(tool => {
               const available = enabled(tool.key);
               return <button
                 key={tool.key}
