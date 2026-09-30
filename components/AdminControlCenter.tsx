@@ -175,7 +175,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
         <button onClick={()=>setTab('users')} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${tab==='users'?'bg-[#347df4] text-white shadow-[0_10px_24px_rgba(15,72,161,.24)]':'text-blue-50/90 hover:bg-white/[.10] hover:text-white'}`}><Users size={18}/> Usuários & Acessos</button>
       </nav>
       <div className="mt-auto">
-        <button onClick={()=>signOut(auth)} className="flex w-full items-center gap-3 rounded-xl border border-blue-100/80 bg-white/[.03] px-3 py-3 text-sm font-semibold text-blue-50 hover:bg-white/[.10] hover:text-white"><LogOut size={17}/> Sair</button>
+        <button onClick={()=>signOut(auth)} className="flex w-full items-center gap-3 rounded-xl border border-blue-100/70 bg-[#245fa8] px-3 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(15,72,161,.18)] transition hover:bg-[#1d5598] hover:border-white"><LogOut size={17} className="text-white"/> <span className="text-white">Sair</span></button>
       </div>
     </aside>
 
