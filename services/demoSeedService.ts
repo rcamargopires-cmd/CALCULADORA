@@ -319,7 +319,7 @@ const seedQueueAndCrm=async()=>{
 };
 
 const seedMarketPresence=async()=>{
-  const stock=stockRows();
+  const stock=demoStockRows();
   const batchId=`demo-stock-${localDate()}`;
   const rows:MarketPresenceItem[]=stock.slice(0,-1).map((item,index)=>{
     const missing=[0,4].includes(index);
