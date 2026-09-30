@@ -59,6 +59,23 @@ const OperationalTools: React.FC = () => {
       }
       return;
     }
+    if (role === 'manager') {
+      const resolvedCompany = companyIdForUser(profile);
+      const companySnapshot = companySnapshotForUser(profile);
+      const context = await userService.getManagementContext(profile, resolvedCompany);
+      const companyStores = (context.stores || []).filter(store => store.active && storeCompanyId(store) === resolvedCompany);
+      const preferredStore = storeIdForUser(profile);
+      const resolvedStore = companyStores.some(store => store.id === preferredStore)
+        ? preferredStore
+        : companyStores[0]?.id || preferredStore;
+      companyScopeService.set(resolvedCompany);
+      if (resolvedStore) storeScopeService.set(resolvedStore);
+      setCompanyId(resolvedCompany);
+      setStoreId(resolvedStore);
+      setCompanies([companySnapshot]);
+      setStores(companyStores.length ? companyStores : (resolvedStore === DEFAULT_STORE.id ? [DEFAULT_STORE] : [{ id: resolvedStore, code: 'UNIDADE', name: 'Minha unidade', active: true, companyId: resolvedCompany }]));
+      return;
+    }
     if (role !== 'admin') {
       const resolvedCompany = companyIdForUser(profile);
       const resolvedStore = storeIdForUser(profile);
