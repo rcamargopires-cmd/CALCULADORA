@@ -9,6 +9,8 @@ import {
   ListTodo,
   PanelsTopLeft,
   Sparkles,
+  UserCog,
+  UsersRound,
   X,
 } from 'lucide-react';
 
@@ -19,7 +21,7 @@ type Props = {
   canReports: boolean;
 };
 
-type ToolKey = 'overview' | 'actions' | 'alerts' | 'ai' | 'impact' | 'reports';
+type ToolKey = 'overview' | 'showroom' | 'team' | 'actions' | 'alerts' | 'ai' | 'impact' | 'reports';
 
 const findButton = (predicate: (button: HTMLButtonElement) => boolean) =>
   Array.from(document.querySelectorAll('button')).find(button => predicate(button as HTMLButtonElement)) as HTMLButtonElement | undefined;
@@ -49,6 +51,16 @@ const tools: Array<{
     key: 'overview', eyebrow: 'Visão Geral', title: 'Command Center',
     description: 'Vendas, projeção, captura, margem, estoque e equipe em uma única leitura.',
     icon: <LayoutDashboard size={19}/>,
+  },
+  {
+    key: 'showroom', eyebrow: 'Atendimento', title: 'ShowroomFlow', 
+    description: 'Fila, passagens, clientes em atendimento e acompanhamento da equipe comercial.',
+    icon: <UsersRound size={19}/>,
+  },
+  {
+    key: 'team', eyebrow: 'Equipe', title: 'Usuários, metas e acessos',
+    description: 'Vendedores, gestores, metas individuais, perfis e organização da equipe.',
+    icon: <UserCog size={19}/>,
   },
   {
     key: 'actions', eyebrow: 'Gestão Hoje', title: 'Prioridades e execução',
@@ -96,6 +108,8 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
 
     let found = false;
     if (key === 'overview') found = clickText('DASHBOARD');
+    if (key === 'showroom') found = clickTitle('ShowroomFlow · passagens');
+    if (key === 'team') found = clickTitle('Equipe & Usuários');
     if (key === 'actions') found = clickTitle('Centro de Ação Motyq');
     if (key === 'alerts') found = clickText('Smart Alerts');
     if (key === 'ai') found = clickText('MOTYQ AI');
@@ -112,7 +126,9 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
 
   return <>
     <style>{`
-      /* Operação Motyq replaces the five legacy standalone launchers. */
+      /* The sidebar is now the navigation source; legacy floating launchers stay available programmatically. */
+      body.motyq-graphite button[title="Operação Motyq"],
+      body.motyq-graphite button[title^="ShowroomFlow"],
       body.motyq-graphite button[title="Centro de Ação Motyq"],
       body.motyq-graphite button[title="Impacto Motyq"],
       body.motyq-graphite button.fixed.bottom-20.right-5,
@@ -142,7 +158,7 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
         <header className="shrink-0 flex items-start justify-between border-b border-white/10 p-5 sm:p-6">
           <div>
             <div className="flex items-center gap-2 text-sky-300"><Sparkles size={15}/><p className="text-[10px] font-black uppercase tracking-[.18em]">OPERAÇÃO MOTYQ</p></div>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight">Uma operação, seis leituras.</h2>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">Uma operação, oito leituras.</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-500">{storeName}. Os motores continuam especializados, mas agora vivem no mesmo lugar.</p>
           </div>
           <button onClick={() => setOpen(false)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[.04] text-zinc-400"><X size={18}/></button>
