@@ -107,7 +107,7 @@ body.motyq-graphite .motyq-exec * {
 
 .mx-kpi-grid {
   display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
+  grid-template-columns:repeat(5,minmax(0,1fr));
   gap:12px;
   margin-bottom:14px;
 }
@@ -423,6 +423,7 @@ body.motyq-graphite .motyq-exec * {
 }
 
 @media (max-width:1180px) {
+  .mx-kpi-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .mx-main-grid { grid-template-columns:1fr; }
   .mx-actions-panel { min-height:auto; }
   .mx-lower-grid { grid-template-columns:1fr 1fr; }
