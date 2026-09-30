@@ -93,7 +93,7 @@ const MultiStorePanel: React.FC<Props> = ({ currentUser, companyId, companyName 
   };
 
   return <>
-    <button onClick={() => setOpen(true)} className="fixed bottom-32 left-5 z-[144] flex items-center gap-2 rounded-full border border-white/10 bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-2xl"><Building2 size={17}/> Unidades</button>
+    <button title="Unidades da empresa" onClick={() => setOpen(true)} className="hidden"><Building2 size={17}/> Unidades</button>
     {open && <div className="fixed inset-0 z-[225] overflow-y-auto bg-black/75 p-3 backdrop-blur-md" onClick={() => setOpen(false)}><div className="mx-auto mt-6 max-w-5xl overflow-hidden rounded-[32px] border border-white/10 bg-zinc-950 shadow-2xl" onClick={event => event.stopPropagation()}>
       <div className="flex items-center justify-between border-b border-white/10 p-5 md:p-6"><div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-black"><Building2 size={21}/></div><div><p className="text-xs font-semibold uppercase tracking-[0.15em] text-zinc-500">Multi-Store · {companyName}</p><h3 className="mt-1 text-xl font-semibold text-white">Unidades da empresa</h3><p className="mt-1 text-xs text-zinc-500">Somente lojas e usuários pertencentes a este ambiente aparecem aqui.</p></div></div><button onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-zinc-400"><X size={18}/></button></div>
       <div className="space-y-6 p-5 md:p-6">
