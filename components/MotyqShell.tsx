@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import {
-  Archive, BellRing, BarChart3, Building2, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard,
+  Archive, BellRing, BarChart3, Building2, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard, Store,
   ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Sparkles, UsersRound,
   ClipboardCheck, Coins,
 } from 'lucide-react';
@@ -83,6 +83,7 @@ const MotyqShell:React.FC<Props>=({
     <aside className="mq-sidebar">
       <div className="mq-sidebar-brand"><img src="/motyq-brand.svg" alt="MOTYQ"/></div>
       <nav className="mq-sidebar-nav">
+        {role==='admin'&&<button className="mq-nav-item" onClick={()=>launcher('Unidades da empresa')}><Store size={18}/><span>Unidades</span></button>}
         {role==='admin'&&<button className="mq-nav-item" onClick={()=>companyScopeService.enterAdminHome()}><Building2 size={18}/><span>Central Master</span></button>}
         <button className={'mq-nav-item '+(activeView==='dashboard'?'is-active':'')} onClick={onDashboard}>
           <LayoutDashboard size={18}/><span>{seller?'Meu dia':'Visão geral'}</span>
