@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Building2, ChevronRight, CircleDollarSign, LogOut, Plus, RefreshCw,
-  ShieldCheck, Store, UserCog, Users, X
+  Building2, ChevronRight, LogOut, Plus, RefreshCw,
+  UserCog, Users, X
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -252,7 +252,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
       <div className="grid gap-4">
         <Field label="Nome completo" value={userForm.name} onChange={value=>setUserForm(prev=>({...prev,name:value}))}/>
         <Field label="E-mail" value={userForm.email} type="email" onChange={value=>setUserForm(prev=>({...prev,email:value}))}/>
-        <div className="grid grid-cols-2 gap-3"><label><span className="text-xs font-semibold text-slate-500">Perfil</span><select value={userForm.role} onChange={e=>setUserForm(prev=>({...prev,role:e.target.value as UserRole}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="manager">Gestor</option><option value="seller">Vendedor</option><option value="reception">Recepção</option><option value="evaluator">Avaliador</option><option value="director">Diretoria</option><option value="admin">Administrador master</option></select></label><label><span className="text-xs font-semibold text-slate-500">Status</span><select value={userForm.status} onChange={e=>setUserForm(prev=>({...prev,status:e.target.value as UserStatus}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="active">Ativo</option><option value="inactive">Inativo</option></select></label></div>
+        <div className="grid grid-cols-2 gap-3"><label><span className="text-xs font-semibold text-slate-500">Perfil</span><select value={userForm.role} onChange={e=>setUserForm(prev=>({...prev,role:e.target.value as UserRole}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="manager">Gestor</option><option value="seller">Vendedor</option><option value="reception">Recepção</option><option value="evaluator">Avaliador</option><option value="director">Diretoria</option></select></label><label><span className="text-xs font-semibold text-slate-500">Status</span><select value={userForm.status} onChange={e=>setUserForm(prev=>({...prev,status:e.target.value as UserStatus}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="active">Ativo</option><option value="inactive">Inativo</option></select></label></div>
         <label><span className="text-xs font-semibold text-slate-500">Unidade</span><select value={userForm.storeId} onChange={e=>setUserForm(prev=>({...prev,storeId:e.target.value}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="">Selecione...</option>{selectedStores.map(store=><option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
       </div>
       <button disabled={saving==='user'} onClick={()=>void createUser()} className="mt-5 h-11 w-full rounded-xl bg-blue-600 text-sm font-bold text-white disabled:opacity-40">{saving==='user'?'Criando...':'Criar usuário'}</button>
