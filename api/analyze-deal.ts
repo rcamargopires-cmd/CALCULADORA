@@ -250,6 +250,9 @@ const handleUserManagement=async(req:any,res:any)=>{
       const existing:any=await motyqFirestore.get('users',input.email).catch(()=>null);
       if(actorRole==='manager'){
         if(!MANAGER_ALLOWED_ROLES.has(input.role))return res.status(403).json({error:'role_forbidden'});
+        const managerContext=await managementContext(actor,companyId);
+        const allowedStoreIds=new Set((managerContext.stores||[]).map((store:any)=>String(store?.id||'')).filter(Boolean));
+        if(!allowedStoreIds.has(String(input.storeId||'')))return res.status(403).json({error:'store_forbidden'});
         if(existing){
           if(companyOf(existing)!==companyId)return res.status(403).json({error:'cross_company_forbidden'});
           if(!MANAGER_ALLOWED_ROLES.has(roleOf(existing)))return res.status(403).json({error:'protected_user'});
