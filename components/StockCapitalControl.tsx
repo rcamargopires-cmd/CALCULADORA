@@ -43,7 +43,7 @@ const StockCapitalControl:React.FC<Props>=({user,stock,history})=>{
   const[expanded,setExpanded]=useState(false);
   const[showAll,setShowAll]=useState(false);
   const[search,setSearch]=useState('');
-  const safeRate=Math.min(100,Math.max(0,Number(rate)||0));
+  const safeRate=Math.min(10,Math.max(0,Number(rate)||0));
   const seen=new Set<string>();
   const owned=activeStock.filter(item=>(!item.companyId||item.companyId===companyId)
     &&(sharedActive||user.role==='admin'||!item.storeId||item.storeId===storeId));
@@ -85,7 +85,7 @@ const StockCapitalControl:React.FC<Props>=({user,stock,history})=>{
         <p className="mt-1 text-xs text-slate-500">Base: custo atual do estoque na última importação {reference||'não disponível'} · taxa mensal do investidor.</p>
       </div>
       <label className="text-xs font-semibold text-slate-600">Taxa mensal do investidor (%)
-        <input type="number" min="0" max="100" step="0.1" value={rate}
+        <input type="number" min="0" max="10" step="0.1" value={rate}
           onChange={event=>{const v=Math.max(0,Math.min(10,Number(event.target.value)||0));setRate(v);try{window.localStorage.setItem(key,String(v));}catch{}}}
           className="ml-2 h-10 w-20 rounded-xl border border-slate-200 bg-white px-2 text-sm font-bold text-slate-900"/>
       </label>
