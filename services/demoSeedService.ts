@@ -86,7 +86,7 @@ const seller = (
   };
 };
 
-const performanceSnapshots=()=>{
+export const demoPerformanceSnapshots=()=>{
   const now=new Date();
   const day=Math.max(1,now.getDate());
   const baseline=[
@@ -137,7 +137,7 @@ const stockTuples:DemoStockTuple[]=[
   ['DMT8T18','VW Virtus Highline 2024',5,108500,121500,115900,'2023/2024',14600,'Branco','Volkswagen','Automático'],
 ];
 
-const stockRows=():OperationalStockItem[]=>{
+export const demoStockRows=():OperationalStockItem[]=>{
   const snapshotDate=localDate();
   return stockTuples.map(([plate,vehicle,stockDays,cost,fipe,askingPrice],index)=>({
     id:safeId(`${DEMO_COMPANY_ID}_${DEMO_STORE_ID}_${snapshotDate}_${plate}`),
@@ -156,7 +156,7 @@ const seedCompaniesStoresUsers=async()=>{
 };
 
 const seedPerformance=async()=>{
-  const snapshots=performanceSnapshots();
+  const snapshots=demoPerformanceSnapshots();
   await Promise.all(snapshots.map(snapshot=>setDoc(
     doc(db,'operational_meta',`performance_${safeId(DEMO_STORE_ID)}_${safeId(snapshot.referenceDate)}`),
     {...snapshot,companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,sourceFile:'Mapa Performance · Demo Motors.xlsx',importedBy:'demo@motyq.com.br',updatedAt:serverTimestamp()},
@@ -170,7 +170,7 @@ const seedPerformance=async()=>{
 };
 
 const seedStock=async()=>{
-  const stock=stockRows();
+  const stock=demoStockRows();
   const snapshotDate=stock[0].snapshotDate;
   const batchId=`demo-stock-${snapshotDate}`;
   await Promise.all(stock.map(item=>setDoc(doc(db,'operational_stock',item.id),item,{merge:true})));
@@ -366,7 +366,7 @@ const seedDeals=async()=>{
     ['demo_deal_8','Diego Rocha','diego.rocha@demo.motyq','VDM0024','closed',82900,77500,5700,6.9],
   ] as const;
   await Promise.all(rows.map(([id,userName,userId,plate,status,invoiceValue,vehicleCost,profit,marginPercent],index)=>{
-    const data={licensePlate:plate,fipeValue:invoiceValue+6000,stockDays:index<4?stockRows().find(item=>item.plate===plate)?.stockDays||30:22,
+    const data={licensePlate:plate,fipeValue:invoiceValue+6000,stockDays:index<4?demoStockRows().find(item=>item.plate===plate)?.stockDays||30:22,
       invoiceValue,vehicleCost,bankReturn:index%2?1800:0,payments:{entry:invoiceValue*.25,financing:invoiceValue*.55,tradeIn:invoiceValue*.20},
       costs:{documentation:850,accessories:index%3?0:1200,payoff:0,debts:0,others:Math.max(invoiceValue-vehicleCost-profit-850-(index%3?0:1200),0)},
       dealStatus:status,closingType:index%2?'banking' as const:'standard' as const};
