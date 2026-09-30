@@ -470,11 +470,6 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
           <button className="mx-icon-button" onClick={() => void reloadOperational()} title="Atualizar">
             <RefreshCw size={18} className={loading ? 'mx-spin' : ''} />
           </button>
-          <button className="mx-primary-action" onClick={onStartNewCalculation}>
-            <CircleDollarSign size={18} />
-            Nova negociação
-            <ArrowRight size={16} />
-          </button>
         </div>
       </header>
 
