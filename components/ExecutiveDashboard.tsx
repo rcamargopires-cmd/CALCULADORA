@@ -308,6 +308,8 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   }, [importedSellers, users, scope.companyId, scope.storeId]);
 
   const stockValue = useMemo(() => stock.reduce((sum, item) => sum + Number(item.cost || 0), 0), [stock]);
+  const investorCapitalRate = 1.5;
+  const investorCapitalCharge = useMemo(() => stockValue * investorCapitalRate / 100, [stockValue]);
   const ageBands = useMemo(() => {
     const bands = [
       { key: '0-30', label: '0–30', min: 0, max: 30, count: 0, value: 0 },
@@ -478,7 +480,14 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
           <div className="mx-kpi-icon"><CarFront size={20} /></div>
           <div className="mx-kpi-label">Veículos em estoque</div>
           <strong>{stock.length}</strong>
-          <span>{money(stockValue)} imobilizados</span>
+          <span>{money(stockValue)} de custo atual</span>
+          <ChevronRight className="mx-kpi-chevron" size={17} />
+        </button>
+        <button className="mx-kpi-card" onClick={() => setFocus('stock')}>
+          <div className="mx-kpi-icon"><CircleDollarSign size={20} /></div>
+          <div className="mx-kpi-label">Custo de capital</div>
+          <strong>{money(investorCapitalCharge)}</strong>
+          <span>1,5% sobre {money(stockValue)} · posição de hoje</span>
           <ChevronRight className="mx-kpi-chevron" size={17} />
         </button>
         <button className="mx-kpi-card" onClick={() => setFocus('margin')}>
