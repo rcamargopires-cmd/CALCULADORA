@@ -196,7 +196,7 @@ const OperationalTools: React.FC = () => {
     {isManager && has('aiManager') && <AIManagerV2/>}
     {storeId && has('assetGuard') && <AssetGuardPanel currentUser={user} companyId={companyId} storeId={storeId} companyName={companyName} storeName={storeName}/>} 
     {isManager && <HierarchyPanel currentUser={user}/>} 
-    {role === 'admin' && has('multiStore') && <MultiStorePanel currentUser={user} companyId={companyId} companyName={companyName}/>} 
+    {isManager && <MultiStorePanel currentUser={user} companyId={companyId} companyName={companyName}/>} 
     {role === 'admin' && <button onClick={()=>setDirectorOpen(true)} title="Diretoria · Panorama do Grupo" className="group fixed bottom-72 left-5 z-[144] grid h-12 w-12 place-items-center rounded-full border border-amber-300/25 bg-[#20242c] text-amber-200 shadow-2xl transition hover:border-amber-300/50 hover:bg-[#272c35]"><Landmark size={18}/><span className="pointer-events-none absolute left-14 whitespace-nowrap rounded-lg border border-white/10 bg-[#20242c] px-3 py-2 text-xs font-semibold text-amber-100 opacity-0 shadow-xl transition group-hover:opacity-100">Diretoria</span></button>}
     {role === 'admin' && directorOpen && <div className="fixed inset-0 z-[519]"><button onClick={()=>setDirectorOpen(false)} className="fixed right-6 top-5 z-[530] rounded-xl border border-white/10 bg-black/40 px-4 py-2 text-xs font-bold text-white">FECHAR</button><DirectorAccessPanel currentUser={user} company={activeCompany}/><DirectorPanorama currentUser={user} companyId={companyId} companyName={companyName}/></div>}
   </>;
