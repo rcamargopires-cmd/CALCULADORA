@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import {
-  Archive, BellRing, BarChart3, Building2, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard, Store,
+  Archive, BellRing, Building2, Calculator, CarFront, CheckCircle2, Gauge, KeyRound, LayoutDashboard, Store,
   ListTodo, LogOut, MessageSquareText, RefreshCw, Save, Search, Sparkles, UsersRound,
   ClipboardCheck, Coins,
 } from 'lucide-react';
@@ -104,7 +104,6 @@ const MotyqShell:React.FC<Props>=({
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Estoque Motyq')}><CarFront size={18}/><span>Estoque</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcherStarts('MarketIQ')}><Gauge size={18}/><span>MarketIQ</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><UsersRound size={18}/><span>Gestão</span></button>}
-        {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><BarChart3 size={18}/><span>Relatórios</span></button>}
 
       </nav>
       <div className="mq-sidebar-foot"><span>MOTYQ Intelligence</span><strong>Veja. Decida. Aja.</strong></div>
