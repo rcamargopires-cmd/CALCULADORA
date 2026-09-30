@@ -2,6 +2,7 @@ import { Company, User } from '../types';
 import { companyIdForUser, DEFAULT_COMPANY_ID } from './companyService';
 
 const STORAGE_KEY = 'dealmaster:selected-company';
+export const ADMIN_HOME_SCOPE = '__motyq_admin__';
 export const COMPANY_SCOPE_EVENT = 'dealmaster:company-scope-changed';
 
 const readStored = () => {
@@ -23,8 +24,14 @@ export const companyScopeService = {
     window.dispatchEvent(new Event('dealmaster:operational-data-updated'));
   },
 
+  enterAdminHome: () => {
+    try { window.localStorage.setItem(STORAGE_KEY, ADMIN_HOME_SCOPE); } catch {}
+    window.dispatchEvent(new CustomEvent(COMPANY_SCOPE_EVENT, { detail: { companyId: ADMIN_HOME_SCOPE } }));
+  },
+
   ensureValid: (companies: Company[], user?: User | null) => {
     const current = companyScopeService.get(user);
+    if (user?.role === 'admin' && current === ADMIN_HOME_SCOPE) return current;
     const valid = companies.some(company => company.status !== 'suspended' && company.id === current);
     if (valid) return current;
     const fallback = user && user.role !== 'admin' ? companyIdForUser(user) : DEFAULT_COMPANY_ID;
