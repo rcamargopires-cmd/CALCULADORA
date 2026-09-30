@@ -10,7 +10,8 @@ import {
   CommissionConfig, OperationalPerformanceSeller, OperationalPerformanceSnapshot,
   OperationalStockItem, SavedCalculation, ShowroomPassage, User,
 } from '../types';
-import { normalize, operationalDataService } from '../services/operationalDataService';
+import { normalize } from '../services/operationalDataService';
+import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
 import { evaluationQueueService, EvaluationQueueRequest } from '../services/evaluationQueueService';
 import { showroomFlowService } from '../services/showroomFlowService';
 import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companyScopeService';
@@ -153,12 +154,15 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   }));
   const [goals, setGoals] = useState({ margin: DEFAULT_MARGIN_GOAL, store: DEFAULT_STORE_GOAL });
 
-  const reloadOperational = async () => {
+  const reloadOperational = async (
+    companyId = companyScopeService.get(currentUser),
+    storeId = storeScopeService.get(currentUser),
+  ) => {
     setLoading(true);
     try {
       const [stockData, performanceData, perf] = await Promise.all([
-        operationalDataService.getLatestStock(),
-        operationalDataService.getLatestPerformance(),
+        storeScopedOperationalService.getLatestStock(storeId, companyId),
+        storeScopedOperationalService.getLatestPerformance(storeId, companyId),
         getDoc(doc(db, 'config/performance')),
       ]);
       setStock(stockData || []);
@@ -186,11 +190,12 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
 
   useEffect(() => {
     const sync = () => {
-      setScope({
+      const nextScope = {
         companyId: companyScopeService.get(currentUser),
         storeId: storeScopeService.get(currentUser),
-      });
-      void reloadOperational();
+      };
+      setScope(nextScope);
+      void reloadOperational(nextScope.companyId, nextScope.storeId);
     };
     window.addEventListener(COMPANY_SCOPE_EVENT, sync);
     window.addEventListener(STORE_SCOPE_EVENT, sync);
