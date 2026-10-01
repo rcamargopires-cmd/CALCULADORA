@@ -25,8 +25,10 @@ const normalizeBilling = (value: unknown): CompanyBilling | undefined => {
   if (!value || typeof value !== 'object') return undefined;
   const raw = value as Record<string, unknown>;
   const enabled = raw.enabled === true;
-  const dueDay = Math.min(28, Math.max(1, Number(raw.dueDay) || 10));
-  const graceDays = Math.min(30, Math.max(0, Number(raw.graceDays) || 3));
+  const dueValue = Number(raw.dueDay);
+  const graceValue = Number(raw.graceDays);
+  const dueDay = Math.min(28, Math.max(1, Number.isFinite(dueValue) && dueValue > 0 ? dueValue : 10));
+  const graceDays = Math.min(30, Math.max(0, Number.isFinite(graceValue) ? graceValue : 3));
   const nextDueAt = String(raw.nextDueAt || '').slice(0, 10);
   const manualGraceUntil = String(raw.manualGraceUntil || '').slice(0, 10);
   const lastPaidAt = String(raw.lastPaidAt || '');
