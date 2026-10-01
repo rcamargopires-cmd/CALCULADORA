@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Building2, ChevronRight, LogOut, Plus, RefreshCw,
+  Building2, CalendarClock, CheckCircle2, ChevronRight, CreditCard, LockKeyhole, LogOut, Plus, RefreshCw,
   UserCog, Users, X
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
@@ -13,10 +13,14 @@ import { storeScopeService } from '../services/storeScopeService';
 import { userService } from '../services/userService';
 import { PLAN_META } from '../services/planEntitlementService';
 import { DEMO_COMPANY_ID, demoSeedService } from '../services/demoSeedService';
+import { billingSnapshot, defaultBilling, nextMonthlyDue } from '../services/billingService';
 
 type Tab='companies'|'users';
 const planLabel:Record<CompanyPlan,string>={starter:'Starter',pro:'Pro',enterprise:'Enterprise'};
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(value);
+const todayKey=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
+const addDays=(days:number)=>{const d=new Date();d.setDate(d.getDate()+days);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
+const dateBr=(value?:string)=>value?String(value).slice(0,10).split('-').reverse().join('/'):'—';
 const slugify=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,52);
 
 const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
@@ -117,6 +121,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
           ...user,
           companyPlan:nextCompany.plan,
           companyStatus:nextCompany.status,
+          companyBilling:nextCompany.billing,
           companyModuleOverrides:nextCompany.moduleOverrides,
         })));
       }
@@ -125,11 +130,52 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
         ...user,
         companyPlan:nextCompany.plan,
         companyStatus:nextCompany.status,
+        companyBilling:nextCompany.billing,
         companyModuleOverrides:nextCompany.moduleOverrides,
       }:user));
       setMessage(`${company.name}: plano e acessos atualizados.`);
     }catch(cause:any){setError(cause?.message||'Não foi possível atualizar a empresa.');}
     finally{setSaving('');}
+  };
+
+  const updateBilling=async(company:Company,patch:Partial<NonNullable<Company['billing']>>)=>{
+    const base=company.billing||defaultBilling();
+    await updateCompany(company,{billing:{...base,...patch,updatedAt:new Date().toISOString()}});
+  };
+
+  const toggleBilling=async(company:Company)=>{
+    const base=company.billing||defaultBilling();
+    const enabled=!base.enabled;
+    await updateBilling(company,{
+      enabled,
+      nextDueAt:enabled?(base.nextDueAt||nextMonthlyDue(base.dueDay||10)):base.nextDueAt,
+      manualBlocked:false,
+    });
+  };
+
+  const markPaid=async(company:Company)=>{
+    const base=company.billing||defaultBilling();
+    await updateBilling(company,{
+      enabled:true,
+      dueDay:base.dueDay||10,
+      nextDueAt:nextMonthlyDue(base.dueDay||10,new Date()),
+      lastPaidAt:new Date().toISOString(),
+      manualBlocked:false,
+      manualGraceUntil:'',
+    });
+  };
+
+  const extendGrace=async(company:Company,days=3)=>{
+    await updateBilling(company,{enabled:true,manualBlocked:false,manualGraceUntil:addDays(days)});
+  };
+
+  const toggleManualBlock=async(company:Company)=>{
+    const base=company.billing||defaultBilling();
+    if(base.manualBlocked){
+      await updateBilling(company,{enabled:true,manualBlocked:false,manualGraceUntil:addDays(3)});
+    }else{
+      await updateBilling(company,{enabled:true,manualBlocked:true});
+    }
   };
 
   const openNewUser=()=>{
@@ -146,6 +192,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
       id:email,email,name,role:userForm.role,status:userForm.status,
       companyId:selectedCompany.id,storeId:userForm.storeId,
       companyPlan:selectedCompany.plan,companyStatus:selectedCompany.status,
+      companyBilling:selectedCompany.billing,
       companyModuleOverrides:selectedCompany.moduleOverrides,
       createdAt:new Date().toISOString(),
     };
@@ -231,6 +278,22 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
               <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Plano</span><select disabled={saving===company.id} value={company.plan} onChange={e=>void updateCompany(company,{plan:e.target.value as CompanyPlan})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="starter">Starter</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></label>
               <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Situação</span><select disabled={saving===company.id} value={company.status} onChange={e=>void updateCompany(company,{status:e.target.value as Company['status']})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="trial">Avaliação</option><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></label>
             </div>
+            {(()=>{const billing=company.billing||defaultBilling();const finance=billingSnapshot(billing);return <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><div className="flex items-center gap-2"><CreditCard size={15} className="text-blue-600"/><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-500">Cobrança mensal</p></div><p className="mt-1 text-xs text-slate-500">{billing.enabled?`Próximo vencimento ${dateBr(finance.dueDate)} · tolerância ${billing.graceDays} dia(s)`:'Controle financeiro desativado para esta empresa.'}</p></div>
+                <div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${finance.state==='blocked'?'bg-red-100 text-red-700':finance.state==='overdue'?'bg-amber-100 text-amber-800':finance.state==='due_today'?'bg-sky-100 text-sky-700':billing.enabled?'bg-emerald-100 text-emerald-700':'bg-slate-200 text-slate-600'}`}>{finance.label.toUpperCase()}</span><button disabled={saving===company.id} onClick={()=>void toggleBilling(company)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black text-slate-700">{billing.enabled?'DESATIVAR':'ATIVAR'}</button></div>
+              </div>
+              {billing.enabled&&<><div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Próximo vencimento</span><input type="date" value={String(billing.nextDueAt||'').slice(0,10)} onChange={e=>void updateBilling(company,{nextDueAt:e.target.value,dueDay:Number(e.target.value.slice(-2))||billing.dueDay})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs"/></label>
+                <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Tolerância</span><select value={billing.graceDays} onChange={e=>void updateBilling(company,{graceDays:Number(e.target.value)})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs"><option value={0}>Sem tolerância</option><option value={1}>1 dia</option><option value={3}>3 dias</option><option value={5}>5 dias</option><option value={7}>7 dias</option></select></label>
+                <div><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Situação financeira</span><div className="mt-1.5 flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold">{finance.state==='overdue'?`${finance.daysLate} dia(s) em atraso`:finance.state==='blocked'?`${finance.daysLate} dia(s) em atraso`:finance.label}</div></div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button disabled={saving===company.id} onClick={()=>void markPaid(company)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-[10px] font-black text-white"><CheckCircle2 size={13}/> MARCAR PAGO</button>
+                <button disabled={saving===company.id} onClick={()=>void extendGrace(company,3)} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-black text-amber-800"><CalendarClock size={13}/> +3 DIAS</button>
+                <button disabled={saving===company.id} onClick={()=>void toggleManualBlock(company)} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[10px] font-black ${billing.manualBlocked?'border-blue-200 bg-blue-50 text-blue-700':'border-red-200 bg-red-50 text-red-700'}`}><LockKeyhole size={13}/>{billing.manualBlocked?'REATIVAR +3 DIAS':'BLOQUEAR AGORA'}</button>
+              </div></>}
+            </div>})()}
           </article>)}</div>}
         </>}
 
