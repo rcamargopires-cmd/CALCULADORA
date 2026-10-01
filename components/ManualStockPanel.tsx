@@ -8,14 +8,14 @@ import {marketIqVehicleCacheService} from '../services/marketIqVehicleCacheServi
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 type CatalogItem={code:string;name:string};
 type FormState={
-  plate:string;brand:string;brandCode:string;vehicle:string;year:string;km:string;entryDate:string;cost:string;fipe:string;askingPrice:string;location:string;status:string;
+  plate:string;brand:string;brandCode:string;vehicle:string;modelCode:string;year:string;yearCode:string;km:string;entryDate:string;cost:string;fipe:string;askingPrice:string;location:string;status:string;
 };
 
 const localDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 const numberValue=(value:string)=>Number(String(value||'').replace(/\./g,'').replace(',','.'))||0;
 const BRL=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(value||0);
-const emptyForm=():FormState=>({plate:'',brand:'',brandCode:'',vehicle:'',year:'',km:'',entryDate:localDate(),cost:'',fipe:'',askingPrice:'',location:'',status:'Disponível'});
+const emptyForm=():FormState=>({plate:'',brand:'',brandCode:'',vehicle:'',modelCode:'',year:'',yearCode:'',km:'',entryDate:localDate(),cost:'',fipe:'',askingPrice:'',location:'',status:'Disponível'});
 
 const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})=>{
   const[open,setOpen]=useState(false);
@@ -29,7 +29,9 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
   const[plateLookup,setPlateLookup]=useState<{kind:'idle'|'loading'|'ok'|'warn';text:string}>({kind:'idle',text:''});
   const[brands,setBrands]=useState<CatalogItem[]>([]);
   const[models,setModels]=useState<CatalogItem[]>([]);
+  const[years,setYears]=useState<CatalogItem[]>([]);
   const[catalogBusy,setCatalogBusy]=useState(false);
+  const[fipeBusy,setFipeBusy]=useState(false);
   const lookupSeq=useRef(0);
   const lastLookupPlate=useRef('');
 
@@ -72,11 +74,66 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
   },[open,form.brandCode]);
 
   useEffect(()=>{
+    if(!open||!form.brandCode||!form.modelCode){setYears([]);return;}
+    let active=true;
+    setCatalogBusy(true);
+    fetch(`/api/marketiq-fipe?action=years&brandCode=${encodeURIComponent(form.brandCode)}&modelCode=${encodeURIComponent(form.modelCode)}`,{cache:'no-store'})
+      .then(async response=>({ok:response.ok,payload:await response.json().catch(()=>null)}))
+      .then(({ok,payload})=>{
+        if(!active)return;
+        if(!ok||!Array.isArray(payload?.items))throw new Error('years_failed');
+        setYears(payload.items);
+      })
+      .catch(()=>{if(active)setMessage({kind:'error',text:'Não foi possível carregar os anos desse modelo.'});})
+      .finally(()=>{if(active)setCatalogBusy(false);});
+    return()=>{active=false;};
+  },[open,form.brandCode,form.modelCode]);
+
+  useEffect(()=>{
+    if(!open||!form.brandCode||!form.modelCode||!form.yearCode)return;
+    let active=true;
+    setFipeBusy(true);
+    fetch(`/api/marketiq-fipe?action=detail&brandCode=${encodeURIComponent(form.brandCode)}&modelCode=${encodeURIComponent(form.modelCode)}&yearCode=${encodeURIComponent(form.yearCode)}`,{cache:'no-store'})
+      .then(async response=>({ok:response.ok,payload:await response.json().catch(()=>null)}))
+      .then(({ok,payload})=>{
+        if(!active)return;
+        if(!ok||!payload)throw new Error('detail_failed');
+        const selectedYear=years.find(item=>item.code===form.yearCode)?.name||String(payload.year||'');
+        setForm(prev=>({
+          ...prev,
+          brand:String(payload.brand||prev.brand),
+          vehicle:String(payload.model||prev.vehicle),
+          year:selectedYear||String(payload.year||prev.year),
+          fipe:Number(payload.value)>0?String(Math.round(Number(payload.value))):prev.fipe,
+        }));
+      })
+      .catch(()=>{if(active)setMessage({kind:'error',text:'Não foi possível consultar a FIPE desse ano.'});})
+      .finally(()=>{if(active)setFipeBusy(false);});
+    return()=>{active=false;};
+  },[open,form.brandCode,form.modelCode,form.yearCode,years]);
+
+  useEffect(()=>{
     if(!open||!form.brand||form.brandCode||!brands.length)return;
     const wanted=String(form.brand).toLowerCase().trim();
     const match=brands.find(item=>item.name.toLowerCase().trim()===wanted);
     if(match)setForm(prev=>({...prev,brandCode:match.code}));
   },[open,brands,form.brand,form.brandCode]);
+
+  useEffect(()=>{
+    if(!open||!form.vehicle||form.modelCode||!models.length)return;
+    const wanted=String(form.vehicle).toLowerCase().trim();
+    const exact=models.find(item=>item.name.toLowerCase().trim()===wanted);
+    const loose=exact||models.find(item=>item.name.toLowerCase().includes(wanted)||wanted.includes(item.name.toLowerCase()));
+    if(loose)setForm(prev=>({...prev,modelCode:loose.code,vehicle:loose.name}));
+  },[open,models,form.vehicle,form.modelCode]);
+
+  useEffect(()=>{
+    if(!open||!form.year||form.yearCode||!years.length)return;
+    const wantedYears=(String(form.year).match(/(?:19|20)\d{2}/g)||[]);
+    const target=wantedYears[wantedYears.length-1]||'';
+    const match=years.find(item=>item.name.includes(target));
+    if(match)setForm(prev=>({...prev,yearCode:match.code,year:match.name}));
+  },[open,years,form.year,form.yearCode]);
 
   useEffect(()=>{
     if(!open)return;
@@ -99,8 +156,11 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
           setForm(prev=>cleanPlate(prev.plate)===plate?{
             ...prev,
             brand:cached.brand||prev.brand,
+            brandCode:'',
             vehicle:cached.model||prev.vehicle,
+            modelCode:'',
             year:cached.year||prev.year,
+            yearCode:'',
             fipe:cached.lastFipeValue?String(cached.lastFipeValue):prev.fipe,
           }:prev);
           setPlateLookup({kind:'ok',text:`${cached.model} · ${cached.year} identificado pelo Motyq.`});
@@ -126,8 +186,11 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
         setForm(prev=>cleanPlate(prev.plate)===plate?{
           ...prev,
           brand:String(payload.brand||'').trim()||prev.brand,
+          brandCode:'',
           vehicle:model||prev.vehicle,
+          modelCode:'',
           year:year||prev.year,
+          yearCode:'',
           fipe:fipeValue?String(fipeValue):prev.fipe,
         }:prev);
         setPlateLookup({kind:'ok',text:`${model} · ${year} identificado automaticamente.`});
@@ -150,7 +213,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
         }).catch(()=>undefined);
       }catch(error){
         if(seq!==lookupSeq.current)return;
-        setPlateLookup({kind:'warn',text:'Não consegui identificar pela placa. Você pode preencher modelo e ano manualmente.'});
+        setPlateLookup({kind:'warn',text:'Não consegui identificar pela placa. Selecione fabricante, modelo e ano/modelo abaixo.'});
       }
     },450);
     return()=>window.clearTimeout(timer);
@@ -177,7 +240,9 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
       brand:item.brand||'',
       brandCode:'',
       vehicle:item.vehicle||'',
+      modelCode:'',
       year:item.year||'',
+      yearCode:'',
       km:item.km?String(item.km):'',
       entryDate:item.entryDate||'',
       cost:item.cost?String(item.cost):'',
@@ -197,6 +262,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
     if(!/^[A-Z0-9]{7}$/.test(plate)){setMessage({kind:'error',text:'Informe uma placa válida com 7 caracteres.'});return;}
     if(!form.brand.trim()){setMessage({kind:'error',text:'Selecione o fabricante do veículo.'});return;}
     if(!form.vehicle.trim()){setMessage({kind:'error',text:'Selecione o modelo do veículo.'});return;}
+    if(!form.year.trim()){setMessage({kind:'error',text:'Selecione o ano/modelo do veículo.'});return;}
     if(form.entryDate&&form.entryDate>localDate()){setMessage({kind:'error',text:'A data de entrada não pode estar no futuro.'});return;}
     setBusy(true);setMessage(null);
     try{
@@ -271,7 +337,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
                 value={form.brandCode}
                 onChange={code=>{
                   const selected=brands.find(item=>item.code===code);
-                  setForm({...form,brandCode:code,brand:selected?.name||'',vehicle:''});
+                  setForm({...form,brandCode:code,brand:selected?.name||'',vehicle:'',modelCode:'',year:'',yearCode:'',fipe:''});
                 }}
                 options={brands}
                 placeholder={catalogBusy&&!brands.length?'Carregando fabricantes...':'Selecione o fabricante'}
@@ -279,19 +345,32 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
               />
               <SelectField
                 label="Modelo *"
-                value={form.vehicle}
-                onChange={value=>setForm({...form,vehicle:value})}
-                options={models.map(item=>({code:item.name,name:item.name}))}
-                placeholder={!form.brandCode?'Escolha primeiro o fabricante':catalogBusy?'Carregando modelos...':'Selecione o modelo'}
+                value={form.modelCode}
+                onChange={code=>{
+                  const selected=models.find(item=>item.code===code);
+                  setForm({...form,modelCode:code,vehicle:selected?.name||'',year:'',yearCode:'',fipe:''});
+                }}
+                options={models}
+                placeholder={!form.brandCode?'Escolha primeiro o fabricante':catalogBusy&&!models.length?'Carregando modelos...':'Selecione o modelo'}
                 disabled={!form.brandCode}
                 wide
               />
-              <Field label="Ano / modelo" value={form.year} onChange={value=>setForm({...form,year:value})} placeholder="2024/2025"/>
+              <SelectField
+                label="Ano / modelo *"
+                value={form.yearCode}
+                onChange={code=>{
+                  const selected=years.find(item=>item.code===code);
+                  setForm({...form,yearCode:code,year:selected?.name||'',fipe:''});
+                }}
+                options={years}
+                placeholder={!form.modelCode?'Escolha primeiro o modelo':catalogBusy&&!years.length?'Carregando anos...':'Selecione o ano/modelo'}
+                disabled={!form.modelCode}
+              />
               <Field label="KM" value={form.km} onChange={value=>setForm({...form,km:value})} type="number" placeholder="32000"/>
               <Field label="Data de entrada" value={form.entryDate} onChange={value=>setForm({...form,entryDate:value})} type="date"/>
               <Field label="Localização" value={form.location} onChange={value=>setForm({...form,location:value})} placeholder={storeName}/>
               <Field label="Custo atual" value={form.cost} onChange={value=>setForm({...form,cost:value})} type="number" placeholder="85000"/>
-              <Field label="FIPE" value={form.fipe} onChange={value=>setForm({...form,fipe:value})} type="number" placeholder="92000"/>
+              <label className="text-xs font-semibold !text-slate-600"><span>FIPE {fipeBusy&&<span className="ml-1 text-[10px] font-medium text-blue-600">consultando...</span>}</span><input type="number" value={form.fipe} onChange={e=>setForm({...form,fipe:e.target.value})} placeholder="Preenchida automaticamente" className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 !bg-white px-3 text-sm font-medium !text-slate-900 outline-none placeholder:!text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"/></label>
               <Field label="Preço de venda" value={form.askingPrice} onChange={value=>setForm({...form,askingPrice:value})} type="number" placeholder="96900"/>
               <label className="text-xs font-semibold text-slate-600"><span>Status</span><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><option>Disponível</option><option>Em preparação</option><option>Reservado</option><option>Em proposta</option><option>Bloqueado</option></select></label>
             </div>
