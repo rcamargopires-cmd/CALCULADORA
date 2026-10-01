@@ -285,7 +285,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
         companyId,
         storeId,
       };
-      const savedRows=await manualStockService.save(item,currentUser,storeId,companyId,originalPlate||undefined);
+      const savedRows=await manualStockService.save(item,currentUser,storeId,companyId,originalPlate||undefined,rows);
       setRows([...savedRows].sort((a,b)=>Number(b.stockDays)-Number(a.stockDays)));
       setMessage({kind:'ok',text:originalPlate?'Veículo atualizado no estoque.':'Veículo incluído no estoque.'});
       setForm(emptyForm());setOriginalPlate('');
