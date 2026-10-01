@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import { User } from '../types';
 import { userService } from '../services/userService';
 import App from '../App';
@@ -32,6 +33,7 @@ import MotyqCRM from './MotyqCRM';
 import MobileSellerQuickActions from './MobileSellerQuickActions';
 import SellerMobileHome from './SellerMobileHome';
 import AdminControlCenter from './AdminControlCenter';
+import BillingGate from './BillingGate';
 import { ADMIN_HOME_SCOPE, COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
 
 const Safe = ({ name, children }: { name: string; children: React.ReactNode }) => (
@@ -84,26 +86,39 @@ const RoleAwareRoot: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [adminScope, setAdminScope] = useState(ADMIN_HOME_SCOPE);
 
-  useEffect(() => onAuthStateChanged(auth, async firebaseUser => {
-    if (!firebaseUser?.email) {
-      setProfile(null);
-      setLoading(false);
-      return;
-    }
-    try {
-      const user = await userService.getUser(firebaseUser.email);
-      const active = user?.status === 'active' ? user : null;
-      if (active?.role === 'admin') {
-        companyScopeService.enterAdminHome();
-        setAdminScope(ADMIN_HOME_SCOPE);
+  useEffect(() => {
+    let profileUnsubscribe: (()=>void) | null = null;
+    const authUnsubscribe = onAuthStateChanged(auth, async firebaseUser => {
+      profileUnsubscribe?.();
+      profileUnsubscribe = null;
+      if (!firebaseUser?.email) {
+        setProfile(null);
+        setLoading(false);
+        return;
       }
-      setProfile(active);
-    } catch {
-      setProfile(null);
-    } finally {
-      setLoading(false);
-    }
-  }), []);
+      try {
+        const user = await userService.getUser(firebaseUser.email);
+        const active = user?.status === 'active' ? user : null;
+        if (active?.role === 'admin') {
+          companyScopeService.enterAdminHome();
+          setAdminScope(ADMIN_HOME_SCOPE);
+        }
+        setProfile(active);
+        profileUnsubscribe = onSnapshot(doc(db,'users',firebaseUser.email), snapshot => {
+          const next = snapshot.exists() ? snapshot.data() as User : null;
+          setProfile(next?.status === 'active' ? next : null);
+        }, () => undefined);
+      } catch {
+        setProfile(null);
+      } finally {
+        setLoading(false);
+      }
+    });
+    return () => {
+      authUnsubscribe();
+      profileUnsubscribe?.();
+    };
+  }, []);
 
   useEffect(() => {
     const sync = (event: Event) => {
@@ -115,9 +130,10 @@ const RoleAwareRoot: React.FC = () => {
   }, []);
 
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#f6f8fb] text-sm font-semibold text-slate-500">Carregando MOTYQ...</div>;
-  if (profile?.role === 'evaluator') return <EvaluatorMotyq user={profile}/>;
+  if (profile?.role === 'evaluator') return <BillingGate user={profile}><EvaluatorMotyq user={profile}/></BillingGate>;
   if (profile?.role === 'admin' && adminScope === ADMIN_HOME_SCOPE) return <AdminControlCenter currentUser={profile}/>;
-  return <StandardMotyq user={profile}/>;
+  if (profile) return <BillingGate user={profile}><StandardMotyq user={profile}/></BillingGate>;
+  return <StandardMotyq user={null}/>;
 };
 
 export default RoleAwareRoot;
