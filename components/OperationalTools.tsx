@@ -32,6 +32,7 @@ import ActionCenter from './ActionCenter';
 import MotyqImpact from './MotyqImpact';
 import OperationHub from './OperationHub';
 import StockHub from './StockHub';
+import ManualStockPanel from './ManualStockPanel';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -206,6 +207,7 @@ const OperationalTools: React.FC = () => {
     {isManager && storeId && <ActionCenter currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <MotyqImpact currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {isManager && storeId && has('stockIntelligence') && <ManualStockPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <PrepTrackPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('executiveInsights') && <ExecutiveInsights/>}
