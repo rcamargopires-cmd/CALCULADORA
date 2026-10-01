@@ -113,9 +113,12 @@ export const manualStockService={
     storeId:string,
     companyId=companyScopeService.get(),
     originalPlate?:string,
+    currentRows?:OperationalStockItem[],
   )=>{
     const tenant=companyId||DEFAULT_COMPANY_ID;
-    const current=await manualStockService.getCurrent(storeId,tenant);
+    const current=Array.isArray(currentRows)
+      ? currentRows.map(row=>rollToToday(row,localDate()))
+      : await manualStockService.getCurrent(storeId,tenant);
     const plate=cleanPlate(item.plate);
     if(!/^[A-Z0-9]{7}$/.test(plate))throw new Error('Informe uma placa válida com 7 caracteres.');
     const original=cleanPlate(originalPlate||plate);
