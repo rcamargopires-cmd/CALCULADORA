@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { OperationalStockItem, User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
@@ -44,9 +44,23 @@ const persist=async(items:OperationalStockItem[],user:User|undefined,storeId:str
     where('companyId','==',tenant),
     where('storeId','==',storeId),
   ));
+  const activePlates=new Set(finalRows.map(item=>cleanPlate(item.plate)));
+
+  // Não apagamos documentos do Firestore no cadastro manual. Em perfis de gerente,
+  // a regra de delete pode bloquear a operação mesmo quando create/update são válidos.
+  // Itens que saíram do snapshot atual são marcados logicamente como "Saída".
   for(const oldDoc of scoped.docs){
     const data=oldDoc.data() as OperationalStockItem;
-    if(String(data.snapshotDate||'').slice(0,10)===today)await deleteDoc(oldDoc.ref);
+    if(String(data.snapshotDate||'').slice(0,10)!==today)continue;
+    const oldPlate=cleanPlate(data.plate);
+    if(oldPlate&&!activePlates.has(oldPlate)){
+      await setDoc(oldDoc.ref,{
+        status:'Saída',
+        updatedAt:new Date().toISOString(),
+        companyId:tenant,
+        storeId,
+      },{merge:true});
+    }
   }
 
   for(const item of finalRows){
@@ -73,10 +87,15 @@ const persist=async(items:OperationalStockItem[],user:User|undefined,storeId:str
   await setDoc(doc(db,'operational_meta',currentId(storeId)),{
     companyId:tenant,storeId,latestStockDate:today,stockRows:finalRows.length,updatedAt:serverTimestamp(),
   },{merge:true});
-  await addDoc(collection(db,'operational_imports'),{
-    type:'stock',companyId:tenant,storeId,referenceDate:today,rows:finalRows.length,
-    fileName:`Cadastro manual · ${action}`,importedBy:user?.email||'',importedAt:serverTimestamp(),
-  });
+  try{
+    await addDoc(collection(db,'operational_imports'),{
+      type:'stock',companyId:tenant,storeId,referenceDate:today,rows:finalRows.length,
+      fileName:`Cadastro manual · ${action}`,importedBy:user?.email||'',importedAt:serverTimestamp(),
+    });
+  }catch(error){
+    // O log de auditoria não pode impedir a atualização principal do estoque.
+    console.warn('Manual stock audit log failed',error);
+  }
   return finalRows;
 };
 
