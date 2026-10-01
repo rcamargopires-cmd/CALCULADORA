@@ -111,6 +111,10 @@ const MultiStorePanel: React.FC<Props> = ({ currentUser, companyId, companyName 
         status: 'active',
         companyId,
         storeId,
+        companyPlan: currentUser.companyPlan,
+        companyStatus: currentUser.companyStatus,
+        companyBilling: currentUser.companyBilling,
+        companyModuleOverrides: currentUser.companyModuleOverrides,
         createdAt: new Date().toISOString(),
       };
       await userService.saveManaged(currentUser, next);
