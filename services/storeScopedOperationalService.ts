@@ -111,19 +111,28 @@ export const storeScopedOperationalService = {
   getLatestStock: async (storeId: string, companyId = companyScopeService.get()): Promise<OperationalStockItem[]> => {
     const tenant = companyId || DEFAULT_COMPANY_ID;
     const current = await getStoreCurrent(storeId, tenant);
-    const latest = String(current?.latestStockDate || '');
-    if (!latest) {
-      if (tenant === DEMO_COMPANY_ID) return demoStockRows();
-      return [];
-    }
+    const metaLatest = String(current?.latestStockDate || '');
 
     const scoped = await getDocs(query(
       collection(db, 'operational_stock'),
       where('companyId', '==', tenant),
       where('storeId', '==', storeId),
     ));
-    const rows = scoped.docs.map(item => item.data() as OperationalStockItem).filter(item => {
-      if (item.snapshotDate !== latest) return false;
+    const allRows = scoped.docs.map(item => item.data() as OperationalStockItem);
+    const dataLatest = allRows
+      .map(item => String(item.snapshotDate || '').slice(0,10))
+      .filter(Boolean)
+      .sort()
+      .at(-1) || '';
+    const latest = [metaLatest, dataLatest].filter(Boolean).sort().at(-1) || '';
+
+    if (!latest) {
+      if (tenant === DEMO_COMPANY_ID) return demoStockRows();
+      return [];
+    }
+
+    const rows = allRows.filter(item => {
+      if (String(item.snapshotDate || '').slice(0,10) !== latest) return false;
       const status = String(item.status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
       return status !== 'saida';
     });
