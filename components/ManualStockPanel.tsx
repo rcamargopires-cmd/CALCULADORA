@@ -6,15 +6,16 @@ import {auth} from '../firebase';
 import {marketIqVehicleCacheService} from '../services/marketIqVehicleCacheService';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
+type CatalogItem={code:string;name:string};
 type FormState={
-  plate:string;vehicle:string;year:string;km:string;entryDate:string;cost:string;fipe:string;askingPrice:string;location:string;status:string;
+  plate:string;brand:string;brandCode:string;vehicle:string;year:string;km:string;entryDate:string;cost:string;fipe:string;askingPrice:string;location:string;status:string;
 };
 
 const localDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 const numberValue=(value:string)=>Number(String(value||'').replace(/\./g,'').replace(',','.'))||0;
 const BRL=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(value||0);
-const emptyForm=():FormState=>({plate:'',vehicle:'',year:'',km:'',entryDate:localDate(),cost:'',fipe:'',askingPrice:'',location:'',status:'Disponível'});
+const emptyForm=():FormState=>({plate:'',brand:'',brandCode:'',vehicle:'',year:'',km:'',entryDate:localDate(),cost:'',fipe:'',askingPrice:'',location:'',status:'Disponível'});
 
 const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})=>{
   const[open,setOpen]=useState(false);
@@ -26,6 +27,9 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
   const[loading,setLoading]=useState(false);
   const[message,setMessage]=useState<{kind:'ok'|'error';text:string}|null>(null);
   const[plateLookup,setPlateLookup]=useState<{kind:'idle'|'loading'|'ok'|'warn';text:string}>({kind:'idle',text:''});
+  const[brands,setBrands]=useState<CatalogItem[]>([]);
+  const[models,setModels]=useState<CatalogItem[]>([]);
+  const[catalogBusy,setCatalogBusy]=useState(false);
   const lookupSeq=useRef(0);
   const lastLookupPlate=useRef('');
 
@@ -36,7 +40,43 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
     finally{setLoading(false);}
   };
 
-  useEffect(()=>{if(open)void load();},[open,companyId,storeId]);
+  const loadBrands=async()=>{
+    if(brands.length)return;
+    setCatalogBusy(true);
+    try{
+      const response=await fetch('/api/marketiq-fipe?action=brands',{cache:'no-store'});
+      const payload:any=await response.json().catch(()=>null);
+      if(!response.ok||!Array.isArray(payload?.items))throw new Error('brands_failed');
+      setBrands(payload.items);
+    }catch{
+      setMessage({kind:'error',text:'Não foi possível carregar a lista de fabricantes da FIPE.'});
+    }finally{setCatalogBusy(false);}
+  };
+
+  useEffect(()=>{if(open){void load();void loadBrands();}},[open,companyId,storeId]);
+
+  useEffect(()=>{
+    if(!open||!form.brandCode){setModels([]);return;}
+    let active=true;
+    setCatalogBusy(true);
+    fetch(`/api/marketiq-fipe?action=models&brandCode=${encodeURIComponent(form.brandCode)}`,{cache:'no-store'})
+      .then(async response=>({ok:response.ok,payload:await response.json().catch(()=>null)}))
+      .then(({ok,payload})=>{
+        if(!active)return;
+        if(!ok||!Array.isArray(payload?.items))throw new Error('models_failed');
+        setModels(payload.items);
+      })
+      .catch(()=>{if(active)setMessage({kind:'error',text:'Não foi possível carregar os modelos desse fabricante.'});})
+      .finally(()=>{if(active)setCatalogBusy(false);});
+    return()=>{active=false;};
+  },[open,form.brandCode]);
+
+  useEffect(()=>{
+    if(!open||!form.brand||form.brandCode||!brands.length)return;
+    const wanted=String(form.brand).toLowerCase().trim();
+    const match=brands.find(item=>item.name.toLowerCase().trim()===wanted);
+    if(match)setForm(prev=>({...prev,brandCode:match.code}));
+  },[open,brands,form.brand,form.brandCode]);
 
   useEffect(()=>{
     if(!open)return;
@@ -58,6 +98,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
         if(cached?.model&&cached?.year){
           setForm(prev=>cleanPlate(prev.plate)===plate?{
             ...prev,
+            brand:cached.brand||prev.brand,
             vehicle:cached.model||prev.vehicle,
             year:cached.year||prev.year,
             fipe:cached.lastFipeValue?String(cached.lastFipeValue):prev.fipe,
@@ -84,6 +125,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
         const fipeValue=Number(payload.fipeValue)||0;
         setForm(prev=>cleanPlate(prev.plate)===plate?{
           ...prev,
+          brand:String(payload.brand||'').trim()||prev.brand,
           vehicle:model||prev.vehicle,
           year:year||prev.year,
           fipe:fipeValue?String(fipeValue):prev.fipe,
@@ -132,6 +174,8 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
     setOriginalPlate(item.plate);
     setForm({
       plate:item.plate||'',
+      brand:item.brand||'',
+      brandCode:'',
       vehicle:item.vehicle||'',
       year:item.year||'',
       km:item.km?String(item.km):'',
@@ -151,7 +195,8 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
   const save=async()=>{
     const plate=cleanPlate(form.plate);
     if(!/^[A-Z0-9]{7}$/.test(plate)){setMessage({kind:'error',text:'Informe uma placa válida com 7 caracteres.'});return;}
-    if(!form.vehicle.trim()){setMessage({kind:'error',text:'Informe o modelo do veículo.'});return;}
+    if(!form.brand.trim()){setMessage({kind:'error',text:'Selecione o fabricante do veículo.'});return;}
+    if(!form.vehicle.trim()){setMessage({kind:'error',text:'Selecione o modelo do veículo.'});return;}
     if(form.entryDate&&form.entryDate>localDate()){setMessage({kind:'error',text:'A data de entrada não pode estar no futuro.'});return;}
     setBusy(true);setMessage(null);
     try{
@@ -160,6 +205,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
         snapshotDate:localDate(),
         plate,
         vehicle:form.vehicle.trim(),
+        brand:form.brand.trim(),
         stockDays:0,
         cost:numberValue(form.cost),
         fipe:numberValue(form.fipe),
@@ -220,7 +266,26 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
               <Field label="Placa *" value={form.plate} onChange={value=>setForm({...form,plate:cleanPlate(value).slice(0,7)})} placeholder="ABC1D23"/>
-              <Field label="Modelo *" value={form.vehicle} onChange={value=>setForm({...form,vehicle:value})} placeholder="T-Cross Sense 1.0" wide/>
+              <SelectField
+                label="Fabricante *"
+                value={form.brandCode}
+                onChange={code=>{
+                  const selected=brands.find(item=>item.code===code);
+                  setForm({...form,brandCode:code,brand:selected?.name||'',vehicle:''});
+                }}
+                options={brands}
+                placeholder={catalogBusy&&!brands.length?'Carregando fabricantes...':'Selecione o fabricante'}
+                wide
+              />
+              <SelectField
+                label="Modelo *"
+                value={form.vehicle}
+                onChange={value=>setForm({...form,vehicle:value})}
+                options={models.map(item=>({code:item.name,name:item.name}))}
+                placeholder={!form.brandCode?'Escolha primeiro o fabricante':catalogBusy?'Carregando modelos...':'Selecione o modelo'}
+                disabled={!form.brandCode}
+                wide
+              />
               <Field label="Ano / modelo" value={form.year} onChange={value=>setForm({...form,year:value})} placeholder="2024/2025"/>
               <Field label="KM" value={form.km} onChange={value=>setForm({...form,km:value})} type="number" placeholder="32000"/>
               <Field label="Data de entrada" value={form.entryDate} onChange={value=>setForm({...form,entryDate:value})} type="date"/>
@@ -248,7 +313,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
             !filtered.length?<div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center"><CarFront size={26} className="mx-auto text-slate-400"/><p className="mt-3 text-sm font-semibold !text-slate-700">{rows.length?'Nenhum veículo encontrado.':'Estoque vazio'}</p><p className="mt-1 text-xs !text-slate-500">{rows.length?'Tente outra busca.':'Cadastre o primeiro veículo ao lado.'}</p></div>:
             <div className="mt-4 space-y-2">{filtered.map(item=><article key={item.plate} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-slate-900 shadow-sm">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-sm !text-slate-900">{item.plate}</strong><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">{item.stockDays} DIAS</span>{item.source==='manual'&&<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">MANUAL</span>}</div><p className="mt-1 truncate text-sm font-semibold !text-slate-900">{item.vehicle}{item.year?` · ${item.year}`:''}</p><p className="mt-1 text-[11px] !text-slate-500">{item.km?item.km.toLocaleString('pt-BR')+' km · ':''}{item.location||storeName}{item.status?` · ${item.status}`:''}</p></div>
+                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-sm !text-slate-900">{item.plate}</strong><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">{item.stockDays} DIAS</span>{item.source==='manual'&&<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">MANUAL</span>}</div><p className="mt-1 truncate text-sm font-semibold !text-slate-900">{item.brand?item.brand+' · ':''}{item.vehicle}{item.year?` · ${item.year}`:''}</p><p className="mt-1 text-[11px] !text-slate-500">{item.km?item.km.toLocaleString('pt-BR')+' km · ':''}{item.location||storeName}{item.status?` · ${item.status}`:''}</p></div>
                 <div className="flex shrink-0 gap-1.5"><button onClick={()=>edit(item)} title="Editar veículo" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"><PenLine size={15}/></button><button disabled={busy} onClick={()=>void remove(item)} title="Dar saída" className="grid h-9 w-9 place-items-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"><LogOut size={15}/></button></div>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 text-xs"><Mini label="Custo atual" value={BRL(item.cost)}/><Mini label="FIPE" value={item.fipe?BRL(item.fipe):'—'}/><Mini label="Venda" value={item.askingPrice?BRL(item.askingPrice):'—'}/></div>
@@ -261,6 +326,10 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
 };
 
 const Field=({label,value,onChange,placeholder='',type='text',wide=false}:{label:string;value:string;onChange:(value:string)=>void;placeholder?:string;type?:string;wide?:boolean})=><label className={`text-xs font-semibold !text-slate-600 ${wide?'sm:col-span-2 lg:col-span-2':''}`}><span>{label}</span><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 !bg-white px-3 text-sm font-medium !text-slate-900 outline-none placeholder:!text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"/></label>;
+const SelectField=({label,value,onChange,options,placeholder,disabled=false,wide=false}:{label:string;value:string;onChange:(value:string)=>void;options:CatalogItem[];placeholder:string;disabled?:boolean;wide?:boolean})=>{
+  const hasCurrent=value&&options.some(item=>item.code===value);
+  return <label className={`text-xs font-semibold !text-slate-600 ${wide?'sm:col-span-2 lg:col-span-2':''}`}><span>{label}</span><select value={value} disabled={disabled} onChange={e=>onChange(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 !bg-white px-3 text-sm font-medium !text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400"><option value="">{placeholder}</option>{value&&!hasCurrent&&<option value={value}>{value}</option>}{options.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</select></label>;
+};
 const Mini=({label,value}:{label:string;value:string})=><div><p className="text-[9px] font-bold uppercase tracking-[.08em] !text-slate-500">{label}</p><p className="mt-1 font-semibold !text-slate-800">{value}</p></div>;
 
 export default ManualStockPanel;
