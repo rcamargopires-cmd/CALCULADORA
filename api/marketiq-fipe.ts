@@ -241,6 +241,39 @@ export default async function handler(req:any,res:any){
          .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),
      });
    }
+   if(action==='years'){
+     const brandCode=String(source?.brandCode||'').trim();
+     const modelCode=String(source?.modelCode||'').trim();
+     if(!brandCode||!modelCode)return res.status(400).json({error:'missing_catalog_codes'});
+     const years=await getJson(`${BASE}/brands/${encodeURIComponent(brandCode)}/models/${encodeURIComponent(modelCode)}/years`) as NamedCode[];
+     return res.status(200).json({
+       items:years
+         .map(item=>({code:getCode(item),name:getName(item)}))
+         .filter(item=>item.code&&item.name)
+         .sort((a,b)=>{
+           const ay=Number((a.name.match(/(?:19|20)\d{2}/)||[])[0]||0);
+           const by=Number((b.name.match(/(?:19|20)\d{2}/)||[])[0]||0);
+           return by-ay||a.name.localeCompare(b.name,'pt-BR');
+         }),
+     });
+   }
+   if(action==='detail'){
+     const brandCode=String(source?.brandCode||'').trim();
+     const modelCode=String(source?.modelCode||'').trim();
+     const yearCode=String(source?.yearCode||'').trim();
+     if(!brandCode||!modelCode||!yearCode)return res.status(400).json({error:'missing_catalog_codes'});
+     const detail:any=await getJson(`${BASE}/brands/${encodeURIComponent(brandCode)}/models/${encodeURIComponent(modelCode)}/years/${encodeURIComponent(yearCode)}`);
+     const value=parseValue(detail?.price||detail?.Valor);
+     return res.status(200).json({
+       value,
+       brand:String(detail?.brand||detail?.Marca||''),
+       model:String(detail?.model||detail?.Modelo||''),
+       year:Number(detail?.modelYear||detail?.AnoModelo||0),
+       fuel:String(detail?.fuel||detail?.Combustivel||''),
+       referenceMonth:String(detail?.referenceMonth||detail?.MesReferencia||''),
+       fipeCode:String(detail?.codeFipe||detail?.CodigoFipe||''),
+     });
+   }
 
    const brand=String(source?.brand||'').trim(),model=String(source?.model||'').trim(),year=String(source?.year||'').trim(),fuel=String(source?.fuel||'').trim(),fipeCode=String(source?.fipeCode||'').trim();
    if(!brand||!model||!year)return res.status(400).json({error:'missing_vehicle_data'});
