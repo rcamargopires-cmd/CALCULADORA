@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Company, CompanyPlan, DealMasterModule, User } from '../types';
+import { Company, CompanyBilling, CompanyPlan, DealMasterModule, User } from '../types';
 
 export const DEFAULT_COMPANY_ID = 'abrao-reze';
 
@@ -21,6 +21,28 @@ const validPlan = (value: unknown): CompanyPlan => {
   return raw === 'starter' || raw === 'pro' || raw === 'enterprise' ? raw : 'starter';
 };
 
+const normalizeBilling = (value: unknown): CompanyBilling | undefined => {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const enabled = raw.enabled === true;
+  const dueDay = Math.min(28, Math.max(1, Number(raw.dueDay) || 10));
+  const graceDays = Math.min(30, Math.max(0, Number(raw.graceDays) || 3));
+  const nextDueAt = String(raw.nextDueAt || '').slice(0, 10);
+  const manualGraceUntil = String(raw.manualGraceUntil || '').slice(0, 10);
+  const lastPaidAt = String(raw.lastPaidAt || '');
+  const updatedAt = String(raw.updatedAt || '');
+  return {
+    enabled,
+    dueDay,
+    nextDueAt,
+    graceDays,
+    ...(manualGraceUntil ? { manualGraceUntil } : {}),
+    ...(raw.manualBlocked === true ? { manualBlocked: true } : {}),
+    ...(lastPaidAt ? { lastPaidAt } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
+  };
+};
+
 const normalizeOverrides = (value: unknown): Partial<Record<DealMasterModule, boolean>> | undefined => {
   if (!value || typeof value !== 'object') return undefined;
   const raw = value as Record<string, unknown>;
@@ -36,6 +58,7 @@ const normalizeCompanies = (raw: unknown): Company[] => {
   const parsed = list.map((item: any) => {
     const trialEndsAt = item?.trialEndsAt ? String(item.trialEndsAt) : '';
     const moduleOverrides = normalizeOverrides(item?.moduleOverrides);
+    const billing = normalizeBilling(item?.billing);
     return {
       id: String(item?.id || '').trim(),
       slug: String(item?.slug || item?.id || '').trim(),
@@ -44,6 +67,7 @@ const normalizeCompanies = (raw: unknown): Company[] => {
       status: item?.status === 'suspended' ? 'suspended' : item?.status === 'trial' ? 'trial' : 'active',
       createdAt: String(item?.createdAt || new Date().toISOString()),
       ...(trialEndsAt ? { trialEndsAt } : {}),
+      ...(billing ? { billing } : {}),
       ...(moduleOverrides ? { moduleOverrides } : {}),
     } as Company;
   }).filter(item => item.id && item.name) as Company[];
