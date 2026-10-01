@@ -218,7 +218,38 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
 export default async function handler(req:any,res:any){
  const source=req.method==='GET'?req.query:req.body;
  if(!['POST','GET'].includes(req.method))return res.status(405).json({error:'method_not_allowed'});
- const brand=String(source?.brand||'').trim(),model=String(source?.model||'').trim(),year=String(source?.year||'').trim(),fuel=String(source?.fuel||'').trim(),fipeCode=String(source?.fipeCode||'').trim();
- if(!brand||!model||!year)return res.status(400).json({error:'missing_vehicle_data'});
- try{const result:any=await resolveFipe({brand,model,year,fuel,fipeCode});if(result?.ambiguous)return res.status(200).json(result);if(!result?.value)return res.status(404).json({error:'fipe_not_found'});return res.status(200).json(result);}catch(error:any){console.error('MarketIQ FIPE lookup failed',error);return res.status(500).json({error:'lookup_failed',detail:String(error?.message||error)});}
+
+ const action=String(source?.action||'').trim().toLowerCase();
+ try{
+   if(action==='brands'){
+     const brands=await getJson(`${BASE}/brands`) as NamedCode[];
+     return res.status(200).json({
+       items:brands
+         .map(item=>({code:getCode(item),name:getName(item)}))
+         .filter(item=>item.code&&item.name)
+         .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),
+     });
+   }
+   if(action==='models'){
+     const brandCode=String(source?.brandCode||'').trim();
+     if(!brandCode)return res.status(400).json({error:'missing_brand_code'});
+     const models=await getJson(`${BASE}/brands/${encodeURIComponent(brandCode)}/models`) as NamedCode[];
+     return res.status(200).json({
+       items:models
+         .map(item=>({code:getCode(item),name:getName(item)}))
+         .filter(item=>item.code&&item.name)
+         .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),
+     });
+   }
+
+   const brand=String(source?.brand||'').trim(),model=String(source?.model||'').trim(),year=String(source?.year||'').trim(),fuel=String(source?.fuel||'').trim(),fipeCode=String(source?.fipeCode||'').trim();
+   if(!brand||!model||!year)return res.status(400).json({error:'missing_vehicle_data'});
+   const result:any=await resolveFipe({brand,model,year,fuel,fipeCode});
+   if(result?.ambiguous)return res.status(200).json(result);
+   if(!result?.value)return res.status(404).json({error:'fipe_not_found'});
+   return res.status(200).json(result);
+ }catch(error:any){
+   console.error('MarketIQ FIPE lookup failed',error);
+   return res.status(500).json({error:'lookup_failed',detail:String(error?.message||error)});
+ }
 }
