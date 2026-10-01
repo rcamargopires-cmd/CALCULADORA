@@ -3,6 +3,16 @@ export type UserRole = 'admin' | 'manager' | 'director' | 'seller' | 'user' | 'r
 export type UserStatus = 'active' | 'inactive';
 export type CompanyPlan = 'starter' | 'pro' | 'enterprise';
 export type CompanyStatus = 'trial' | 'active' | 'suspended';
+export type CompanyBilling = {
+  enabled:boolean;
+  dueDay:number;
+  nextDueAt:string;
+  graceDays:number;
+  manualGraceUntil?:string;
+  manualBlocked?:boolean;
+  lastPaidAt?:string;
+  updatedAt?:string;
+};
 export type DealMasterModule =
   | 'dealGuard'
   | 'goalTrack'
@@ -18,10 +28,10 @@ export type DealMasterModule =
   | 'groupOverview'
   | 'dmsConnect';
 
-export interface Company { id:string; slug:string; name:string; plan:CompanyPlan; status:CompanyStatus; createdAt?:string; trialEndsAt?:string; moduleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
+export interface Company { id:string; slug:string; name:string; plan:CompanyPlan; status:CompanyStatus; createdAt?:string; trialEndsAt?:string; billing?:CompanyBilling; moduleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 export interface Store { id:string; code:string; name:string; active:boolean; companyId?:string; }
 export interface SellerGoals { monthly:number; firstHalf:number; capture:number; margin:number; }
-export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; companyId?:string; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
+export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; companyId?:string; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 
 export interface OperationalStockItem { id:string; snapshotDate:string; plate:string; vehicle:string; stockDays:number; cost:number; fipe:number; askingPrice:number; location?:string; status?:string; storeId?:string; companyId?:string; }
 export interface OperationalSaleItem { id:string; saleDate:string; plate:string; vehicle:string; seller:string; invoiceValue:number; marginValue:number; marginPercent:number; hasTradeIn?:boolean; storeId?:string; companyId?:string; }
