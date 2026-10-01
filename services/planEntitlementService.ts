@@ -54,6 +54,7 @@ export const companySnapshotForUser = (user: User): Company => {
     name: 'Minha empresa',
     plan: user.companyPlan || 'starter',
     status: user.companyStatus || 'active',
+    billing: user.companyBilling,
     moduleOverrides: user.companyModuleOverrides,
   };
 };
