@@ -122,7 +122,11 @@ export const storeScopedOperationalService = {
       where('companyId', '==', tenant),
       where('storeId', '==', storeId),
     ));
-    const rows = scoped.docs.map(item => item.data() as OperationalStockItem).filter(item => item.snapshotDate === latest);
+    const rows = scoped.docs.map(item => item.data() as OperationalStockItem).filter(item => {
+      if (item.snapshotDate !== latest) return false;
+      const status = String(item.status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      return status !== 'saida';
+    });
     if (rows.length) return rows;
     if (tenant === DEMO_COMPANY_ID) return demoStockRows();
     if (tenant !== DEFAULT_COMPANY_ID || storeId !== DEFAULT_STORE_ID) return rows;
@@ -130,7 +134,8 @@ export const storeScopedOperationalService = {
     const legacy = await getDocs(query(collection(db, 'operational_stock'), where('snapshotDate', '==', latest)));
     return legacy.docs
       .map(item => item.data() as OperationalStockItem)
-      .filter(item => belongsToCompany(item, tenant) && belongsToStore(item, storeId));
+      .filter(item => belongsToCompany(item, tenant) && belongsToStore(item, storeId))
+      .filter(item => String(item.status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() !== 'saida');
   },
 
   getSales: async (storeId: string, companyId = companyScopeService.get()): Promise<OperationalSaleItem[]> => {
