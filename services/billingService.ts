@@ -33,10 +33,10 @@ export const defaultBilling=(dueDay=10):CompanyBilling=>({
   graceDays:3,
 });
 
-export const nextMonthlyDue=(dueDay:number,from=new Date())=>{
+export const nextMonthlyDue=(dueDay:number,from=new Date(),forceNextMonth=false)=>{
   const day=Math.min(28,Math.max(1,Number(dueDay)||10));
-  const next=new Date(from.getFullYear(),from.getMonth(),day,12);
-  if(next.getTime()<=from.getTime())next.setMonth(next.getMonth()+1);
+  const next=new Date(from.getFullYear(),from.getMonth()+(forceNextMonth?1:0),day,12);
+  if(!forceNextMonth&&next.getTime()<=from.getTime())next.setMonth(next.getMonth()+1);
   return [next.getFullYear(),String(next.getMonth()+1).padStart(2,'0'),String(next.getDate()).padStart(2,'0')].join('-');
 };
 
