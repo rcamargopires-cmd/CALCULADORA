@@ -1,4 +1,5 @@
-const FIREBASE_API_KEY='AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
+import firebaseConfig from '../firebase-applet-config.json';
+const FIREBASE_API_KEY=String((firebaseConfig as any).apiKey||'');
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 
 const num=(value:any)=>{
@@ -179,10 +180,10 @@ const normalizeDadosApi=(raw:any,plate:string)=>{
 };
 
 const queryDadosApi=async(plate:string,token:string)=>{
-  const working='https://api.dadosapi.com/v1/veiculo-placa-unica';
   const documented='https://api.dadosapi.com/dados-publicos/consulta-veiculo-por-placa';
+  const legacyEndpoint='https://api.dadosapi.com/v1/veiculo-placa-unica';
   const custom=String(process.env.DADOSAPI_VEHICLE_ENDPOINT||'').trim();
-  const endpoints=Array.from(new Set([custom,working,documented].filter(Boolean)));
+  const endpoints=Array.from(new Set([custom,documented,legacyEndpoint].filter(Boolean)));
   let lastStatus=0;
   let lastBody:any=null;
 
@@ -264,37 +265,48 @@ export default async function handler(req:any,res:any){
     return res.status(401).json({error:'invalid_session'});
   }
 
-  const dadosApiToken=String(process.env.DADOSAPI_TOKEN||'').trim();
+  const dadosApiTokens=Array.from(new Set([
+    String(process.env.DADOS_API_KEY||'').trim(),
+    String(process.env.DADOSAPI_TOKEN||'').trim(),
+  ].filter(Boolean)));
   const legacyToken=String(process.env.PLACA_FIPE_TOKEN||'').trim();
-  if(!dadosApiToken&&!legacyToken){
+  if(!dadosApiTokens.length&&!legacyToken){
     console.warn('MarketIQ plate lookup blocked: provider not configured',{plate});
     return res.status(503).json({error:'provider_not_configured'});
   }
 
   try{
-    if(dadosApiToken){
+    let lastDadosApiError:any=null;
+    for(let index=0;index<dadosApiTokens.length;index++){
       try{
-        const result=await queryDadosApi(plate,dadosApiToken);
+        const result=await queryDadosApi(plate,dadosApiTokens[index]);
         return res.status(200).json(result);
       }catch(error:any){
+        lastDadosApiError=error;
         console.warn('MarketIQ DadosAPI lookup failed',{
           status:Number(error?.status)||0,
           providerMessage:String(error?.body?.message||error?.body?.mensagem||error?.body?.error||''),
           plate,
+          credentialSlot:index+1,
         });
-        if(!legacyToken){
-          const status=Number(error?.status)||502;
-          return res.status(status===401||status===403?502:status).json({
-            error:'dadosapi_provider_error',
-            providerStatus:status,
-            providerMessage:String(error?.body?.message||error?.body?.mensagem||error?.body?.error||''),
-          });
-        }
       }
     }
 
-    const result=await queryLegacy(plate,legacyToken);
-    return res.status(200).json(result);
+    if(legacyToken){
+      const result=await queryLegacy(plate,legacyToken);
+      return res.status(200).json(result);
+    }
+
+    if(lastDadosApiError){
+      const status=Number(lastDadosApiError?.status)||502;
+      return res.status(status===401||status===403?502:status).json({
+        error:'dadosapi_provider_error',
+        providerStatus:status,
+        providerMessage:String(lastDadosApiError?.body?.message||lastDadosApiError?.body?.mensagem||lastDadosApiError?.body?.error||''),
+      });
+    }
+
+    return res.status(503).json({error:'provider_not_configured'});
   }catch(error){
     console.error('MarketIQ plate lookup failed',error);
     return res.status(502).json({error:'lookup_failed'});
