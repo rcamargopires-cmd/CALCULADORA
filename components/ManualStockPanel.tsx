@@ -285,10 +285,10 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
         companyId,
         storeId,
       };
-      await manualStockService.save(item,currentUser,storeId,companyId,originalPlate||undefined);
+      const savedRows=await manualStockService.save(item,currentUser,storeId,companyId,originalPlate||undefined);
+      setRows([...savedRows].sort((a,b)=>Number(b.stockDays)-Number(a.stockDays)));
       setMessage({kind:'ok',text:originalPlate?'Veículo atualizado no estoque.':'Veículo incluído no estoque.'});
       setForm(emptyForm());setOriginalPlate('');
-      await load();
       window.dispatchEvent(new Event('dealmaster:operational-data-updated'));
     }catch(error:any){setMessage({kind:'error',text:error?.message||'Não foi possível salvar o veículo.'});}
     finally{setBusy(false);}
