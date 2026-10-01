@@ -18,7 +18,6 @@ import { billingSnapshot, defaultBilling, nextMonthlyDue } from '../services/bil
 type Tab='companies'|'users';
 const planLabel:Record<CompanyPlan,string>={starter:'Starter',pro:'Pro',enterprise:'Enterprise'};
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(value);
-const todayKey=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
 const addDays=(days:number)=>{const d=new Date();d.setDate(d.getDate()+days);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
 const dateBr=(value?:string)=>value?String(value).slice(0,10).split('-').reverse().join('/'):'—';
 const slugify=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,52);
@@ -158,7 +157,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
     await updateBilling(company,{
       enabled:true,
       dueDay:base.dueDay||10,
-      nextDueAt:nextMonthlyDue(base.dueDay||10,new Date()),
+      nextDueAt:nextMonthlyDue(base.dueDay||10,new Date(),true),
       lastPaidAt:new Date().toISOString(),
       manualBlocked:false,
       manualGraceUntil:'',
