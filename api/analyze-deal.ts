@@ -19,6 +19,7 @@ const pct = (value: number) => `${(Number(value) || 0).toFixed(2).replace('.', '
 
 const OWNER_ADMIN = 'r.camargo.pires@gmail.com';
 const MANAGER_ALLOWED_ROLES = new Set(['manager','seller','user','reception','evaluator']);
+const DMS_ACCESS_PROFILES = new Set(['management','preparation','finance']);
 const emailOf=(value:any)=>String(value||'').trim().toLowerCase();
 const companyOf=(value:any)=>String(value?.companyId||'abrao-reze').trim()||'abrao-reze';
 const roleOf=(value:any)=>String(value?.role||'').trim();
@@ -31,6 +32,7 @@ const cleanManagedUser=(raw:any)=>({
   createdAt:String(raw?.createdAt||new Date().toISOString()),
   companyId:String(raw?.companyId||'abrao-reze').trim()||'abrao-reze',
   storeId:String(raw?.storeId||'').trim(),
+  ...(raw?.role==='manager'&&DMS_ACCESS_PROFILES.has(String(raw?.dmsAccessProfile||''))?{dmsAccessProfile:String(raw.dmsAccessProfile)}:{}),
   ...(raw?.goals?{goals:raw.goals}:{}),
   ...(raw?.companyPlan?{companyPlan:raw.companyPlan}:{}),
   ...(raw?.companyStatus?{companyStatus:raw.companyStatus}:{}),
