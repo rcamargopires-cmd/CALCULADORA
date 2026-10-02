@@ -91,7 +91,7 @@ const CrmCommercialProposals:React.FC<Props>=({lead,user,stockItems=[]})=>{
         leadId:lead.id,proposalId:row.id,expectedVersion:row.version,status,
         actor:{email:user.email,name:user.name},
       });
-      setFeedback(status==='sent'?'Envio registrado manualmente na ficha. O MOTYQ não enviou uma mensagem.':status==='accepted'?'Aceite registrado. A venda não foi concluída automaticamente.':'Recusa registrada na ficha.');
+      setFeedback(status==='sent'?'Envio registrado manualmente na ficha. O MOTYQ não enviou uma mensagem.':status==='accepted'?'Aceite registrado. O Pedido de Venda foi criado e o veículo foi reservado no DMS.':'Recusa registrada na ficha.');
     }catch(error:any){setError(error?.message||'Não foi possível atualizar a proposta.');}
     finally{setBusy(false);}
   };
