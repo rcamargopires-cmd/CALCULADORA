@@ -5,7 +5,7 @@ import {manualStockService} from '../services/manualStockService';
 import {auth} from '../firebase';
 import {marketIqVehicleCacheService} from '../services/marketIqVehicleCacheService';
 import {prepTrackService} from '../services/prepTrackService';
-import {currentStockService} from '../services/currentStockService';
+import {useCurrentStock} from '../contexts/CurrentStockContext';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 type CatalogItem={code:string;name:string};
@@ -20,6 +20,7 @@ const BRL=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',curren
 const emptyForm=():FormState=>({plate:'',brand:'',brandCode:'',vehicle:'',modelCode:'',year:'',yearCode:'',km:'',entryDate:localDate(),cost:'',fipe:'',askingPrice:'',location:'',status:'Em preparação'});
 
 const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})=>{
+  const sharedStock=useCurrentStock();
   const[open,setOpen]=useState(false);
   const[rows,setRows]=useState<OperationalStockItem[]>([]);
   const[form,setForm]=useState<FormState>(emptyForm());
@@ -61,13 +62,9 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
 
   useEffect(()=>{
     if(!open)return;
-    return currentStockService.subscribe(
-      companyId,
-      storeId,
-      next=>setRows(next.sort((a,b)=>Number(b.stockDays)-Number(a.stockDays))),
-      error=>console.warn('Motyq: estoque atual em tempo real indisponível.',error),
-    );
-  },[open,companyId,storeId]);
+    if(sharedStock.companyId!==companyId||sharedStock.storeId!==storeId)return;
+    setRows([...sharedStock.rows].sort((a,b)=>Number(b.stockDays)-Number(a.stockDays)));
+  },[open,sharedStock.rows,sharedStock.companyId,sharedStock.storeId,companyId,storeId]);
 
   useEffect(()=>{
     if(!open||!form.brandCode){setModels([]);return;}
