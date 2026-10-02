@@ -18,6 +18,7 @@ export type DmsPermissions={
   financeSettle:boolean;
   documentsView:boolean;
   afterSalesView:boolean;
+  workshopView:boolean;
   assetsView:boolean;
   reportsView:boolean;
   diagnostics:boolean;
@@ -40,6 +41,7 @@ export const DMS_PERMISSION_OPTIONS:Array<{key:DmsPermissionKey;label:string;gro
   {key:'financeSettle',label:'Baixar pagamentos/recebimentos',group:'Financeiro',description:'Baixa, concilia e fecha contas financeiras.'},
   {key:'documentsView',label:'Documentação',group:'Operação',description:'Acessa ATPV-e, CRLV, gravame, débitos e despachante.'},
   {key:'afterSalesView',label:'Pós-venda / garantia',group:'Operação',description:'Acessa garantias, retornos e ocorrências pós-venda.'},
+  {key:'workshopView',label:'Oficina / OS / peças',group:'Operação',description:'Acessa agenda de oficina, ordens de serviço, peças, garantias e técnicos.'},
   {key:'assetsView',label:'Ativos / chaves / manuais',group:'Operação',description:'Acessa o AssetGuard e controles físicos.'},
   {key:'reportsView',label:'Relatórios e BI',group:'Gestão',description:'Acessa relatórios, indicadores, alertas e visão executiva.'},
   {key:'diagnostics',label:'Diagnóstico DMS',group:'Governança',description:'Executa o pente-fino de integridade entre módulos.'},
@@ -52,7 +54,7 @@ const fullManagement=(profile:DmsPermissions['profile']):DmsPermissions=>({
   stockView:true,stockWrite:true,
   prepView:true,prepRequest:true,prepApprove:true,
   financeView:true,financeCreate:false,financeSettle:false,
-  documentsView:true,afterSalesView:true,assetsView:true,reportsView:true,
+  documentsView:true,afterSalesView:true,workshopView:true,assetsView:true,reportsView:true,
   diagnostics:true,usersManage:true,
 });
 
@@ -63,7 +65,7 @@ const baseForProfile=(profile:DmsAccessProfile):DmsPermissions=>{
     stockView:true,stockWrite:false,
     prepView:true,prepRequest:true,prepApprove:false,
     financeView:false,financeCreate:false,financeSettle:false,
-    documentsView:false,afterSalesView:false,assetsView:false,reportsView:false,
+    documentsView:false,afterSalesView:false,workshopView:false,assetsView:false,reportsView:false,
     diagnostics:false,usersManage:false,
   };
   if(profile==='finance')return{
@@ -72,7 +74,7 @@ const baseForProfile=(profile:DmsAccessProfile):DmsPermissions=>{
     stockView:false,stockWrite:false,
     prepView:false,prepRequest:false,prepApprove:false,
     financeView:true,financeCreate:true,financeSettle:true,
-    documentsView:false,afterSalesView:false,assetsView:false,reportsView:false,
+    documentsView:false,afterSalesView:false,workshopView:false,assetsView:false,reportsView:false,
     diagnostics:false,usersManage:false,
   };
   return fullManagement('management');
@@ -120,7 +122,7 @@ export const dmsPermissions=(user?:Partial<User>|null):DmsPermissions=>{
       stockView:true,stockWrite:false,
       prepView:true,prepRequest:false,prepApprove:false,
       financeView:true,financeCreate:false,financeSettle:false,
-      documentsView:true,afterSalesView:true,assetsView:true,reportsView:true,
+      documentsView:true,afterSalesView:true,workshopView:true,assetsView:true,reportsView:true,
       diagnostics:true,usersManage:false,
     },user);
   }
@@ -135,7 +137,7 @@ export const dmsPermissions=(user?:Partial<User>|null):DmsPermissions=>{
     stockView:false,stockWrite:false,
     prepView:false,prepRequest:false,prepApprove:false,
     financeView:false,financeCreate:false,financeSettle:false,
-    documentsView:false,afterSalesView:false,assetsView:false,reportsView:false,
+    documentsView:false,afterSalesView:false,workshopView:false,assetsView:false,reportsView:false,
     diagnostics:false,usersManage:false,
   },user);
   if(role==='reception')return applyOverrides({
@@ -144,7 +146,7 @@ export const dmsPermissions=(user?:Partial<User>|null):DmsPermissions=>{
     stockView:false,stockWrite:false,
     prepView:false,prepRequest:false,prepApprove:false,
     financeView:false,financeCreate:false,financeSettle:false,
-    documentsView:false,afterSalesView:false,assetsView:false,reportsView:false,
+    documentsView:false,afterSalesView:false,workshopView:false,assetsView:false,reportsView:false,
     diagnostics:false,usersManage:false,
   },user);
   return applyOverrides({
@@ -153,7 +155,7 @@ export const dmsPermissions=(user?:Partial<User>|null):DmsPermissions=>{
     stockView:false,stockWrite:false,
     prepView:false,prepRequest:false,prepApprove:false,
     financeView:false,financeCreate:false,financeSettle:false,
-    documentsView:false,afterSalesView:false,assetsView:false,reportsView:false,
+    documentsView:false,afterSalesView:false,workshopView:false,assetsView:false,reportsView:false,
     diagnostics:false,usersManage:false,
   },user);
 };
