@@ -120,6 +120,8 @@ export interface DmsDiagnosticReport {
   stockCount:number;
   vehicleMasterCount:number;
   prepOrderCount:number;
+  purchaseCount:number;
+  salesOrderCount:number;
   financeEntryCount:number;
   supplierCount:number;
   customerCount:number;
