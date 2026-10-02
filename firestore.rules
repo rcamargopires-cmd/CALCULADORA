@@ -23,6 +23,43 @@ service cloud.firestore {
     function isAdmin() { return isActive() && role() == 'admin'; }
     function isManager() { return isActive() && (role() == 'manager' || role() == 'admin'); }
     function isSeller() { return isActive() && (role() == 'seller' || role() == 'user'); }
+    function hasDmsOverride(key) {
+      return profileExists() &&
+        ('dmsPermissionOverrides' in profile()) &&
+        (key in profile().dmsPermissionOverrides);
+    }
+    function dmsPermission(key, managementDefault, preparationDefault, financeDefault) {
+      return isAdmin() || (
+        role() == 'manager' && (
+          (hasDmsOverride(key) && profile().dmsPermissionOverrides[key] == true) ||
+          (
+            !hasDmsOverride(key) && (
+              !('dmsAccessProfile' in profile()) ||
+              (profile().dmsAccessProfile == 'management' && managementDefault) ||
+              (profile().dmsAccessProfile == 'preparation' && preparationDefault) ||
+              (profile().dmsAccessProfile == 'finance' && financeDefault)
+            )
+          )
+        )
+      );
+    }
+    function canUsersManage() { return dmsPermission('usersManage', true, false, false); }
+    function canCrm() { return dmsPermission('crmView', true, false, false); }
+    function canEvaluations() { return dmsPermission('evaluationsView', true, false, false); }
+    function canPurchases() { return dmsPermission('purchasesView', true, false, false); }
+    function canSales() { return dmsPermission('salesView', true, false, false); }
+    function canStockView() { return dmsPermission('stockView', true, true, false); }
+    function canStockWrite() { return dmsPermission('stockWrite', true, false, false); }
+    function canPrepView() { return dmsPermission('prepView', true, true, false); }
+    function canPrepRequest() { return dmsPermission('prepRequest', true, true, false); }
+    function canPrepApprove() { return dmsPermission('prepApprove', true, false, false); }
+    function canFinanceView() { return dmsPermission('financeView', true, false, true); }
+    function canFinanceCreate() { return dmsPermission('financeCreate', false, false, true); }
+    function canFinanceSettle() { return dmsPermission('financeSettle', false, false, true); }
+    function canDocuments() { return dmsPermission('documentsView', true, false, false); }
+    function canAfterSales() { return dmsPermission('afterSalesView', true, false, false); }
+    function canReports() { return dmsPermission('reportsView', true, false, false); }
+    function canDiagnostics() { return dmsPermission('diagnostics', true, false, false); }
     function isReception() { return isActive() && role() == 'reception'; }
     function isDirector() { return isActive() && role() == 'director'; }
     function myCompany() { return profileExists() && ('companyId' in profile()) ? profile().companyId : 'abrao-reze'; }
@@ -47,12 +84,12 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         request.auth.token.email == email ||
         isAdmin() ||
-        (role() == 'manager' && sameCompany(resource.data)) ||
+        (canUsersManage() && sameCompany(resource.data)) ||
         ((role() == 'seller' || role() == 'user') && sameStore(resource.data))
       );
 
       allow create: if isAdmin() || (
-        role() == 'manager' &&
+        canUsersManage() &&
         sameCompany(request.resource.data) &&
         request.resource.data.companyId == myCompany() &&
         request.resource.data.email == email &&
@@ -60,7 +97,7 @@ service cloud.firestore {
       );
 
       allow update: if isAdmin() || (
-        role() == 'manager' &&
+        canUsersManage() &&
         sameCompany(resource.data) &&
         sameCompany(request.resource.data) &&
         resource.data.companyId == request.resource.data.companyId &&
@@ -72,7 +109,7 @@ service cloud.firestore {
       );
 
       allow delete: if isAdmin() || (
-        role() == 'manager' &&
+        canUsersManage() &&
         sameCompany(resource.data) &&
         resource.data.role in ['manager', 'seller', 'user', 'reception', 'evaluator'] &&
         request.auth.token.email != email
@@ -81,13 +118,13 @@ service cloud.firestore {
 
     match /deals/{dealId} {
       allow read: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data)) ||
+        (canEvaluations() && sameStore(resource.data)) ||
         (isSeller() && ownsDeal() && sameStore(resource.data));
       allow create: if isAdmin() ||
         (role() == 'manager' && sameStore(request.resource.data)) ||
         (isSeller() && createsOwnDeal() && sameStore(request.resource.data));
       allow update: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
+        (canEvaluations() && sameStore(resource.data) && sameStore(request.resource.data)) ||
         (isSeller() && ownsDeal() && createsOwnDeal() && sameStore(resource.data) && sameStore(request.resource.data));
       allow delete: if isAdmin();
     }
@@ -105,7 +142,7 @@ service cloud.firestore {
       );
 
       allow update: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
+        (canCrm() && sameStore(resource.data) && sameStore(request.resource.data)) ||
         (
           evaluatorSameStore(resource.data) && evaluatorSameStore(request.resource.data) &&
           request.resource.data.companyId == resource.data.companyId &&
@@ -140,9 +177,11 @@ service cloud.firestore {
     }
 
     match /operational_stock/{itemId} {
-      allow read: if isAdmin() || (isDirector() && sameCompany(resource.data)) || (role() == 'manager' && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
-      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+      allow read: if isAdmin() || (isDirector() && sameCompany(resource.data)) || (canStockView() && sameStore(resource.data));
+      allow create: if isAdmin() || (canStockWrite() && sameStore(request.resource.data)) || (canPurchases() && sameStore(request.resource.data));
+      allow update: if isAdmin() ||
+        ((canStockWrite() || canPurchases() || canSales() || canPrepApprove()) && sameStore(resource.data) && sameStore(request.resource.data));
+      allow delete: if isAdmin() || (canStockWrite() && sameStore(resource.data));
     }
 
     match /operational_sales/{itemId} {
@@ -158,9 +197,10 @@ service cloud.firestore {
     }
 
     match /prep_orders/{itemId} {
-      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
-      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
-      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+      allow read: if isAdmin() || (canPrepView() && sameStore(resource.data));
+      allow create: if isAdmin() || (canPrepRequest() && sameStore(request.resource.data));
+      allow update: if isAdmin() || ((canPrepRequest() || canPrepApprove()) && sameStore(resource.data) && sameStore(request.resource.data));
+      allow delete: if isAdmin() || (canPrepApprove() && sameStore(resource.data));
     }
 
     match /prep_payables/{itemId} {
@@ -179,11 +219,11 @@ service cloud.firestore {
 
     match /showroom_passages/{passageId} {
       allow read: if isAdmin() ||
-        (role() == 'manager' && sameStore(resource.data)) ||
+        (canCrm() && sameStore(resource.data)) ||
         (isReception() && sameStore(resource.data)) ||
         (assignedPassage(resource.data) && sameStore(resource.data));
       allow create: if isAdmin() ||
-        (role() == 'manager' && sameStore(request.resource.data)) ||
+        (canCrm() && sameStore(request.resource.data)) ||
         (isReception() && sameStore(request.resource.data));
       allow update: if isAdmin() ||
         (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data)) ||
