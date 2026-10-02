@@ -59,6 +59,8 @@ export interface CustomerMaster {
   city?:string;
   state?:string;
   zipCode?:string;
+  active?:boolean;
+  mergedIntoCustomerId?:string;
   createdAt:string;
   updatedAt:string;
 }
