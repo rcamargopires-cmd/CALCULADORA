@@ -472,6 +472,38 @@ export interface VehiclePurchase {
   createdByName?:string;
 }
 
+export type AfterSalesCaseType='warranty'|'complaint'|'documentation'|'return'|'other';
+export type AfterSalesCaseStatus='open'|'in_progress'|'waiting_supplier'|'resolved'|'closed';
+export interface AfterSalesCase {
+  id:string;
+  kind:'after_sales_case';
+  companyId:string;
+  storeId:string;
+  salesOrderId?:string;
+  customerId?:string;
+  customerName:string;
+  customerPhone?:string;
+  vehicleId?:string;
+  plate:string;
+  vehicle:string;
+  type:AfterSalesCaseType;
+  status:AfterSalesCaseStatus;
+  title:string;
+  description:string;
+  supplierName?:string;
+  supplierId?:string;
+  cost:number;
+  financeEntryId?:string;
+  openedAt:string;
+  openedBy:string;
+  openedByName:string;
+  updatedAt:string;
+  resolvedAt?:string;
+  closedAt?:string;
+  satisfactionScore?:number;
+  satisfactionNotes?:string;
+}
+
 export type DocumentProcessStatus='pending'|'ok'|'not_required'|'blocked';
 export type AtpvProcessStatus='pending'|'ready'|'signed'|'submitted'|'completed';
 export interface VehicleDocumentCase {
