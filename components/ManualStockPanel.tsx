@@ -5,6 +5,7 @@ import {manualStockService} from '../services/manualStockService';
 import {auth} from '../firebase';
 import {marketIqVehicleCacheService} from '../services/marketIqVehicleCacheService';
 import {prepTrackService} from '../services/prepTrackService';
+import {currentStockService} from '../services/currentStockService';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 type CatalogItem={code:string;name:string};
@@ -57,6 +58,16 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
   };
 
   useEffect(()=>{if(open){void load();void loadBrands();}},[open,companyId,storeId]);
+
+  useEffect(()=>{
+    if(!open)return;
+    return currentStockService.subscribe(
+      companyId,
+      storeId,
+      next=>setRows(next.sort((a,b)=>Number(b.stockDays)-Number(a.stockDays))),
+      error=>console.warn('Motyq: estoque atual em tempo real indisponível.',error),
+    );
+  },[open,companyId,storeId]);
 
   useEffect(()=>{
     if(!open||!form.brandCode){setModels([]);return;}
