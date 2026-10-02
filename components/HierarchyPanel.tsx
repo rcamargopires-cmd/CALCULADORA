@@ -3,6 +3,7 @@ import { CheckCircle2, Plus, ShieldCheck, SlidersHorizontal, Trash2, UserCog, Us
 import { Company, DmsAccessProfile, DmsPermissionKey, SellerGoals, Store, User, UserRole, UserStatus } from '../types';
 import { dmsAccessLabel } from '../services/dmsPermissions';
 import DmsPermissionEditor from './DmsPermissionEditor';
+import StoreAccessEditor from './StoreAccessEditor';
 import { userService } from '../services/userService';
 import { companyIdForUser, companyService, DEFAULT_COMPANY } from '../services/companyService';
 import { COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
@@ -18,6 +19,7 @@ const emptyForm = {
   dmsPermissionOverrides: {} as Partial<Record<DmsPermissionKey,boolean>>,
   status: 'active' as UserStatus,
   storeId: '',
+  storeIds: [] as string[],
 };
 
 const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
@@ -78,7 +80,8 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   const resetForm = () => {
     setEditingUser(null);
-    setForm({ ...emptyForm, storeId: stores[0]?.id || currentUser.storeId || '' });
+    const initial=stores[0]?.id || currentUser.storeId || '';
+    setForm({ ...emptyForm, storeId: initial, storeIds: initial?[initial]:[] });
     setError('');
   };
 
@@ -97,6 +100,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       dmsPermissionOverrides: user.dmsPermissionOverrides || {},
       status: user.status,
       storeId: user.storeId || stores[0]?.id || '',
+      storeIds: user.storeIds?.length ? user.storeIds : [user.storeId || stores[0]?.id || ''].filter(Boolean),
     });
     setError('');
   };
@@ -147,6 +151,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         status: form.status,
         companyId,
         storeId: form.storeId,
+        storeIds: form.storeIds.length ? form.storeIds : [form.storeId].filter(Boolean),
         createdAt: base?.createdAt || new Date().toISOString(),
         ...companySnapshot(),
       };
@@ -287,7 +292,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           <label><span className="text-xs font-semibold text-slate-500">Perfil</span><select disabled={editingUser.email === currentUser.email} value={form.role} onChange={event => setForm({...form,role:event.target.value as UserRole})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50">{roleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label><span className="text-xs font-semibold text-slate-500">Status</span><select value={form.status} onChange={event => setForm({...form,status:event.target.value as UserStatus})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"><option value="active">Ativo</option><option value="inactive">Inativo</option></select></label>
           {form.role==='manager'&&<div className="sm:col-span-2"><DmsPermissionEditor profile={form.dmsAccessProfile} overrides={form.dmsPermissionOverrides} onProfileChange={value=>setForm(current=>({...current,dmsAccessProfile:value}))} onOverridesChange={value=>setForm(current=>({...current,dmsPermissionOverrides:value}))}/></div>}
-          <label className="sm:col-span-2"><span className="text-xs font-semibold text-slate-500">Unidade</span><select value={form.storeId} onChange={event => setForm({...form,storeId:event.target.value})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"><option value="">Selecione...</option>{stores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+          <div className="sm:col-span-2"><StoreAccessEditor stores={stores} primaryStoreId={form.storeId} storeIds={form.storeIds} onChange={(primary,ids)=>setForm(current=>({...current,storeId:primary,storeIds:ids}))}/></div>
         </div>
         {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         <button disabled={Boolean(saving)} onClick={() => void saveUser()} className="mt-6 h-12 w-full rounded-2xl bg-blue-600 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-40">{saving ? 'Salvando...' : editingUser.email ? 'Salvar alterações' : 'Criar usuário'}</button>
