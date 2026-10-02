@@ -24,6 +24,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
   const[form,setForm]=useState<FormState>(emptyForm());
   const[originalPlate,setOriginalPlate]=useState('');
   const[search,setSearch]=useState('');
+  const[recoveringPlate,setRecoveringPlate]=useState('');
   const[busy,setBusy]=useState(false);
   const[loading,setLoading]=useState(false);
   const[message,setMessage]=useState<{kind:'ok'|'error';text:string}|null>(null);
@@ -35,6 +36,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
   const[fipeBusy,setFipeBusy]=useState(false);
   const lookupSeq=useRef(0);
   const lastLookupPlate=useRef('');
+  const lastRecoveryPlate=useRef('');
 
   const load=async()=>{
     setLoading(true);
@@ -244,6 +246,31 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
     });
   },[rows,search]);
 
+  useEffect(()=>{
+    if(!open)return;
+    const plate=cleanPlate(search);
+    if(plate.length!==7){lastRecoveryPlate.current='';setRecoveringPlate('');return;}
+    if(rows.some(item=>cleanPlate(item.plate)===plate)){lastRecoveryPlate.current='';setRecoveringPlate('');return;}
+    if(lastRecoveryPlate.current===plate)return;
+    lastRecoveryPlate.current=plate;
+    const timer=window.setTimeout(async()=>{
+      setRecoveringPlate(plate);
+      try{
+        const recovered=await manualStockService.recoverPlate(plate,currentUser,storeId,companyId,rows);
+        if(recovered){
+          setRows(recovered);
+          setMessage({kind:'ok',text:`${plate} recuperado do histórico e restaurado no estoque atual.`});
+          window.dispatchEvent(new Event('dealmaster:operational-data-updated'));
+        }
+      }catch(error){
+        console.warn('Motyq: falha ao recuperar placa do histórico.',error);
+      }finally{
+        setRecoveringPlate('');
+      }
+    },300);
+    return()=>window.clearTimeout(timer);
+  },[open,search,rows,currentUser,storeId,companyId]);
+
   const reset=()=>{
     setForm(emptyForm());
     setOriginalPlate('');
@@ -428,7 +455,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
             </div>
 
             {loading?<div className="mt-4 rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Carregando estoque...</div>:
-            !filtered.length?<div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center"><CarFront size={26} className="mx-auto text-slate-400"/><p className="mt-3 text-sm font-semibold !text-slate-700">{rows.length?'Nenhum veículo encontrado.':'Estoque vazio'}</p><p className="mt-1 text-xs !text-slate-500">{rows.length?'Tente outra busca.':'Cadastre o primeiro veículo ao lado.'}</p></div>:
+            !filtered.length?<div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center"><CarFront size={26} className="mx-auto text-slate-400"/><p className="mt-3 text-sm font-semibold !text-slate-700">{recoveringPlate?`Recuperando ${recoveringPlate}...`:rows.length?'Nenhum veículo encontrado.':'Estoque vazio'}</p><p className="mt-1 text-xs !text-slate-500">{recoveringPlate?'Consultando o histórico dessa placa.':rows.length?'Tente outra busca.':'Cadastre o primeiro veículo ao lado.'}</p></div>:
             <div className="mt-4 space-y-2">{filtered.map(item=><article key={item.plate} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-slate-900 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-sm !text-slate-900">{item.plate}</strong><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">{item.stockDays} DIAS</span>{item.source==='manual'&&<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">MANUAL</span>}</div><p className="mt-1 truncate text-sm font-semibold !text-slate-900">{item.brand?item.brand+' · ':''}{item.vehicle}{item.year?` · ${item.year}`:''}</p><p className="mt-1 text-[11px] !text-slate-500">{item.km?item.km.toLocaleString('pt-BR')+' km · ':''}{item.location||storeName}{item.status?` · ${item.status}`:''}</p></div>
