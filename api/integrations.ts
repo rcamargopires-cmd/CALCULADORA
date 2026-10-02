@@ -183,6 +183,37 @@ const fiscalStatus=(body:any)=>{
   if(value.includes('process')||value.includes('pend'))return'pending';
   return value?'pending':'error';
 };
+const validateFiscalPayload=(payload:any)=>{
+  const missing:string[]=[];
+  const requireField=(path:string,value:any)=>{
+    if(value===undefined||value===null||value===''||value===false)missing.push(path);
+  };
+  requireField('natureza_operacao',payload?.natureza_operacao);
+  requireField('data_emissao',payload?.data_emissao);
+  requireField('tipo_documento',payload?.tipo_documento===0?0:payload?.tipo_documento);
+  requireField('finalidade_emissao',payload?.finalidade_emissao);
+  requireField('nome_destinatario',payload?.nome_destinatario);
+  if(!String(payload?.cpf_destinatario||'').replace(/\D/g,'')&&!String(payload?.cnpj_destinatario||'').replace(/\D/g,''))missing.push('cpf_destinatario ou cnpj_destinatario');
+  const items=Array.isArray(payload?.items)?payload.items:[];
+  if(!items.length)missing.push('items');
+  items.forEach((item:any,index:number)=>{
+    const base=`items[${index}]`;
+    requireField(`${base}.numero_item`,item?.numero_item);
+    requireField(`${base}.codigo_produto`,item?.codigo_produto);
+    requireField(`${base}.descricao`,item?.descricao);
+    requireField(`${base}.codigo_ncm`,item?.codigo_ncm);
+    requireField(`${base}.cfop`,item?.cfop);
+    requireField(`${base}.unidade_comercial`,item?.unidade_comercial);
+    requireField(`${base}.quantidade_comercial`,item?.quantidade_comercial);
+    requireField(`${base}.valor_unitario_comercial`,item?.valor_unitario_comercial);
+    requireField(`${base}.unidade_tributavel`,item?.unidade_tributavel);
+    requireField(`${base}.quantidade_tributavel`,item?.quantidade_tributavel);
+    requireField(`${base}.valor_unitario_tributavel`,item?.valor_unitario_tributavel);
+  });
+  if(Number(payload?.valor_total||0)<=0)missing.push('valor_total');
+  return Array.from(new Set(missing));
+};
+
 const fiscalMessages=(body:any)=>{
   const out:Array<{code?:string;message:string}>=[];
   const add=(code:any,message:any)=>{const text=String(message||'').trim();if(text)out.push({...(code?{code:String(code)}:{}),message:text});};
@@ -297,15 +328,8 @@ const handleFiscal=async(req:any)=>{
   if(action==='issue'){
     if(!['ready_to_invoice','invoiced'].includes(String(order.status||'')))return{status:409,body:{error:'sales_order_not_ready_to_invoice'}};
     const payload=req.body?.payload&&typeof req.body.payload==='object'?req.body.payload:{};
-    const required=[
-      ['natureza_operacao',payload.natureza_operacao],
-      ['data_emissao',payload.data_emissao],
-      ['tipo_documento',payload.tipo_documento],
-      ['finalidade_emissao',payload.finalidade_emissao],
-      ['items',Array.isArray(payload.items)&&payload.items.length],
-    ].filter(([,value])=>!value).map(([key])=>key);
+    const required=validateFiscalPayload(payload);
     if(required.length)return{status:400,body:{error:'fiscal_payload_incomplete',missing:required}};
-    if(Number(payload.valor_total||0)<=0)return{status:400,body:{error:'fiscal_total_required'}};
     const prior=await fiscalRecord(order);
     if(prior?.status==='authorized')return{status:200,body:{ok:true,record:prior,idempotent:true}};
     const body=await focusRequest(String(order.companyId),environment,`/v2/nfe?ref=${encodeURIComponent(reference)}`,{
