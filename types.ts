@@ -411,6 +411,38 @@ export interface VehicleHistoryEvent {
   orderId?:string; serviceId?:string; payableId?:string; companyId:string; storeId:string;
 }
 
+export type FiscalProvider='manual'|'nuvem_fiscal'|'other';
+export type FiscalDocumentStatus='draft'|'pending'|'authorized'|'rejected'|'cancelled'|'error';
+export interface FiscalInvoiceRecord {
+  id:string;
+  kind:'fiscal_invoice';
+  companyId:string;
+  storeId:string;
+  salesOrderId:string;
+  vehicleId?:string;
+  plate:string;
+  provider:FiscalProvider;
+  environment:'homologacao'|'producao';
+  status:FiscalDocumentStatus;
+  providerDocumentId?:string;
+  reference:string;
+  invoiceNumber?:string;
+  series?:string;
+  accessKey?:string;
+  protocol?:string;
+  total:number;
+  messages?:Array<{code?:string;message:string}>;
+  requestedAt?:string;
+  authorizedAt?:string;
+  updatedAt:string;
+}
+export interface FiscalProviderStatus {
+  provider:FiscalProvider;
+  configured:boolean;
+  environment:'homologacao'|'producao';
+  missing:string[];
+}
+
 export type SalesOrderStatus='draft'|'approved'|'credit_pending'|'ready_to_invoice'|'invoiced'|'delivered'|'cancelled';
 export type CreditStatus='not_required'|'pending'|'approved'|'rejected';
 export interface SalesDeliveryChecklist {
@@ -461,6 +493,11 @@ export interface SalesOrder {
   commissionAmount?:number;
   invoiceNumber?:string;
   invoiceDate?:string;
+  fiscalInvoiceId?:string;
+  fiscalProvider?:FiscalProvider;
+  fiscalStatus?:FiscalDocumentStatus;
+  fiscalAccessKey?:string;
+  fiscalExternalId?:string;
   deliveryDate?:string;
   deliveryChecklist:SalesDeliveryChecklist;
   deliveredBy?:string;
