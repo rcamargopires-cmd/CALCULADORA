@@ -34,6 +34,7 @@ export const financeService={
     competenceDate?:string;
     plate?:string;
     vehicle?:string;
+    vehicleId?:string;
     origin?:FinanceOrigin;
     originId?:string;
     companyId:string;
@@ -55,6 +56,7 @@ export const financeService={
       competenceDate:input.competenceDate||stamp.slice(0,10),
       plate:input.plate,
       vehicle:input.vehicle,
+      vehicleId:input.vehicleId,
       origin:input.origin||'manual',
       originId:input.originId,
       companyId:input.companyId,
