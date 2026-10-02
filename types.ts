@@ -131,6 +131,71 @@ export interface DmsDiagnosticReport {
   issues:DmsDiagnosticIssue[];
 }
 
+export type StockMovementType='entry'|'update'|'preparation_cost'|'reserve'|'release'|'transfer'|'sale'|'invoice'|'delivery'|'exit'|'import_sync';
+export interface StockMovement {
+  id:string;
+  kind:'stock_movement';
+  companyId:string;
+  storeId:string;
+  vehicleId:string;
+  plate:string;
+  movement:StockMovementType;
+  fromStatus?:string;
+  toStatus?:string;
+  fromStoreId?:string;
+  toStoreId?:string;
+  amount?:number;
+  details?:string;
+  origin?:string;
+  originId?:string;
+  at:string;
+  actorEmail?:string;
+  actorName?:string;
+}
+
+export type VehicleAcquisitionOrigin='purchase'|'trade_in'|'consignment'|'repasse';
+export type VehicleAcquisitionStatus='draft'|'approved'|'awaiting_payment'|'awaiting_documents'|'ready_for_stock'|'stocked'|'cancelled';
+export interface VehicleAcquisition {
+  id:string;
+  kind:'vehicle_acquisition';
+  companyId:string;
+  storeId:string;
+  vehicleId?:string;
+  evaluationRequestId?:string;
+  marketIqEvaluationId?:string;
+  plate:string;
+  vehicle:string;
+  brand?:string;
+  year?:string;
+  km?:number;
+  renavam?:string;
+  origin:VehicleAcquisitionOrigin;
+  status:VehicleAcquisitionStatus;
+  sellerName:string;
+  sellerDocument?:string;
+  sellerPhone?:string;
+  sellerEmail?:string;
+  purchaseAmount:number;
+  payoffAmount?:number;
+  debtsAmount?:number;
+  otherCosts?:number;
+  paymentMethod?:string;
+  payableId?:string;
+  hasAtpv?:boolean;
+  hasCrlv?:boolean;
+  hasSpareKey?:boolean;
+  hasManual?:boolean;
+  notes?:string;
+  approvedAt?:string;
+  approvedBy?:string;
+  approvedByName?:string;
+  stockedAt?:string;
+  createdAt:string;
+  updatedAt:string;
+  createdBy?:string;
+  createdByName?:string;
+}
+
 export interface DmsAuditEvent {
   id:string;
   kind:'audit_event';
