@@ -235,7 +235,13 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
   const filtered=useMemo(()=>{
     const q=search.trim().toLowerCase();
     if(!q)return rows;
-    return rows.filter(item=>[item.plate,item.vehicle,item.year,item.location,item.status].some(value=>String(value||'').toLowerCase().includes(q)));
+    const qPlate=cleanPlate(search);
+    return rows.filter(item=>{
+      const plate=cleanPlate(item.plate);
+      if(qPlate&&plate.includes(qPlate))return true;
+      return [item.vehicle,item.year,item.location,item.status,item.brand]
+        .some(value=>String(value||'').toLowerCase().includes(q));
+    });
   },[rows,search]);
 
   const reset=()=>{
