@@ -29,6 +29,35 @@ const reserveVehicle=async(order:SalesOrder,actor:User,status='Reservado')=>{
   return next;
 };
 
+const saleReceivables=async(order:SalesOrder)=>{
+  const all=await financeService.getAll(order.companyId,order.storeId);
+  return all.filter(item=>item.entryType==='receivable'&&item.origin==='sale'&&item.originId===order.salesOrderId&&item.status!=='cancelled');
+};
+
+const ensureReceivable=async(
+  order:SalesOrder,
+  actor:Pick<User,'email'|'name'>,
+  key:'signal'|'financing'|'direct',
+  amount:number,
+  party:string,
+  category:string,
+  description:string,
+)=>{
+  if(amount<=0.01)return null;
+  const existing=(await saleReceivables(order)).find(item=>String(item.paymentReference||'')===`sales:${order.salesOrderId}:${key}`);
+  if(existing)return existing;
+  const entry=await financeService.create({
+    entryType:'receivable',category,description,party,amount,dueDate:today(),
+    plate:order.plate,vehicle:order.vehicle,vehicleId:order.vehicleId,
+    origin:'sale',originId:order.salesOrderId,companyId:order.companyId,storeId:order.storeId,actor,
+  });
+  const linked=await financeService.update(entry,{
+    ...(order.customerId&&key!=='financing'?{partyId:order.customerId}:{}),
+    paymentReference:`sales:${order.salesOrderId}:${key}`,
+  });
+  return linked;
+};
+
 export const salesOrderService={
   subscribe:(companyId:string,storeId:string,onItems:(items:SalesOrder[])=>void,onError?:(error:unknown)=>void)=>onSnapshot(
     query(collection(db,LEDGER),where('companyId','==',companyId),where('storeId','==',storeId)),
@@ -120,8 +149,17 @@ export const salesOrderService={
   approve:async(order:SalesOrder,actor:Pick<User,'email'|'name'>):Promise<SalesOrder>=>{
     if(order.status!=='draft')return order;
     const stamp=now();
+    const receivableIds=[...(order.receivableIds||[])];
+    if(order.cashEntry>0){
+      const signal=await ensureReceivable(
+        order,actor,'signal',order.cashEntry,order.customerName,
+        'Sinal de venda',`Sinal / entrada da venda · ${order.plate}`,
+      );
+      if(signal&&!receivableIds.includes(signal.id))receivableIds.push(signal.id);
+    }
     const next:SalesOrder={
       ...order,
+      receivableIds,
       status:order.financedAmount>0?'credit_pending':'ready_to_invoice',
       creditStatus:order.financedAmount>0?'pending':'not_required',
       approvedAt:stamp,approvedBy:actor.email,approvedByName:actor.name,updatedAt:stamp,
@@ -135,12 +173,24 @@ export const salesOrderService={
     return next;
   },
 
-  setCredit:async(order:SalesOrder,status:'approved'|'rejected',bankName:string,actor:Pick<User,'email'|'name'>):Promise<SalesOrder>=>{
+  setCredit:async(
+    order:SalesOrder,
+    status:'approved'|'rejected',
+    bankName:string,
+    actor:Pick<User,'email'|'name'>,
+    creditReference='',
+    financingReturn=0,
+  ):Promise<SalesOrder>=>{
     if(order.financedAmount<=0)throw new Error('Este pedido não possui financiamento.');
     if(order.status!=='credit_pending')throw new Error('Pedido não está aguardando crédito.');
+    const stamp=now();
     const next:SalesOrder={
       ...order,bankName:bankName.trim(),creditStatus:status,
-      status:status==='approved'?'ready_to_invoice':'credit_pending',updatedAt:now(),
+      creditReference:creditReference.trim(),
+      financingReturn:Math.max(0,Number(financingReturn)||0),
+      creditDecisionAt:stamp,
+      ...(status==='approved'?{creditApprovedAt:stamp}:{}),
+      status:status==='approved'?'ready_to_invoice':'credit_pending',updatedAt:stamp,
     };
     await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
     await dmsAuditService.record({
@@ -156,39 +206,29 @@ export const salesOrderService={
     if(order.status!=='ready_to_invoice')throw new Error('Pedido ainda não está liberado para faturamento.');
     if(order.financedAmount>0&&order.creditStatus!=='approved')throw new Error('O financiamento precisa estar aprovado.');
     const receivableIds=[...(order.receivableIds||[])];
-    if(!receivableIds.length){
-      if(order.cashEntry>0){
-        const entry=await financeService.create({
-          entryType:'receivable',category:'Venda de veículo',description:`Entrada da venda · ${order.plate}`,
-          party:order.customerName,amount:order.cashEntry,dueDate:today(),
-          plate:order.plate,vehicle:order.vehicle,vehicleId:order.vehicleId,
-          origin:'sale',originId:order.salesOrderId,companyId:order.companyId,storeId:order.storeId,actor,
-        });
-        if(order.customerId)await financeService.update(entry,{partyId:order.customerId});
-        receivableIds.push(entry.id);
-      }
-      if(order.financedAmount>0){
-        const entry=await financeService.create({
-          entryType:'receivable',category:'Financiamento',description:`Repasse de financiamento · ${order.plate}`,
-          party:order.bankName||'Banco / financeira',amount:order.financedAmount,dueDate:today(),
-          plate:order.plate,vehicle:order.vehicle,vehicleId:order.vehicleId,
-          origin:'sale',originId:order.salesOrderId,companyId:order.companyId,storeId:order.storeId,actor,
-        });
-        receivableIds.push(entry.id);
-      }
-      const netTrade=Math.max(0,order.tradeInValue-order.tradeInDebt);
-      const covered=order.cashEntry+order.financedAmount+netTrade;
-      const direct=Math.max(0,order.netSalePrice-covered);
-      if(direct>0.01){
-        const entry=await financeService.create({
-          entryType:'receivable',category:'Venda de veículo',description:`Saldo direto da venda · ${order.plate}`,
-          party:order.customerName,amount:direct,dueDate:today(),
-          plate:order.plate,vehicle:order.vehicle,vehicleId:order.vehicleId,
-          origin:'sale',originId:order.salesOrderId,companyId:order.companyId,storeId:order.storeId,actor,
-        });
-        if(order.customerId)await financeService.update(entry,{partyId:order.customerId});
-        receivableIds.push(entry.id);
-      }
+    if(order.cashEntry>0){
+      const signal=await ensureReceivable(
+        order,actor,'signal',order.cashEntry,order.customerName,
+        'Sinal de venda',`Sinal / entrada da venda · ${order.plate}`,
+      );
+      if(signal&&!receivableIds.includes(signal.id))receivableIds.push(signal.id);
+    }
+    if(order.financedAmount>0){
+      const financing=await ensureReceivable(
+        order,actor,'financing',order.financedAmount,order.bankName||'Banco / financeira',
+        'Financiamento',`Repasse de financiamento · ${order.plate}`,
+      );
+      if(financing&&!receivableIds.includes(financing.id))receivableIds.push(financing.id);
+    }
+    const netTrade=Math.max(0,order.tradeInValue-order.tradeInDebt);
+    const covered=order.cashEntry+order.financedAmount+netTrade;
+    const direct=Math.max(0,order.netSalePrice-covered);
+    if(direct>0.01){
+      const balance=await ensureReceivable(
+        order,actor,'direct',direct,order.customerName,
+        'Venda de veículo',`Saldo direto da venda · ${order.plate}`,
+      );
+      if(balance&&!receivableIds.includes(balance.id))receivableIds.push(balance.id);
     }
 
     await reserveVehicle(order,actor,'Faturado');
