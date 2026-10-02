@@ -99,7 +99,7 @@ const VehicleImage = ({ url, compact = false }: {url?: string; compact?: boolean
     </div>;
 };
 
-const VehicleCard = ({ car, index }: {car: CatalogCar; index: number}) => (
+const VehicleCard = ({ car, index }: {key?: React.Key; car: CatalogCar; index: number}) => (
   <article className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
     <VehicleImage url={car.imageUrl}/>
     <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
