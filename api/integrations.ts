@@ -465,14 +465,23 @@ export default async function handler(req:any,res:any){
             description:`MOTYQ · Plano ${String(req.body?.plan||company.plan||'pro').toUpperCase()}`,
           }),
         });
+        const nextPlan=String(req.body?.plan||company.plan||'pro');
+        const nextBilling={...billing,enabled:true,provider:'asaas',updatedAt:new Date().toISOString()};
+        const nextCompany={...company,plan:nextPlan,billing:nextBilling};
+        companies[index]=nextCompany;
+        await saveCompanies(companies);
+        const users=await motyqFirestore.query('users',[{field:'companyId',value:companyId}],250).catch(()=>[]);
+        await Promise.all(users.map((user:any)=>motyqFirestore.patch('users',String(user.id||user.email),{
+          companyBilling:nextBilling,companyPlan:nextPlan,companyStatus:nextCompany.status,
+        }).catch(()=>undefined)));
         const auditId=safe(`audit_billing_update_${companyId}_${Date.now()}`);
         await motyqFirestore.patch('operational_meta',auditId,{
           id:auditId,kind:'audit_event',companyId,storeId:'billing',entityType:'system',entityId:companyId,
-          action:'asaas_subscription_updated',label:'Assinatura Asaas atualizada',
-          details:`assinatura=${subscriptionId} · valor=${amount} · pendentes=${req.body?.updatePendingPayments===true?'sim':'não'}`,
+          action:'asaas_subscription_updated',label:'Plano e assinatura Asaas atualizados',
+          details:`assinatura=${subscriptionId} · plano=${nextPlan} · valor=${amount} · pendentes=${req.body?.updatePendingPayments===true?'sim':'não'}`,
           at:new Date().toISOString(),actorEmail:actor.email,actorName:String(actor.name||actor.email),
         }).catch(()=>undefined);
-        return res.status(200).json({ok:true,subscriptionId,updated});
+        return res.status(200).json({ok:true,subscriptionId,updated,company:nextCompany});
       }
 
       const status=String(req.body?.status||'').toUpperCase();
