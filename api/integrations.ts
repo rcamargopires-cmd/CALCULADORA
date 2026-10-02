@@ -369,6 +369,16 @@ export default async function handler(req:any,res:any){
     const actor=await adminActor(req);
     if(!actor)return res.status(403).json({error:'admin_required'});
     const action=String(req.body?.action||'create-subscription');
+    if(action==='status'){
+      const apiKey=String(process.env.ASAAS_API_KEY||'').trim();
+      const webhookToken=String(process.env.ASAAS_WEBHOOK_TOKEN||'').trim();
+      return res.status(200).json({
+        ok:true,provider:'asaas',
+        environment:String(process.env.ASAAS_ENVIRONMENT||'sandbox'),
+        configured:Boolean(apiKey&&webhookToken),
+        missing:[...(!apiKey?['ASAAS_API_KEY']:[]),...(!webhookToken?['ASAAS_WEBHOOK_TOKEN']:[])],
+      });
+    }
     if(action!=='create-subscription')return res.status(400).json({error:'unsupported_action'});
 
     const companyId=String(req.body?.companyId||'').trim();
