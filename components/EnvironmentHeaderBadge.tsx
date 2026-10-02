@@ -110,14 +110,15 @@ const EnvironmentHeaderBadge: React.FC = () => {
 
   if (!user || !slot) return null;
   const isDirector = String(user.role) === 'director';
+  const isDemo = companyId==='motyq-demo' || companies.find(company=>company.id===companyId)?.environment==='demo';
 
   return createPortal(
-    <div className="motyq-environment-badge flex min-h-12 w-full items-center gap-3 rounded-2xl border border-sky-300/15 bg-sky-300/[0.045] px-3 py-2 md:w-auto md:min-w-[210px]">
+    <div className={`motyq-environment-badge flex min-h-12 w-full items-center gap-3 rounded-2xl border px-3 py-2 md:w-auto md:min-w-[210px] ${isDemo?'border-amber-300/25 bg-amber-300/[0.07]':'border-sky-300/15 bg-sky-300/[0.045]'}`}>
       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-sky-300/15 bg-sky-300/[0.07] text-sky-300">
         <Building2 size={17}/>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-sky-300/75">{isDirector ? 'GRUPO ATIVO' : 'AMBIENTE ATIVO'}</p>
+        <p className={`truncate text-[9px] font-black uppercase tracking-[0.16em] ${isDemo?'text-amber-300':'text-sky-300/75'}`}>{isDemo?'DEMO ISOLADO':isDirector ? 'GRUPO ATIVO' : 'AMBIENTE ATIVO'}</p>
         <p className="truncate text-[12px] font-extrabold text-zinc-100">{companyName}</p>
         <div className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-zinc-500">
           <MapPin size={10} className="shrink-0"/>
