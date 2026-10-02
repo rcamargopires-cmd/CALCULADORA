@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, where } fr
 import { db } from '../firebase';
 import type { FinanceEntry, FinanceEntryStatus, FinanceEntryType, FinanceOrigin, FinanceReversalRequest, User } from '../types';
 import { dmsAuditService } from './dmsAuditService';
+import { canReverseFinance } from './dmsFlowPolicy.mjs';
 
 const LEDGER='operational_meta';
 const safe=(value:string)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
@@ -204,7 +205,7 @@ export const financeService={
     actor:Pick<User,'email'|'name'>,
     reason:string,
   )=>{
-    if(entry.status!=='paid'&&entry.status!=='received')throw new Error('Somente lançamentos baixados podem ser estornados.');
+    if(!canReverseFinance(entry.status))throw new Error('Somente lançamentos baixados podem ser estornados.');
     const stamp=now();
     const patch:Partial<FinanceEntry>={
       status:'pending',
@@ -230,7 +231,7 @@ export const financeService={
   },
 
   requestReversal:async(entry:FinanceEntry,actor:Pick<User,'email'|'name'>,reason:string):Promise<FinanceReversalRequest>=>{
-    if(entry.status!=='paid'&&entry.status!=='received')throw new Error('Este lançamento não possui uma baixa para estornar.');
+    if(!canReverseFinance(entry.status))throw new Error('Este lançamento não possui uma baixa para estornar.');
     const cleanReason=String(reason||'').trim();
     if(!cleanReason)throw new Error('Informe o motivo do estorno.');
     const existing=(await financeService.getReversalRequests(entry.companyId,entry.storeId)).find(item=>item.financeEntryId===entry.id&&item.status==='pending');
