@@ -58,6 +58,7 @@ service cloud.firestore {
     function canFinanceSettle() { return dmsPermission('financeSettle', false, false, true); }
     function canDocuments() { return dmsPermission('documentsView', true, false, false); }
     function canAfterSales() { return dmsPermission('afterSalesView', true, false, false); }
+    function canWorkshop() { return dmsPermission('workshopView', true, false, false); }
     function canReports() { return dmsPermission('reportsView', true, false, false); }
     function canDiagnostics() { return dmsPermission('diagnostics', true, false, false); }
     function opKind(data) { return ('kind' in data) ? data.kind : ''; }
@@ -95,12 +96,13 @@ service cloud.firestore {
         (opKind(data) in ['finance_account','finance_chart_account','finance_cost_center','finance_reconciliation','finance_closing','finance_reversal_request'] && canFinanceView()) ||
         (opKind(data) == 'vehicle_purchase' && canPurchases()) ||
         (opKind(data) == 'sales_order' && canSales()) ||
-        (opKind(data) == 'vehicle_master' && (canStockView() || canPurchases() || canSales() || canPrepView() || canDocuments() || canAfterSales() || canEvaluations())) ||
+        (opKind(data) == 'vehicle_master' && (canStockView() || canPurchases() || canSales() || canPrepView() || canDocuments() || canAfterSales() || canWorkshop() || canEvaluations())) ||
         (opKind(data) == 'stock_movement' && canStockView()) ||
         (opKind(data) == 'vehicle_document_case' && canDocuments()) ||
         (opKind(data) == 'after_sales_case' && canAfterSales()) ||
-        (opKind(data) == 'customer_master' && (canCrm() || canSales())) ||
-        (opKind(data) == 'supplier_master' && (canPrepView() || canPurchases() || canFinanceView() || canAfterSales())) ||
+        (opKind(data) in ['workshop_order','workshop_appointment','workshop_part','workshop_part_movement','workshop_technician','factory_warranty_claim'] && canWorkshop()) ||
+        (opKind(data) == 'customer_master' && (canCrm() || canSales() || canWorkshop())) ||
+        (opKind(data) == 'supplier_master' && (canPrepView() || canPurchases() || canFinanceView() || canAfterSales() || canWorkshop())) ||
         (opKind(data) == 'vehicle_history' && (canPrepView() || canPurchases() || canSales() || canDocuments() || canAfterSales())) ||
         (opKind(data) == 'dms_attachment' && attachmentReadAllowed(data)) ||
         (opKind(data) in ['dms_error','dms_performance'] && canDiagnostics()) ||
@@ -119,8 +121,9 @@ service cloud.firestore {
         (opKind(data) in ['vehicle_master','stock_movement'] && (canStockWrite() || canPurchases() || canSales() || canPrepApprove())) ||
         (opKind(data) == 'vehicle_document_case' && canDocuments()) ||
         (opKind(data) == 'after_sales_case' && canAfterSales()) ||
-        (opKind(data) == 'customer_master' && (canCrm() || canSales())) ||
-        (opKind(data) == 'supplier_master' && (canPrepRequest() || canPurchases() || canFinanceCreate() || canAfterSales())) ||
+        (opKind(data) in ['workshop_order','workshop_appointment','workshop_part','workshop_part_movement','workshop_technician','factory_warranty_claim'] && canWorkshop()) ||
+        (opKind(data) == 'customer_master' && (canCrm() || canSales() || canWorkshop())) ||
+        (opKind(data) == 'supplier_master' && (canPrepRequest() || canPurchases() || canFinanceCreate() || canAfterSales() || canWorkshop())) ||
         (opKind(data) == 'vehicle_history' && (canPrepRequest() || canPrepApprove() || canPurchases() || canSales() || canDocuments() || canAfterSales())) ||
         (opKind(data) == 'dms_attachment' && attachmentWriteAllowed(data)) ||
         (opKind(data) in ['dms_error','dms_performance'] && (isActive() || isEvaluator())) ||
@@ -153,8 +156,9 @@ service cloud.firestore {
         (opKind(oldData) == 'stock_movement' && canStockWrite()) ||
         (opKind(oldData) == 'vehicle_document_case' && canDocuments()) ||
         (opKind(oldData) == 'after_sales_case' && canAfterSales()) ||
-        (opKind(oldData) == 'customer_master' && (canCrm() || canSales())) ||
-        (opKind(oldData) == 'supplier_master' && (canPrepRequest() || canPurchases() || canFinanceCreate() || canAfterSales())) ||
+        (opKind(oldData) in ['workshop_order','workshop_appointment','workshop_part','workshop_part_movement','workshop_technician','factory_warranty_claim'] && canWorkshop()) ||
+        (opKind(oldData) == 'customer_master' && (canCrm() || canSales() || canWorkshop())) ||
+        (opKind(oldData) == 'supplier_master' && (canPrepRequest() || canPurchases() || canFinanceCreate() || canAfterSales() || canWorkshop())) ||
         (opKind(oldData) == 'vehicle_history' && (canPrepRequest() || canPrepApprove() || canPurchases() || canSales() || canDocuments() || canAfterSales())) ||
         (opKind(oldData) == 'data_retention_policy' && canDiagnostics()) ||
         (opKind(oldData) in ['dms_migration_report','dms_integrity_report','dms_migration_version'] && canDiagnostics()) ||
