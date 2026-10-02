@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, BarChart3, CarFront, CircleDollarSign, ClipboardCheck, FileCheck2, FileClock, HeartHandshake, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
+import { Banknote, BarChart3, CarFront, CircleDollarSign, ClipboardCheck, CreditCard, FileCheck2, FileClock, HeartHandshake, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
@@ -176,6 +176,15 @@ const ManagerTopNav: React.FC = () => {
       >
         <BarChart3 size={14}/>
         <span className="motyq-manager-nav-label">BI DMS</span>
+      </button>}
+      {isManager&&<button
+        type="button"
+        title="Assinatura"
+        onClick={() => launcherClick('Assinatura Motyq')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-blue-300 transition-all hover:bg-blue-400/10 hover:text-blue-200"
+      >
+        <CreditCard size={14}/>
+        <span className="motyq-manager-nav-label">ASSINATURA</span>
       </button>}
     </>, target)}
   </>;
