@@ -62,7 +62,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
       {id:'F3.12',label:'Formas e etapas do pagamento da compra',done:true},
       {id:'F3.13',label:'Checklist documental de entrada',done:true},
       {id:'F3.14',label:'Entrada formal no estoque após compra',done:true},
-      {id:'F3.15',label:'Transferência entre unidades com histórico',done:false},
+      {id:'F3.15',label:'Transferência entre unidades com histórico',done:true},
       {id:'F3.16',label:'Consignação com proprietário e vencimentos',done:true},
       {id:'F3.17',label:'Dossiê completo do custo de aquisição',done:true},
     ],
