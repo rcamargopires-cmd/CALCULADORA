@@ -252,7 +252,7 @@ export interface FinanceEntry {
 export type PrepPayableStatus='pending'|'paid'|'cancelled';
 export type VehicleHistoryEventType='prep_requested'|'prep_approved'|'prep_rejected'|'prep_paid'|'prep_completed'|'prep_cancelled';
 export interface PrepService {
-  id:string; type:string; provider:string; supplierId?:string; status:PrepServiceStatus; estimatedCost:number; finalCost:number;
+  id:string; type:string; provider:string; supplierId?:string; quoteGroupId?:string; status:PrepServiceStatus; estimatedCost:number; finalCost:number;
   sentAt?:string; dueAt?:string; returnedAt?:string; notes?:string;
   requestedAt?:string; requestedBy?:string; requestedByName?:string;
   approvedAt?:string; approvedBy?:string; approvedByName?:string;
