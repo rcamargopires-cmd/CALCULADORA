@@ -55,7 +55,11 @@ const closeBraces=(rules.match(/\}/g)||[]).length;
 if(openBraces!==closeBraces)fail(`Firestore rules braces unbalanced: ${openBraces} open / ${closeBraces} close.`);
 if(!rules.includes("match /operational_meta/{itemId}"))fail('operational_meta rule missing.');
 if(!rules.includes("allow update: if opKind(resource.data) != 'audit_event' && ("))fail('Audit events are not protected against update.');
-if(rules.includes("match /deals/{dealId} {\n      allow read")&&rules.includes("match /deals/{dealId} {")&&rules.includes("allow update: if opKind(resource.data) != 'audit_event'"))fail('Audit guard leaked into deals rule.');
+const dealsStart=rules.indexOf("match /deals/{dealId}");
+const dealsEnd=rules.indexOf("match /evaluation_requests/{requestId}",dealsStart);
+const dealsBlock=dealsStart>=0&&dealsEnd>dealsStart?rules.slice(dealsStart,dealsEnd):'';
+if(!dealsBlock)fail('Deals rules block missing.');
+if(dealsBlock.includes("opKind(resource.data) != 'audit_event'"))fail('Audit guard leaked into deals rule.');
 
 const firebaseConfig=JSON.parse(read('firebase.json'));
 if(!firebaseConfig.firestore?.[0]?.rules||!firebaseConfig.firestore?.[0]?.indexes)fail('Firebase rules/index deploy config missing.');
