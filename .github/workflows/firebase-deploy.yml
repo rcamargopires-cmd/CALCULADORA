@@ -2,6 +2,15 @@ name: Firebase Rules Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: GitHub Environment que contém as credenciais Firebase
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
   push:
     branches: [main]
     paths:
@@ -18,25 +27,33 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'production' }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Verify Firebase credential
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "Secret FIREBASE_SERVICE_ACCOUNT_JSON is required."
+            echo "Secret FIREBASE_SERVICE_ACCOUNT_JSON is required in this GitHub Environment."
             exit 1
           fi
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+
       - name: Install Firebase CLI
         run: npm install --global firebase-tools
+
       - name: Deploy rules and indexes
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_DATABASE_ID: ${{ secrets.FIREBASE_DATABASE_ID }}
         run: |
+          PROJECT_ID="${FIREBASE_PROJECT_ID:-gen-lang-client-0531247430}"
+          DATABASE_ID="${FIREBASE_DATABASE_ID:-ai-studio-447676b4-da38-4e69-b22f-6aa10f85367b}"
+          echo "Deploying Firebase rules to project=$PROJECT_ID database=$DATABASE_ID environment=${{ job.environment }}"
           firebase deploy \
-            --project gen-lang-client-0531247430 \
+            --project "$PROJECT_ID" \
             --only firestore:rules,firestore:indexes,storage \
             --non-interactive
