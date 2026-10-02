@@ -2,6 +2,11 @@ export type BankType = 'volks' | 'others';
 export type UserRole = 'admin' | 'manager' | 'director' | 'seller' | 'user' | 'reception' | 'evaluator';
 export type DmsAccessProfile = 'management' | 'preparation' | 'finance';
 export type DmsPermissionKey =
+  | 'crmView'
+  | 'evaluationsView'
+  | 'proposalsView'
+  | 'purchasesView'
+  | 'salesView'
   | 'stockView'
   | 'stockWrite'
   | 'prepView'
@@ -10,6 +15,10 @@ export type DmsPermissionKey =
   | 'financeView'
   | 'financeCreate'
   | 'financeSettle'
+  | 'documentsView'
+  | 'afterSalesView'
+  | 'assetsView'
+  | 'reportsView'
   | 'diagnostics'
   | 'usersManage';
 export type UserStatus = 'active' | 'inactive';
