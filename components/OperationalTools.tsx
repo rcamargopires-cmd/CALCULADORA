@@ -40,6 +40,7 @@ import DmsRoadmapPanel from './DmsRoadmapPanel';
 import VehiclePurchasePanel from './VehiclePurchasePanel';
 import SalesOrderPanel from './SalesOrderPanel';
 import MasterDataPanel from './MasterDataPanel';
+import VehicleDossierPanel from './VehicleDossierPanel';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -227,6 +228,7 @@ const OperationalTools: React.FC = () => {
     {isManager && storeId && <VehiclePurchasePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <SalesOrderPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <MasterDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {isManager && storeId && <VehicleDossierPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('executiveInsights') && <ExecutiveInsights/>}
     {isManager && storeId && has('smartAlerts') && <SmartAlerts companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('aiManager') && <AIManagerV2/>}
