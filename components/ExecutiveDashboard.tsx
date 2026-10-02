@@ -12,6 +12,7 @@ import {
 } from '../types';
 import { normalize } from '../services/operationalDataService';
 import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
+import { currentStockService } from '../services/currentStockService';
 import { DEMO_COMPANY_ID, demoStockRows, demoPerformanceSnapshots } from '../services/demoSeedService';
 import { evaluationQueueService, EvaluationQueueRequest } from '../services/evaluationQueueService';
 import { showroomFlowService } from '../services/showroomFlowService';
@@ -209,6 +210,16 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
       window.removeEventListener(STORE_SCOPE_EVENT, sync);
     };
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!scope.companyId || !scope.storeId || scope.companyId === DEMO_COMPANY_ID) return;
+    return currentStockService.subscribe(
+      scope.companyId,
+      scope.storeId,
+      rows => setStock(rows),
+      error => console.warn('MOTYQ dashboard live stock unavailable', error),
+    );
+  }, [scope.companyId, scope.storeId]);
 
   useEffect(() => {
     if (!scope.companyId || !scope.storeId) return;
