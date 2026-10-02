@@ -1,6 +1,6 @@
-import { collection, doc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { FinanceEntry, FinanceEntryStatus, FinanceEntryType, FinanceOrigin, User } from '../types';
+import type { FinanceEntry, FinanceEntryStatus, FinanceEntryType, FinanceOrigin, FinanceReversalRequest, User } from '../types';
 import { dmsAuditService } from './dmsAuditService';
 
 const LEDGER='operational_meta';
@@ -198,6 +198,99 @@ export const financeService={
     }).catch(()=>undefined);
     return {...entry,...patch};
   },
+
+  reverseSettlement:async(
+    entry:FinanceEntry,
+    actor:Pick<User,'email'|'name'>,
+    reason:string,
+  )=>{
+    if(entry.status!=='paid'&&entry.status!=='received')throw new Error('Somente lançamentos baixados podem ser estornados.');
+    const stamp=now();
+    const patch:Partial<FinanceEntry>={
+      status:'pending',
+      lastSettledAt:entry.settledAt||stamp,
+      settledAt:undefined,
+      reversedAt:stamp,
+      reversedBy:actor.email,
+      reversedByName:actor.name,
+      reversalReason:reason,
+      updatedAt:stamp,
+    };
+    await setDoc(doc(db,LEDGER,entry.id),{
+      ...patch,
+      settledAt:null,
+    },{merge:true});
+    await dmsAuditService.record({
+      companyId:entry.companyId,storeId:entry.storeId,entityType:'finance',entityId:entry.id,
+      vehicleId:entry.vehicleId,plate:entry.plate,action:'finance_settlement_reversed',
+      label:entry.entryType==='payable'?'Pagamento estornado':'Recebimento estornado',
+      details:reason,amount:Number(entry.amount)||0,actor,
+    }).catch(()=>undefined);
+    return{...entry,...patch};
+  },
+
+  requestReversal:async(entry:FinanceEntry,actor:Pick<User,'email'|'name'>,reason:string):Promise<FinanceReversalRequest>=>{
+    if(entry.status!=='paid'&&entry.status!=='received')throw new Error('Este lançamento não possui uma baixa para estornar.');
+    const cleanReason=String(reason||'').trim();
+    if(!cleanReason)throw new Error('Informe o motivo do estorno.');
+    const existing=(await financeService.getReversalRequests(entry.companyId,entry.storeId)).find(item=>item.financeEntryId===entry.id&&item.status==='pending');
+    if(existing)return existing;
+    const stamp=now();
+    const id=safe(`finance_reversal_${entry.companyId}_${entry.storeId}_${entry.id}_${Date.now()}`);
+    const request:FinanceReversalRequest={
+      id,kind:'finance_reversal_request',companyId:entry.companyId,storeId:entry.storeId,
+      financeEntryId:entry.id,entryType:entry.entryType,amount:Number(entry.amount)||0,
+      description:entry.description,party:entry.party,reason:cleanReason,status:'pending',
+      requestedAt:stamp,requestedBy:actor.email,requestedByName:actor.name,
+    };
+    await setDoc(doc(db,LEDGER,id),request,{merge:false});
+    await dmsAuditService.record({
+      companyId:entry.companyId,storeId:entry.storeId,entityType:'finance',entityId:entry.id,
+      vehicleId:entry.vehicleId,plate:entry.plate,action:'finance_reversal_requested',
+      label:'Estorno financeiro solicitado',details:cleanReason,amount:Number(entry.amount)||0,actor,
+    }).catch(()=>undefined);
+    return request;
+  },
+
+  decideReversal:async(
+    request:FinanceReversalRequest,
+    approved:boolean,
+    actor:Pick<User,'email'|'name'>,
+    note='',
+  )=>{
+    if(request.status!=='pending')return request;
+    const entrySnap=await getDoc(doc(db,LEDGER,request.financeEntryId));
+    if(!entrySnap.exists())throw new Error('Lançamento financeiro do pedido de estorno não foi encontrado.');
+    const entry=entrySnap.data() as FinanceEntry;
+    if(approved)await financeService.reverseSettlement(entry,actor,request.reason);
+    const stamp=now();
+    const next:FinanceReversalRequest={
+      ...request,status:approved?'approved':'rejected',decidedAt:stamp,
+      decidedBy:actor.email,decidedByName:actor.name,decisionNote:String(note||'').trim(),
+    };
+    await setDoc(doc(db,LEDGER,request.id),next,{merge:true});
+    await dmsAuditService.record({
+      companyId:request.companyId,storeId:request.storeId,entityType:'finance',entityId:request.financeEntryId,
+      action:approved?'finance_reversal_approved':'finance_reversal_rejected',
+      label:approved?'Estorno financeiro aprovado':'Estorno financeiro rejeitado',
+      details:[request.reason,note].filter(Boolean).join(' · '),amount:request.amount,actor,
+    }).catch(()=>undefined);
+    return next;
+  },
+
+  getReversalRequests:async(companyId:string,storeId:string):Promise<FinanceReversalRequest[]>=>{
+    const snap=await getDocs(query(collection(db,LEDGER),where('companyId','==',companyId),where('storeId','==',storeId)));
+    return snap.docs.map(item=>item.data() as any)
+      .filter(item=>item.kind==='finance_reversal_request')
+      .map(item=>item as FinanceReversalRequest)
+      .sort((a,b)=>String(b.requestedAt||'').localeCompare(String(a.requestedAt||'')));
+  },
+
+  subscribeReversalRequests:(companyId:string,storeId:string,onItems:(items:FinanceReversalRequest[])=>void,onError?:(error:unknown)=>void)=>onSnapshot(
+    query(collection(db,LEDGER),where('companyId','==',companyId),where('storeId','==',storeId)),
+    snap=>onItems(snap.docs.map(item=>item.data() as any).filter(item=>item.kind==='finance_reversal_request').map(item=>item as FinanceReversalRequest).sort((a,b)=>String(b.requestedAt||'').localeCompare(String(a.requestedAt||'')))),
+    error=>onError?.(error),
+  ),
 
   cancel:async(entry:FinanceEntry)=>{
     const patch:Partial<FinanceEntry>={status:'cancelled',updatedAt:now()};
