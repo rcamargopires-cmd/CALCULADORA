@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, CircleDollarSign, ListTodo } from 'lucide-react';
+import { Banknote, CircleDollarSign, ListTodo, Wrench } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
 import { userService } from '../services/userService';
+import { dmsPermissions } from '../services/dmsPermissions';
 
 const launcherClick = (title: string) => {
   const launcher = document.querySelector(`button[title="${title}"]`) as HTMLButtonElement | null;
@@ -39,7 +40,8 @@ const ManagerTopNav: React.FC = () => {
     return () => window.clearTimeout(id);
   }, [user]);
 
-  const isManager = user?.role === 'admin' || user?.role === 'manager';
+  const permissions = dmsPermissions(user);
+  const isManager = permissions.management;
 
   return <>
     <style>{`
@@ -57,8 +59,8 @@ const ManagerTopNav: React.FC = () => {
       }
     `}</style>
 
-    {isManager && target && createPortal(<>
-      <button
+    {target && createPortal(<>
+      {isManager&&<button
         type="button"
         title="Gestão Hoje"
         onClick={() => launcherClick('Centro de Ação Motyq')}
@@ -66,8 +68,8 @@ const ManagerTopNav: React.FC = () => {
       >
         <ListTodo size={14}/>
         <span className="motyq-manager-nav-label">GESTÃO HOJE</span>
-      </button>
-      <button
+      </button>}
+      {isManager&&<button
         type="button"
         title="Impacto Motyq"
         onClick={() => launcherClick('Impacto Motyq')}
@@ -75,8 +77,17 @@ const ManagerTopNav: React.FC = () => {
       >
         <CircleDollarSign size={14}/>
         <span className="motyq-manager-nav-label">IMPACTO</span>
-      </button>
-      <button
+      </button>}
+      {permissions.prepView&&<button
+        type="button"
+        title="Preparação"
+        onClick={() => launcherClick('PrepTrack · preparação')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-amber-300 transition-all hover:bg-amber-400/10 hover:text-amber-200"
+      >
+        <Wrench size={14}/>
+        <span className="motyq-manager-nav-label">PREPARAÇÃO</span>
+      </button>}
+      {permissions.financeView&&<button
         type="button"
         title="Financeiro"
         onClick={() => launcherClick('Financeiro Motyq')}
@@ -84,7 +95,7 @@ const ManagerTopNav: React.FC = () => {
       >
         <Banknote size={14}/>
         <span className="motyq-manager-nav-label">FINANCEIRO</span>
-      </button>
+      </button>}
     </>, target)}
   </>;
 };
