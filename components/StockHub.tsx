@@ -24,8 +24,8 @@ const StockHub: React.FC<Props> = ({ canStockIntelligence, canAssetGuard, storeN
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
 
-  const launch = (key: 'manual' | 'data' | 'market' | 'correction' | 'prep' | 'payables' | 'assets') => {
-    if ((key === 'manual' || key === 'market' || key === 'correction' || key === 'prep' || key === 'payables') && !canStockIntelligence) {
+  const launch = (key: 'manual' | 'data' | 'market' | 'correction' | 'prep' | 'assets') => {
+    if ((key === 'manual' || key === 'market' || key === 'correction' || key === 'prep') && !canStockIntelligence) {
       setFeedback('Stock Intelligence não está liberado no plano atual.');
       return;
     }
@@ -39,7 +39,6 @@ const StockHub: React.FC<Props> = ({ canStockIntelligence, canAssetGuard, storeN
     if (key === 'market') found = clickTitle('Market Presence');
     if (key === 'correction') found = clickTitle('Market Presence · corrigir');
     if (key === 'prep') found = clickTitle('PrepTrack · preparação');
-    if (key === 'payables') found = clickTitle('Contas a pagar · preparação');
     if (key === 'assets') found = clickTitle('AssetGuard');
     if (!found) {
       setFeedback('Este módulo ainda está carregando. Tente novamente em instantes.');
@@ -55,7 +54,6 @@ const StockHub: React.FC<Props> = ({ canStockIntelligence, canAssetGuard, storeN
     { key: 'market' as const, icon: <Megaphone size={19}/>, eyebrow: 'Vitrine Digital', title: 'Market Presence', text: 'Cruza estoque físico com anúncio, fotos, preço, KM e capital sem exposição.', available: canStockIntelligence },
     { key: 'correction' as const, icon: <PencilLine size={19}/>, eyebrow: 'Exceções', title: 'Correções de Presença', text: 'Corrija anúncio, fotos, URL, preço ou KM sem refazer a auditoria inteira.', available: canStockIntelligence },
     { key: 'prep' as const, icon: <Wrench size={19}/>, eyebrow: 'Preparação', title: 'PrepTrack', text: 'Serviços, fornecedores, custos, prazos, atrasos e destino do veículo.', available: canStockIntelligence },
-    { key: 'payables' as const, icon: <Database size={19}/>, eyebrow: 'Financeiro', title: 'Contas a pagar', text: 'Preparações aprovadas pelo gerente aguardando pagamento ao fornecedor.', available: canStockIntelligence },
     { key: 'assets' as const, icon: <KeyRound size={19}/>, eyebrow: 'Ativos', title: 'AssetGuard', text: 'Manuais, chaves, localização, solicitações, transporte e SLA.', available: canAssetGuard },
   ];
 
@@ -65,7 +63,6 @@ const StockHub: React.FC<Props> = ({ canStockIntelligence, canAssetGuard, storeN
       body.motyq-graphite button[title="Market Presence"],
       body.motyq-graphite button[title="Market Presence · corrigir"],
       body.motyq-graphite button[title="PrepTrack · preparação"],
-      body.motyq-graphite button[title="Contas a pagar · preparação"],
       body.motyq-graphite button[title="AssetGuard"],
       body.motyq-graphite button.fixed.bottom-5.left-5 {
         display: none !important;
