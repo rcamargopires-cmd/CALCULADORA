@@ -2,7 +2,7 @@
 
 Este arquivo é a fonte de acompanhamento do projeto. Um item só é considerado concluído quando está marcado com `[x]` aqui e no painel **PLANO** do Motyq.
 
-**Progresso atual:** 71/160 itens concluídos.
+**Progresso atual:** 112/160 itens concluídos (70%).
 
 ## Regras do projeto
 
@@ -58,7 +58,7 @@ Cada pessoa acessa somente o necessário para sua responsabilidade.
 
 Explicar de onde cada carro veio, quanto custou, quem vendeu e como entrou na operação.
 
-**Progresso da fase:** 14/17
+**Progresso da fase:** 17/17
 
 - [x] **F3.01** Cadastro manual de veículo com FIPE
 - [x] **F3.02** Importação de estoque sem duplicar fonte de verdade
@@ -71,18 +71,18 @@ Explicar de onde cada carro veio, quanto custou, quem vendeu e como entrou na op
 - [x] **F3.09** Quitação de financiamento do veículo comprado
 - [x] **F3.10** Débitos, multas e pendências na compra
 - [x] **F3.11** Conta a pagar da compra
-- [ ] **F3.12** Formas e etapas do pagamento da compra
+- [x] **F3.12** Formas e etapas do pagamento da compra
 - [x] **F3.13** Checklist documental de entrada
 - [x] **F3.14** Entrada formal no estoque após compra
-- [ ] **F3.15** Transferência entre unidades com histórico
-- [ ] **F3.16** Consignação com proprietário e vencimentos
+- [x] **F3.15** Transferência entre unidades com histórico
+- [x] **F3.16** Consignação com proprietário e vencimentos
 - [x] **F3.17** Dossiê completo do custo de aquisição
 
 ## Fase 4 · Preparação e fornecedores
 
 Controlar solicitação, aprovação, execução, custo e pagamento de cada serviço.
 
-**Progresso da fase:** 7/15
+**Progresso da fase:** 12/15
 
 - [x] **F4.01** Criação automática de ordem no PrepTrack
 - [x] **F4.02** Lançamento de serviço, fornecedor, valor e prazo
@@ -91,30 +91,30 @@ Controlar solicitação, aprovação, execução, custo e pagamento de cada serv
 - [x] **F4.05** Custo aprovado refletindo no custo do veículo
 - [x] **F4.06** Pagamento do fornecedor ligado à placa/vehicleId
 - [x] **F4.07** Histórico do veículo com solicitação, aprovação e pagamento
-- [ ] **F4.08** Rejeição de orçamento com motivo
-- [ ] **F4.09** Múltiplos orçamentos para o mesmo serviço
+- [x] **F4.08** Rejeição de orçamento com motivo
+- [x] **F4.09** Múltiplos orçamentos para o mesmo serviço
 - [ ] **F4.10** Anexo de orçamento, nota fiscal e comprovante
 - [ ] **F4.11** Fotos antes/depois da preparação
 - [ ] **F4.12** Retrabalho e garantia do fornecedor
-- [ ] **F4.13** SLA e indicadores por fornecedor
-- [ ] **F4.14** Cadastro/edição de fornecedor com dados bancários e Pix
-- [ ] **F4.15** Relatório de custo de preparação por carro e fornecedor
+- [x] **F4.13** SLA e indicadores por fornecedor
+- [x] **F4.14** Cadastro/edição de fornecedor com dados bancários e Pix
+- [x] **F4.15** Relatório de custo de preparação por carro e fornecedor
 
 ## Fase 5 · CRM, cliente e negociação
 
 Levar o cliente do primeiro contato até uma proposta sem redigitação.
 
-**Progresso da fase:** 4/12
+**Progresso da fase:** 9/12
 
 - [x] **F5.01** CRM/showroom base
 - [x] **F5.02** Cadastro mestre de cliente criado a partir do atendimento
 - [x] **F5.03** Histórico de atendimento e follow-up
 - [x] **F5.04** Propostas comerciais versionadas
-- [ ] **F5.05** Tela completa para consultar/editar cliente mestre
-- [ ] **F5.06** CPF/CNPJ, endereço e documentos do cliente
-- [ ] **F5.07** Deduplicação de clientes antigos
-- [ ] **F5.08** Proposta vinculada obrigatoriamente ao vehicleId
-- [ ] **F5.09** Reserva do veículo por proposta
+- [x] **F5.05** Tela completa para consultar/editar cliente mestre
+- [x] **F5.06** CPF/CNPJ, endereço e documentos do cliente
+- [x] **F5.07** Deduplicação de clientes antigos
+- [x] **F5.08** Proposta vinculada obrigatoriamente ao vehicleId
+- [x] **F5.09** Reserva do veículo por proposta
 - [ ] **F5.10** Prazo de validade e expiração automática da reserva
 - [ ] **F5.11** Aceite digital da proposta
 - [ ] **F5.12** LGPD, consentimento e trilha de dados pessoais
@@ -123,68 +123,68 @@ Levar o cliente do primeiro contato até uma proposta sem redigitação.
 
 Transformar proposta aceita em venda completa, sem atalhos paralelos.
 
-**Progresso da fase:** 11/16
+**Progresso da fase:** 16/16
 
 - [x] **F6.01** Pedido de Venda central
 - [x] **F6.02** Proposta aceita gerar Pedido de Venda
 - [x] **F6.03** Reserva automática do estoque ao abrir pedido
 - [x] **F6.04** Aprovação gerencial da venda
-- [ ] **F6.05** Entrada/sinal do cliente
-- [ ] **F6.06** Financiamento com banco, status e retorno
+- [x] **F6.05** Entrada/sinal do cliente
+- [x] **F6.06** Financiamento com banco, status e retorno
 - [x] **F6.07** Análise/liberação de crédito
 - [x] **F6.08** Troca vinculada ao pedido
 - [x] **F6.09** Troca aceita virar compra e novo estoque
-- [ ] **F6.10** Comissão ligada ao pedido de venda
+- [x] **F6.10** Comissão ligada ao pedido de venda
 - [x] **F6.11** Faturamento do veículo
 - [x] **F6.12** Contas a receber geradas pelo faturamento
-- [ ] **F6.13** Checklist de entrega
+- [x] **F6.13** Checklist de entrega
 - [x] **F6.14** Entrega registrada com data e responsável
 - [x] **F6.15** Saída definitiva do estoque somente após evento correto
-- [ ] **F6.16** Cancelamento/estorno de venda com reversões automáticas
+- [x] **F6.16** Cancelamento/estorno de venda com reversões automáticas
 
 ## Fase 7 · Financeiro completo
 
 Todo real que entra ou sai deve ter origem, vencimento, parte, status e responsável.
 
-**Progresso da fase:** 5/18
+**Progresso da fase:** 17/18
 
 - [x] **F7.01** Contas a pagar base
 - [x] **F7.02** Contas a receber base
 - [x] **F7.03** Fluxo de caixa realizado e projetado inicial
 - [x] **F7.04** Lançamento manual financeiro
 - [x] **F7.05** Baixa de pagamento e recebimento
-- [ ] **F7.06** Bancos e contas bancárias
-- [ ] **F7.07** Caixas físicos por unidade
-- [ ] **F7.08** Parcelas e recorrências
-- [ ] **F7.09** Conciliação bancária
-- [ ] **F7.10** Plano de contas
-- [ ] **F7.11** Centros de custo
-- [ ] **F7.12** DRE gerencial
-- [ ] **F7.13** Comissões a pagar
-- [ ] **F7.14** Recebíveis de bancos/financiamento
+- [x] **F7.06** Bancos e contas bancárias
+- [x] **F7.07** Caixas físicos por unidade
+- [x] **F7.08** Parcelas e recorrências
+- [x] **F7.09** Conciliação bancária
+- [x] **F7.10** Plano de contas
+- [x] **F7.11** Centros de custo
+- [x] **F7.12** DRE gerencial
+- [x] **F7.13** Comissões a pagar
+- [x] **F7.14** Recebíveis de bancos/financiamento
 - [ ] **F7.15** Anexo de comprovantes e documentos financeiros
-- [ ] **F7.16** Estorno de baixa com aprovação e auditoria
-- [ ] **F7.17** Aging de contas e alertas de vencimento
-- [ ] **F7.18** Fechamento diário/mensal de caixa
+- [x] **F7.16** Estorno de baixa com aprovação e auditoria
+- [x] **F7.17** Aging de contas e alertas de vencimento
+- [x] **F7.18** Fechamento diário/mensal de caixa
 
 ## Fase 8 · Documentação, fiscal e pós-venda
 
 Acompanhar a vida documental e fiscal do carro até depois da entrega.
 
-**Progresso da fase:** 0/12
+**Progresso da fase:** 10/12
 
-- [ ] **F8.01** Dossiê documental do veículo
-- [ ] **F8.02** ATPV-e / transferência
-- [ ] **F8.03** CRLV e documentos de entrada/saída
-- [ ] **F8.04** Gravame
-- [ ] **F8.05** Multas e débitos
-- [ ] **F8.06** Despachante e custos documentais
+- [x] **F8.01** Dossiê documental do veículo
+- [x] **F8.02** ATPV-e / transferência
+- [x] **F8.03** CRLV e documentos de entrada/saída
+- [x] **F8.04** Gravame
+- [x] **F8.05** Multas e débitos
+- [x] **F8.06** Despachante e custos documentais
 - [ ] **F8.07** Nota fiscal / integração fiscal
 - [ ] **F8.08** Upload e organização de documentos
-- [ ] **F8.09** Garantia do veículo vendido
-- [ ] **F8.10** Ocorrências de pós-venda
-- [ ] **F8.11** Custos de garantia/pós-venda
-- [ ] **F8.12** Pesquisa de satisfação e retorno do cliente
+- [x] **F8.09** Garantia do veículo vendido
+- [x] **F8.10** Ocorrências de pós-venda
+- [x] **F8.11** Custos de garantia/pós-venda
+- [x] **F8.12** Pesquisa de satisfação e retorno do cliente
 
 ## Fase 9 · Gestão, BI e relatórios
 
@@ -228,10 +228,10 @@ Permitir vender o Motyq para várias lojas sem misturar dados ou configurações
 
 O sistema precisa ser confiável o bastante para carregar estoque, dinheiro e histórico real.
 
-**Progresso da fase:** 0/12
+**Progresso da fase:** 1/12
 
 - [ ] **F11.01** Testes automatizados dos fluxos críticos
-- [ ] **F11.02** CI com typecheck, build e testes a cada alteração
+- [x] **F11.02** CI com typecheck, build e testes a cada alteração
 - [ ] **F11.03** Regras Firestore versionadas e publicadas por ambiente
 - [ ] **F11.04** Índices Firestore versionados
 - [ ] **F11.05** Backup periódico e procedimento de restauração
