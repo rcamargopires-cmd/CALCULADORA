@@ -36,42 +36,54 @@ import AdminControlCenter from './AdminControlCenter';
 import BillingGate from './BillingGate';
 import { ADMIN_HOME_SCOPE, COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
 import { CurrentStockProvider } from '../contexts/CurrentStockContext';
+import DmsRoleHome from './DmsRoleHome';
 
 const Safe = ({ name, children }: { name: string; children: React.ReactNode }) => (
   <ModuleErrorBoundary name={name}>{children}</ModuleErrorBoundary>
 );
 
-const StandardMotyq = ({ user }: { user: User | null }) => <CurrentStockProvider user={user}>
-  <ModuleErrorBoundary name="App" critical><App /></ModuleErrorBoundary>
-  <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
-  {user && ['seller', 'user'].includes(String(user.role)) && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
-  <Safe name="OperationalTools"><OperationalTools /></Safe>
-  <Safe name="TradeCheckShell"><TradeCheckShell /></Safe>
-  <Safe name="MarketPresenceCorrectionShell"><MarketPresenceCorrectionShell /></Safe>
-  <Safe name="UnifiedStockAuditNotice"><UnifiedStockAuditNotice /></Safe>
-  <Safe name="EnvironmentHeaderBadge"><EnvironmentHeaderBadge /></Safe>
-  <Safe name="SellerShowroomSoundAlert"><SellerShowroomSoundAlert /></Safe>
-  <Safe name="ShowroomDealLinkBridge"><ShowroomDealLinkBridge /></Safe>
-  <Safe name="GroupStockModule"><GroupStockModule /></Safe>
-  <Safe name="GroupStockHostRepair"><GroupStockHostRepair /></Safe>
-  <Safe name="ManagerShowroomProposalsShell"><ManagerShowroomProposalsShell /></Safe>
-  <Safe name="SellerShowroomAutoReset"><SellerShowroomAutoReset /></Safe>
-  {user && ['seller', 'user'].includes(String(user.role)) && <>
-    <Safe name="SellerAgendaDock"><SellerAgendaDock /></Safe>
-    <Safe name="MobileSellerQuickActions"><MobileSellerQuickActions /></Safe>
-    <Safe name="SellerMobileHome"><SellerMobileHome /></Safe>
-    <Safe name="SellerDeliveryAgendaShortcut"><SellerDeliveryAgendaShortcut /></Safe>
-    <Safe name="SellerShowroomHistory"><SellerShowroomHistory user={user}/></Safe>
-  </>}
-  {user && ['manager', 'admin'].includes(String(user.role)) &&
-    <Safe name="ManagerShowroomHistory"><ManagerShowroomHistory user={user}/></Safe>}
-  <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
-  <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
-  <Safe name="MarketIQShell"><MarketIQShell /></Safe>
-  {user && <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>}
-  <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
-  <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
-</CurrentStockProvider>;
+const StandardMotyq = ({ user }: { user: User | null }) => {
+  const restrictedDms = user?.role==='manager' && ['preparation','finance'].includes(String(user.dmsAccessProfile||''));
+  if(restrictedDms&&user){
+    return <CurrentStockProvider user={user}>
+      <ModuleErrorBoundary name="DmsRoleHome" critical><DmsRoleHome user={user}/></ModuleErrorBoundary>
+      <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
+      <Safe name="OperationalTools"><OperationalTools /></Safe>
+      <Safe name="EnvironmentHeaderBadge"><EnvironmentHeaderBadge /></Safe>
+    </CurrentStockProvider>;
+  }
+  return <CurrentStockProvider user={user}>
+    <ModuleErrorBoundary name="App" critical><App /></ModuleErrorBoundary>
+    <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
+    {user && ['seller', 'user'].includes(String(user.role)) && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
+    <Safe name="OperationalTools"><OperationalTools /></Safe>
+    <Safe name="TradeCheckShell"><TradeCheckShell /></Safe>
+    <Safe name="MarketPresenceCorrectionShell"><MarketPresenceCorrectionShell /></Safe>
+    <Safe name="UnifiedStockAuditNotice"><UnifiedStockAuditNotice /></Safe>
+    <Safe name="EnvironmentHeaderBadge"><EnvironmentHeaderBadge /></Safe>
+    <Safe name="SellerShowroomSoundAlert"><SellerShowroomSoundAlert /></Safe>
+    <Safe name="ShowroomDealLinkBridge"><ShowroomDealLinkBridge /></Safe>
+    <Safe name="GroupStockModule"><GroupStockModule /></Safe>
+    <Safe name="GroupStockHostRepair"><GroupStockHostRepair /></Safe>
+    <Safe name="ManagerShowroomProposalsShell"><ManagerShowroomProposalsShell /></Safe>
+    <Safe name="SellerShowroomAutoReset"><SellerShowroomAutoReset /></Safe>
+    {user && ['seller', 'user'].includes(String(user.role)) && <>
+      <Safe name="SellerAgendaDock"><SellerAgendaDock /></Safe>
+      <Safe name="MobileSellerQuickActions"><MobileSellerQuickActions /></Safe>
+      <Safe name="SellerMobileHome"><SellerMobileHome /></Safe>
+      <Safe name="SellerDeliveryAgendaShortcut"><SellerDeliveryAgendaShortcut /></Safe>
+      <Safe name="SellerShowroomHistory"><SellerShowroomHistory user={user}/></Safe>
+    </>}
+    {user && ['manager', 'admin'].includes(String(user.role)) &&
+      <Safe name="ManagerShowroomHistory"><ManagerShowroomHistory user={user}/></Safe>}
+    <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
+    <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
+    <Safe name="MarketIQShell"><MarketIQShell /></Safe>
+    {user && <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>}
+    <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
+    <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
+  </CurrentStockProvider>;
+};
 
 const EvaluatorMotyq = ({ user }: { user: User }) => <>
   <ModuleErrorBoundary name="EvaluatorWorkspace" critical><EvaluatorWorkspace user={user}/></ModuleErrorBoundary>
