@@ -94,7 +94,7 @@ export const manualStockService={
     const previousPrep=Number(existing.prepCost)||0;
     const purchaseCost=Number(existing.purchaseCost)||Math.max(0,(Number(existing.cost)||0)-previousPrep);
     const prepCost=(order.services||[])
-      .filter(service=>service.status!=='cancelled')
+      .filter(service=>['approved','in_service','waiting_part','done'].includes(service.status))
       .reduce((sum,service)=>sum+(Number(service.finalCost)||Number(service.estimatedCost)||0),0);
 
     const status=order.sold||order.status==='delivery'||order.status==='delivered'
