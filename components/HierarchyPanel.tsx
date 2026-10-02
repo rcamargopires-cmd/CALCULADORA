@@ -1,22 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Plus, ShieldCheck, SlidersHorizontal, Trash2, UserCog, Users, X } from 'lucide-react';
-import { Company, SellerGoals, Store, User, UserRole, UserStatus } from '../types';
+import { Company, DmsAccessProfile, SellerGoals, Store, User, UserRole, UserStatus } from '../types';
+import { dmsAccessLabel } from '../services/dmsPermissions';
 import { userService } from '../services/userService';
 import { companyIdForUser, companyService, DEFAULT_COMPANY } from '../services/companyService';
 import { COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
 
-const roleLabel = (role: UserRole) =>
-  role === 'admin' ? 'Administrador master' :
-  role === 'director' ? 'Diretoria' :
-  role === 'manager' ? 'Gestor' :
-  role === 'reception' ? 'Recepção' :
-  role === 'evaluator' ? 'Avaliador MarketIQ' : 'Vendedor';
+const roleLabel = (user: User) => dmsAccessLabel(user);
 
 const DEFAULT_GOALS: SellerGoals = { monthly: 15, firstHalf: 6, capture: 60, margin: 8 };
 const emptyForm = {
   name: '',
   email: '',
   role: 'seller' as UserRole,
+  dmsAccessProfile: 'management' as DmsAccessProfile,
   status: 'active' as UserStatus,
   storeId: '',
 };
@@ -94,6 +91,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       name: user.name || '',
       email: user.email || '',
       role: user.role === 'user' ? 'seller' : user.role,
+      dmsAccessProfile: user.dmsAccessProfile || 'management',
       status: user.status,
       storeId: user.storeId || stores[0]?.id || '',
     });
@@ -141,6 +139,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         email,
         name,
         role: form.role,
+        ...(form.role==='manager'?{dmsAccessProfile:form.dmsAccessProfile}:{}),
         status: form.status,
         companyId,
         storeId: form.storeId,
@@ -257,7 +256,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                   const protectedTarget = !isAdmin && (user.role === 'admin' || user.role === 'director');
                   return <tr key={user.email} className="hover:bg-slate-50/70">
                     <td className="p-3"><p className="font-semibold text-slate-900">{user.name}</p><p className="mt-1 text-xs text-slate-500">{user.email}</p></td>
-                    <td className="p-3"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{roleLabel(user.role)}</span></td>
+                    <td className="p-3"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{roleLabel(user)}</span></td>
                     <td className="p-3 text-sm text-slate-600">{storeName}</td>
                     <td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${user.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{user.status === 'active' ? 'Ativo' : 'Inativo'}</span></td>
                     <td className="p-3"><div className="flex justify-end gap-2">
@@ -283,6 +282,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           <Field label="E-mail" value={form.email} onChange={value => setForm({...form,email:value})} type="email" wide disabled={Boolean(editingUser.email)}/>
           <label><span className="text-xs font-semibold text-slate-500">Perfil</span><select disabled={editingUser.email === currentUser.email} value={form.role} onChange={event => setForm({...form,role:event.target.value as UserRole})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50">{roleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label><span className="text-xs font-semibold text-slate-500">Status</span><select value={form.status} onChange={event => setForm({...form,status:event.target.value as UserStatus})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"><option value="active">Ativo</option><option value="inactive">Inativo</option></select></label>
+          {form.role==='manager'&&<label className="sm:col-span-2"><span className="text-xs font-semibold text-slate-500">Acesso DMS</span><select value={form.dmsAccessProfile} onChange={event=>setForm({...form,dmsAccessProfile:event.target.value as DmsAccessProfile})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"><option value="management">Gestor · aprova e acompanha</option><option value="preparation">Preparação · lança serviços, não aprova</option><option value="finance">Financeiro / Caixa · paga e recebe</option></select><p className="mt-1.5 text-[11px] text-slate-500">A pessoa continua vinculada à unidade, mas enxerga somente o fluxo correspondente no Motyq.</p></label>}
           <label className="sm:col-span-2"><span className="text-xs font-semibold text-slate-500">Unidade</span><select value={form.storeId} onChange={event => setForm({...form,storeId:event.target.value})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"><option value="">Selecione...</option>{stores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
         </div>
         {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
