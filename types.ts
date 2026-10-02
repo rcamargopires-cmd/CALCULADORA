@@ -263,6 +263,7 @@ export interface VehiclePurchase {
   paymentMethod?:string;
   paymentDueDate?:string;
   payableId?:string;
+  payableIds?:string[];
   documents:VehiclePurchaseDocuments;
   notes?:string;
   approvedAt?:string;
