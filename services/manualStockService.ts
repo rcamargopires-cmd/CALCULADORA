@@ -112,7 +112,7 @@ export const manualStockService={
       prepCost,
       cost:purchaseCost+prepCost,
       source:item.source||'manual',
-      manualExitAt:undefined,
+      manualExitAt:'',
     });
     return persist(next,user,storeId,tenant,originalPlate?'veículo editado':'veículo incluído');
   },
@@ -140,7 +140,7 @@ export const manualStockService={
       ));
       const history=scoped.docs
         .map(item=>item.data() as OperationalStockItem)
-        .filter(item=>cleanPlate(item.plate)===plate)
+        .filter(item=>cleanPlate(item.plate)===plate&&!item.manualExitAt)
         .sort((a,b)=>String(b.snapshotDate||'').localeCompare(String(a.snapshotDate||'')));
       if(history.length){
         existing=rollToToday(history[0],today);
