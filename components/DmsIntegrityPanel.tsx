@@ -139,7 +139,7 @@ const SummaryCard=({label,value,note,tone}:{label:string;value:number;note:strin
 };
 const Mini=({label,value}:{label:string;value:number})=><div className="rounded-2xl border border-slate-200 bg-white p-3"><p className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>;
 const Filter=({active,onClick,label}:{active:boolean;onClick:()=>void;label:string})=><button onClick={onClick} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${active?'border-blue-200 bg-blue-50 text-blue-700':'border-slate-200 bg-white text-slate-500'}`}>{label}</button>;
-const IssueCard=({item}:{item:DmsDiagnosticIssue})=>{
+const IssueCard=({item}:{key?:React.Key;item:DmsDiagnosticIssue})=>{
   const meta=severityMeta[item.severity];
   const Icon=meta.icon;
   return <article className={`rounded-2xl border p-4 ${meta.cls}`}>
