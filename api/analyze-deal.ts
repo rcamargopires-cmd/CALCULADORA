@@ -56,6 +56,7 @@ const cleanManagedUser=(raw:any)=>({
   ...(raw?.companyPlan?{companyPlan:raw.companyPlan}:{}),
   ...(raw?.companyStatus?{companyStatus:raw.companyStatus}:{}),
   ...(raw?.companyBilling?{companyBilling:raw.companyBilling}:{}),
+  ...(raw?.companyFiscal?{companyFiscal:raw.companyFiscal}:{}),
   ...(raw?.companyModuleOverrides?{companyModuleOverrides:raw.companyModuleOverrides}:{}),
 });
 
