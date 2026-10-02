@@ -21,6 +21,7 @@ const historyPayload=(
 ):VehicleHistoryEvent=>({
   id:historyId(order,service,type),
   kind:'vehicle_history',
+  vehicleId:order.vehicleId,
   plate:cleanPlate(order.plate),
   vehicle:order.vehicle,
   type,
@@ -60,6 +61,7 @@ export const prepFinanceService={
       competenceDate:stamp.slice(0,10),
       plate:cleanPlate(order.plate),
       vehicle:order.vehicle,
+      vehicleId:order.vehicleId,
       origin:'prep',
       originId:order.id,
       orderId:order.id,
@@ -106,6 +108,7 @@ export const prepFinanceService={
       storeId:order.storeId,
       plate:cleanPlate(order.plate),
       vehicle:order.vehicle,
+      vehicleId:order.vehicleId,
       orderId:order.id,
       serviceId:service.id,
     },{merge:true});
@@ -132,6 +135,7 @@ export const prepFinanceService={
       storeId:order.storeId,
       plate:cleanPlate(order.plate),
       vehicle:order.vehicle,
+      vehicleId:order.vehicleId,
       orderId:order.id,
       serviceId:service.id,
       serviceType:service.type,
@@ -159,7 +163,7 @@ export const prepFinanceService={
       updatedAt:stamp,
     },{merge:true});
     const service:PrepService={id:payable.serviceId,type:payable.serviceType,provider:payable.provider,status:'approved',estimatedCost:payable.amount,finalCost:payable.amount,payableId:payable.id};
-    const order:PrepOrder={id:payable.orderId,plate:payable.plate||'',vehicle:payable.vehicle||'',openedAt:payable.createdAt,updatedAt:stamp,status:'preparing',sold:false,destination:'showroom',services:[service],companyId:payable.companyId,storeId:payable.storeId};
+    const order:PrepOrder={id:payable.orderId,vehicleId:payable.vehicleId,plate:payable.plate||'',vehicle:payable.vehicle||'',openedAt:payable.createdAt,updatedAt:stamp,status:'preparing',sold:false,destination:'showroom',services:[service],companyId:payable.companyId,storeId:payable.storeId};
     const event=historyPayload(order,service,'prep_paid',`Fornecedor pago: ${payable.serviceType}`,actor,{payableId:payable.id,amount:payable.amount,provider:payable.provider,details:[paymentMethod,paymentReference].filter(Boolean).join(' · ')});
     await setDoc(doc(db,LEDGER,event.id),event,{merge:true});
     announce();
