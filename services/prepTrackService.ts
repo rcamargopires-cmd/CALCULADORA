@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PrepOrder, PrepService } from '../types';
 
@@ -35,11 +35,28 @@ export const prepTrackService={
   },
   ensureOrder:async(input:{plate:string;vehicle:string;companyId:string;storeId:string;createdBy?:string}):Promise<PrepOrder>=>{
     const plate=cleanPlate(input.plate);
-    const id=safe(`${input.companyId}_${input.storeId}_${plate}`);
-    const existing=await getDoc(doc(db,'prep_orders',id));
-    if(existing.exists())return existing.data() as PrepOrder;
+    // Não usamos getDoc em um ID ainda inexistente: para gestores, a regra de leitura
+    // depende de resource.data e o Firestore pode negar a leitura de um documento ausente.
+    // A consulta da unidade é permitida e torna a criação idempotente.
+    const existingOrders=await prepTrackService.getOrders(input.companyId,input.storeId);
+    const existing=existingOrders.find(item=>cleanPlate(item.plate)===plate);
+    if(existing)return existing;
     return prepTrackService.createOrder(input);
   },
+  subscribeOrders:(
+    companyId:string,
+    storeId:string,
+    onOrders:(orders:PrepOrder[])=>void,
+    onError?:(error:unknown)=>void,
+  )=>onSnapshot(
+    query(collection(db,'prep_orders'),where('companyId','==',companyId),where('storeId','==',storeId)),
+    snap=>onOrders(
+      snap.docs
+        .map(d=>d.data() as PrepOrder)
+        .sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))),
+    ),
+    error=>onError?.(error),
+  ),
   saveOrder:async(order:PrepOrder):Promise<void>=>{
     const payload=stripUndefined({...order,plate:cleanPlate(order.plate),updatedAt:new Date().toISOString()});
     await enqueueWrite(order.id,()=>setDoc(doc(db,'prep_orders',order.id),payload,{merge:true}));
