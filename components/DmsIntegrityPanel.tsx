@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import type { DmsDiagnosticIssue, DmsDiagnosticReport, User } from '../types';
 import { dmsIntegrityService } from '../services/dmsIntegrityService';
+import { dmsMigrationService } from '../services/dmsMigrationService';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 
@@ -28,12 +29,26 @@ const DmsIntegrityPanel:React.FC<Props>=({currentUser,companyId,storeId,storeNam
   const[report,setReport]=useState<DmsDiagnosticReport|null>(null);
   const[error,setError]=useState('');
   const[filter,setFilter]=useState<'all'|'critical'|'warning'|'info'>('all');
+  const[migrating,setMigrating]=useState(false);
+  const[migrationMessage,setMigrationMessage]=useState('');
 
   const run=async()=>{
     setLoading(true);setError('');
     try{setReport(await dmsIntegrityService.run(companyId,storeId,currentUser));}
     catch(cause:any){setError(cause?.message||'Não foi possível executar o diagnóstico DMS.');}
     finally{setLoading(false);}
+  };
+
+  const migrate=async()=>{
+    if(!window.confirm('Executar a migração segura dos vínculos antigos desta unidade? O Motyq apenas completa IDs mestres e arquiva cadastros mestres duplicados, sem apagar histórico.'))return;
+    setMigrating(true);setError('');setMigrationMessage('');
+    try{
+      const result=await dmsMigrationService.runSafeMigration(companyId,storeId,currentUser);
+      const total=Object.values(result).reduce((sum,value)=>sum+Number(value||0),0);
+      setMigrationMessage(total ? 'Migração concluída: '+total+' vínculo(s)/ajuste(s) processado(s).' : 'Migração concluída. Nenhum vínculo antigo precisava de correção.');
+      await run();
+    }catch(cause:any){setError(cause?.message||'Não foi possível executar a migração segura.');}
+    finally{setMigrating(false);}
   };
 
   useEffect(()=>{if(open)void run();},[open,companyId,storeId]);
@@ -64,14 +79,16 @@ const DmsIntegrityPanel:React.FC<Props>=({currentUser,companyId,storeId,storeNam
               <p className="mt-1 text-sm text-slate-500">{storeName}. Estoque, veículo mestre, preparação, financeiro, clientes, fornecedores e acessos.</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button disabled={loading} onClick={()=>void run()} className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 disabled:opacity-50"><RefreshCw size={15} className={loading?'animate-spin':''}/> {loading?'VERIFICANDO...':'VERIFICAR AGORA'}</button>
+          <div className="flex flex-wrap gap-2">
+            <button disabled={migrating||loading} onClick={()=>void migrate()} className="flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-700 disabled:opacity-50"><RefreshCw size={15} className={migrating?'animate-spin':''}/> {migrating?'MIGRANDO...':'CORRIGIR VÍNCULOS'}</button>
+            <button disabled={loading||migrating} onClick={()=>void run()} className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 disabled:opacity-50"><RefreshCw size={15} className={loading?'animate-spin':''}/> {loading?'VERIFICANDO...':'VERIFICAR AGORA'}</button>
             <button onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-500"><X size={18}/></button>
           </div>
         </header>
 
         <div className="p-5 md:p-7">
           {error&&<div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+          {migrationMessage&&<div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{migrationMessage}</div>}
 
           {report&&<>
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
