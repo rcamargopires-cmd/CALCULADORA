@@ -152,7 +152,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
       {id:'F7.14',label:'Recebíveis de bancos/financiamento',done:true},
       {id:'F7.15',label:'Anexo de comprovantes e documentos financeiros',done:false},
       {id:'F7.16',label:'Estorno de baixa com aprovação e auditoria',done:false},
-      {id:'F7.17',label:'Aging de contas e alertas de vencimento',done:false},
+      {id:'F7.17',label:'Aging de contas e alertas de vencimento',done:true},
       {id:'F7.18',label:'Fechamento diário/mensal de caixa',done:false},
     ],
   },
