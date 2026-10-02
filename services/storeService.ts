@@ -18,8 +18,8 @@ const directorScopeRef = (companyId: string) => doc(db, 'director_scope', compan
 
 const normalizeStores = (raw: unknown, includeDefault = true): Store[] => {
   const list = Array.isArray(raw) ? raw : [];
-  const parsed = list
-    .map((item: any) => ({
+  const parsed: Store[] = list
+    .map((item: any): Store => ({
       id: String(item?.id || '').trim(),
       code: String(item?.code || '').trim().toUpperCase(),
       name: String(item?.name || '').trim(),
