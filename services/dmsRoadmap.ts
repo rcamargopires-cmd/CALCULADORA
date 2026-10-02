@@ -143,7 +143,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
       {id:'F7.05',label:'Baixa de pagamento e recebimento',done:true},
       {id:'F7.06',label:'Bancos e contas bancárias',done:true},
       {id:'F7.07',label:'Caixas físicos por unidade',done:true},
-      {id:'F7.08',label:'Parcelas e recorrências',done:false},
+      {id:'F7.08',label:'Parcelas e recorrências',done:true},
       {id:'F7.09',label:'Conciliação bancária',done:false},
       {id:'F7.10',label:'Plano de contas',done:false},
       {id:'F7.11',label:'Centros de custo',done:false},
