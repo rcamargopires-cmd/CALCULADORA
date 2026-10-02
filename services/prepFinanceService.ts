@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import type { PrepOrder, PrepPayable, PrepService, User, VehicleHistoryEvent, VehicleHistoryEventType } from '../types';
 import { dmsAuditService } from './dmsAuditService';
 import { dmsSupplierService } from './dmsSupplierService';
+import { canApproveOwn } from './dmsFlowPolicy.mjs';
 
 const LEDGER='operational_meta';
 const safe=(value:string)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
@@ -67,11 +68,8 @@ export const prepFinanceService={
   },
 
   registerApproval:async(order:PrepOrder,service:PrepService,actor:Pick<User,'email'|'name'|'role'>)=>{
-    if(
-      actor.role!=='admin' &&
-      service.requestedBy &&
-      String(service.requestedBy).toLowerCase()===String(actor.email).toLowerCase()
-    )throw new Error('Quem solicitou a preparação não pode aprovar o próprio serviço. Encaminhe para outro gestor.');
+    if(!canApproveOwn({createdBy:service.requestedBy,actorEmail:actor.email,actorRole:actor.role}))
+      throw new Error('Quem solicitou a preparação não pode aprovar o próprio serviço. Encaminhe para outro gestor.');
     const supplier=await dmsSupplierService.ensure({
       companyId:order.companyId,
       storeId:order.storeId,
