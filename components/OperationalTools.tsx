@@ -42,6 +42,7 @@ import DmsRoadmapPanel from './DmsRoadmapPanel';
 import DmsExternalImportPanel from './DmsExternalImportPanel';
 import VehicleDocumentsPanel from './VehicleDocumentsPanel';
 import AfterSalesPanel from './AfterSalesPanel';
+import WorkshopPanel from './WorkshopPanel';
 import DmsAnalyticsPanel from './DmsAnalyticsPanel';
 import VehiclePurchasePanel from './VehiclePurchasePanel';
 import SalesOrderPanel from './SalesOrderPanel';
@@ -203,6 +204,7 @@ const OperationalTools: React.FC = () => {
   const canAssets = permissions.assetsView;
   const canDocuments = permissions.documentsView;
   const canAfterSales = permissions.afterSalesView;
+  const canWorkshop = permissions.workshopView;
   const canPurchases = permissions.purchasesView;
   const canSales = permissions.salesView;
   const has = (module: DealMasterModule) => moduleEnabled(activeCompany, module);
@@ -243,6 +245,7 @@ const OperationalTools: React.FC = () => {
     {permissions.diagnostics && storeId && <DmsExternalImportPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canDocuments && storeId && <VehicleDocumentsPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canAfterSales && storeId && <AfterSalesPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {canWorkshop && storeId && <WorkshopPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canReports && storeId && <DmsAnalyticsPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canPurchases && storeId && <VehiclePurchasePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canSales && storeId && <SalesOrderPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
