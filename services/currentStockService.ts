@@ -45,7 +45,7 @@ const updateMeta=async(items:OperationalStockItem[],companyId:string,storeId:str
     critical90:critical.length,critical90Value,updatedAt:serverTimestamp(),
   },{merge:true});
   await setDoc(doc(db,'operational_meta',currentMetaId(storeId)),{
-    companyId,storeId,latestStockDate:today,stockRows:active.length,stockValue,canonicalStockVersion:3,updatedAt:serverTimestamp(),
+    companyId,storeId,latestStockDate:today,stockRows:active.length,stockValue,canonicalStockVersion:4,updatedAt:serverTimestamp(),
   },{merge:true});
 };
 
@@ -119,9 +119,9 @@ const seedCanonical=async(items:OperationalStockItem[],companyId:string,storeId:
   await updateMeta(items,companyId,storeId);
 };
 
-const reconcileCanonicalV3=async(companyId:string,storeId:string)=>{
+const reconcileCanonicalV4=async(companyId:string,storeId:string)=>{
   const meta=await getDoc(doc(db,'operational_meta',currentMetaId(storeId)));
-  if(Number(meta.data()?.canonicalStockVersion||0)>=3)return;
+  if(Number(meta.data()?.canonicalStockVersion||0)>=4)return;
 
   const scoped=await getDocs(query(
     collection(db,'operational_stock'),
@@ -135,11 +135,43 @@ const reconcileCanonicalV3=async(companyId:string,storeId:string)=>{
   const history=all.filter(item=>item.currentRecord!==true);
 
   const importedHistory=history.filter(item=>item.source!=='manual');
-  const latestImportedDate=importedHistory
-    .map(item=>String(item.snapshotDate||'').slice(0,10))
-    .filter(Boolean)
-    .sort()
-    .at(-1)||'';
+
+  // A base importada precisa vir do último arquivo real enviado pela loja.
+  // Snapshots criados por cadastro manual/preparação não podem virar uma nova "base".
+  let latestImportedDate='';
+  try{
+    const importSnap=await getDocs(query(
+      collection(db,'operational_imports'),
+      where('companyId','==',companyId),
+      where('storeId','==',storeId),
+    ));
+    const realImports=importSnap.docs
+      .map(item=>item.data() as any)
+      .filter(item=>String(item.type||'')==='stock')
+      .filter(item=>{
+        const name=String(item.fileName||'').toLowerCase();
+        return !name.startsWith('cadastro manual') &&
+          !name.startsWith('recuperação manual') &&
+          !name.startsWith('recuperacao manual');
+      })
+      .sort((a,b)=>{
+        const am=typeof a?.importedAt?.toMillis==='function'?a.importedAt.toMillis():0;
+        const bm=typeof b?.importedAt?.toMillis==='function'?b.importedAt.toMillis():0;
+        if(am!==bm)return am-bm;
+        return String(a?.referenceDate||'').localeCompare(String(b?.referenceDate||''));
+      });
+    latestImportedDate=String(realImports.at(-1)?.referenceDate||'').slice(0,10);
+  }catch(error){
+    console.warn('MOTYQ could not resolve last real stock import',error);
+  }
+
+  if(!latestImportedDate){
+    latestImportedDate=importedHistory
+      .map(item=>String(item.snapshotDate||'').slice(0,10))
+      .filter(Boolean)
+      .sort()
+      .at(-1)||'';
+  }
 
   const target=new Map<string,OperationalStockItem>();
   importedHistory
@@ -238,7 +270,7 @@ export const currentStockService={
   collectionName:COLLECTION,
 
   getCurrent:async(companyId:string,storeId:string):Promise<OperationalStockItem[]>=>{
-    await reconcileCanonicalV3(companyId,storeId);
+    await reconcileCanonicalV4(companyId,storeId);
     let rows=await readCanonical(companyId,storeId);
     if(!rows.length){
       const migrated=await deriveLegacy(companyId,storeId);
