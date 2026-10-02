@@ -1,6 +1,6 @@
 import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { CustomerMaster, User } from '../types';
+import type { CustomerConsentStatus, CustomerMaster, User } from '../types';
 import { dmsAuditService } from './dmsAuditService';
 
 const LEDGER='operational_meta';
@@ -18,6 +18,11 @@ const list=async(companyId:string,storeId:string):Promise<CustomerMaster[]>=>{
 
 export const dmsCustomerService={
   list,
+
+  getById:async(companyId:string,storeId:string,customerId:string):Promise<CustomerMaster|null>=>{
+    const items=await list(companyId,storeId);
+    return items.find(item=>item.customerId===customerId)||null;
+  },
 
   ensure:async(input:{
     companyId:string;
@@ -109,6 +114,35 @@ export const dmsCustomerService={
       }
     }
     return merged;
+  },
+
+  setConsent:async(input:{
+    customer:CustomerMaster;
+    status:CustomerConsentStatus;
+    source:string;
+    purposes:string[];
+    actor:Pick<User,'email'|'name'>;
+  }):Promise<CustomerMaster>=>{
+    const stamp=now();
+    const next:CustomerMaster={
+      ...input.customer,
+      consentStatus:input.status,
+      consentAt:input.status==='granted'?(input.customer.consentAt||stamp):input.customer.consentAt,
+      consentSource:String(input.source||'Motyq').trim(),
+      consentPurposes:Array.from(new Set(input.purposes.map(value=>String(value||'').trim()).filter(Boolean))),
+      consentUpdatedBy:input.actor.email,
+      consentUpdatedByName:input.actor.name,
+      consentUpdatedAt:stamp,
+      updatedAt:stamp,
+    };
+    await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
+    await dmsAuditService.record({
+      companyId:next.companyId,storeId:next.storeId,entityType:'customer',entityId:next.customerId,
+      action:input.status==='granted'?'customer_consent_granted':'customer_consent_revoked',
+      label:input.status==='granted'?'Autorização de contato registrada':'Autorização de contato revogada',
+      details:[next.consentSource,...(next.consentPurposes||[])].filter(Boolean).join(' · '),actor:input.actor,
+    }).catch(()=>undefined);
+    return next;
   },
 
   save:async(customer:CustomerMaster,actor?:Pick<User,'email'|'name'>|null):Promise<CustomerMaster>=>{
