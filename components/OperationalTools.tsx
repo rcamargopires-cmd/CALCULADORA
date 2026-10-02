@@ -35,6 +35,7 @@ import OperationHub from './OperationHub';
 import StockHub from './StockHub';
 import ManualStockPanel from './ManualStockPanel';
 import { dmsPermissions } from '../services/dmsPermissions';
+import DmsIntegrityPanel from './DmsIntegrityPanel';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -217,6 +218,7 @@ const OperationalTools: React.FC = () => {
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canPrep && storeId && has('stockIntelligence') && <PrepTrackPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canFinance && storeId && <FinanceModulePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {permissions.diagnostics && storeId && <DmsIntegrityPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('executiveInsights') && <ExecutiveInsights/>}
     {isManager && storeId && has('smartAlerts') && <SmartAlerts companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('aiManager') && <AIManagerV2/>}
