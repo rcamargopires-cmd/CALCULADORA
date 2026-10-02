@@ -108,6 +108,8 @@ export const salesOrderService={
       id,kind:'sales_order',salesOrderId:id,companyId:lead.companyId,storeId:lead.storeId,
       leadId:lead.id,proposalId:proposal.id,proposalVersion:proposal.version,
       customerId:customer.customerId,customerName:lead.customerName,customerPhone:lead.phone,customerDocument,
+      customerEmail:customer.email||lead.customerEmail||'',customerAddress:customer.address||'',customerCity:customer.city||'',
+      customerState:customer.state||'',customerZipCode:customer.zipCode||'',
       sellerId:lead.assignedSellerId,sellerEmail:lead.assignedSellerEmail,sellerName:lead.assignedSellerName,
       vehicleId:master?.vehicleId,plate,vehicle:proposal.vehicle,year:proposal.year,
       salePrice:Number(proposal.salePrice)||0,discount:Number(proposal.discount)||0,
