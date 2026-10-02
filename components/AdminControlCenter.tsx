@@ -17,6 +17,7 @@ import { billingSnapshot, defaultBilling, nextMonthlyDue } from '../services/bil
 import DmsPermissionEditor from './DmsPermissionEditor';
 import StoreAccessEditor from './StoreAccessEditor';
 import SaasOnboardingWizard from './SaasOnboardingWizard';
+import ProductionReadinessPanel from './ProductionReadinessPanel';
 import { asaasBillingService } from '../services/asaasBillingService';
 
 type Tab='companies'|'users';
@@ -41,6 +42,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
   const[newUserOpen,setNewUserOpen]=useState(false);
   const[editingUser,setEditingUser]=useState<User|null>(null);
   const[editingModules,setEditingModules]=useState<Company|null>(null);
+  const[readinessCompany,setReadinessCompany]=useState<Company|null>(null);
   const[companyName,setCompanyName]=useState('');
   const[companyPlan,setCompanyPlan]=useState<CompanyPlan>('pro');
   const[userForm,setUserForm]=useState({name:'',email:'',role:'manager' as UserRole,dmsAccessProfile:'management' as DmsAccessProfile,dmsPermissionOverrides:{} as Partial<Record<DmsPermissionKey,boolean>>,status:'active' as UserStatus,storeId:'',storeIds:[] as string[]});
@@ -337,6 +339,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
               <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Situação</span><select disabled={saving===company.id} value={company.status} onChange={e=>void updateCompany(company,{status:e.target.value as Company['status']})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="trial">Avaliação</option><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></label>
             </div>
             <button disabled={saving===company.id} onClick={()=>setEditingModules(company)} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 text-xs font-bold text-violet-700 disabled:opacity-50"><LockKeyhole size={14}/> CONFIGURAR MÓDULOS DO PLANO</button>
+            <button onClick={()=>setReadinessCompany(company)} className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700"><CheckCircle2 size={14}/> PRÉ-VOO DE PRODUÇÃO</button>
             {(()=>{const fiscal=company.fiscal||{enabled:false,provider:'manual' as const,environment:'homologacao' as const};return <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><div className="flex items-center gap-2"><ReceiptText size={15} className="text-indigo-600"/><p className="text-[10px] font-black uppercase tracking-[.12em] text-indigo-700">Integração fiscal</p></div><p className="mt-1 text-xs text-slate-500">NF-e integrada ao Pedido de Venda. A tributação continua parametrizada pela empresa/contador.</p></div>
@@ -397,6 +400,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
       <button disabled={!companyName.trim()||saving==='company'} onClick={()=>void createCompany()} className="mt-5 h-11 w-full rounded-xl bg-blue-600 text-sm font-bold text-white disabled:opacity-40">{saving==='company'?'Criando...':'Criar empresa'}</button>
     </Modal>}
 
+    {readinessCompany&&<ProductionReadinessPanel open={Boolean(readinessCompany)} onClose={()=>setReadinessCompany(null)} currentUser={currentUser} company={readinessCompany}/>}
     {editingModules&&<Modal title="Módulos do plano" eyebrow={editingModules.name} onClose={()=>setEditingModules(null)}>
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-600">O plano define o padrão. Um checkbox personalizado pode liberar ou bloquear um módulo sem trocar o plano inteiro.</div>
       <div className="mt-4 space-y-2">
