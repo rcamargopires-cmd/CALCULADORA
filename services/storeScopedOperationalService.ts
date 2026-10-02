@@ -8,6 +8,10 @@ import { DEFAULT_STORE_ID } from './storeService';
 import { DEMO_COMPANY_ID, DEMO_STORE_ID, demoPerformanceSnapshots, demoStockRows } from './demoSeedService';
 
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 120);
+const cleanPlate = (value: unknown) => String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const normalizedStatus = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+const isOut = (item: OperationalStockItem) => normalizedStatus(item.status) === 'saida';
+const rowMoment = (item: OperationalStockItem) => `${String(item.snapshotDate || '').slice(0,10)}|${String(item.updatedAt || '')}`;
 const belongsToStore = (value: { storeId?: string }, storeId: string) => (value.storeId || DEFAULT_STORE_ID) === storeId;
 const belongsToCompany = (value: { companyId?: string }, companyId: string) => (value.companyId || DEFAULT_COMPANY_ID) === companyId;
 
@@ -131,20 +135,47 @@ export const storeScopedOperationalService = {
       return [];
     }
 
-    const rows = allRows.filter(item => {
-      if (String(item.snapshotDate || '').slice(0,10) !== latest) return false;
-      const status = String(item.status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-      return status !== 'saida';
+    // Base do estoque: snapshot mais recente, sem duplicar placas.
+    const unique = new Map<string, OperationalStockItem>();
+    allRows
+      .filter(item => String(item.snapshotDate || '').slice(0,10) === latest && !isOut(item))
+      .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)))
+      .forEach(item => {
+        const plate = cleanPlate(item.plate);
+        if (plate) unique.set(plate, item);
+      });
+
+    // Veículos cadastrados manualmente não podem "sumir" quando nasce um novo snapshot.
+    // Usamos o registro manual mais recente de cada placa como fonte de verdade.
+    const latestManual = new Map<string, OperationalStockItem>();
+    allRows
+      .filter(item => item.source === 'manual')
+      .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)))
+      .forEach(item => {
+        const plate = cleanPlate(item.plate);
+        if (plate) latestManual.set(plate, item);
+      });
+
+    latestManual.forEach((item, plate) => {
+      if (isOut(item)) unique.delete(plate);
+      else unique.set(plate, item);
     });
+
+    const rows = Array.from(unique.values());
     if (rows.length) return rows;
     if (tenant === DEMO_COMPANY_ID) return demoStockRows();
     if (tenant !== DEFAULT_COMPANY_ID || storeId !== DEFAULT_STORE_ID) return rows;
 
     const legacy = await getDocs(query(collection(db, 'operational_stock'), where('snapshotDate', '==', latest)));
-    return legacy.docs
+    const legacyUnique = new Map<string, OperationalStockItem>();
+    legacy.docs
       .map(item => item.data() as OperationalStockItem)
-      .filter(item => belongsToCompany(item, tenant) && belongsToStore(item, storeId))
-      .filter(item => String(item.status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() !== 'saida');
+      .filter(item => belongsToCompany(item, tenant) && belongsToStore(item, storeId) && !isOut(item))
+      .forEach(item => {
+        const plate = cleanPlate(item.plate);
+        if (plate) legacyUnique.set(plate, item);
+      });
+    return Array.from(legacyUnique.values());
   },
 
   getSales: async (storeId: string, companyId = companyScopeService.get()): Promise<OperationalSaleItem[]> => {
