@@ -432,6 +432,51 @@ export const currentStockService={
     return next.filter(isActive);
   },
 
+  transfer:async(
+    plate:string,
+    fromStoreId:string,
+    toStoreId:string,
+    companyId:string,
+    user?:User,
+  ):Promise<{source:OperationalStockItem[];target:OperationalStockItem[]}>=>{
+    if(!toStoreId||fromStoreId===toStoreId)throw new Error('Selecione uma unidade de destino diferente da origem.');
+    const targetPlate=cleanPlate(plate);
+    const [sourceCurrent,targetCurrent]=await Promise.all([
+      currentStockService.getCurrent(companyId,fromStoreId),
+      currentStockService.getCurrent(companyId,toStoreId),
+    ]);
+    const existing=sourceCurrent.find(item=>cleanPlate(item.plate)===targetPlate);
+    if(!existing)throw new Error('Veículo não encontrado na unidade de origem.');
+    if(targetCurrent.some(item=>cleanPlate(item.plate)===targetPlate))throw new Error('Já existe um veículo com esta placa na unidade de destino.');
+
+    const targetRows=await currentStockService.upsert({
+      ...existing,
+      id:'',
+      storeId:toStoreId,
+      companyId,
+      snapshotDate:localDate(),
+      updatedAt:new Date().toISOString(),
+      status:normalizedStatus(existing.status)==='saida'?'Disponível':(existing.status||'Disponível'),
+      manualActive:existing.source==='manual'?true:existing.manualActive,
+      manualExitAt:'',
+    },toStoreId,companyId,user);
+
+    await setDoc(doc(db,COLLECTION,docId(companyId,fromStoreId,targetPlate)),{
+      companyId,storeId:fromStoreId,plate:targetPlate,status:'Saída',manualActive:false,
+      manualExitAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
+    },{merge:true});
+    const sourceRows=sourceCurrent.filter(item=>cleanPlate(item.plate)!==targetPlate);
+    await updateMeta(sourceRows,companyId,fromStoreId);
+    await stockMovementService.record({
+      movementType:'transfer',companyId,storeId:fromStoreId,vehicleId:existing.vehicleId,
+      plate:targetPlate,vehicle:existing.vehicle,fromStatus:existing.status,toStatus:existing.status,
+      fromStoreId,toStoreId,amount:Number(existing.cost)||0,
+      details:'Transferência de veículo entre unidades.',actor:user,
+    }).catch(()=>undefined);
+    announce();
+    return{source:sourceRows,target:targetRows};
+  },
+
   markOut:async(plate:string,storeId:string,companyId:string,user?:User):Promise<OperationalStockItem[]>=>{
     const target=cleanPlate(plate);
     const current=await currentStockService.getCurrent(companyId,storeId);
