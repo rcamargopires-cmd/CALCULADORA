@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, BarChart3, CarFront, CircleDollarSign, ClipboardCheck, CreditCard, FileCheck2, FileClock, HeartHandshake, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
+import { Banknote, BarChart3, CarFront, CircleDollarSign, ClipboardCheck, CreditCard, DatabaseZap, FileCheck2, FileClock, HeartHandshake, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
@@ -149,6 +149,15 @@ const ManagerTopNav: React.FC = () => {
       >
         <ClipboardCheck size={14}/>
         <span className="motyq-manager-nav-label">PLANO</span>
+      </button>}
+      {permissions.diagnostics&&<button
+        type="button"
+        title="Migrar outro DMS"
+        onClick={() => launcherClick('Migrar outro DMS')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-teal-300 transition-all hover:bg-teal-400/10 hover:text-teal-200"
+      >
+        <DatabaseZap size={14}/>
+        <span className="motyq-manager-nav-label">MIGRAR</span>
       </button>}
       {isManager&&<button
         type="button"
