@@ -256,6 +256,7 @@ const syncFiscalOrder=async(order:any,record:any)=>{
   await motyqFirestore.patch('operational_meta',String(order.id||order.salesOrderId),{
     fiscalInvoiceId:record.id,fiscalProvider:'focus_nfe',fiscalStatus:record.status,
     fiscalAccessKey:record.accessKey||'',fiscalExternalId:record.reference||'',
+    fiscalDanfeUrl:record.danfeUrl||'',fiscalXmlUrl:record.xmlUrl||'',
     ...(record.invoiceNumber?{invoiceNumber:record.invoiceNumber}:{}),
     updatedAt:new Date().toISOString(),
   });
