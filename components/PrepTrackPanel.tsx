@@ -32,7 +32,7 @@ const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})
    const missingManual=nextStock.filter(item=>item.source==='manual'&&!nextOrders.some(order=>clean(order.plate)===clean(item.plate)));
    for(const item of missingManual){
     try{
-     const created=await prepTrackService.ensureOrder({plate:clean(item.plate),vehicle:item.vehicle,companyId,storeId,createdBy:currentUser.email});
+     const created=await prepTrackService.ensureOrder({vehicleId:item.vehicleId,plate:clean(item.plate),vehicle:item.vehicle,companyId,storeId,createdBy:currentUser.email});
      if(!nextOrders.some(order=>order.id===created.id))nextOrders.push(created);
      nextStock=await manualStockService.syncPreparation(created,currentUser,storeId,companyId,nextStock);
     }catch(error){console.warn('Motyq: falha ao integrar estoque manual ao PrepTrack.',error);}
@@ -73,6 +73,7 @@ const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})
     if(cancelled)break;
     try{
      await prepTrackService.ensureOrder({
+      vehicleId:item.vehicleId,
       plate:clean(item.plate),
       vehicle:item.vehicle,
       companyId,
@@ -129,7 +130,7 @@ const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})
  const createFromStock=async(item:OperationalStockItem)=>{
   const existing=orders.find(o=>clean(o.plate)===clean(item.plate));
   if(existing){setSelectedId(existing.id);setSearch('');return;}
-  const created=await prepTrackService.createOrder({plate:clean(item.plate),vehicle:item.vehicle,companyId,storeId,createdBy:currentUser.email});
+  const created=await prepTrackService.createOrder({vehicleId:item.vehicleId,plate:clean(item.plate),vehicle:item.vehicle,companyId,storeId,createdBy:currentUser.email});
   setOrders(prev=>[created,...prev]);
   await syncStock(created);
   setSelectedId(created.id);setSearch('');
