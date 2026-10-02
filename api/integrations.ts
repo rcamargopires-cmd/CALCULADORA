@@ -215,7 +215,16 @@ const fiscalRecordFrom=(order:any,reference:string,environment:'homologacao'|'pr
     danfeUrl,xmlUrl,messages:fiscalMessages(body),
     requestedAt:prior?.requestedAt||stamp,
     ...(status==='authorized'?{authorizedAt:prior?.authorizedAt||stamp}:{}),
-    updatedAt:stamp,providerPayload:body,
+    updatedAt:stamp,
+    providerPayload:{
+      status:body?.status||body?.situacao||'',
+      statusSefaz:body?.status_sefaz||'',
+      mensagemSefaz:body?.mensagem_sefaz||'',
+      numero:body?.numero||body?.numero_nfe||'',
+      serie:body?.serie||body?.serie_nfe||'',
+      chave:body?.chave_nfe||body?.chave||body?.chave_acesso||'',
+      protocolo:body?.protocolo||body?.numero_protocolo||'',
+    },
   };
 };
 const fiscalActor=async(req:any)=>{
