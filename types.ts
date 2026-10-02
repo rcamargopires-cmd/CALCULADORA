@@ -164,6 +164,24 @@ export type PrepOrderStatus='triage'|'preparing'|'waiting_approval'|'waiting_par
 export type PrepDestination='showroom'|'delivery';
 export type FinanceEntryType='payable'|'receivable';
 export type FinanceEntryStatus='pending'|'paid'|'received'|'cancelled';
+export type FinanceAccountType='bank'|'cash';
+export interface FinanceAccount {
+  id:string;
+  kind:'finance_account';
+  accountId:string;
+  accountType:FinanceAccountType;
+  name:string;
+  bankName?:string;
+  agency?:string;
+  accountNumber?:string;
+  pixKey?:string;
+  openingBalance:number;
+  active:boolean;
+  companyId:string;
+  storeId:string;
+  createdAt:string;
+  updatedAt:string;
+}
 export type FinanceOrigin='prep'|'purchase'|'manual'|'sale'|'commission'|'other';
 export interface FinanceEntry {
   id:string;
@@ -180,6 +198,7 @@ export interface FinanceEntry {
   settledAt?:string;
   paymentMethod?:string;
   paymentReference?:string;
+  financeAccountId?:string;
   plate?:string;
   vehicle?:string;
   vehicleId?:string;
