@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { OperationalStockItem, User } from '../types';
+import type { OperationalStockItem, PrepOrder, User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
 import { companyScopeService } from './companyScopeService';
 import { storeScopedOperationalService } from './storeScopedOperationalService';
@@ -29,7 +29,7 @@ const rollToToday=(item:OperationalStockItem,today:string):OperationalStockItem=
   };
 };
 
-const persist=async(items:OperationalStockItem[],user:User|undefined,storeId:string,companyId:string,action:string)=>{
+const persist=async(items:OperationalStockItem[],user:User|undefined,storeId:string,companyId:string,action:string,writeAudit=true)=>{
   const today=localDate();
   const tenant=companyId||DEFAULT_COMPANY_ID;
   const unique=new Map<string,OperationalStockItem>();
@@ -87,14 +87,16 @@ const persist=async(items:OperationalStockItem[],user:User|undefined,storeId:str
   await setDoc(doc(db,'operational_meta',currentId(storeId)),{
     companyId:tenant,storeId,latestStockDate:today,stockRows:finalRows.length,updatedAt:serverTimestamp(),
   },{merge:true});
-  try{
-    await addDoc(collection(db,'operational_imports'),{
-      type:'stock',companyId:tenant,storeId,referenceDate:today,rows:finalRows.length,
-      fileName:`Cadastro manual · ${action}`,importedBy:user?.email||'',importedAt:serverTimestamp(),
-    });
-  }catch(error){
-    // O log de auditoria não pode impedir a atualização principal do estoque.
-    console.warn('Manual stock audit log failed',error);
+  if(writeAudit){
+    try{
+      await addDoc(collection(db,'operational_imports'),{
+        type:'stock',companyId:tenant,storeId,referenceDate:today,rows:finalRows.length,
+        fileName:`Cadastro manual · ${action}`,importedBy:user?.email||'',importedAt:serverTimestamp(),
+      });
+    }catch(error){
+      // O log de auditoria não pode impedir a atualização principal do estoque.
+      console.warn('Manual stock audit log failed',error);
+    }
   }
   return finalRows;
 };
@@ -124,8 +126,56 @@ export const manualStockService={
     const original=cleanPlate(originalPlate||plate);
     if(current.some(row=>row.plate===plate&&row.plate!==original))throw new Error('Já existe outro veículo com esta placa no estoque.');
     const next=current.filter(row=>row.plate!==original);
-    next.push({...item,plate,source:item.source||'manual'});
+    const previous=current.find(row=>row.plate===original);
+    const purchaseCost=Number(item.purchaseCost ?? previous?.purchaseCost ?? item.cost ?? 0)||0;
+    const prepCost=Number(item.prepCost ?? previous?.prepCost ?? 0)||0;
+    next.push({
+      ...item,
+      plate,
+      purchaseCost,
+      prepCost,
+      cost:purchaseCost+prepCost,
+      source:item.source||'manual',
+    });
     return persist(next,user,storeId,tenant,originalPlate?'veículo editado':'veículo incluído');
+  },
+
+  syncPreparation:async(
+    order:PrepOrder,
+    user:User|undefined,
+    storeId:string,
+    companyId=companyScopeService.get(),
+    currentRows?:OperationalStockItem[],
+  )=>{
+    const tenant=companyId||DEFAULT_COMPANY_ID;
+    const current=Array.isArray(currentRows)
+      ? currentRows.map(row=>rollToToday(row,localDate()))
+      : await manualStockService.getCurrent(storeId,tenant);
+    const plate=cleanPlate(order.plate);
+    const existing=current.find(row=>cleanPlate(row.plate)===plate);
+    if(!existing)return current;
+
+    const previousPrep=Number(existing.prepCost)||0;
+    const purchaseCost=Number(existing.purchaseCost)||Math.max(0,(Number(existing.cost)||0)-previousPrep);
+    const prepCost=(order.services||[])
+      .filter(service=>service.status!=='cancelled')
+      .reduce((sum,service)=>sum+(Number(service.finalCost)||Number(service.estimatedCost)||0),0);
+
+    const status=order.sold||order.status==='delivery'||order.status==='delivered'
+      ? 'Reservado'
+      : ['ready','showroom'].includes(order.status)
+        ? 'Disponível'
+        : 'Em preparação';
+
+    const next=current.map(row=>cleanPlate(row.plate)===plate?{
+      ...row,
+      purchaseCost,
+      prepCost,
+      cost:purchaseCost+prepCost,
+      status,
+    }:row);
+
+    return persist(next,user,storeId,tenant,`preparação ${plate}`,false);
   },
 
   remove:async(
