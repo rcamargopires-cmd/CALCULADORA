@@ -33,4 +33,33 @@ for(const required of ['registerApproval','markPaid']){
   if(!prep.includes(required))fail('Preparation finance critical step missing: '+required);
 }
 
+const proposals=read('services/crmProposalService.ts');
+for(const required of ['acceptDigitally','expireLeadReservations','reservationExpiresAt']){
+  if(!proposals.includes(required))fail('CRM proposal critical step missing: '+required);
+}
+
+const attachments=read('services/dmsAttachmentService.ts');
+for(const required of ['upload:async','list:async','remove:async']){
+  if(!attachments.includes(required))fail('DMS attachment critical step missing: '+required);
+}
+
+const integrity=read('services/dmsIntegrityService.ts');
+if(!integrity.includes('runAndStore:async'))fail('Automatic integrity report persistence missing.');
+
+const migrations=read('services/dmsMigrationRegistry.ts');
+if(!migrations.includes('runPending:async'))fail('Versioned migration runner missing.');
+
+const rules=read('firestore.rules');
+const openBraces=(rules.match(/\{/g)||[]).length;
+const closeBraces=(rules.match(/\}/g)||[]).length;
+if(openBraces!==closeBraces)fail(`Firestore rules braces unbalanced: ${openBraces} open / ${closeBraces} close.`);
+if(!rules.includes("match /operational_meta/{itemId}"))fail('operational_meta rule missing.');
+if(!rules.includes("allow update: if opKind(resource.data) != 'audit_event' && ("))fail('Audit events are not protected against update.');
+if(rules.includes("match /deals/{dealId} {\n      allow read")&&rules.includes("match /deals/{dealId} {")&&rules.includes("allow update: if opKind(resource.data) != 'audit_event'"))fail('Audit guard leaked into deals rule.');
+
+const firebaseConfig=JSON.parse(read('firebase.json'));
+if(!firebaseConfig.firestore?.[0]?.rules||!firebaseConfig.firestore?.[0]?.indexes)fail('Firebase rules/index deploy config missing.');
+const indexes=JSON.parse(read('firestore.indexes.json'));
+if(!Array.isArray(indexes.indexes)||!indexes.indexes.length)fail('Versioned Firestore indexes missing.');
+
 console.log('MOTYQ smoke tests passed:',ids.length,'roadmap checks and core DMS guards.');
