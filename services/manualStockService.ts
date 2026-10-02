@@ -231,7 +231,26 @@ export const manualStockService={
     const tenant=companyId||DEFAULT_COMPANY_ID;
     const target=cleanPlate(plate);
     const current=await manualStockService.getCurrent(storeId,tenant);
-    if(!current.some(row=>row.plate===target))throw new Error('Veículo não encontrado no estoque atual.');
-    return persist(current.filter(row=>row.plate!==target),user,storeId,tenant,`saída ${target}`);
+    if(!current.some(row=>cleanPlate(row.plate)===target))throw new Error('Veículo não encontrado no estoque atual.');
+
+    // Marca qualquer histórico da placa como saída para que um snapshot antigo
+    // não ressuscite o veículo depois.
+    const scoped=await getDocs(query(
+      collection(db,'operational_stock'),
+      where('companyId','==',tenant),
+      where('storeId','==',storeId),
+    ));
+    for(const oldDoc of scoped.docs){
+      const data=oldDoc.data() as OperationalStockItem;
+      if(cleanPlate(data.plate)!==target)continue;
+      await setDoc(oldDoc.ref,{
+        status:'Saída',
+        updatedAt:new Date().toISOString(),
+        companyId:tenant,
+        storeId,
+      },{merge:true});
+    }
+
+    return persist(current.filter(row=>cleanPlate(row.plate)!==target),user,storeId,tenant,`saída ${target}`);
   },
 };
