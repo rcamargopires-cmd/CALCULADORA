@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, doc, getDocs, query, runTransaction, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { DmsVehicleStage, OperationalStockItem, User, VehicleMaster } from '../types';
 import { dmsAuditService } from './dmsAuditService';
@@ -13,6 +13,27 @@ const safe=(value:string)=>String(value||'')
 const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const now=()=>new Date().toISOString();
 const masterDocId=(vehicleId:string)=>safe(`vehicle_master_${vehicleId}`);
+const plateIndexId=(companyId:string,storeId:string,plate:string)=>safe(`vehicle_plate_index_${companyId}_${storeId}_${cleanPlate(plate)}`);
+const claimVehicleId=async(companyId:string,storeId:string,plate:string,preferredVehicleId:string)=>{
+  const indexRef=doc(db,LEDGER,plateIndexId(companyId,storeId,plate));
+  return runTransaction(db,async tx=>{
+    const snap=await tx.get(indexRef);
+    if(snap.exists()){
+      const current=String((snap.data() as any)?.vehicleId||'').trim();
+      if(current)return current;
+    }
+    tx.set(indexRef,{
+      id:plateIndexId(companyId,storeId,plate),
+      kind:'vehicle_plate_index',
+      companyId,
+      storeId,
+      plate:cleanPlate(plate),
+      vehicleId:preferredVehicleId,
+      updatedAt:now(),
+    },{merge:true});
+    return preferredVehicleId;
+  });
+};
 
 const stageFromStock=(item:OperationalStockItem):DmsVehicleStage=>{
   const status=String(item.status||'')
@@ -91,7 +112,9 @@ export const dmsVehicleService={
     for(const item of items){
       const plate=cleanPlate(item.plate);
       let master=(item.vehicleId&&byId.get(item.vehicleId))||byPlate.get(plate);
-      const vehicleId=master?.vehicleId||item.vehicleId||newVehicleId(companyId);
+      const preferredVehicleId=master?.vehicleId||item.vehicleId||newVehicleId(companyId);
+      const vehicleId=await claimVehicleId(companyId,storeId,plate,preferredVehicleId);
+      master=byId.get(vehicleId)||master;
       const nextMaster=mergeMaster(master,item,companyId,storeId,vehicleId);
       await setDoc(doc(db,LEDGER,nextMaster.id),nextMaster,{merge:true});
       if(!master){
