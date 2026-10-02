@@ -16,6 +16,7 @@ import { DEMO_COMPANY_ID, demoSeedService } from '../services/demoSeedService';
 import { billingSnapshot, defaultBilling, nextMonthlyDue } from '../services/billingService';
 import DmsPermissionEditor from './DmsPermissionEditor';
 import StoreAccessEditor from './StoreAccessEditor';
+import SaasOnboardingWizard from './SaasOnboardingWizard';
 
 type Tab='companies'|'users';
 const planLabel:Record<CompanyPlan,string>={starter:'Starter',pro:'Pro',enterprise:'Enterprise'};
@@ -35,6 +36,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
   const[message,setMessage]=useState('');
   const[error,setError]=useState('');
   const[newCompanyOpen,setNewCompanyOpen]=useState(false);
+  const[onboardingOpen,setOnboardingOpen]=useState(false);
   const[newUserOpen,setNewUserOpen]=useState(false);
   const[editingUser,setEditingUser]=useState<User|null>(null);
   const[companyName,setCompanyName]=useState('');
@@ -286,7 +288,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
         {tab==='companies'&&<>
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="text-sm font-semibold text-slate-800">{companies.length} empresa(s) cadastrada(s)</p><p className="mt-1 text-xs text-slate-500">Você só entra nos dados de uma empresa quando clicar em “Entrar no ambiente”.</p></div>
-            <button onClick={()=>setNewCompanyOpen(true)} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white"><Plus size={17}/> Nova empresa</button>
+            <div className="flex flex-wrap gap-2"><button onClick={()=>setOnboardingOpen(true)} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-sm font-bold text-blue-700"><UserCog size={17}/> Onboarding guiado</button>            <button onClick={()=>setNewCompanyOpen(true)} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white"><Plus size={17}/> Nova empresa</button></div>
           </div>
 
           {loading?<div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">Carregando empresas...</div>:
@@ -347,6 +349,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
       <button disabled={!companyName.trim()||saving==='company'} onClick={()=>void createCompany()} className="mt-5 h-11 w-full rounded-xl bg-blue-600 text-sm font-bold text-white disabled:opacity-40">{saving==='company'?'Criando...':'Criar empresa'}</button>
     </Modal>}
 
+    <SaasOnboardingWizard open={onboardingOpen} onClose={()=>setOnboardingOpen(false)} currentUser={currentUser} onComplete={load}/>
     {newUserOpen&&selectedCompany&&<Modal title={editingUser?'Editar usuário':'Novo usuário'} eyebrow={selectedCompany.name} onClose={()=>{setNewUserOpen(false);setEditingUser(null);}}>
       <div className="grid gap-4">
         <Field label="Nome completo" value={userForm.name} onChange={value=>setUserForm(prev=>({...prev,name:value}))}/>
