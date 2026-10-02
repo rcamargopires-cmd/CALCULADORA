@@ -1,6 +1,7 @@
 import { arrayUnion, collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { CrmLeadSource, CrmLeadTemperature, ShowroomPassage, ShowroomPassageActivity, ShowroomPassageOrigin, ShowroomPassageStatus, ShowroomQueueAudit, ShowroomQueuePause, ShowroomQueueReason, ShowroomQueueSeller, ShowroomQueueState, User } from '../types';
+import { dmsCustomerService } from './dmsCustomerService';
 
 const cleanPhone=(value:string)=>String(value||'').replace(/\D/g,'').slice(0,15);
 const queueId=(companyId:string,storeId:string)=>`${companyId}_${storeId}`.replace(/[^a-zA-Z0-9_-]/g,'-');
@@ -187,6 +188,13 @@ export const showroomFlowService={
   },
 
   createPassage:async(input:{companyId:string;storeId:string;customerName:string;phone:string;interestModel:string;origin?:ShowroomPassageOrigin;requestedSellerEmail?:string;createdBy?:string;createdByName?:string}):Promise<ShowroomPassage>=>{
+    const customer=await dmsCustomerService.ensure({
+      companyId:input.companyId,
+      storeId:input.storeId,
+      name:input.customerName,
+      phone:input.phone,
+      actor:input.createdBy?{email:input.createdBy,name:input.createdByName||input.createdBy}:null,
+    });
     const origin:ShowroomPassageOrigin=input.origin==='requested'?'requested':'walk_in';
     const busyRequested=origin==='walk_in'?await getBusyRequestedSellerEmails(input.companyId,input.storeId):new Set<string>();
     const qRef=doc(db,'showroom_queue',queueId(input.companyId,input.storeId));
@@ -204,7 +212,7 @@ export const showroomFlowService={
         if(!selected)throw new Error('Nenhum vendedor disponível para passagem agora.');
       }
       const timestamp=now();
-      const passage:ShowroomPassage={id:pRef.id,customerName:input.customerName.trim(),phone:cleanPhone(input.phone),interestModel:input.interestModel.trim(),origin,assignedSellerId:selected.id,assignedSellerEmail:selected.email,assignedSellerName:selected.name,status:'waiting',createdAt:timestamp,updatedAt:timestamp,activityHistory:[{id:auditId(),type:'created',at:timestamp,label:'Atendimento criado',details:input.interestModel.trim()?`Interesse: ${input.interestModel.trim()}`:'',status:'waiting',byEmail:input.createdBy||'',byName:input.createdByName||''}],createdBy:input.createdBy||'',createdByName:input.createdByName||'',companyId:input.companyId,storeId:input.storeId};
+      const passage:ShowroomPassage={id:pRef.id,customerId:customer.customerId,customerName:input.customerName.trim(),phone:cleanPhone(input.phone),interestModel:input.interestModel.trim(),origin,assignedSellerId:selected.id,assignedSellerEmail:selected.email,assignedSellerName:selected.name,status:'waiting',createdAt:timestamp,updatedAt:timestamp,activityHistory:[{id:auditId(),type:'created',at:timestamp,label:'Atendimento criado',details:input.interestModel.trim()?`Interesse: ${input.interestModel.trim()}`:'',status:'waiting',byEmail:input.createdBy||'',byName:input.createdByName||''}],createdBy:input.createdBy||'',createdByName:input.createdByName||'',companyId:input.companyId,storeId:input.storeId};
       tx.set(pRef,passage);
       if(origin==='walk_in')tx.update(qRef,{turnOrder:moveEmailToEnd(queue,selected.email),nextIndex:0,updatedAt:timestamp});
       return passage;
@@ -212,10 +220,18 @@ export const showroomFlowService={
   },
 
   createCrmLead:async(input:{companyId:string;storeId:string;customerName:string;phone:string;interestModel:string;assignedSellerId:string;assignedSellerEmail:string;assignedSellerName:string;leadSource?:CrmLeadSource;sourceLabel?:string;notes?:string;leadTemperature?:CrmLeadTemperature;nextFollowUpAt?:string;createdBy?:string;createdByName?:string}):Promise<ShowroomPassage>=>{
+    const customer=await dmsCustomerService.ensure({
+      companyId:input.companyId,
+      storeId:input.storeId,
+      name:input.customerName,
+      phone:input.phone,
+      actor:input.createdBy?{email:input.createdBy,name:input.createdByName||input.createdBy}:null,
+    });
     const pRef=passageRef();
     const timestamp=now();
     const passage:ShowroomPassage={
       id:pRef.id,
+      customerId:customer.customerId,
       customerName:input.customerName.trim(),
       phone:cleanPhone(input.phone),
       interestModel:input.interestModel.trim(),
