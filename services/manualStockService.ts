@@ -1,18 +1,14 @@
-import { addDoc, collection, doc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { OperationalStockItem, PrepOrder, User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
 import { companyScopeService } from './companyScopeService';
-import { storeScopedOperationalService } from './storeScopedOperationalService';
+import { currentStockService } from './currentStockService';
 
-const safeId=(value:string)=>value.replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,120);
 const localDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const asDate=(value:string)=>new Date(value+'T12:00:00');
 const diffDays=(from:string,to:string)=>Math.max(0,Math.round((asDate(to).getTime()-asDate(from).getTime())/86400000));
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-const currentId=(storeId:string)=>`current_${safeId(storeId)}`;
-const stockSummaryId=(storeId:string,date:string)=>`stock_summary_${safeId(storeId)}_${safeId(date)}`;
-const manualDocId=(tenant:string,storeId:string,plate:string)=>`manual_${safeId(tenant)}_${safeId(storeId)}_${safeId(plate)}`;
 
 const rollToToday=(item:OperationalStockItem,today:string):OperationalStockItem=>{
   const plate=cleanPlate(item.plate);
@@ -21,70 +17,22 @@ const rollToToday=(item:OperationalStockItem,today:string):OperationalStockItem=
   const stockDays=entryDate
     ? diffDays(entryDate,today)
     : Math.max(0,Number(item.stockDays)||0)+diffDays(previousDate,today);
-  return {
-    ...item,
-    id:safeId(`${today}_${plate}`),
-    snapshotDate:today,
-    plate,
-    stockDays,
-  };
+  return {...item,snapshotDate:today,plate,stockDays};
 };
 
-const persist=async(items:OperationalStockItem[],user:User|undefined,storeId:string,companyId:string,action:string,writeAudit=true)=>{
-  const today=localDate();
-  const tenant=companyId||DEFAULT_COMPANY_ID;
-  const unique=new Map<string,OperationalStockItem>();
-  items.forEach(item=>{
-    const rolled=rollToToday(item,today);
-    if(/^[A-Z0-9]{7}$/.test(rolled.plate))unique.set(rolled.plate,rolled);
-  });
-  const finalRows=Array.from(unique.values());
-
-  for(const item of finalRows){
-    const isManual=item.source==='manual';
-    const docId=isManual?manualDocId(tenant,storeId,item.plate):safeId(`${tenant}_${storeId}_${today}_${item.plate}`);
-    const next:OperationalStockItem={
-      ...item,
-      id:docId,
-      snapshotDate:today,
-      companyId:tenant,
-      storeId,
-      ...(isManual?{manualActive:true,manualExitAt:''}:{}),
-      updatedAt:new Date().toISOString(),
-    };
-    await setDoc(doc(db,'operational_stock',docId),next,{merge:true});
-  }
-
-  const stockValue=finalRows.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
-  const aged60=finalRows.filter(item=>Number(item.stockDays)>60).length;
-  const critical=finalRows.filter(item=>Number(item.stockDays)>90);
-  const critical90Value=critical.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
-
-  await setDoc(doc(db,'operational_meta',stockSummaryId(storeId,today)),{
-    referenceDate:today,companyId:tenant,storeId,stockCount:finalRows.length,stockValue,aged60,
-    critical90:critical.length,critical90Value,updatedAt:serverTimestamp(),
-  },{merge:true});
-  await setDoc(doc(db,'operational_meta',currentId(storeId)),{
-    companyId:tenant,storeId,latestStockDate:today,stockRows:finalRows.length,updatedAt:serverTimestamp(),
-  },{merge:true});
-  if(writeAudit){
-    try{
-      await addDoc(collection(db,'operational_imports'),{
-        type:'stock',companyId:tenant,storeId,referenceDate:today,rows:finalRows.length,
-        fileName:`Cadastro manual · ${action}`,importedBy:user?.email||'',importedAt:serverTimestamp(),
-      });
-    }catch(error){
-      // O log de auditoria não pode impedir a atualização principal do estoque.
-      console.warn('Manual stock audit log failed',error);
-    }
-  }
-  return finalRows;
+const audit=async(action:string,rows:number,user:User|undefined,storeId:string,companyId:string)=>{
+  try{
+    await addDoc(collection(db,'operational_imports'),{
+      type:'stock',companyId,storeId,referenceDate:localDate(),rows,
+      fileName:`Cadastro manual · ${action}`,importedBy:user?.email||'',importedAt:serverTimestamp(),
+    });
+  }catch(error){console.warn('Manual stock audit log failed',error);}
 };
 
 export const manualStockService={
   getCurrent:async(storeId:string,companyId=companyScopeService.get())=>{
     const tenant=companyId||DEFAULT_COMPANY_ID;
-    const rows=await storeScopedOperationalService.getLatestStock(storeId,tenant);
+    const rows=await currentStockService.getCurrent(tenant,storeId);
     const today=localDate();
     return rows.map(item=>rollToToday(item,today)).sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
   },
@@ -95,31 +43,39 @@ export const manualStockService={
     storeId:string,
     companyId=companyScopeService.get(),
     originalPlate?:string,
-    currentRows?:OperationalStockItem[],
+    _currentRows?:OperationalStockItem[],
   )=>{
     const tenant=companyId||DEFAULT_COMPANY_ID;
-    const current=Array.isArray(currentRows)
-      ? currentRows.map(row=>rollToToday(row,localDate()))
-      : await manualStockService.getCurrent(storeId,tenant);
+    const current=await manualStockService.getCurrent(storeId,tenant);
     const plate=cleanPlate(item.plate);
     if(!/^[A-Z0-9]{7}$/.test(plate))throw new Error('Informe uma placa válida com 7 caracteres.');
     const original=cleanPlate(originalPlate||plate);
-    if(current.some(row=>row.plate===plate&&row.plate!==original))throw new Error('Já existe outro veículo com esta placa no estoque.');
-    const next=current.filter(row=>row.plate!==original);
-    const previous=current.find(row=>row.plate===original);
+    if(current.some(row=>cleanPlate(row.plate)===plate&&cleanPlate(row.plate)!==original))throw new Error('Já existe outro veículo com esta placa no estoque.');
+
+    const previous=current.find(row=>cleanPlate(row.plate)===original);
     const purchaseCost=Number(item.purchaseCost ?? previous?.purchaseCost ?? item.cost ?? 0)||0;
     const prepCost=Number(item.prepCost ?? previous?.prepCost ?? 0)||0;
-    next.push({
+    const nextItem=rollToToday({
+      ...previous,
       ...item,
       plate,
       purchaseCost,
       prepCost,
       cost:purchaseCost+prepCost,
-      source:item.source||'manual',
+      source:'manual',
       manualActive:true,
       manualExitAt:'',
-    });
-    return persist(next,user,storeId,tenant,originalPlate?'veículo editado':'veículo incluído');
+      status:item.status||previous?.status||'Em preparação',
+      companyId:tenant,
+      storeId,
+    },localDate());
+
+    if(originalPlate&&original&&original!==plate&&current.some(row=>cleanPlate(row.plate)===original)){
+      await currentStockService.markOut(original,storeId,tenant);
+    }
+    const next=await currentStockService.upsert(nextItem,storeId,tenant);
+    await audit(originalPlate?'veículo editado':'veículo incluído',next.length,user,storeId,tenant);
+    return next.map(row=>rollToToday(row,localDate())).sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
   },
 
   syncPreparation:async(
@@ -127,31 +83,12 @@ export const manualStockService={
     user:User|undefined,
     storeId:string,
     companyId=companyScopeService.get(),
-    currentRows?:OperationalStockItem[],
+    _currentRows?:OperationalStockItem[],
   )=>{
     const tenant=companyId||DEFAULT_COMPANY_ID;
-    const today=localDate();
-    let current=Array.isArray(currentRows)
-      ? currentRows.map(row=>rollToToday(row,today))
-      : await manualStockService.getCurrent(storeId,tenant);
+    const current=await manualStockService.getCurrent(storeId,tenant);
     const plate=cleanPlate(order.plate);
-
-    let existing=current.find(row=>cleanPlate(row.plate)===plate);
-    if(!existing){
-      const scoped=await getDocs(query(
-        collection(db,'operational_stock'),
-        where('companyId','==',tenant),
-        where('storeId','==',storeId),
-      ));
-      const history=scoped.docs
-        .map(item=>item.data() as OperationalStockItem)
-        .filter(item=>cleanPlate(item.plate)===plate&&!item.manualExitAt&&item.manualActive!==false)
-        .sort((a,b)=>String(b.snapshotDate||'').localeCompare(String(a.snapshotDate||'')));
-      if(history.length){
-        existing=rollToToday(history[0],today);
-        current=[...current.filter(row=>cleanPlate(row.plate)!==plate),existing];
-      }
-    }
+    const existing=current.find(row=>cleanPlate(row.plate)===plate);
     if(!existing)return current;
 
     const previousPrep=Number(existing.prepCost)||0;
@@ -166,117 +103,29 @@ export const manualStockService={
         ? 'Disponível'
         : 'Em preparação';
 
-    const isManual=existing.source==='manual';
-    const targetId=isManual?manualDocId(tenant,storeId,plate):safeId(`${tenant}_${storeId}_${today}_${plate}`);
-    const nextItem:OperationalStockItem={
+    const updated=rollToToday({
       ...existing,
-      id:targetId,
-      snapshotDate:today,
-      plate,
       purchaseCost,
       prepCost,
       cost:purchaseCost+prepCost,
       status,
-      companyId:tenant,
-      storeId,
-      ...(isManual?{manualActive:true,manualExitAt:''}:{}),
       updatedAt:new Date().toISOString(),
-    };
+    },localDate());
 
-    // Preparação atualiza somente o veículo alvo. Nunca regrava o snapshot inteiro,
-    // evitando que uma leitura parcial remova outros carros do estoque.
-    await setDoc(doc(db,'operational_stock',targetId),nextItem,{merge:true});
-
-    const next=[
-      ...current.filter(row=>cleanPlate(row.plate)!==plate),
-      nextItem,
-    ];
-    const stockValue=next.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
-    const aged60=next.filter(item=>Number(item.stockDays)>60).length;
-    const critical=next.filter(item=>Number(item.stockDays)>90);
-    const critical90Value=critical.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
-
-    await setDoc(doc(db,'operational_meta',stockSummaryId(storeId,today)),{
-      referenceDate:today,companyId:tenant,storeId,stockCount:next.length,stockValue,aged60,
-      critical90:critical.length,critical90Value,updatedAt:serverTimestamp(),
-    },{merge:true});
-    await setDoc(doc(db,'operational_meta',currentId(storeId)),{
-      companyId:tenant,storeId,latestStockDate:today,stockRows:next.length,updatedAt:serverTimestamp(),
-    },{merge:true});
-
-    return next.sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
+    const next=await currentStockService.upsert(updated,storeId,tenant);
+    return next.map(row=>rollToToday(row,localDate())).sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
   },
 
   recoverPlate:async(
-    plate:string,
-    user:User|undefined,
+    _plate:string,
+    _user:User|undefined,
     storeId:string,
     companyId=companyScopeService.get(),
-    currentRows?:OperationalStockItem[],
+    _currentRows?:OperationalStockItem[],
   ):Promise<OperationalStockItem[]|null>=>{
-    const tenant=companyId||DEFAULT_COMPANY_ID;
-    const target=cleanPlate(plate);
-    if(!/^[A-Z0-9]{7}$/.test(target))return null;
-
-    const current=Array.isArray(currentRows)
-      ? currentRows.map(row=>rollToToday(row,localDate()))
-      : await manualStockService.getCurrent(storeId,tenant);
-    if(current.some(row=>cleanPlate(row.plate)===target))return current;
-
-    const scoped=await getDocs(query(
-      collection(db,'operational_stock'),
-      where('companyId','==',tenant),
-      where('storeId','==',storeId),
-    ));
-    const history=scoped.docs
-      .map(item=>item.data() as OperationalStockItem)
-      .filter(item=>cleanPlate(item.plate)===target&&item.source==='manual'&&!item.manualExitAt&&item.manualActive!==false)
-      .sort((a,b)=>`${String(b.snapshotDate||'')}|${String(b.updatedAt||'')}`.localeCompare(`${String(a.snapshotDate||'')}|${String(a.updatedAt||'')}`));
-    if(!history.length)return null;
-
-    const today=localDate();
-    const base=rollToToday(history[0],today);
-    const recovered:OperationalStockItem={
-      ...base,
-      id:manualDocId(tenant,storeId,target),
-      snapshotDate:today,
-      plate:target,
-      source:'manual',
-      manualActive:true,
-      manualExitAt:'',
-      status:String(base.status||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()==='saida'
-        ? 'Em preparação'
-        : (base.status||'Em preparação'),
-      companyId:tenant,
-      storeId,
-      updatedAt:new Date().toISOString(),
-    };
-    await setDoc(doc(db,'operational_stock',recovered.id),recovered,{merge:true});
-
-    const next=[
-      ...current.filter(row=>cleanPlate(row.plate)!==target),
-      recovered,
-    ].sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
-
-    const stockValue=next.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
-    const aged60=next.filter(item=>Number(item.stockDays)>60).length;
-    const critical=next.filter(item=>Number(item.stockDays)>90);
-    const critical90Value=critical.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
-    await setDoc(doc(db,'operational_meta',stockSummaryId(storeId,today)),{
-      referenceDate:today,companyId:tenant,storeId,stockCount:next.length,stockValue,aged60,
-      critical90:critical.length,critical90Value,updatedAt:serverTimestamp(),
-    },{merge:true});
-    await setDoc(doc(db,'operational_meta',currentId(storeId)),{
-      companyId:tenant,storeId,latestStockDate:today,stockRows:next.length,updatedAt:serverTimestamp(),
-    },{merge:true});
-
-    try{
-      await addDoc(collection(db,'operational_imports'),{
-        type:'stock',companyId:tenant,storeId,referenceDate:today,rows:next.length,
-        fileName:`Recuperação manual · ${target}`,importedBy:user?.email||'',importedAt:serverTimestamp(),
-      });
-    }catch{}
-    return next;
+    // Compatibilidade com telas antigas. Não existe mais "recuperação" separada:
+    // todas as telas leem a mesma fonte canônica.
+    return manualStockService.getCurrent(storeId,companyId);
   },
 
   remove:async(
@@ -287,29 +136,8 @@ export const manualStockService={
   )=>{
     const tenant=companyId||DEFAULT_COMPANY_ID;
     const target=cleanPlate(plate);
-    const current=await manualStockService.getCurrent(storeId,tenant);
-    if(!current.some(row=>cleanPlate(row.plate)===target))throw new Error('Veículo não encontrado no estoque atual.');
-
-    // Marca qualquer histórico da placa como saída para que um snapshot antigo
-    // não ressuscite o veículo depois.
-    const scoped=await getDocs(query(
-      collection(db,'operational_stock'),
-      where('companyId','==',tenant),
-      where('storeId','==',storeId),
-    ));
-    for(const oldDoc of scoped.docs){
-      const data=oldDoc.data() as OperationalStockItem;
-      if(cleanPlate(data.plate)!==target)continue;
-      await setDoc(oldDoc.ref,{
-        status:'Saída',
-        manualActive:false,
-        manualExitAt:new Date().toISOString(),
-        updatedAt:new Date().toISOString(),
-        companyId:tenant,
-        storeId,
-      },{merge:true});
-    }
-
-    return persist(current.filter(row=>cleanPlate(row.plate)!==target),user,storeId,tenant,`saída ${target}`);
+    const next=await currentStockService.markOut(target,storeId,tenant);
+    await audit(`saída ${target}`,next.length,user,storeId,tenant);
+    return next.map(row=>rollToToday(row,localDate())).sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
   },
 };
