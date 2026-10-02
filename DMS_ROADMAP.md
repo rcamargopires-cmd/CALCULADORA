@@ -1,16 +1,17 @@
 # MOTYQ · Roadmap mestre do DMS
 
-Este arquivo é a fonte de acompanhamento do projeto. Um item só é considerado concluído quando está marcado com `[x]` aqui e no painel **PLANO** do Motyq.
+Este arquivo acompanha a construção do MOTYQ. Um item só recebe `[x]` quando o recurso foi implementado de forma utilizável. Dependências externas, credenciais e homologações reais permanecem abertas até serem efetivamente executadas.
 
 **Progresso atual:** 155/160 itens concluídos (97%).
 
 ## Regras do projeto
 
 - Uma única fonte de verdade por veículo, cliente, fornecedor, venda e lançamento financeiro.
-- Todo módulo deve apontar para os cadastros mestres, sem criar cópias paralelas.
-- Aprovação e pagamento são responsabilidades separadas.
-- Toda ação sensível precisa de auditoria.
-- Multiempresa e multiunidade devem existir desde a origem de cada registro.
+- Todo módulo aponta para cadastros mestres, sem cópias paralelas.
+- Aprovação e pagamento permanecem separados.
+- Ações sensíveis deixam auditoria.
+- Multiempresa e multiunidade fazem parte do registro desde a origem.
+- Credencial configurada em código/documentação não conta como homologação externa executada.
 - Nenhuma melhoria é encerrada sem atualizar este checklist.
 
 ## Fase 1 · Fundação e fonte única de verdade
@@ -179,7 +180,7 @@ Acompanhar a vida documental e fiscal do carro até depois da entrega.
 - [x] **F8.04** Gravame
 - [x] **F8.05** Multas e débitos
 - [x] **F8.06** Despachante e custos documentais
-- [ ] **F8.07** Nota fiscal / integração fiscal · Fluxo interno e anexos existem; falta escolher/homologar o provedor fiscal e credenciais/certificado.
+- [ ] **F8.07** Nota fiscal / integração fiscal · Integração Focus NFe implementada: emissão, consulta, cancelamento, DANFE/XML e trava de faturamento. Falta token/certificado e homologação fiscal real com contador.
 - [x] **F8.08** Upload e organização de documentos
 - [x] **F8.09** Garantia do veículo vendido
 - [x] **F8.10** Ocorrências de pós-venda
@@ -218,7 +219,7 @@ Permitir vender o Motyq para várias lojas sem misturar dados ou configurações
 - [x] **F10.05** Controle de mensalidade/bloqueio base
 - [x] **F10.06** Gestão de usuários por empresa
 - [x] **F10.07** Configuração de módulos por plano totalmente aplicada
-- [ ] **F10.08** Cobrança recorrente automatizada · Integração Asaas, assinatura mensal e webhook já estão no código; falta configurar ASAAS_API_KEY/ASAAS_WEBHOOK_TOKEN e homologar no Sandbox.
+- [ ] **F10.08** Cobrança recorrente automatizada · Asaas completo no código: assinatura mensal, webhook idempotente, status de integração e atualização de vencimento. Falta credencial e homologação real no Sandbox.
 - [x] **F10.09** Portal do cliente para cobrança/plano
 - [x] **F10.10** Onboarding guiado de nova loja
 - [x] **F10.11** Importador/migrador de dados de outro DMS
@@ -232,9 +233,9 @@ O sistema precisa ser confiável o bastante para carregar estoque, dinheiro e hi
 
 - [x] **F11.01** Testes automatizados dos fluxos críticos
 - [x] **F11.02** CI com typecheck, build e testes a cada alteração
-- [ ] **F11.03** Regras Firestore versionadas e publicadas por ambiente · Regras, índices e workflow estão versionados. Publicação automática está bloqueada apenas pela ausência do secret FIREBASE_SERVICE_ACCOUNT_JSON no GitHub Actions.
+- [ ] **F11.03** Regras Firestore versionadas e publicadas por ambiente · Workflow production/staging está pronto e CI passa. Execução real falhou porque FIREBASE_SERVICE_ACCOUNT_JSON ainda não existe no GitHub Environment.
 - [x] **F11.04** Índices Firestore versionados
-- [ ] **F11.05** Backup periódico e procedimento de restauração · Workflow diário e procedimento de restauração estão prontos; falta credencial no GitHub Actions e executar o primeiro backup real.
+- [ ] **F11.05** Backup periódico e procedimento de restauração · Backup diário bloqueante e restauração com confirmação explícita estão prontos; falta FIREBASE_SERVICE_ACCOUNT_JSON e executar o primeiro backup real.
 - [x] **F11.06** Migrações de dados versionadas
 - [x] **F11.07** Auditoria imutável ou protegida contra edição
 - [x] **F11.08** Monitoramento central de erros
