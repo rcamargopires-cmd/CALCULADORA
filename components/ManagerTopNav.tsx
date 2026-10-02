@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, CircleDollarSign, ClipboardCheck, ListTodo, ShieldCheck, Wrench } from 'lucide-react';
+import { Banknote, CarFront, CircleDollarSign, ClipboardCheck, ListTodo, ShieldCheck, Wrench } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
@@ -77,6 +77,15 @@ const ManagerTopNav: React.FC = () => {
       >
         <CircleDollarSign size={14}/>
         <span className="motyq-manager-nav-label">IMPACTO</span>
+      </button>}
+      {isManager&&<button
+        type="button"
+        title="Compras"
+        onClick={() => launcherClick('Compras de veículos')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-emerald-300 transition-all hover:bg-emerald-400/10 hover:text-emerald-200"
+      >
+        <CarFront size={14}/>
+        <span className="motyq-manager-nav-label">COMPRAS</span>
       </button>}
       {permissions.prepView&&<button
         type="button"
