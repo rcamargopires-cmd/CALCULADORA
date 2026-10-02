@@ -25,7 +25,7 @@ export const stockSnapshotService = {
     ));
     for (const oldDoc of scoped.docs) {
       const data = oldDoc.data() as OperationalStockItem;
-      if (data.snapshotDate === snapshotDate) await deleteDoc(oldDoc.ref);
+      if (data.currentRecord !== true && data.snapshotDate === snapshotDate) await deleteDoc(oldDoc.ref);
     }
 
     // Compatibilidade de uma única vez com fotografias antigas do Outlet sem tenant explícito.
@@ -34,7 +34,7 @@ export const stockSnapshotService = {
         const legacy = await getDocs(query(collection(db, 'operational_stock'), where('snapshotDate', '==', snapshotDate)));
         for (const oldDoc of legacy.docs) {
           const data = oldDoc.data() as OperationalStockItem;
-          if (!data.companyId && (!data.storeId || data.storeId === DEFAULT_STORE_ID)) await deleteDoc(oldDoc.ref);
+          if (data.currentRecord !== true && !data.companyId && (!data.storeId || data.storeId === DEFAULT_STORE_ID)) await deleteDoc(oldDoc.ref);
         }
       } catch {}
     }
