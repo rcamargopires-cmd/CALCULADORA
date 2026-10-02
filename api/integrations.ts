@@ -366,6 +366,34 @@ export default async function handler(req:any,res:any){
   if(!motyqFirestore.configured())return res.status(503).json({error:'firebase_service_account_not_configured'});
   try{
     const domain=String(req.body?.domain||'billing').toLowerCase();
+    if(domain==='readiness'){
+      const actor=await adminActor(req);
+      if(!actor)return res.status(403).json({error:'admin_required'});
+      const companyId=String(req.body?.companyId||'').trim();
+      const asaasApi=Boolean(String(process.env.ASAAS_API_KEY||'').trim());
+      const asaasWebhook=Boolean(String(process.env.ASAAS_WEBHOOK_TOKEN||'').trim());
+      const focus=Boolean(companyId&&focusTokenFor(companyId));
+      return res.status(200).json({
+        ok:true,
+        serverFirebase:motyqFirestore.configured(),
+        asaas:{
+          configured:asaasApi&&asaasWebhook,
+          apiKey:asaasApi,webhookToken:asaasWebhook,
+          environment:String(process.env.ASAAS_ENVIRONMENT||'sandbox'),
+        },
+        fiscal:{
+          configured:focus,
+          companyId,
+          environment:focusEnvironment(req.body?.fiscalEnvironment),
+          provider:'focus_nfe',
+        },
+        external:{
+          githubFirebaseSecret:'check_github_environment',
+          firstBackup:'check_github_actions',
+          oemCredentials:'manufacturer_specific',
+        },
+      });
+    }
     if(domain==='fiscal'){
       const result=await handleFiscal(req);
       return res.status(result.status).json(result.body);
