@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Plus, ShieldCheck, SlidersHorizontal, Trash2, UserCog, Users, X } from 'lucide-react';
-import { Company, DmsAccessProfile, SellerGoals, Store, User, UserRole, UserStatus } from '../types';
+import { Company, DmsAccessProfile, DmsPermissionKey, SellerGoals, Store, User, UserRole, UserStatus } from '../types';
 import { dmsAccessLabel } from '../services/dmsPermissions';
+import DmsPermissionEditor from './DmsPermissionEditor';
 import { userService } from '../services/userService';
 import { companyIdForUser, companyService, DEFAULT_COMPANY } from '../services/companyService';
 import { COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
@@ -14,6 +15,7 @@ const emptyForm = {
   email: '',
   role: 'seller' as UserRole,
   dmsAccessProfile: 'management' as DmsAccessProfile,
+  dmsPermissionOverrides: {} as Partial<Record<DmsPermissionKey,boolean>>,
   status: 'active' as UserStatus,
   storeId: '',
 };
@@ -92,6 +94,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       email: user.email || '',
       role: user.role === 'user' ? 'seller' : user.role,
       dmsAccessProfile: user.dmsAccessProfile || 'management',
+      dmsPermissionOverrides: user.dmsPermissionOverrides || {},
       status: user.status,
       storeId: user.storeId || stores[0]?.id || '',
     });
@@ -139,7 +142,8 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         email,
         name,
         role: form.role,
-        ...(form.role==='manager'?{dmsAccessProfile:form.dmsAccessProfile}:{}),
+        dmsAccessProfile:form.role==='manager'?form.dmsAccessProfile:undefined,
+        dmsPermissionOverrides:form.role==='manager'?form.dmsPermissionOverrides:undefined,
         status: form.status,
         companyId,
         storeId: form.storeId,
@@ -282,7 +286,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           <Field label="E-mail" value={form.email} onChange={value => setForm({...form,email:value})} type="email" wide disabled={Boolean(editingUser.email)}/>
           <label><span className="text-xs font-semibold text-slate-500">Perfil</span><select disabled={editingUser.email === currentUser.email} value={form.role} onChange={event => setForm({...form,role:event.target.value as UserRole})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50">{roleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label><span className="text-xs font-semibold text-slate-500">Status</span><select value={form.status} onChange={event => setForm({...form,status:event.target.value as UserStatus})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"><option value="active">Ativo</option><option value="inactive">Inativo</option></select></label>
-          {form.role==='manager'&&<label className="sm:col-span-2"><span className="text-xs font-semibold text-slate-500">Acesso DMS</span><select value={form.dmsAccessProfile} onChange={event=>setForm({...form,dmsAccessProfile:event.target.value as DmsAccessProfile})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"><option value="management">Gestor · aprova e acompanha</option><option value="preparation">Preparação · lança serviços, não aprova</option><option value="finance">Financeiro / Caixa · paga e recebe</option></select><p className="mt-1.5 text-[11px] text-slate-500">A pessoa continua vinculada à unidade, mas enxerga somente o fluxo correspondente no Motyq.</p></label>}
+          {form.role==='manager'&&<div className="sm:col-span-2"><DmsPermissionEditor profile={form.dmsAccessProfile} overrides={form.dmsPermissionOverrides} onProfileChange={value=>setForm(current=>({...current,dmsAccessProfile:value}))} onOverridesChange={value=>setForm(current=>({...current,dmsPermissionOverrides:value}))}/></div>}
           <label className="sm:col-span-2"><span className="text-xs font-semibold text-slate-500">Unidade</span><select value={form.storeId} onChange={event => setForm({...form,storeId:event.target.value})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"><option value="">Selecione...</option>{stores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
         </div>
         {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
