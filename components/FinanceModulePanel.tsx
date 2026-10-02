@@ -40,6 +40,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   const[party,setParty]=useState('');
   const[amount,setAmount]=useState('');
   const[dueDate,setDueDate]=useState('');
+  const[installments,setInstallments]=useState('1');
   const[plate,setPlate]=useState('');
   const[vehicle,setVehicle]=useState('');
   const[method,setMethod]=useState('Pix');
@@ -124,7 +125,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
 
   const resetForm=()=>{
     setEntryType(tab==='receivable'?'receivable':'payable');
-    setCategory('Outros');setDescription('');setParty('');setAmount('');setDueDate('');setPlate('');setVehicle('');
+    setCategory('Outros');setDescription('');setParty('');setAmount('');setDueDate('');setInstallments('1');setPlate('');setVehicle('');
   };
 
   const create=async()=>{
@@ -135,22 +136,43 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
     if(value<=0)return setError('Informe um valor maior que zero.');
     setBusy('create');setError('');setMessage('');
     try{
-      await financeService.create({
-        entryType,
-        category:category.trim()||'Outros',
-        description:description.trim(),
-        party:party.trim(),
-        amount:value,
-        dueDate:dueDate||undefined,
-        competenceDate:today(),
-        plate:plate||undefined,
-        vehicle:vehicle.trim()||undefined,
-        origin:'manual',
-        companyId,
-        storeId,
-        actor:currentUser,
-      });
-      setMessage(entryType==='payable'?'Conta a pagar criada.':'Conta a receber criada.');
+      const count=Math.max(1,Math.min(120,Math.trunc(Number(installments)||1)));
+      if(count>1){
+        await financeService.createInstallments({
+          entryType,
+          category:category.trim()||'Outros',
+          description:description.trim(),
+          party:party.trim(),
+          totalAmount:value,
+          installmentCount:count,
+          firstDueDate:dueDate||undefined,
+          competenceDate:today(),
+          plate:plate||undefined,
+          vehicle:vehicle.trim()||undefined,
+          origin:'manual',
+          companyId,
+          storeId,
+          actor:currentUser,
+        });
+        setMessage(`${count} parcelas criadas no financeiro.`);
+      }else{
+        await financeService.create({
+          entryType,
+          category:category.trim()||'Outros',
+          description:description.trim(),
+          party:party.trim(),
+          amount:value,
+          dueDate:dueDate||undefined,
+          competenceDate:today(),
+          plate:plate||undefined,
+          vehicle:vehicle.trim()||undefined,
+          origin:'manual',
+          companyId,
+          storeId,
+          actor:currentUser,
+        });
+        setMessage(entryType==='payable'?'Conta a pagar criada.':'Conta a receber criada.');
+      }
       setEntryOpen(false);resetForm();
     }catch(cause:any){setError(cause?.message||'Não foi possível criar o lançamento.');}
     finally{setBusy('');}
@@ -352,8 +374,9 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
           <label className="text-xs text-zinc-500">Categoria<input value={category} onChange={e=>setCategory(e.target.value)} placeholder="Ex.: Preparação, aluguel, venda" className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
           <label className="text-xs text-zinc-500 sm:col-span-2">Descrição<input value={description} onChange={e=>setDescription(e.target.value)} placeholder="Descrição do lançamento" className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
           <label className="text-xs text-zinc-500">{entryType==='payable'?'Fornecedor / beneficiário':'Cliente / pagador'}<input value={party} onChange={e=>setParty(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
-          <label className="text-xs text-zinc-500">Valor<input type="number" value={amount} onChange={e=>setAmount(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
-          <label className="text-xs text-zinc-500">Vencimento<input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"/></label>
+          <label className="text-xs text-zinc-500">Valor total<input type="number" value={amount} onChange={e=>setAmount(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
+          <label className="text-xs text-zinc-500">Primeiro vencimento<input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"/></label>
+          <label className="text-xs text-zinc-500">Parcelas<input type="number" min="1" max="120" value={installments} onChange={e=>setInstallments(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/><span className="mt-1 block text-[10px] text-zinc-600">Acima de 1, o Motyq divide o valor total em vencimentos mensais.</span></label>
           <label className="text-xs text-zinc-500">Placa opcional<input value={plate} onChange={e=>setPlate(clean(e.target.value).slice(0,7))} placeholder="ABC1D23" className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 font-mono text-sm text-white outline-none"/></label>
           <label className="text-xs text-zinc-500 sm:col-span-2">Veículo / referência<input value={vehicle} onChange={e=>setVehicle(e.target.value)} placeholder="Opcional" className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
         </div>
@@ -373,7 +396,7 @@ const EntryRow=({entry,active,onClick}:{key?:React.Key;entry:FinanceEntry;active
   return <button onClick={onClick} className={`w-full rounded-2xl border p-4 text-left ${active?'border-sky-400/30 bg-sky-400/[.06]':'border-white/10 bg-black/20'}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-1 text-[9px] font-bold ${isSettled(entry)?'bg-emerald-400/10 text-emerald-300':entry.status==='cancelled'?'bg-zinc-400/10 text-zinc-400':'bg-amber-400/10 text-amber-300'}`}>{statusLabel(entry).toUpperCase()}</span>{entry.origin==='prep'&&<span className="rounded-full bg-sky-400/10 px-2 py-1 text-[9px] font-bold text-sky-300">PREPTRACK</span>}{late&&<span className="rounded-full bg-red-400/10 px-2 py-1 text-[9px] font-bold text-red-300">VENCIDO</span>}</div>
+        <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-1 text-[9px] font-bold ${isSettled(entry)?'bg-emerald-400/10 text-emerald-300':entry.status==='cancelled'?'bg-zinc-400/10 text-zinc-400':'bg-amber-400/10 text-amber-300'}`}>{statusLabel(entry).toUpperCase()}</span>{entry.origin==='prep'&&<span className="rounded-full bg-sky-400/10 px-2 py-1 text-[9px] font-bold text-sky-300">PREPTRACK</span>}{entry.installmentCount&&entry.installmentCount>1&&<span className="rounded-full bg-violet-400/10 px-2 py-1 text-[9px] font-bold text-violet-300">{entry.installmentNumber}/{entry.installmentCount}</span>}{late&&<span className="rounded-full bg-red-400/10 px-2 py-1 text-[9px] font-bold text-red-300">VENCIDO</span>}</div>
         <p className="mt-2 truncate text-sm font-semibold text-zinc-200">{entry.description}</p><p className="mt-1 truncate text-xs text-zinc-500">{entry.party}{entry.plate?` · ${entry.plate}`:''}</p>
       </div>
       <div className="shrink-0 text-right"><p className="font-semibold">{money(entry.amount)}</p><p className="mt-1 text-[10px] text-zinc-600">{displayDate(entry.dueDate)}</p></div>
