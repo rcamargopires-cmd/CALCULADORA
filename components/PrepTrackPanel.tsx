@@ -4,7 +4,7 @@ import { OperationalStockItem, PrepOrder, PrepOrderStatus, PrepServiceStatus, Us
 import { prepTrackService } from '../services/prepTrackService';
 import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
 import { manualStockService } from '../services/manualStockService';
-import { currentStockService } from '../services/currentStockService';
+import { useCurrentStock } from '../contexts/CurrentStockContext';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 const SERVICE_TYPES=['Troca de óleo','Mecânica','Higienização','Auto elétrica','Funilaria / pintura','Pneus','Estética','Vidros','Acessórios','Outros'];
@@ -16,6 +16,7 @@ const clean=(v:unknown)=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 const isEmptyLookup=(order:PrepOrder)=>!(order.services||[]).length&&!order.sold&&order.status==='triage'&&order.destination==='showroom';
 
 const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})=>{
+ const sharedStock=useCurrentStock();
  const[open,setOpen]=useState(false);const[loading,setLoading]=useState(false);const[stock,setStock]=useState<OperationalStockItem[]>([]);const[orders,setOrders]=useState<PrepOrder[]>([]);const[selectedId,setSelectedId]=useState('');const[search,setSearch]=useState('');
  const[serviceType,setServiceType]=useState(SERVICE_TYPES[0]);const[provider,setProvider]=useState('');const[estimatedCost,setEstimatedCost]=useState('');const[dueAt,setDueAt]=useState('');const[notes,setNotes]=useState('');
  const load=async()=>{
@@ -41,13 +42,9 @@ const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})
  useEffect(()=>{if(open)load();},[open,companyId,storeId]);
  useEffect(()=>{
   if(!open)return;
-  return currentStockService.subscribe(
-   companyId,
-   storeId,
-   rows=>setStock(rows),
-   error=>console.warn('Motyq: estoque atual em tempo real indisponível no PrepTrack.',error),
-  );
- },[open,companyId,storeId]);
+  if(sharedStock.companyId!==companyId||sharedStock.storeId!==storeId)return;
+  setStock(sharedStock.rows);
+ },[open,sharedStock.rows,sharedStock.companyId,sharedStock.storeId,companyId,storeId]);
  const selected=orders.find(item=>item.id===selectedId)||null;
  const stockByPlate=useMemo(()=>new Map(stock.map(item=>[clean(item.plate),item])),[stock]);
  const q=search.trim().toLowerCase();
