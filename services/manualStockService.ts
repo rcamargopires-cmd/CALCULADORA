@@ -148,11 +148,28 @@ export const manualStockService={
     currentRows?:OperationalStockItem[],
   )=>{
     const tenant=companyId||DEFAULT_COMPANY_ID;
-    const current=Array.isArray(currentRows)
-      ? currentRows.map(row=>rollToToday(row,localDate()))
+    const today=localDate();
+    let current=Array.isArray(currentRows)
+      ? currentRows.map(row=>rollToToday(row,today))
       : await manualStockService.getCurrent(storeId,tenant);
     const plate=cleanPlate(order.plate);
-    const existing=current.find(row=>cleanPlate(row.plate)===plate);
+
+    let existing=current.find(row=>cleanPlate(row.plate)===plate);
+    if(!existing){
+      const scoped=await getDocs(query(
+        collection(db,'operational_stock'),
+        where('companyId','==',tenant),
+        where('storeId','==',storeId),
+      ));
+      const history=scoped.docs
+        .map(item=>item.data() as OperationalStockItem)
+        .filter(item=>cleanPlate(item.plate)===plate)
+        .sort((a,b)=>String(b.snapshotDate||'').localeCompare(String(a.snapshotDate||'')));
+      if(history.length){
+        existing=rollToToday(history[0],today);
+        current=[...current.filter(row=>cleanPlate(row.plate)!==plate),existing];
+      }
+    }
     if(!existing)return current;
 
     const previousPrep=Number(existing.prepCost)||0;
@@ -167,15 +184,42 @@ export const manualStockService={
         ? 'Disponível'
         : 'Em preparação';
 
-    const next=current.map(row=>cleanPlate(row.plate)===plate?{
-      ...row,
+    const nextItem:OperationalStockItem={
+      ...existing,
+      id:safeId(`${tenant}_${storeId}_${today}_${plate}`),
+      snapshotDate:today,
+      plate,
       purchaseCost,
       prepCost,
       cost:purchaseCost+prepCost,
       status,
-    }:row);
+      companyId:tenant,
+      storeId,
+      updatedAt:new Date().toISOString(),
+    };
 
-    return persist(next,user,storeId,tenant,`preparação ${plate}`,false);
+    // Preparação atualiza somente o veículo alvo. Nunca regrava o snapshot inteiro,
+    // evitando que uma leitura parcial remova outros carros do estoque.
+    await setDoc(doc(db,'operational_stock',nextItem.id),nextItem,{merge:true});
+
+    const next=[
+      ...current.filter(row=>cleanPlate(row.plate)!==plate),
+      nextItem,
+    ];
+    const stockValue=next.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
+    const aged60=next.filter(item=>Number(item.stockDays)>60).length;
+    const critical=next.filter(item=>Number(item.stockDays)>90);
+    const critical90Value=critical.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
+
+    await setDoc(doc(db,'operational_meta',stockSummaryId(storeId,today)),{
+      referenceDate:today,companyId:tenant,storeId,stockCount:next.length,stockValue,aged60,
+      critical90:critical.length,critical90Value,updatedAt:serverTimestamp(),
+    },{merge:true});
+    await setDoc(doc(db,'operational_meta',currentId(storeId)),{
+      companyId:tenant,storeId,latestStockDate:today,stockRows:next.length,updatedAt:serverTimestamp(),
+    },{merge:true});
+
+    return next.sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
   },
 
   remove:async(
