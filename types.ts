@@ -224,6 +224,12 @@ export interface VehicleHistoryEvent {
 
 export type SalesOrderStatus='draft'|'approved'|'credit_pending'|'ready_to_invoice'|'invoiced'|'delivered'|'cancelled';
 export type CreditStatus='not_required'|'pending'|'approved'|'rejected';
+export interface SalesDeliveryChecklist {
+  financialReleased:boolean;
+  documentsReady:boolean;
+  vehicleReady:boolean;
+  customerConfirmed:boolean;
+}
 export interface SalesOrder {
   id:string;
   kind:'sales_order';
@@ -258,6 +264,9 @@ export interface SalesOrder {
   invoiceNumber?:string;
   invoiceDate?:string;
   deliveryDate?:string;
+  deliveryChecklist:SalesDeliveryChecklist;
+  deliveredBy?:string;
+  deliveredByName?:string;
   notes?:string;
   approvedAt?:string;
   approvedBy?:string;
