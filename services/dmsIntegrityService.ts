@@ -1,3 +1,5 @@
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import type { DmsDiagnosticIssue, DmsDiagnosticReport, FinanceEntry, PrepOrder, User } from '../types';
 import { currentStockService } from './currentStockService';
 import { dmsVehicleService } from './dmsVehicleService';
@@ -218,4 +220,22 @@ export const dmsIntegrityService={
       issues,
     };
   },
+  runAndStore:async(companyId:string,storeId:string,currentUser?:User|null):Promise<DmsDiagnosticReport>=>{
+    const report=await dmsIntegrityService.run(companyId,storeId,currentUser);
+    const day=report.generatedAt.slice(0,10);
+    const id=`dms_integrity_report_${companyId}_${storeId}_${day}`.replace(/[^a-zA-Z0-9_-]/g,'-').slice(0,190);
+    await setDoc(doc(db,'operational_meta',id),{
+      id,kind:'dms_integrity_report',companyId,storeId,
+      generatedAt:report.generatedAt,
+      stockCount:report.stockCount,vehicleMasterCount:report.vehicleMasterCount,
+      prepOrderCount:report.prepOrderCount,purchaseCount:report.purchaseCount||0,salesOrderCount:report.salesOrderCount||0,
+      financeEntryCount:report.financeEntryCount,supplierCount:report.supplierCount,customerCount:report.customerCount,
+      criticalCount:report.criticalCount,warningCount:report.warningCount,infoCount:report.infoCount,
+      issues:report.issues.slice(0,250),
+      generatedBy:currentUser?.email||'system',generatedByName:currentUser?.name||'Motyq',
+      updatedAt:report.generatedAt,
+    },{merge:true});
+    return report;
+  },
+
 };
