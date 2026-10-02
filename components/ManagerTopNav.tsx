@@ -159,6 +159,15 @@ const ManagerTopNav: React.FC = () => {
         <FileCheck2 size={14}/>
         <span className="motyq-manager-nav-label">DOCUMENTOS</span>
       </button>}
+      {isManager&&<button
+        type="button"
+        title="Pós-venda"
+        onClick={() => launcherClick('Pós-venda e garantia')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-pink-300 transition-all hover:bg-pink-400/10 hover:text-pink-200"
+      >
+        <HeartHandshake size={14}/>
+        <span className="motyq-manager-nav-label">PÓS-VENDA</span>
+      </button>}
     </>, target)}
   </>;
 };
