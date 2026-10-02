@@ -55,6 +55,19 @@ export interface SellerGoals { monthly:number; firstHalf:number; capture:number;
 export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; storeIds?:string[]; companyId?:string; companyName?:string; dmsAccessProfile?:DmsAccessProfile; dmsPermissionOverrides?:Partial<Record<DmsPermissionKey,boolean>>; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 
 export type CustomerConsentStatus='unknown'|'granted'|'revoked';
+export interface DmsDataRetentionPolicy {
+  id:string;
+  kind:'data_retention_policy';
+  companyId:string;
+  storeId:string;
+  crmInactivityMonths:number;
+  auditRetentionYears:number;
+  financialRetentionYears:number;
+  allowCustomerAnonymization:boolean;
+  updatedAt:string;
+  updatedBy?:string;
+  updatedByName?:string;
+}
 
 export interface CustomerMaster {
   id:string;
@@ -79,6 +92,9 @@ export interface CustomerMaster {
   consentUpdatedBy?:string;
   consentUpdatedByName?:string;
   consentUpdatedAt?:string;
+  anonymizedAt?:string;
+  anonymizedBy?:string;
+  anonymizedByName?:string;
   createdAt:string;
   updatedAt:string;
 }
