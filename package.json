@@ -3,7 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "scripts": {"dev":"vite","build":"vite build","preview":"vite preview","lint":"tsc --noEmit"},
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "test": "node scripts/smoke-tests.mjs"
+  },
   "dependencies": {
     "@google/genai": "^1.30.0",
     "date-fns": "^4.1.0",
@@ -14,5 +20,10 @@
     "recharts": "^3.8.1",
     "xlsx": "^0.18.5"
   },
-  "devDependencies": {"@types/node":"^22.14.0","@vitejs/plugin-react":"^5.0.0","typescript":"~5.8.2","vite":"^6.2.0"}
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
 }
