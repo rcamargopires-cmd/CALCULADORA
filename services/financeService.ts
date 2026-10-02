@@ -95,6 +95,7 @@ export const financeService={
     actor:Pick<User,'email'|'name'>,
     paymentMethod='',
     paymentReference='',
+    financeAccountId='',
   )=>{
     const stamp=now();
     const status:FinanceEntryStatus=entry.entryType==='payable'?'paid':'received';
@@ -103,6 +104,7 @@ export const financeService={
       settledAt:stamp,
       paymentMethod,
       paymentReference,
+      financeAccountId:financeAccountId||entry.financeAccountId||'',
       updatedAt:stamp,
     };
     await setDoc(doc(db,LEDGER,entry.id),patch,{merge:true});
@@ -115,7 +117,7 @@ export const financeService={
       plate:entry.plate,
       action:entry.entryType==='payable'?'finance_paid':'finance_received',
       label:entry.entryType==='payable'?'Pagamento baixado':'Recebimento baixado',
-      details:[entry.description,entry.party,paymentMethod,paymentReference].filter(Boolean).join(' · '),
+      details:[entry.description,entry.party,paymentMethod,paymentReference,financeAccountId].filter(Boolean).join(' · '),
       amount:Number(entry.amount)||0,
       actor,
     }).catch(()=>undefined);
