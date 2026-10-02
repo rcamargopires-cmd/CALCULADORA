@@ -6,9 +6,12 @@ import { financeService } from './financeService';
 import { dmsSupplierService } from './dmsSupplierService';
 import { dmsCustomerService } from './dmsCustomerService';
 import { userService } from './userService';
+import { vehiclePurchaseService } from './vehiclePurchaseService';
+import { salesOrderService } from './salesOrderService';
 
 const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const norm=(value:unknown)=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+const moneyForIssue=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
 
 const issue=(
   severity:DmsDiagnosticIssue['severity'],
@@ -21,10 +24,12 @@ const issue=(
 
 export const dmsIntegrityService={
   run:async(companyId:string,storeId:string,currentUser?:User|null):Promise<DmsDiagnosticReport>=>{
-    const [stock,masters,orders,finance,suppliers,customers,users]=await Promise.all([
+    const [stock,masters,orders,purchases,sales,finance,suppliers,customers,users]=await Promise.all([
       currentStockService.getCurrent(companyId,storeId),
       dmsVehicleService.list(companyId,storeId),
       prepTrackService.getOrders(companyId,storeId),
+      vehiclePurchaseService.list(companyId,storeId),
+      salesOrderService.list(companyId,storeId),
       financeService.getAll(companyId,storeId),
       dmsSupplierService.list(companyId,storeId),
       dmsCustomerService.list(companyId,storeId),
@@ -107,6 +112,40 @@ export const dmsIntegrityService={
       }
     }
 
+    for(const purchase of purchases){
+      const plate=cleanPlate(purchase.plate);
+      const stockItem=stock.find(item=>(purchase.vehicleId&&item.vehicleId===purchase.vehicleId)||cleanPlate(item.plate)===plate);
+      if(purchase.status!=='cancelled'&&!purchase.vehicleId){
+        issues.push(issue('warning','vehicle',`purchase-no-vehicle-${purchase.id}`,'Compra sem vínculo com veículo mestre',`${plate} · ${purchase.vehicle}.`,{plate,entityId:purchase.id}));
+      }
+      if(purchase.status==='entered'&&!stockItem){
+        issues.push(issue('critical','stock',`purchase-entered-no-stock-${purchase.id}`,'Compra marcada como entrada, mas veículo não está no estoque atual',`${plate} · ${purchase.vehicle}.`,{plate,vehicleId:purchase.vehicleId,entityId:purchase.id}));
+      }
+      if(['approved','payment_pending','documents','entered'].includes(purchase.status)&&purchase.origin!=='consignment'&&!(purchase.payableIds||[]).length){
+        issues.push(issue('warning','finance',`purchase-no-payables-${purchase.id}`,'Compra aprovada sem obrigações financeiras',`${plate} · ${purchase.ownerName||'proprietário não informado'}.`,{plate,vehicleId:purchase.vehicleId,entityId:purchase.id}));
+      }
+    }
+
+    for(const sale of sales){
+      const plate=cleanPlate(sale.plate);
+      const stockItem=stock.find(item=>(sale.vehicleId&&item.vehicleId===sale.vehicleId)||cleanPlate(item.plate)===plate);
+      if(sale.status!=='cancelled'&&!sale.vehicleId){
+        issues.push(issue('critical','vehicle',`sale-no-vehicle-${sale.id}`,'Pedido de Venda sem veículo mestre',`${plate} · ${sale.customerName}.`,{plate,entityId:sale.id}));
+      }
+      if(['draft','approved','credit_pending','ready_to_invoice','invoiced'].includes(sale.status)&&!stockItem){
+        issues.push(issue('critical','stock',`sale-no-stock-${sale.id}`,'Venda ativa sem veículo no estoque atual',`${plate} · status ${sale.status}.`,{plate,vehicleId:sale.vehicleId,entityId:sale.id}));
+      }
+      if(sale.status==='invoiced'&&!(sale.receivableIds||[]).length){
+        issues.push(issue('critical','finance',`sale-invoiced-no-receivable-${sale.id}`,'Venda faturada sem contas a receber',`${plate} · ${sale.customerName}.`,{plate,vehicleId:sale.vehicleId,entityId:sale.id}));
+      }
+      if(sale.status==='delivered'&&stockItem){
+        issues.push(issue('critical','stock',`sale-delivered-in-stock-${sale.id}`,'Veículo entregue ainda aparece no estoque atual',`${plate} · ${sale.customerName}.`,{plate,vehicleId:sale.vehicleId,entityId:sale.id}));
+      }
+      if(sale.tradeInPlate&&sale.tradeInValue>0&&!sale.tradeInPurchaseId){
+        issues.push(issue('warning','vehicle',`sale-trade-no-purchase-${sale.id}`,'Troca da venda sem processo de compra vinculado',`${sale.tradeInPlate} · ${moneyForIssue(sale.tradeInValue)}.`,{plate:sale.tradeInPlate,entityId:sale.id}));
+      }
+    }
+
     for(const entry of finance as FinanceEntry[]){
       if(entry.status==='cancelled')continue;
       if(Number(entry.amount)<=0){
@@ -168,6 +207,8 @@ export const dmsIntegrityService={
       stockCount:stock.length,
       vehicleMasterCount:masters.length,
       prepOrderCount:orders.length,
+      purchaseCount:purchases.length,
+      salesOrderCount:sales.length,
       financeEntryCount:finance.length,
       supplierCount:suppliers.length,
       customerCount:customers.length,
