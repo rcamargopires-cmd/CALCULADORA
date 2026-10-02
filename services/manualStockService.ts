@@ -72,9 +72,9 @@ export const manualStockService={
     },localDate());
 
     if(originalPlate&&original&&original!==plate&&current.some(row=>cleanPlate(row.plate)===original)){
-      await currentStockService.markOut(original,storeId,tenant);
+      await currentStockService.markOut(original,storeId,tenant,user);
     }
-    const next=await currentStockService.upsert(nextItem,storeId,tenant);
+    const next=await currentStockService.upsert(nextItem,storeId,tenant,user);
     const saved=next.find(row=>cleanPlate(row.plate)===plate);
     await audit(originalPlate?'veículo editado':'veículo incluído',next.length,user,storeId,tenant);
     await dmsAuditService.record({
@@ -152,7 +152,7 @@ export const manualStockService={
     const target=cleanPlate(plate);
     const before=await manualStockService.getCurrent(storeId,tenant);
     const existing=before.find(row=>cleanPlate(row.plate)===target);
-    const next=await currentStockService.markOut(target,storeId,tenant);
+    const next=await currentStockService.markOut(target,storeId,tenant,user);
     await audit(`saída ${target}`,next.length,user,storeId,tenant);
     await dmsAuditService.record({
       companyId:tenant,
