@@ -36,6 +36,7 @@ import StockHub from './StockHub';
 import ManualStockPanel from './ManualStockPanel';
 import { dmsPermissions } from '../services/dmsPermissions';
 import DmsIntegrityPanel from './DmsIntegrityPanel';
+import DmsIntegrityAutoRunner from './DmsIntegrityAutoRunner';
 import DmsRoadmapPanel from './DmsRoadmapPanel';
 import VehicleDocumentsPanel from './VehicleDocumentsPanel';
 import AfterSalesPanel from './AfterSalesPanel';
@@ -233,6 +234,7 @@ const OperationalTools: React.FC = () => {
     {permissions.stockView && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canPrep && storeId && has('stockIntelligence') && <PrepTrackPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canFinance && storeId && <FinanceModulePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {permissions.diagnostics && storeId && <DmsIntegrityAutoRunner user={user} companyId={companyId} storeId={storeId}/>}
     {permissions.diagnostics && storeId && <DmsIntegrityPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {permissions.diagnostics && <DmsRoadmapPanel/>} 
     {canDocuments && storeId && <VehicleDocumentsPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
