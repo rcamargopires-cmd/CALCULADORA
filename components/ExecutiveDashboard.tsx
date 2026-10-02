@@ -12,7 +12,7 @@ import {
 } from '../types';
 import { normalize } from '../services/operationalDataService';
 import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
-import { currentStockService } from '../services/currentStockService';
+import { useCurrentStock } from '../contexts/CurrentStockContext';
 import { DEMO_COMPANY_ID, demoStockRows, demoPerformanceSnapshots } from '../services/demoSeedService';
 import { evaluationQueueService, EvaluationQueueRequest } from '../services/evaluationQueueService';
 import { showroomFlowService } from '../services/showroomFlowService';
@@ -125,6 +125,7 @@ const totalFromSnapshot = (snapshot: OperationalPerformanceSnapshot | null) => {
 const StatusDot = ({ tone }: { tone: Tone }) => <span className={`mx-status-dot mx-status-dot--${tone}`} />;
 
 const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onStartNewCalculation }) => {
+  const sharedStock=useCurrentStock();
   const [stock, setStock] = useState<OperationalStockItem[]>([]);
   const [snapshot, setSnapshot] = useState<OperationalPerformanceSnapshot | null>(null);
   const [evaluations, setEvaluations] = useState<EvaluationQueueRequest[]>([]);
@@ -162,16 +163,13 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   ) => {
     setLoading(true);
     try {
-      const [stockData, performanceData, perf] = await Promise.all([
-        storeScopedOperationalService.getLatestStock(storeId, companyId),
+      const [performanceData, perf] = await Promise.all([
         storeScopedOperationalService.getLatestPerformance(storeId, companyId),
         getDoc(doc(db, 'config/performance')),
       ]);
-      const effectiveStock = companyId===DEMO_COMPANY_ID && !(stockData||[]).length ? demoStockRows() : (stockData||[]);
       const effectivePerformance = companyId===DEMO_COMPANY_ID && !performanceData
         ? (demoPerformanceSnapshots().slice(-1)[0] as OperationalPerformanceSnapshot)
         : performanceData;
-      setStock(effectiveStock);
       setSnapshot(effectivePerformance || null);
       if (perf.exists()) {
         const raw = perf.data() as any;
@@ -195,31 +193,21 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   }, []);
 
   useEffect(() => {
-    const sync = () => {
-      const nextScope = {
-        companyId: companyScopeService.get(currentUser),
-        storeId: storeScopeService.get(currentUser),
-      };
-      setScope(nextScope);
-      void reloadOperational(nextScope.companyId, nextScope.storeId);
+    const nextScope = {
+      companyId: sharedStock.companyId || companyScopeService.get(currentUser),
+      storeId: sharedStock.storeId || storeScopeService.get(currentUser),
     };
-    window.addEventListener(COMPANY_SCOPE_EVENT, sync);
-    window.addEventListener(STORE_SCOPE_EVENT, sync);
-    return () => {
-      window.removeEventListener(COMPANY_SCOPE_EVENT, sync);
-      window.removeEventListener(STORE_SCOPE_EVENT, sync);
-    };
-  }, [currentUser]);
+    setScope(nextScope);
+    void reloadOperational(nextScope.companyId, nextScope.storeId);
+  }, [currentUser, sharedStock.companyId, sharedStock.storeId]);
 
   useEffect(() => {
-    if (!scope.companyId || !scope.storeId || scope.companyId === DEMO_COMPANY_ID) return;
-    return currentStockService.subscribe(
-      scope.companyId,
-      scope.storeId,
-      rows => setStock(rows),
-      error => console.warn('MOTYQ dashboard live stock unavailable', error),
-    );
-  }, [scope.companyId, scope.storeId]);
+    if (scope.companyId === DEMO_COMPANY_ID && !sharedStock.rows.length) {
+      setStock(demoStockRows());
+      return;
+    }
+    setStock(sharedStock.rows);
+  }, [sharedStock.rows, scope.companyId]);
 
   useEffect(() => {
     if (!scope.companyId || !scope.storeId) return;
