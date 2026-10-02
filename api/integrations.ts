@@ -104,7 +104,9 @@ const processWebhook=async(req:any)=>{
     id:eventDocId,kind:'billing_event',companyId:index>=0?String(companies[index].id):'unknown',
     storeId:'billing',provider:'asaas',eventId,event,paymentId:String(payment.id||''),
     subscriptionId,amount:Number(payment.value||0),dueDate:String(payment.dueDate||''),
-    receivedAt:new Date().toISOString(),payload:body,
+    paymentStatus:String(payment.status||''),externalReference,
+    invoiceUrl:String(payment.invoiceUrl||''),bankSlipUrl:String(payment.bankSlipUrl||''),
+    receivedAt:new Date().toISOString(),
   });
 
   if(index<0)return{status:200,body:{ok:true,unmatched:true}};
