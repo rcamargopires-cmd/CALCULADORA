@@ -142,7 +142,14 @@ export interface DmsAuditEvent {
   actorEmail?:string;
   actorName?:string;
 }
-export interface OperationalStockItem { id:string; vehicleId?:string; snapshotDate:string; plate:string; vehicle:string; stockDays:number; cost:number; fipe:number; askingPrice:number; purchaseCost?:number; prepCost?:number; brand?:string; year?:string; km?:number; entryDate?:string; source?:'import'|'manual'; currentRecord?:boolean; manualActive?:boolean; updatedAt?:string; manualExitAt?:string; location?:string; status?:string; storeId?:string; companyId?:string; }
+export type StockSource='import'|'manual'|'purchase'|'trade_in'|'consignment';
+export type StockMovementType='entry'|'update'|'status'|'cost'|'transfer'|'exit';
+export interface StockMovement {
+  id:string; kind:'stock_movement'; movementType:StockMovementType; vehicleId?:string; plate:string; vehicle:string;
+  fromStatus?:string; toStatus?:string; fromStoreId?:string; toStoreId?:string; amount?:number; details?:string;
+  companyId:string; storeId:string; at:string; actorEmail?:string; actorName?:string;
+}
+export interface OperationalStockItem { id:string; vehicleId?:string; snapshotDate:string; plate:string; vehicle:string; stockDays:number; cost:number; fipe:number; askingPrice:number; purchaseCost?:number; prepCost?:number; brand?:string; year?:string; km?:number; entryDate?:string; source?:StockSource; currentRecord?:boolean; manualActive?:boolean; updatedAt?:string; manualExitAt?:string; location?:string; status?:string; storeId?:string; companyId?:string; }
 export interface OperationalSaleItem { id:string; saleDate:string; plate:string; vehicle:string; seller:string; invoiceValue:number; marginValue:number; marginPercent:number; hasTradeIn?:boolean; storeId?:string; companyId?:string; }
 export interface MarketPresenceItem { id:string; referenceDate:string; plate:string; vehicle:string; adStatus:'active'|'missing'; photoStatus:'ok'|'insufficient'|'not_validated'|'missing'; photoCount?:number; sitePrice?:number; siteKm?:number; alert?:string; url?:string; auditedAt?:string; storeId?:string; companyId?:string; }
 
@@ -151,7 +158,7 @@ export type PrepOrderStatus='triage'|'preparing'|'waiting_approval'|'waiting_par
 export type PrepDestination='showroom'|'delivery';
 export type FinanceEntryType='payable'|'receivable';
 export type FinanceEntryStatus='pending'|'paid'|'received'|'cancelled';
-export type FinanceOrigin='prep'|'manual'|'sale'|'other';
+export type FinanceOrigin='prep'|'purchase'|'manual'|'sale'|'commission'|'other';
 export interface FinanceEntry {
   id:string;
   kind:'finance_entry';
@@ -213,6 +220,59 @@ export interface VehicleHistoryEvent {
   id:string; kind:'vehicle_history'; vehicleId?:string; plate:string; vehicle:string; type:VehicleHistoryEventType; label:string; details?:string;
   amount?:number; provider?:string; at:string; byEmail?:string; byName?:string;
   orderId?:string; serviceId?:string; payableId?:string; companyId:string; storeId:string;
+}
+
+export type VehiclePurchaseOrigin='purchase'|'trade_in'|'repasse'|'consignment';
+export type VehiclePurchaseStatus='draft'|'approved'|'payment_pending'|'documents'|'entered'|'cancelled';
+export interface VehiclePurchaseDocuments {
+  atpv:boolean;
+  crlv:boolean;
+  ownerDocument:boolean;
+  debtsChecked:boolean;
+  lienChecked:boolean;
+  spareKey:boolean;
+  manual:boolean;
+}
+export interface VehiclePurchase {
+  id:string;
+  kind:'vehicle_purchase';
+  purchaseId:string;
+  companyId:string;
+  storeId:string;
+  evaluationRequestId?:string;
+  vehicleId?:string;
+  plate:string;
+  vehicle:string;
+  brand?:string;
+  year?:string;
+  km?:number;
+  fipe?:number;
+  origin:VehiclePurchaseOrigin;
+  status:VehiclePurchaseStatus;
+  ownerName:string;
+  ownerDocument?:string;
+  ownerPhone?:string;
+  ownerEmail?:string;
+  ownerPix?:string;
+  supplierId?:string;
+  purchasePrice:number;
+  payoffAmount:number;
+  debtsAmount:number;
+  acquisitionCosts:number;
+  totalAcquisitionCost:number;
+  paymentMethod?:string;
+  paymentDueDate?:string;
+  payableId?:string;
+  documents:VehiclePurchaseDocuments;
+  notes?:string;
+  approvedAt?:string;
+  approvedBy?:string;
+  approvedByName?:string;
+  enteredAt?:string;
+  createdAt:string;
+  updatedAt:string;
+  createdBy?:string;
+  createdByName?:string;
 }
 
 export type ShowroomPassageStatus='waiting'|'in_service'|'evaluation'|'proposal'|'follow_up'|'sale'|'no_deal';
