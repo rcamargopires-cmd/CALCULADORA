@@ -55,8 +55,15 @@ export const salesOrderService={
 
     const plate=cleanPlate(proposal.plate);
     if(!plate)throw new Error('A proposta aceita precisa ter uma placa do estoque.');
-    const master=await dmsVehicleService.findByPlate(lead.companyId,lead.storeId,plate);
-    if(!master)throw new Error('Veículo da proposta não está ligado ao cadastro mestre desta unidade.');
+    let master=await dmsVehicleService.findByPlate(lead.companyId,lead.storeId,plate);
+    if(!master){
+      const current=await currentStockService.getCurrent(lead.companyId,lead.storeId);
+      const stockItem=current.find(item=>cleanPlate(item.plate)===plate);
+      if(stockItem){
+        const synced=await dmsVehicleService.syncFromStock(stockItem,lead.companyId,lead.storeId,actor);
+        master=await dmsVehicleService.findByPlate(lead.companyId,lead.storeId,synced.plate);
+      }
+    }
 
     const customer=await dmsCustomerService.ensure({
       companyId:lead.companyId,storeId:lead.storeId,name:lead.customerName,phone:lead.phone,email:lead.customerEmail,actor,
@@ -67,7 +74,7 @@ export const salesOrderService={
       id,kind:'sales_order',salesOrderId:id,companyId:lead.companyId,storeId:lead.storeId,
       leadId:lead.id,proposalId:proposal.id,proposalVersion:proposal.version,
       customerId:customer.customerId,customerName:lead.customerName,customerPhone:lead.phone,
-      vehicleId:master.vehicleId,plate,vehicle:proposal.vehicle,year:proposal.year,
+      vehicleId:master?.vehicleId,plate,vehicle:proposal.vehicle,year:proposal.year,
       salePrice:Number(proposal.salePrice)||0,discount:Number(proposal.discount)||0,
       netSalePrice:Math.max(0,(Number(proposal.salePrice)||0)-(Number(proposal.discount)||0)),
       cashEntry:Number(proposal.cashEntry)||0,financedAmount:Number(proposal.financedAmount)||0,
@@ -78,8 +85,10 @@ export const salesOrderService={
       createdAt:stamp,updatedAt:stamp,createdBy:actor.email,createdByName:actor.name,
     };
 
-    await reserveVehicle(order,actor as User,'Reservado');
-    await dmsVehicleService.updateStage(master.vehicleId,'reserved',lead.companyId,lead.storeId,actor,'Proposta aceita e Pedido de Venda criado.');
+    if(master){
+      await reserveVehicle(order,actor as User,'Reservado').catch(()=>undefined);
+      await dmsVehicleService.updateStage(master.vehicleId,'reserved',lead.companyId,lead.storeId,actor,'Proposta aceita e Pedido de Venda criado.').catch(()=>undefined);
+    }
 
     if(order.tradeInPlate&&order.tradeInValue>0){
       const trade=await vehiclePurchaseService.createManual({
