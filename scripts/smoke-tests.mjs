@@ -66,4 +66,21 @@ if(!firebaseConfig.firestore?.[0]?.rules||!firebaseConfig.firestore?.[0]?.indexe
 const indexes=JSON.parse(read('firestore.indexes.json'));
 if(!Array.isArray(indexes.indexes)||!indexes.indexes.length)fail('Versioned Firestore indexes missing.');
 
+const integrations=read('api/integrations.ts');
+for(const required of ["domain==='fiscal'","FOCUS_NFE_TOKEN","FOCUS_NFE_TOKENS_JSON","/v2/nfe?ref=","action==='status'"]){
+  if(!integrations.includes(required))fail('Consolidated billing/fiscal integration missing: '+required);
+}
+if(integrations.includes('process.env.FOCUS_NFE_TOKEN')===false)fail('Fiscal token is not server-side.');
+const fiscalClient=read('services/fiscalIntegrationService.ts');
+if(fiscalClient.includes('FOCUS_NFE_TOKEN'))fail('Fiscal credential leaked to browser client.');
+if(!fiscalClient.includes("fetch('/api/integrations'"))fail('Fiscal client is not using consolidated integrations API.');
+const fiscalPanel=read('components/FiscalInvoicePanel.tsx');
+if(fiscalPanel.includes('companyService.getAll'))fail('Fiscal panel must not read cross-tenant company config.');
+const salesService=read('services/salesOrderService.ts');
+if(salesService.includes('companyService.getAll'))fail('Sales invoicing must not read cross-tenant company config.');
+if(!salesService.includes("fiscalStatus!=='authorized'"))fail('Integrated fiscal authorization guard missing before invoicing.');
+
+const apiTree=fs.readdirSync(new URL('../api',import.meta.url)).filter(name=>/\.ts$/.test(name));
+if(apiTree.length>12)fail('Too many Vercel API functions: '+apiTree.length+'. Consolidate routes before deploying.');
+
 console.log('MOTYQ smoke tests passed:',ids.length,'roadmap checks and core DMS guards.');
