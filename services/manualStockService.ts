@@ -39,30 +39,6 @@ const persist=async(items:OperationalStockItem[],user:User|undefined,storeId:str
   });
   const finalRows=Array.from(unique.values());
 
-  const scoped=await getDocs(query(
-    collection(db,'operational_stock'),
-    where('companyId','==',tenant),
-    where('storeId','==',storeId),
-  ));
-  const activePlates=new Set(finalRows.map(item=>cleanPlate(item.plate)));
-
-  // Não apagamos documentos do Firestore no cadastro manual. Em perfis de gerente,
-  // a regra de delete pode bloquear a operação mesmo quando create/update são válidos.
-  // Itens que saíram do snapshot atual são marcados logicamente como "Saída".
-  for(const oldDoc of scoped.docs){
-    const data=oldDoc.data() as OperationalStockItem;
-    if(String(data.snapshotDate||'').slice(0,10)!==today)continue;
-    const oldPlate=cleanPlate(data.plate);
-    if(oldPlate&&!activePlates.has(oldPlate)){
-      await setDoc(oldDoc.ref,{
-        status:'Saída',
-        updatedAt:new Date().toISOString(),
-        companyId:tenant,
-        storeId,
-      },{merge:true});
-    }
-  }
-
   for(const item of finalRows){
     const next:OperationalStockItem={
       ...item,
@@ -136,6 +112,7 @@ export const manualStockService={
       prepCost,
       cost:purchaseCost+prepCost,
       source:item.source||'manual',
+      manualExitAt:undefined,
     });
     return persist(next,user,storeId,tenant,originalPlate?'veículo editado':'veículo incluído');
   },
@@ -245,6 +222,7 @@ export const manualStockService={
       if(cleanPlate(data.plate)!==target)continue;
       await setDoc(oldDoc.ref,{
         status:'Saída',
+        manualExitAt:new Date().toISOString(),
         updatedAt:new Date().toISOString(),
         companyId:tenant,
         storeId,
