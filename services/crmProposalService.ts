@@ -7,9 +7,13 @@ import { currentStockService } from './currentStockService';
 
 export type ProposalInput=Pick<CrmProposalSnapshot,
   'vehicle'|'plate'|'year'|'km'|'location'|'stockPriceAtCreation'|'salePrice'|'discount'|
-  'tradeInPlate'|'tradeInValue'|'tradeInDebt'|'cashEntry'|'installments'|'estimatedInstallment'|'notes'>;
+  'tradeInPlate'|'tradeInValue'|'tradeInDebt'|'cashEntry'|'installments'|'estimatedInstallment'|'notes'|'validUntil'>;
 
 export const proposalMoney=(value:number)=>Number(value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+const defaultValidUntil=()=>new Date(Date.now()+48*60*60*1000).toISOString();
+const expired=(value?:string)=>Boolean(value&&new Date(value).getTime()<=Date.now());
+const cleanDocument=(value:string)=>String(value||'').replace(/\D/g,'').slice(0,14);
 
 const finiteNonnegative=(value:number,label:string)=>{
   if(!Number.isFinite(value)||value<0||value>100_000_000)throw new Error(label+' inválido.');
@@ -97,6 +101,7 @@ export const crmProposalService={
         tradeInPlate:String(p.tradeInPlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7),
         financedAmount:total.financedAmount,
         notes:String(p.notes||'').trim().slice(0,2000),
+        validUntil:p.validUntil&&new Date(p.validUntil).getTime()>Date.now()?new Date(p.validUntil).toISOString():(prior?.validUntil||defaultValidUntil()),
         createdAt:prior?.createdAt||timestamp,createdByEmail:prior?.createdByEmail||input.actor.email,
         createdByName:prior?.createdByName||input.actor.name,updatedAt:timestamp,
         updatedByEmail:input.actor.email,updatedByName:input.actor.name,
@@ -117,7 +122,7 @@ export const crmProposalService={
   },
   setStatus:async(input:{
     leadId:string;proposalId:string;expectedVersion:number;
-    status:Exclude<CrmProposalStatus,'draft'>;actor:{email:string;name:string};
+    status:'sent'|'rejected';actor:{email:string;name:string};
   })=>{
     const ref=doc(db,'showroom_passages',input.leadId);
     const timestamp=new Date().toISOString();
@@ -131,10 +136,15 @@ export const crmProposalService={
       if(!latest||latest.version!==input.expectedVersion)throw new Error('Esta proposta foi alterada. Reabra a ficha e tente novamente.');
       if(latest.status===input.status)return latest;
       if(latest.status==='accepted'||latest.status==='rejected')throw new Error('Proposta já encerrada. Crie outra versão para renegociar.');
-      if(input.status==='accepted'&&latest.status!=='sent')throw new Error('Registre o envio da proposta antes de marcar como aceita.');
       if(input.status==='sent'&&latest.status!=='draft')throw new Error('Só rascunhos podem ser marcados como enviados.');
-      const next:CrmProposalSnapshot={...latest,version:latest.version+1,status:input.status,updatedAt:timestamp,updatedByEmail:input.actor.email,updatedByName:input.actor.name};
-      const labels={sent:'Proposta marcada como enviada',accepted:'Proposta aceita pelo cliente',rejected:'Proposta recusada pelo cliente'};
+      if(input.status==='rejected'&&latest.status!=='sent')throw new Error('Somente proposta enviada pode ser recusada.');
+      if(input.status==='sent'&&expired(latest.validUntil))throw new Error('A validade desta proposta venceu. Crie uma nova versão.');
+      const next:CrmProposalSnapshot={
+        ...latest,version:latest.version+1,status:input.status,
+        ...(input.status==='sent'?{reservationExpiresAt:latest.validUntil||defaultValidUntil()}:{}),
+        updatedAt:timestamp,updatedByEmail:input.actor.email,updatedByName:input.actor.name
+      };
+      const labels={sent:'Proposta enviada e veículo reservado',rejected:'Proposta recusada pelo cliente'};
       const event:ShowroomPassageActivity={id:timestamp+'_'+input.proposalId,type:'contact',at:timestamp,label:labels[input.status],details:next.vehicle+' · '+proposalMoney(next.salePrice-next.discount)+' · v'+next.version,status:lead.status,byEmail:input.actor.email,byName:input.actor.name};
       transaction.update(ref,{
         crmProposals:[...old,next],
@@ -143,9 +153,95 @@ export const crmProposalService={
       });
       return next;
     });
-    if(input.status==='accepted'){
-      await salesOrderService.createFromAcceptedProposal(input.leadId,updated,input.actor as any);
+    if(input.status==='sent'){
+      const leadSnap=await getDoc(ref);
+      const lead=leadSnap.data() as ShowroomPassage;
+      const current=await currentStockService.getCurrent(lead.companyId,lead.storeId);
+      const item=current.find(row=>String(row.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===String(updated.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
+      if(!item)throw new Error('Veículo não está no estoque atual para reserva.');
+      const status=String(item.status||'').toLowerCase();
+      if(status.includes('reserv')&&item.vehicleId!==updated.vehicleId)throw new Error('Veículo já reservado em outra negociação.');
+      await currentStockService.upsert({...item,status:'Reservado'},lead.storeId,lead.companyId,input.actor as any);
+      if(updated.vehicleId)await dmsVehicleService.updateStage(updated.vehicleId,'reserved',lead.companyId,lead.storeId,input.actor as any,'Reserva temporária por proposta enviada.');
+    }
+    if(input.status==='rejected'){
+      const leadSnap=await getDoc(ref);
+      const lead=leadSnap.data() as ShowroomPassage;
+      const current=await currentStockService.getCurrent(lead.companyId,lead.storeId);
+      const item=current.find(row=>String(row.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===String(updated.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
+      if(item&&String(item.status||'').toLowerCase().includes('reserv')){
+        await currentStockService.upsert({...item,status:'Disponível'},lead.storeId,lead.companyId,input.actor as any);
+        if(updated.vehicleId)await dmsVehicleService.updateStage(updated.vehicleId,'available',lead.companyId,lead.storeId,input.actor as any,'Reserva liberada por recusa da proposta.');
+      }
     }
     return updated;
+  },
+
+  acceptDigitally:async(input:{
+    leadId:string;proposalId:string;expectedVersion:number;
+    customerName:string;customerDocument:string;actor:{email:string;name:string};
+  })=>{
+    const customerName=String(input.customerName||'').trim();
+    const customerDocument=cleanDocument(input.customerDocument);
+    if(customerName.length<3)throw new Error('Informe o nome do cliente no aceite.');
+    if(customerDocument.length!==11&&customerDocument.length!==14)throw new Error('Informe CPF/CNPJ válido para registrar o aceite.');
+    const ref=doc(db,'showroom_passages',input.leadId);
+    const timestamp=new Date().toISOString();
+    const accepted=await runTransaction(db,async transaction=>{
+      const snap=await transaction.get(ref);
+      if(!snap.exists())throw new Error('Cliente não encontrado.');
+      const lead=snap.data() as ShowroomPassage;
+      const old=Array.isArray(lead.crmProposals)?lead.crmProposals:[];
+      const latest=old.filter(p=>p.id===input.proposalId).sort((a,b)=>b.version-a.version)[0];
+      if(!latest||latest.version!==input.expectedVersion)throw new Error('A proposta mudou. Reabra a ficha.');
+      if(latest.status!=='sent')throw new Error('Somente proposta enviada pode receber aceite.');
+      if(expired(latest.reservationExpiresAt||latest.validUntil))throw new Error('A proposta/reserva venceu. Crie uma nova versão.');
+      const next:CrmProposalSnapshot={
+        ...latest,version:latest.version+1,status:'accepted',acceptedAt:timestamp,
+        acceptedCustomerName:customerName,acceptedCustomerDocument:customerDocument,
+        acceptanceMethod:'assisted_digital',updatedAt:timestamp,updatedByEmail:input.actor.email,updatedByName:input.actor.name,
+      };
+      const event:ShowroomPassageActivity={
+        id:timestamp+'_'+input.proposalId,type:'contact',at:timestamp,label:'Aceite digital registrado',
+        details:`${next.vehicle} · ${proposalMoney(next.salePrice-next.discount)} · ${customerName} · documento final ${customerDocument.slice(-4)}`,
+        status:lead.status,byEmail:input.actor.email,byName:input.actor.name,
+      };
+      transaction.update(ref,{crmProposals:[...old,next],activityHistory:[...(lead.activityHistory||[]),event].slice(-200),updatedAt:timestamp});
+      return next;
+    });
+    await salesOrderService.createFromAcceptedProposal(input.leadId,accepted,input.actor as any);
+    return accepted;
+  },
+
+  expireLeadReservations:async(leadId:string)=>{
+    const ref=doc(db,'showroom_passages',leadId);
+    const snap=await getDoc(ref);
+    if(!snap.exists())return 0;
+    const lead=snap.data() as ShowroomPassage;
+    const old=Array.isArray(lead.crmProposals)?lead.crmProposals:[];
+    const latestById=new Map<string,CrmProposalSnapshot>();
+    old.forEach(row=>{const current=latestById.get(row.id);if(!current||current.version<row.version)latestById.set(row.id,row);});
+    const targets=[...latestById.values()].filter(row=>row.status==='sent'&&expired(row.reservationExpiresAt||row.validUntil));
+    if(!targets.length)return 0;
+    const timestamp=new Date().toISOString();
+    const appended:CrmProposalSnapshot[]=[];
+    const events:ShowroomPassageActivity[]=[];
+    for(const row of targets){
+      appended.push({...row,version:row.version+1,status:'expired',updatedAt:timestamp,updatedByEmail:'system',updatedByName:'Motyq'});
+      events.push({id:timestamp+'_'+row.id,type:'contact',at:timestamp,label:'Proposta e reserva expiradas',details:row.vehicle+' · '+row.plate,status:lead.status,byEmail:'system',byName:'Motyq'});
+      const current=await currentStockService.getCurrent(lead.companyId,lead.storeId);
+      const item=current.find(stock=>String(stock.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===String(row.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
+      if(item&&String(item.status||'').toLowerCase().includes('reserv')){
+        await currentStockService.upsert({...item,status:'Disponível'},lead.storeId,lead.companyId);
+        if(row.vehicleId)await dmsVehicleService.updateStage(row.vehicleId,'available',lead.companyId,lead.storeId,null,'Reserva expirada automaticamente.');
+      }
+    }
+    await runTransaction(db,async transaction=>{
+      const fresh=await transaction.get(ref);
+      if(!fresh.exists())return;
+      const data=fresh.data() as ShowroomPassage;
+      transaction.update(ref,{crmProposals:[...(data.crmProposals||[]),...appended],activityHistory:[...(data.activityHistory||[]),...events].slice(-200),updatedAt:timestamp});
+    });
+    return targets.length;
   },
 };
