@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-import type { Company, CompanyPlan, DmsAccessProfile, Store as MotyqStore, User, UserRole, UserStatus } from '../types';
+import type { Company, CompanyPlan, DmsAccessProfile, DmsPermissionKey, Store as MotyqStore, User, UserRole, UserStatus } from '../types';
 import { companyIdForUser, companyService } from '../services/companyService';
 import { companyScopeService } from '../services/companyScopeService';
 import { storeCompanyId, storeService } from '../services/storeService';
