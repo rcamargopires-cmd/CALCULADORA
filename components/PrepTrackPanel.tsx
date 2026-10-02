@@ -4,6 +4,7 @@ import { OperationalStockItem, PrepOrder, PrepOrderStatus, PrepServiceStatus, Us
 import { prepTrackService } from '../services/prepTrackService';
 import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
 import { manualStockService } from '../services/manualStockService';
+import { currentStockService } from '../services/currentStockService';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 const SERVICE_TYPES=['Troca de óleo','Mecânica','Higienização','Auto elétrica','Funilaria / pintura','Pneus','Estética','Vidros','Acessórios','Outros'];
@@ -38,6 +39,15 @@ const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})
   }finally{setLoading(false);}
  };
  useEffect(()=>{if(open)load();},[open,companyId,storeId]);
+ useEffect(()=>{
+  if(!open)return;
+  return currentStockService.subscribe(
+   companyId,
+   storeId,
+   rows=>setStock(rows),
+   error=>console.warn('Motyq: estoque atual em tempo real indisponível no PrepTrack.',error),
+  );
+ },[open,companyId,storeId]);
  const selected=orders.find(item=>item.id===selectedId)||null;
  const stockByPlate=useMemo(()=>new Map(stock.map(item=>[clean(item.plate),item])),[stock]);
  const q=search.trim().toLowerCase();
