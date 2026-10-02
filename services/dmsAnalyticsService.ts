@@ -22,6 +22,10 @@ export interface DmsAnalyticsSellerRow {
   seller:string;sales:number;revenue:number;profit:number;marginPercent:number;
 }
 export interface DmsAnalyticsSupplierRow {supplier:string;services:number;amount:number;}
+export interface DmsAnalyticsUnitRow {
+  storeId:string;storeName:string;stockCount:number;stockValue:number;sales:number;revenue:number;profit:number;marginPercent:number;
+  realizedResult:number;payableOpen:number;receivableOpen:number;integrityCritical:number;
+}
 export interface DmsAnalyticsReport {
   generatedAt:string;
   stock:{count:number;value:number;aged90:number;aged90Value:number};
@@ -146,5 +150,18 @@ export const dmsAnalyticsService={
       sellers:[...sellersMap.values()].sort((a,b)=>b.profit-a.profit),
       suppliers:[...supplierMap.values()].sort((a,b)=>b.amount-a.amount),
     };
+  },
+  runUnits:async(companyId:string,stores:Array<{id:string;name:string}>):Promise<DmsAnalyticsUnitRow[]>=>{
+    const reports=await Promise.all(stores.map(async store=>{
+      const report=await dmsAnalyticsService.run(companyId,store.id);
+      return{
+        storeId:store.id,storeName:store.name,
+        stockCount:report.stock.count,stockValue:report.stock.value,
+        sales:report.sales.month,revenue:report.sales.revenue,profit:report.sales.profit,marginPercent:report.sales.marginPercent,
+        realizedResult:report.finance.realizedResult,payableOpen:report.finance.payableOpen,receivableOpen:report.finance.receivableOpen,
+        integrityCritical:report.integrity.critical,
+      } satisfies DmsAnalyticsUnitRow;
+    }));
+    return reports.sort((a,b)=>b.profit-a.profit);
   },
 };
