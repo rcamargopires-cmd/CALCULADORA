@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, CheckCircle2, Eye, MapPin, Plus, Store as StoreIcon, UserPlus, Users, X } from 'lucide-react';
-import { Store, User } from '../types';
+import { ArrowRight, Building2, CarFront, CheckCircle2, Eye, MapPin, Plus, Store as StoreIcon, UserPlus, Users, X } from 'lucide-react';
+import { OperationalStockItem, Store, User } from '../types';
 import { userService } from '../services/userService';
 import { DEFAULT_STORE_ID, storeCompanyId, storeIdForUser, storeService } from '../services/storeService';
 import { STORE_SCOPE_EVENT, storeScopeService } from '../services/storeScopeService';
 import { companyIdForUser } from '../services/companyService';
+import { currentStockService } from '../services/currentStockService';
 
 const slugify = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
 
@@ -23,6 +24,11 @@ const MultiStorePanel: React.FC<Props> = ({ currentUser, companyId, companyName 
   const [message, setMessage] = useState('');
   const [newUserOpen, setNewUserOpen] = useState(false);
   const [newUser, setNewUser] = useState({ name:'', email:'', role:'seller', storeId:'' });
+  const [transferOpen,setTransferOpen]=useState(false);
+  const [transferStock,setTransferStock]=useState<OperationalStockItem[]>([]);
+  const [transferPlate,setTransferPlate]=useState('');
+  const [transferTarget,setTransferTarget]=useState('');
+  const [transferSearch,setTransferSearch]=useState('');
 
   const load = async () => {
     setLoading(true);
@@ -129,6 +135,34 @@ const MultiStorePanel: React.FC<Props> = ({ currentUser, companyId, companyName 
     }
   };
 
+  const openTransfer=async()=>{
+    if(activeStores.length<2)return setMessage('Cadastre pelo menos duas unidades ativas para transferir veículos.');
+    setSaving('transfer-load');setMessage('');
+    try{
+      const rows=await currentStockService.getCurrent(companyId,selectedStoreId);
+      setTransferStock(rows);
+      setTransferPlate('');
+      setTransferSearch('');
+      setTransferTarget(activeStores.find(store=>store.id!==selectedStoreId)?.id||'');
+      setTransferOpen(true);
+    }catch(cause:any){setMessage(cause?.message||'Não foi possível carregar o estoque da unidade.');}
+    finally{setSaving(null);}
+  };
+
+  const transferVehicle=async()=>{
+    if(!transferPlate||!transferTarget)return;
+    const item=transferStock.find(row=>row.plate===transferPlate);
+    if(!item)return;
+    if(!window.confirm('Transferir '+item.plate+' · '+item.vehicle+' para '+storeService.getName(stores,transferTarget)+'?'))return;
+    setSaving('transfer');setMessage('');
+    try{
+      await currentStockService.transfer(item.plate,selectedStoreId,transferTarget,companyId,currentUser);
+      setTransferOpen(false);
+      setMessage(item.plate+' transferido para '+storeService.getName(stores,transferTarget)+'.');
+    }catch(cause:any){setMessage(cause?.message||'Não foi possível transferir o veículo.');}
+    finally{setSaving(null);}
+  };
+
   const viewStore = (store: Store) => {
     storeScopeService.set(store.id);
     setSelectedStoreId(store.id);
@@ -147,7 +181,11 @@ const MultiStorePanel: React.FC<Props> = ({ currentUser, companyId, companyName 
           {isAdmin && <div className="rounded-[28px] border border-white/10 bg-gradient-to-br from-zinc-900 to-black p-5"><div className="flex items-center gap-2"><Plus size={16} className="text-zinc-500"/><p className="text-xs font-semibold uppercase tracking-[0.13em] text-zinc-500">Nova unidade</p></div><p className="mt-3 text-sm leading-6 text-zinc-400">A nova loja ficará vinculada exclusivamente a {companyName}.</p><label className="mt-5 block"><span className="text-xs text-zinc-500">Nome da unidade</span><input value={name} onChange={event => setName(event.target.value)} placeholder="Ex.: Unidade Centro" className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none"/></label><label className="mt-3 block"><span className="text-xs text-zinc-500">Código curto</span><input value={code} onChange={event => setCode(event.target.value)} placeholder="Ex.: CENTRO" className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm uppercase text-white outline-none"/></label><button disabled={!name.trim() || saving === 'store-new'} onClick={addStore} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-semibold text-black disabled:opacity-30"><Plus size={16}/>{saving === 'store-new' ? 'Criando...' : 'Criar unidade'}</button></div>}
         </section>
 
+        {activeStores.length>1&&<section className="rounded-[24px] border border-sky-400/15 bg-sky-400/[.035] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2 text-sky-300"><CarFront size={16}/><p className="text-xs font-semibold uppercase tracking-[.12em]">Movimentação de estoque</p></div><p className="mt-1 text-sm text-zinc-400">Transfira um veículo da unidade que você está visualizando para outra unidade do mesmo grupo, preservando vehicleId e histórico.</p></div><button disabled={saving==='transfer-load'} onClick={()=>void openTransfer()} className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-sky-300 px-4 text-xs font-bold text-sky-950 disabled:opacity-50"><ArrowRight size={15}/> TRANSFERIR VEÍCULO</button></div></section>}
+
         <section className="rounded-[28px] border border-white/10 bg-white/[0.035] p-5"><div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><div className="flex items-center gap-2 text-zinc-500"><MapPin size={16}/><p className="text-xs font-semibold uppercase tracking-[0.13em]">Vínculo da equipe</p></div><h4 className="mt-1 text-lg font-semibold text-white">Quem pertence a cada unidade</h4><p className="mt-1 text-xs text-zinc-600">{isAdmin?'Administradores ficam fora da operação das unidades.':'Você pode criar e organizar usuários da sua própria empresa.'}</p></div><button onClick={()=>setNewUserOpen(true)} className="flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-4 text-xs font-bold text-black"><UserPlus size={15}/> Novo usuário</button></div><div className="mt-5 grid gap-3 lg:grid-cols-2">{users.filter(user => user.role !== 'admin').map(user => <div key={user.id} className="flex flex-col gap-3 rounded-[22px] border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-white">{user.name}</p><p className="mt-1 text-xs text-zinc-500">{user.email} · {user.role === 'manager' ? 'Gestor' : 'Vendedor'}</p></div><select disabled={saving === user.id || !activeStores.length} value={activeStores.some(store => store.id === storeIdForUser(user)) ? storeIdForUser(user) : activeStores[0]?.id || ''} onChange={event => assignUser(user, event.target.value)} className="h-10 min-w-44 rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-zinc-200 outline-none disabled:opacity-50">{activeStores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>)}</div></section>
+        {transferOpen&&<div className="fixed inset-0 z-[265] overflow-y-auto bg-black/80 p-4 backdrop-blur-sm" onClick={()=>setTransferOpen(false)}><div className="mx-auto my-8 w-full max-w-3xl rounded-[28px] border border-white/10 bg-zinc-950 p-5 shadow-2xl" onClick={event=>event.stopPropagation()}><div className="flex items-start justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-sky-300">TRANSFERÊNCIA ENTRE UNIDADES</p><h3 className="mt-1 text-xl font-semibold text-white">{storeService.getName(stores,selectedStoreId)} → {storeService.getName(stores,transferTarget)}</h3><p className="mt-1 text-xs text-zinc-500">A movimentação fica registrada no histórico do veículo.</p></div><button onClick={()=>setTransferOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-zinc-500"><X size={16}/></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-zinc-500">Unidade destino<select value={transferTarget} onChange={e=>setTransferTarget(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white">{activeStores.filter(store=>store.id!==selectedStoreId).map(store=><option key={store.id} value={store.id}>{store.name}</option>)}</select></label><label className="text-xs text-zinc-500">Buscar veículo<input value={transferSearch} onChange={e=>setTransferSearch(e.target.value)} placeholder="Placa ou modelo" className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label></div><div className="mt-4 max-h-[380px] space-y-2 overflow-y-auto">{transferStock.filter(item=>!transferSearch.trim()||((item.plate+' '+item.vehicle).toLowerCase().includes(transferSearch.trim().toLowerCase()))).map(item=><button key={item.id} onClick={()=>setTransferPlate(item.plate)} className={`w-full rounded-xl border p-3 text-left ${transferPlate===item.plate?'border-sky-300/40 bg-sky-300/[.08]':'border-white/10 bg-black/20'}`}><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-xs font-bold text-white">{item.plate}</p><p className="mt-1 text-xs text-zinc-400">{item.vehicle}</p></div><span className="text-xs font-semibold text-zinc-500">{item.stockDays} dias</span></div></button>)}</div><button disabled={!transferPlate||!transferTarget||saving==='transfer'} onClick={()=>void transferVehicle()} className="mt-4 h-11 w-full rounded-xl bg-sky-300 text-sm font-bold text-sky-950 disabled:opacity-40">{saving==='transfer'?'TRANSFERINDO...':'CONFIRMAR TRANSFERÊNCIA'}</button></div></div>}
+
         {newUserOpen && <div className="fixed inset-0 z-[260] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={()=>setNewUserOpen(false)}><div className="w-full max-w-xl rounded-[28px] border border-white/10 bg-zinc-950 p-5 shadow-2xl" onClick={event=>event.stopPropagation()}><div className="flex items-start justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-sky-300">NOVO USUÁRIO</p><h3 className="mt-1 text-xl font-semibold text-white">Criar acesso na empresa</h3><p className="mt-1 text-xs text-zinc-500">O usuário ficará vinculado a uma unidade existente.</p></div><button onClick={()=>setNewUserOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-zinc-500"><X size={16}/></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-zinc-500 sm:col-span-2">Nome<input value={newUser.name} onChange={e=>setNewUser({...newUser,name:e.target.value})} className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-white/[.04] px-3 text-sm text-white outline-none"/></label><label className="text-xs text-zinc-500 sm:col-span-2">E-mail<input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser,email:e.target.value})} className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-white/[.04] px-3 text-sm text-white outline-none"/></label><label className="text-xs text-zinc-500">Perfil<select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"><option value="seller">Vendedor</option><option value="reception">Recepção</option><option value="evaluator">Avaliador</option><option value="manager">Gestor</option></select></label><label className="text-xs text-zinc-500">Unidade<select value={newUser.storeId} onChange={e=>setNewUser({...newUser,storeId:e.target.value})} className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none">{activeStores.map(store=><option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div><button disabled={saving==='user-new'} onClick={()=>void createUser()} className="mt-5 h-11 w-full rounded-xl bg-white text-sm font-bold text-black disabled:opacity-40">{saving==='user-new'?'Criando...':'Criar usuário'}</button></div></div>}
         {message && <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.07] p-4 text-sm text-emerald-300"><CheckCircle2 size={17}/>{message}</div>}
         {loading && <p className="text-center text-xs text-zinc-600">Atualizando estrutura...</p>}
