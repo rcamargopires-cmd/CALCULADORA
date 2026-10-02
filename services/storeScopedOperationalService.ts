@@ -6,6 +6,7 @@ import { companyScopeService } from './companyScopeService';
 import { aggregatePerformanceSnapshot, normalizeOfficialSellerMetrics } from './performanceMetrics';
 import { DEFAULT_STORE_ID } from './storeService';
 import { DEMO_COMPANY_ID, DEMO_STORE_ID, demoPerformanceSnapshots, demoStockRows } from './demoSeedService';
+import { currentStockService } from './currentStockService';
 
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 120);
 const cleanPlate = (value: unknown) => String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -66,26 +67,19 @@ export const storeScopedOperationalService = {
       id: safeId(`${tenant}_${storeId}_${snapshotDate}_${item.plate || item.id}`),
       storeId,
       companyId: tenant,
+      source: item.source || 'import' as const,
     }));
+
+    // operational_stock vira histórico/fotografia. O estoque atual passa a ter uma única fonte:
+    // operational_current_stock, um documento estável por placa.
     for (const item of scoped) await setDoc(doc(db, 'operational_stock', item.id), item, { merge: true });
+    const currentRows = await currentStockService.replaceImported(scoped, user, storeId, tenant);
 
-    const stockValue = scoped.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
-    const aged60 = scoped.filter(item => Number(item.stockDays) > 60).length;
-    const critical = scoped.filter(item => Number(item.stockDays) > 90);
-    const critical90Value = critical.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
-
-    await setDoc(doc(db, 'operational_meta', stockSummaryId(storeId, snapshotDate)), {
-      referenceDate: snapshotDate, companyId: tenant, storeId, stockCount: scoped.length, stockValue, aged60,
-      critical90: critical.length, critical90Value, updatedAt: serverTimestamp(),
-    }, { merge: true });
-    await setDoc(doc(db, 'operational_meta', currentId(storeId)), {
-      companyId: tenant, storeId, latestStockDate: snapshotDate, stockRows: scoped.length, updatedAt: serverTimestamp(),
-    }, { merge: true });
     await addDoc(collection(db, 'operational_imports'), {
-      type: 'stock', companyId: tenant, storeId, referenceDate: snapshotDate, rows: scoped.length, fileName,
+      type: 'stock', companyId: tenant, storeId, referenceDate: snapshotDate, rows: currentRows.length, fileName,
       importedBy: user?.email || '', importedAt: serverTimestamp(),
     });
-    return scoped.length;
+    return currentRows.length;
   },
 
   importPerformance: async (
@@ -114,65 +108,10 @@ export const storeScopedOperationalService = {
 
   getLatestStock: async (storeId: string, companyId = companyScopeService.get()): Promise<OperationalStockItem[]> => {
     const tenant = companyId || DEFAULT_COMPANY_ID;
-    const current = await getStoreCurrent(storeId, tenant);
-    const metaLatest = String(current?.latestStockDate || '');
-
-    const scoped = await getDocs(query(
-      collection(db, 'operational_stock'),
-      where('companyId', '==', tenant),
-      where('storeId', '==', storeId),
-    ));
-    const allRows = scoped.docs.map(item => item.data() as OperationalStockItem);
-    const dataLatest = allRows
-      .map(item => String(item.snapshotDate || '').slice(0,10))
-      .filter(Boolean)
-      .sort()
-      .at(-1) || '';
-    const latest = [metaLatest, dataLatest].filter(Boolean).sort().at(-1) || '';
-
-    if (!latest) {
-      if (tenant === DEMO_COMPANY_ID) return demoStockRows();
-      return [];
-    }
-
-    // Base do estoque: snapshot mais recente, sem duplicar placas.
-    const unique = new Map<string, OperationalStockItem>();
-    allRows
-      .filter(item => String(item.snapshotDate || '').slice(0,10) === latest && !isOut(item))
-      .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)))
-      .forEach(item => {
-        const plate = cleanPlate(item.plate);
-        if (plate) unique.set(plate, item);
-      });
-
-    // Registros manuais atuais usam uma flag explícita. Assim evitamos ressuscitar
-    // veículos antigos/removidos e mantemos os cadastrados manualmente entre snapshots.
-    const activeManual = new Map<string, OperationalStockItem>();
-    allRows
-      .filter(item => item.source === 'manual' && item.manualActive === true && !item.manualExitAt)
-      .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)))
-      .forEach(item => {
-        const plate = cleanPlate(item.plate);
-        if (plate) activeManual.set(plate, item);
-      });
-
-    activeManual.forEach((item, plate) => unique.set(plate, item));
-
-    const rows = Array.from(unique.values());
+    const rows = await currentStockService.getCurrent(tenant, storeId);
     if (rows.length) return rows;
     if (tenant === DEMO_COMPANY_ID) return demoStockRows();
-    if (tenant !== DEFAULT_COMPANY_ID || storeId !== DEFAULT_STORE_ID) return rows;
-
-    const legacy = await getDocs(query(collection(db, 'operational_stock'), where('snapshotDate', '==', latest)));
-    const legacyUnique = new Map<string, OperationalStockItem>();
-    legacy.docs
-      .map(item => item.data() as OperationalStockItem)
-      .filter(item => belongsToCompany(item, tenant) && belongsToStore(item, storeId) && !isOut(item))
-      .forEach(item => {
-        const plate = cleanPlate(item.plate);
-        if (plate) legacyUnique.set(plate, item);
-      });
-    return Array.from(legacyUnique.values());
+    return [];
   },
 
   getSales: async (storeId: string, companyId = companyScopeService.get()): Promise<OperationalSaleItem[]> => {
