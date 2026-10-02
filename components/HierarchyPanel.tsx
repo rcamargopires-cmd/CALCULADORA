@@ -278,9 +278,9 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       </div>
     </div>}
 
-    {editingUser && <div className="fixed inset-0 z-[650] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" onClick={() => setEditingUser(null)}>
-      <div className="w-full max-w-xl rounded-[28px] border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl" onClick={event => event.stopPropagation()}>
-        <div className="flex items-start justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-blue-700">{editingUser.email ? 'EDITAR ACESSO' : 'NOVO ACESSO'}</p><h3 className="mt-1 text-2xl font-semibold">{editingUser.email ? editingUser.name : 'Cadastrar usuário'}</h3></div><button onClick={() => setEditingUser(null)} className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500"><X size={17}/></button></div>
+    {editingUser && <div className="fixed inset-0 z-[650] overflow-y-auto bg-slate-950/65 p-3 backdrop-blur-sm sm:p-4" onClick={() => setEditingUser(null)}>
+      <div className="mx-auto my-2 w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl sm:my-6 sm:p-6" onClick={event => event.stopPropagation()}>
+        <div className="sticky top-0 z-10 -mx-1 flex items-start justify-between bg-white/95 px-1 pb-3 backdrop-blur"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-blue-700">{editingUser.email ? 'EDITAR ACESSO' : 'NOVO ACESSO'}</p><h3 className="mt-1 text-2xl font-semibold">{editingUser.email ? editingUser.name : 'Cadastrar usuário'}</h3></div><button onClick={() => setEditingUser(null)} className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-500"><X size={17}/></button></div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <Field label="Nome completo" value={form.name} onChange={value => setForm({...form,name:value})} wide/>
           <Field label="E-mail" value={form.email} onChange={value => setForm({...form,email:value})} type="email" wide disabled={Boolean(editingUser.email)}/>
@@ -294,8 +294,8 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       </div>
     </div>}
 
-    {editingGoals && <div className="fixed inset-0 z-[660] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" onClick={() => setEditingGoals(null)}>
-      <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl" onClick={event => event.stopPropagation()}>
+    {editingGoals && <div className="fixed inset-0 z-[660] overflow-y-auto bg-slate-950/65 p-3 backdrop-blur-sm sm:p-4" onClick={() => setEditingGoals(null)}>
+      <div className="mx-auto my-2 w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl sm:my-6 sm:p-6" onClick={event => event.stopPropagation()}>
         <div className="flex items-start justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-blue-700">METAS INDIVIDUAIS</p><h3 className="mt-1 text-2xl font-semibold">{editingGoals.name}</h3></div><button onClick={() => setEditingGoals(null)} className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500"><X size={17}/></button></div>
         <div className="mt-6 grid grid-cols-2 gap-3"><GoalField label="Meta mensal" value={goals.monthly} onChange={value=>setGoals({...goals,monthly:value})}/><GoalField label="Meta quinzena" value={goals.firstHalf} onChange={value=>setGoals({...goals,firstHalf:value})}/><GoalField label="Captura %" value={goals.capture} onChange={value=>setGoals({...goals,capture:value})}/><GoalField label="Margem %" value={goals.margin} step="0.1" onChange={value=>setGoals({...goals,margin:value})}/></div>
         <button disabled={Boolean(saving)} onClick={() => void saveGoals()} className="mt-6 h-12 w-full rounded-2xl bg-blue-600 font-semibold text-white disabled:opacity-40">{saving ? 'Salvando...' : 'Salvar metas'}</button>
