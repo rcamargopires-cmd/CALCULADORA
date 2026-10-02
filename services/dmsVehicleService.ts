@@ -109,6 +109,59 @@ export const dmsVehicleService={
     return enriched;
   },
 
+  ensureFromPurchase:async(input:{
+    companyId:string;
+    storeId:string;
+    plate:string;
+    vehicle:string;
+    brand?:string;
+    year?:string;
+    km?:number;
+    purchaseCost:number;
+    source?:'purchase'|'trade_in'|'consignment';
+    actor?:Pick<User,'email'|'name'>|null;
+  }):Promise<VehicleMaster>=>{
+    const plate=cleanPlate(input.plate);
+    const masters=await readMasters(input.companyId,input.storeId);
+    const existing=masters
+      .filter(item=>item.stage!=='exited'&&cleanPlate(item.plate)===plate)
+      .sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')))[0];
+    const vehicleId=existing?.vehicleId||newVehicleId(input.companyId);
+    const stamp=now();
+    const master:VehicleMaster={
+      id:masterDocId(vehicleId),
+      kind:'vehicle_master',
+      vehicleId,
+      companyId:input.companyId,
+      storeId:input.storeId,
+      plate,
+      brand:input.brand||existing?.brand||'',
+      model:input.vehicle||existing?.model||plate,
+      year:input.year||existing?.year||'',
+      km:Number(input.km??existing?.km??0)||0,
+      stage:'purchased',
+      purchaseCost:Number(input.purchaseCost)||0,
+      prepCost:Number(existing?.prepCost)||0,
+      currentCost:(Number(input.purchaseCost)||0)+(Number(existing?.prepCost)||0),
+      fipe:Number(existing?.fipe)||0,
+      askingPrice:Number(existing?.askingPrice)||0,
+      entryDate:existing?.entryDate||'',
+      source:input.source||'purchase',
+      createdAt:existing?.createdAt||stamp,
+      updatedAt:stamp,
+    };
+    await setDoc(doc(db,LEDGER,master.id),master,{merge:true});
+    if(!existing){
+      await dmsAuditService.record({
+        companyId:input.companyId,storeId:input.storeId,entityType:'vehicle',entityId:vehicleId,
+        vehicleId,plate,action:'vehicle_purchase_master_created',
+        label:'Veículo criado no cadastro mestre a partir da compra',
+        amount:Number(input.purchaseCost)||0,actor:input.actor,
+      }).catch(()=>undefined);
+    }
+    return master;
+  },
+
   syncFromStock:async(
     item:OperationalStockItem,
     companyId:string,
