@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BadgeDollarSign, Building2, CarFront, CheckCircle2, FileCheck2, Search, ShoppingCart, X } from 'lucide-react';
+import { BadgeDollarSign, Building2, CarFront, CheckCircle2, FileCheck2, ReceiptText, Search, ShoppingCart, X } from 'lucide-react';
 import type { SalesOrder, User } from '../types';
 import { salesOrderService } from '../services/salesOrderService';
+import FiscalInvoicePanel from './FiscalInvoicePanel';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
@@ -17,6 +18,7 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
   const[creditReference,setCreditReference]=useState('');
   const[financingReturn,setFinancingReturn]=useState('');
   const[invoiceNumber,setInvoiceNumber]=useState('');
+  const[fiscalOpen,setFiscalOpen]=useState(false);
   const[busy,setBusy]=useState('');
   const[message,setMessage]=useState('');
   const[error,setError]=useState('');
@@ -135,7 +137,10 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
                 </ActionBox>}
 
                 {selected.status==='ready_to_invoice'&&<ActionBox title="Faturamento" icon={<FileCheck2 size={17}/>}>
-                  <label className="block text-xs font-semibold text-slate-500">Número da nota / faturamento<input value={invoiceNumber} onChange={e=>setInvoiceNumber(e.target.value)} placeholder="NF / referência" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none"/></label>
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-xs text-indigo-800"><b>Fiscal integrado.</b><p className="mt-1">Emita ou consulte a NF-e antes de concluir o faturamento financeiro. Em faturamento manual, informe o número abaixo.</p></div>
+                  <button disabled={busy!==''} onClick={()=>setFiscalOpen(true)} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white text-xs font-bold text-indigo-700"><ReceiptText size={15}/> ABRIR FISCAL / NF-e</button>
+                  <label className="mt-3 block text-xs font-semibold text-slate-500">Número da nota / faturamento<input value={invoiceNumber} onChange={e=>setInvoiceNumber(e.target.value)} placeholder="NF / referência" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none"/></label>
+                  {selected.fiscalStatus&&<p className="mt-2 text-[10px] text-slate-500">Status fiscal: <b>{String(selected.fiscalStatus).toUpperCase()}</b>{selected.fiscalAccessKey?' · chave '+selected.fiscalAccessKey:''}</p>}
                   <button disabled={busy!==''} onClick={()=>void act('invoice',()=>salesOrderService.invoice(selected,invoiceNumber,currentUser),'Venda faturada. Contas a receber geradas.')} className="mt-3 h-11 w-full rounded-xl bg-blue-600 text-sm font-bold text-white disabled:opacity-50">{busy==='invoice'?'FATURANDO...':'FATURAR E GERAR RECEBÍVEIS'}</button>
                 </ActionBox>}
 
@@ -165,6 +170,7 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
         </div>
       </div>
     </div>}
+    {selected&&<FiscalInvoicePanel open={fiscalOpen} onClose={()=>setFiscalOpen(false)} currentUser={currentUser} order={selected}/>}
   </>;
 };
 
