@@ -54,6 +54,8 @@ export interface Store { id:string; code:string; name:string; active:boolean; co
 export interface SellerGoals { monthly:number; firstHalf:number; capture:number; margin:number; }
 export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; storeIds?:string[]; companyId?:string; companyName?:string; dmsAccessProfile?:DmsAccessProfile; dmsPermissionOverrides?:Partial<Record<DmsPermissionKey,boolean>>; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 
+export type CustomerConsentStatus='unknown'|'granted'|'revoked';
+
 export interface CustomerMaster {
   id:string;
   kind:'customer_master';
@@ -70,6 +72,13 @@ export interface CustomerMaster {
   zipCode?:string;
   active?:boolean;
   mergedIntoCustomerId?:string;
+  consentStatus?:CustomerConsentStatus;
+  consentAt?:string;
+  consentSource?:string;
+  consentPurposes?:string[];
+  consentUpdatedBy?:string;
+  consentUpdatedByName?:string;
+  consentUpdatedAt?:string;
   createdAt:string;
   updatedAt:string;
 }
