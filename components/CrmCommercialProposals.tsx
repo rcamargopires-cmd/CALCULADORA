@@ -1,4 +1,4 @@
-import React, {useMemo,useState} from 'react';
+import React, {useEffect,useMemo,useState} from 'react';
 import {CarFront, ClipboardList, Plus, Save, Send, X} from 'lucide-react';
 import type {CrmProposalSnapshot, CrmProposalStatus, ShowroomPassage, User} from '../types';
 import type {GroupStockItem} from '../services/groupStockService';
@@ -9,12 +9,13 @@ type Props={lead:ShowroomPassage;user:User;stockItems?:GroupStockItem[]};
 const fmt=(value:string)=>String(value||'').replace(/[^a-zA-Z0-9]/g,'').toUpperCase().slice(0,7);
 const number=(raw:string)=>Number(raw||0);
 const displayDate=(iso:string)=>new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-const statusLabel:Record<CrmProposalStatus,string>={draft:'Rascunho',sent:'Enviada',accepted:'Aceita',rejected:'Recusada'};
+const statusLabel:Record<CrmProposalStatus,string>={draft:'Rascunho',sent:'Enviada / reservada',accepted:'Aceita',rejected:'Recusada',expired:'Expirada'};
+const defaultValidity=()=>new Date(Date.now()+48*60*60*1000).toISOString().slice(0,16);
 const blank=(lead:ShowroomPassage):ProposalInput=>({
   vehicle:lead.desiredVehicle||lead.interestModel||'',plate:'',year:'',km:0,location:'',
   stockPriceAtCreation:0,salePrice:0,discount:0,
   tradeInPlate:lead.tradeInPlate||'',tradeInValue:0,tradeInDebt:0,
-  cashEntry:lead.desiredEntry||0,installments:0,estimatedInstallment:0,notes:'',
+  cashEntry:lead.desiredEntry||0,installments:0,estimatedInstallment:0,notes:'',validUntil:defaultValidity(),
 });
 const fieldClass='h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400';
 const Field=({label,value,onChange,placeholder,type='text'}:{label:string;value:string;onChange:(value:string)=>void;placeholder?:string;type?:string})=><label className="block min-w-0"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</span><input type={type} min={type==='number'?'0':undefined} step={type==='number'?'0.01':undefined} value={value} onChange={event=>onChange(event.target.value)} placeholder={placeholder} className={fieldClass}/></label>;
@@ -29,6 +30,9 @@ const CrmCommercialProposals:React.FC<Props>=({lead,user,stockItems=[]})=>{
   const [form,setForm]=useState<ProposalInput>(()=>blank(lead));
   const [showHistory,setShowHistory]=useState(false);
   const [stockFilter,setStockFilter]=useState('');
+  useEffect(()=>{
+    void crmProposalService.expireLeadReservations(lead.id).catch(()=>undefined);
+  },[lead.id]);
   const history=Array.isArray(lead.crmProposals)?lead.crmProposals:[];
   const latestById=useMemo(()=>{
     const map=new Map<string,CrmProposalSnapshot>();
@@ -59,7 +63,7 @@ const CrmCommercialProposals:React.FC<Props>=({lead,user,stockItems=[]})=>{
       stockPriceAtCreation:row.stockPriceAtCreation,salePrice:row.salePrice,discount:row.discount,
       tradeInPlate:row.tradeInPlate,tradeInValue:row.tradeInValue,tradeInDebt:row.tradeInDebt,
       cashEntry:row.cashEntry,installments:row.installments,estimatedInstallment:row.estimatedInstallment,
-      notes:row.notes,
+      notes:row.notes,validUntil:row.validUntil?String(row.validUntil).slice(0,16):defaultValidity(),
     });
     setProposalId(row.id);setExpectedVersion(row.version);setEditing(true);setError('');setFeedback('');
   };
@@ -84,17 +88,35 @@ const CrmCommercialProposals:React.FC<Props>=({lead,user,stockItems=[]})=>{
     }catch(error:any){setError(error?.message||'Não foi possível salvar.');}
     finally{setBusy(false);}
   };
-  const updateStatus=async(row:CrmProposalSnapshot,status:'sent'|'accepted'|'rejected')=>{
+  const updateStatus=async(row:CrmProposalSnapshot,status:'sent'|'rejected')=>{
     setBusy(true);setError('');setFeedback('');
     try{
       await crmProposalService.setStatus({
         leadId:lead.id,proposalId:row.id,expectedVersion:row.version,status,
         actor:{email:user.email,name:user.name},
       });
-      setFeedback(status==='sent'?'Envio registrado manualmente na ficha. O MOTYQ não enviou uma mensagem.':status==='accepted'?'Aceite registrado. O Pedido de Venda foi criado e o veículo foi reservado no DMS.':'Recusa registrada na ficha.');
+      setFeedback(status==='sent'?'Envio registrado e veículo reservado até o vencimento da proposta. O MOTYQ não enviou uma mensagem.':'Recusa registrada e reserva liberada.');
     }catch(error:any){setError(error?.message||'Não foi possível atualizar a proposta.');}
     finally{setBusy(false);}
   };
+  const acceptDigitally=async(row:CrmProposalSnapshot)=>{
+    const customerName=window.prompt('Confirme o nome do cliente para o aceite digital:',lead.customerName||'')?.trim()||'';
+    if(!customerName)return;
+    const customerDocument=window.prompt('CPF/CNPJ do cliente para registrar o aceite:','')?.trim()||'';
+    if(!customerDocument)return;
+    const confirmed=window.confirm('Registrar aceite digital desta proposta e criar o Pedido de Venda?');
+    if(!confirmed)return;
+    setBusy(true);setError('');setFeedback('');
+    try{
+      await crmProposalService.acceptDigitally({
+        leadId:lead.id,proposalId:row.id,expectedVersion:row.version,
+        customerName,customerDocument,actor:{email:user.email,name:user.name},
+      });
+      setFeedback('Aceite digital registrado com data, cliente e documento. Pedido de Venda criado.');
+    }catch(error:any){setError(error?.message||'Não foi possível registrar o aceite digital.');}
+    finally{setBusy(false);}
+  };
+
   return <section className="rounded-[26px] border border-emerald-200 bg-white p-5 shadow-sm md:p-6">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><p className="text-[10px] font-black uppercase tracking-[.13em] text-emerald-700">NEGOCIAÇÃO · MOTYQ CRM</p><h3 className="mt-1 flex items-center gap-2 font-semibold text-slate-900"><ClipboardList size={19}/> Propostas comerciais</h3><p className="mt-1 text-xs text-slate-500">Salve valores, veículo, troca, entrada e condições. Cada revisão preserva a versão anterior.</p></div>
@@ -127,6 +149,7 @@ const CrmCommercialProposals:React.FC<Props>=({lead,user,stockItems=[]})=>{
         <Field label="Entrada em dinheiro (R$)" type="number" value={String(form.cashEntry)} onChange={v=>change('cashEntry',v)}/>
         <Field label="Prazo em meses (opcional)" type="number" value={String(form.installments)} onChange={v=>change('installments',v)}/>
         <Field label="Parcela estimada informada (R$)" type="number" value={String(form.estimatedInstallment)} onChange={v=>change('estimatedInstallment',v)}/>
+        <Field label="Validade / reserva até" type="datetime-local" value={String(form.validUntil||defaultValidity()).slice(0,16)} onChange={v=>change('validUntil',v)}/>
         <label className="md:col-span-2"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Condições e observações</span><textarea rows={3} value={form.notes} onChange={e=>change('notes',e.target.value)} placeholder="Banco, prazo, validade, condições de avaliação, pendências..." className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800"/></label>
       </div>
       <div className="grid gap-2 rounded-xl border border-emerald-200 bg-white p-3 sm:grid-cols-3">
@@ -145,7 +168,7 @@ const CrmCommercialProposals:React.FC<Props>=({lead,user,stockItems=[]})=>{
       {latestById.map(row=><article key={row.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div><p className="font-semibold text-slate-900">{row.vehicle}</p><p className="mt-1 text-xs text-slate-500">{row.plate||'Sem placa'} · {row.year||'Ano n/i'} · v{row.version} · {displayDate(row.updatedAt)}</p></div>
-          <span className={'rounded-full px-3 py-1 text-xs font-bold '+(row.status==='accepted'?'bg-emerald-100 text-emerald-800':row.status==='rejected'?'bg-rose-100 text-rose-800':row.status==='sent'?'bg-sky-100 text-sky-800':'bg-amber-100 text-amber-800')}>{statusLabel[row.status]}</span>
+          <span className={'rounded-full px-3 py-1 text-xs font-bold '+(row.status==='accepted'?'bg-emerald-100 text-emerald-800':row.status==='rejected'||row.status==='expired'?'bg-rose-100 text-rose-800':row.status==='sent'?'bg-sky-100 text-sky-800':'bg-amber-100 text-amber-800')}>{statusLabel[row.status]}</span>
         </div>
         <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
           <span>Venda: <strong>{proposalMoney(row.salePrice-row.discount)}</strong></span>
@@ -153,12 +176,14 @@ const CrmCommercialProposals:React.FC<Props>=({lead,user,stockItems=[]})=>{
           <span>Saldo: <strong>{proposalMoney(row.financedAmount)}</strong></span>
           {!!row.installments&&<span>Prazo: {row.installments} meses</span>}
           {!!row.estimatedInstallment&&<span>Parcela informada: {proposalMoney(row.estimatedInstallment)}</span>}
+          {row.validUntil&&<span>Validade: <strong>{displayDate(row.validUntil)}</strong></span>}
+          {row.acceptedAt&&<span>Aceite: <strong>{displayDate(row.acceptedAt)}</strong> · {row.acceptedCustomerName||''}</span>}
         </div>
         {row.notes&&<p className="mt-2 whitespace-pre-wrap rounded-xl bg-white p-2 text-xs text-slate-600">{row.notes}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           {row.status!=='accepted'&&<button disabled={busy} onClick={()=>revise(row)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50">NOVA VERSÃO</button>}
           {row.status==='draft'&&<button disabled={busy} onClick={()=>updateStatus(row,'sent')} className="flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 disabled:opacity-50"><Send size={13}/> REGISTRAR ENVIO</button>}
-          {row.status==='sent'&&<><button disabled={busy} onClick={()=>updateStatus(row,'accepted')} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:opacity-50">REGISTRAR ACEITE</button><button disabled={busy} onClick={()=>updateStatus(row,'rejected')} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">REGISTRAR RECUSA</button></>}
+          {row.status==='sent'&&<><button disabled={busy} onClick={()=>void acceptDigitally(row)} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:opacity-50">ACEITE DIGITAL</button><button disabled={busy} onClick={()=>updateStatus(row,'rejected')} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">REGISTRAR RECUSA</button></>}
         </div>
       </article>)}
       {!!history.length&&<div>
