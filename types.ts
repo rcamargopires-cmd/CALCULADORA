@@ -368,6 +368,11 @@ export interface SalesOrder {
   approvedByName?:string;
   invoicedAt?:string;
   deliveredAt?:string;
+  cancelledAt?:string;
+  cancelledBy?:string;
+  cancelledByName?:string;
+  cancellationReason?:string;
+  reversedFinanceIds?:string[];
   createdAt:string;
   updatedAt:string;
   createdBy?:string;
