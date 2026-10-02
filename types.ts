@@ -582,7 +582,7 @@ export type ShowroomPassageOrigin='walk_in'|'requested';
 export type CrmLeadSource='showroom'|'whatsapp'|'web'|'instagram'|'manual'|'other';
 export type CrmLeadTemperature='hot'|'warm'|'cold';
 export type ShowroomPassageActivityType='created'|'assumed'|'status'|'note'|'follow_up'|'future_contact'|'correction'|'contact'|'closed';
-export type CrmProposalStatus='draft'|'sent'|'accepted'|'rejected';
+export type CrmProposalStatus='draft'|'sent'|'accepted'|'rejected'|'expired';
 export interface CrmProposalSnapshot {
   id:string;
   version:number;
@@ -604,6 +604,12 @@ export interface CrmProposalSnapshot {
   installments:number;
   estimatedInstallment:number;
   notes:string;
+  validUntil?:string;
+  reservationExpiresAt?:string;
+  acceptedAt?:string;
+  acceptedCustomerName?:string;
+  acceptedCustomerDocument?:string;
+  acceptanceMethod?:'assisted_digital';
   createdAt:string;
   createdByEmail:string;
   createdByName:string;
