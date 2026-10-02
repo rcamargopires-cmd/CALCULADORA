@@ -39,6 +39,7 @@ import DmsIntegrityPanel from './DmsIntegrityPanel';
 import DmsRoadmapPanel from './DmsRoadmapPanel';
 import VehicleDocumentsPanel from './VehicleDocumentsPanel';
 import AfterSalesPanel from './AfterSalesPanel';
+import DmsAnalyticsPanel from './DmsAnalyticsPanel';
 import VehiclePurchasePanel from './VehiclePurchasePanel';
 import SalesOrderPanel from './SalesOrderPanel';
 import MasterDataPanel from './MasterDataPanel';
@@ -236,6 +237,7 @@ const OperationalTools: React.FC = () => {
     {permissions.diagnostics && <DmsRoadmapPanel/>} 
     {canDocuments && storeId && <VehicleDocumentsPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canAfterSales && storeId && <AfterSalesPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {canReports && storeId && <DmsAnalyticsPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canPurchases && storeId && <VehiclePurchasePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canSales && storeId && <SalesOrderPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <MasterDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
