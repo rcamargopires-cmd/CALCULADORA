@@ -110,6 +110,17 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   const projectedOut=monthEntries.filter(item=>item.entryType==='payable'&&item.status==='pending').reduce((sum,item)=>sum+Number(item.amount||0),0);
   const realizedBalance=realizedIn-realizedOut;
   const projectedBalance=realizedBalance+projectedIn-projectedOut;
+  const activeAccounts=accounts.filter(item=>item.active);
+  const accountBalances=activeAccounts.map(account=>{
+    const settled=items.filter(item=>item.financeAccountId===account.accountId&&isSettled(item));
+    const delta=settled.reduce((sum,item)=>sum+(item.entryType==='receivable'?Number(item.amount||0):-Number(item.amount||0)),0);
+    return{...account,currentBalance:(Number(account.openingBalance)||0)+delta};
+  });
+  const totalAccountBalance=accountBalances.reduce((sum,item)=>sum+item.currentBalance,0);
+  const dreRevenue=realizedIn;
+  const dreExpense=realizedOut;
+  const dreResult=dreRevenue-dreExpense;
+  const dreMargin=dreRevenue>0?(dreResult/dreRevenue)*100:0;
 
   const resetForm=()=>{
     setEntryType(tab==='receivable'?'receivable':'payable');
@@ -145,15 +156,33 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
     finally{setBusy('');}
   };
 
+  const createAccount=async()=>{
+    if(!canCreate)return setError('Seu perfil não pode criar contas financeiras.');
+    if(!accountName.trim())return setError('Informe o nome da conta/caixa.');
+    setBusy('account');setError('');setMessage('');
+    try{
+      const created=await financeAccountService.create({
+        companyId,storeId,accountType,name:accountName.trim(),bankName:accountBank.trim(),
+        agency:accountAgency.trim(),accountNumber:accountNumber.trim(),pixKey:accountPix.trim(),
+        openingBalance:Number(String(openingBalance).replace(',','.'))||0,actor:currentUser,
+      });
+      setFinanceAccountId(created.accountId);
+      setAccountOpen(false);setAccountName('');setAccountBank('');setAccountAgency('');setAccountNumber('');setAccountPix('');setOpeningBalance('');
+      setMessage('Conta financeira criada.');
+    }catch(cause:any){setError(cause?.message||'Não foi possível criar a conta.');}
+    finally{setBusy('');}
+  };
+
   const settle=async()=>{
     if(!canSettle)return setError('Somente o Financeiro/Caixa pode baixar pagamentos e recebimentos.');
     if(!selected||selected.status!=='pending')return;
+    if(!financeAccountId)return setError('Cadastre e selecione a conta bancária/caixa usada na baixa.');
     setBusy(selected.id);setError('');setMessage('');
     try{
       if(selected.origin==='prep'){
-        await prepFinanceService.markPaid(selected as any,currentUser,method,reference.trim());
+        await prepFinanceService.markPaid(selected as any,currentUser,method,reference.trim(),financeAccountId);
       }else{
-        await financeService.settle(selected,currentUser,method,reference.trim());
+        await financeService.settle(selected,currentUser,method,reference.trim(),financeAccountId);
       }
       setMessage(selected.entryType==='payable'?'Pagamento registrado.':'Recebimento registrado.');
       setReference('');
@@ -173,7 +202,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
     finally{setBusy('');}
   };
 
-  const title=tab==='payable'?'Contas a pagar':tab==='receivable'?'Contas a receber':'Fluxo de caixa';
+  const title=tab==='payable'?'Contas a pagar':tab==='receivable'?'Contas a receber':tab==='cashflow'?'Fluxo de caixa':'DRE gerencial';
 
   return <>
     <button
