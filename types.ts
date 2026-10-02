@@ -33,6 +33,36 @@ export interface Store { id:string; code:string; name:string; active:boolean; co
 export interface SellerGoals { monthly:number; firstHalf:number; capture:number; margin:number; }
 export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; companyId?:string; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 
+export interface CustomerMaster {
+  id:string;
+  kind:'customer_master';
+  customerId:string;
+  companyId:string;
+  storeId:string;
+  name:string;
+  phone:string;
+  email?:string;
+  document?:string;
+  createdAt:string;
+  updatedAt:string;
+}
+export interface SupplierMaster {
+  id:string;
+  kind:'supplier_master';
+  supplierId:string;
+  companyId:string;
+  storeId:string;
+  name:string;
+  document?:string;
+  phone?:string;
+  email?:string;
+  pixKey?:string;
+  bankInfo?:string;
+  active:boolean;
+  createdAt:string;
+  updatedAt:string;
+}
+
 export type DmsVehicleStage='evaluated'|'purchased'|'documents'|'preparation'|'available'|'reserved'|'sold'|'invoiced'|'delivered'|'after_sales'|'exited';
 export interface VehicleMaster {
   id:string;
@@ -91,6 +121,7 @@ export interface FinanceEntry {
   category:string;
   description:string;
   party:string;
+  partyId?:string;
   amount:number;
   dueDate?:string;
   competenceDate?:string;
@@ -116,7 +147,7 @@ export interface FinanceEntry {
 export type PrepPayableStatus='pending'|'paid'|'cancelled';
 export type VehicleHistoryEventType='prep_requested'|'prep_approved'|'prep_paid'|'prep_completed'|'prep_cancelled';
 export interface PrepService {
-  id:string; type:string; provider:string; status:PrepServiceStatus; estimatedCost:number; finalCost:number;
+  id:string; type:string; provider:string; supplierId?:string; status:PrepServiceStatus; estimatedCost:number; finalCost:number;
   sentAt?:string; dueAt?:string; returnedAt?:string; notes?:string;
   requestedAt?:string; requestedBy?:string; requestedByName?:string;
   approvedAt?:string; approvedBy?:string; approvedByName?:string;
@@ -182,6 +213,7 @@ export interface CrmProposalSnapshot {
 export interface ShowroomPassageActivity { id:string; type:ShowroomPassageActivityType; at:string; label:string; details?:string; status?:ShowroomPassageStatus; byEmail?:string; byName?:string; }
 export interface ShowroomPassage {
   id:string;
+  customerId?:string;
   customerName:string;
   phone:string;
   interestModel:string;
