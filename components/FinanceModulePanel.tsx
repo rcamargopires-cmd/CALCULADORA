@@ -22,6 +22,12 @@ const displayDate=(value?:string)=>{
 const statusLabel=(entry:FinanceEntry)=>entry.status==='paid'?'Pago':entry.status==='received'?'Recebido':entry.status==='cancelled'?'Cancelado':'Pendente';
 const isSettled=(entry:FinanceEntry)=>entry.status==='paid'||entry.status==='received';
 const entryDate=(entry:FinanceEntry)=>String(entry.settledAt||entry.dueDate||entry.competenceDate||entry.createdAt||'').slice(0,10);
+const daysFromToday=(iso?:string)=>{
+  if(!iso)return null;
+  const due=new Date(`${String(iso).slice(0,10)}T12:00:00`).getTime();
+  const now=new Date();const todayNoon=new Date(now.getFullYear(),now.getMonth(),now.getDate(),12).getTime();
+  return Math.round((due-todayNoon)/86400000);
+};
 
 const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})=>{
   const permissions=dmsPermissions(currentUser);
@@ -103,6 +109,13 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   const receivableOpen=receivables.filter(item=>item.status==='pending');
   const payableOpenValue=payableOpen.reduce((sum,item)=>sum+Number(item.amount||0),0);
   const receivableOpenValue=receivableOpen.reduce((sum,item)=>sum+Number(item.amount||0),0);
+  const agingSource=tab==='payable'?payableOpen:tab==='receivable'?receivableOpen:[];
+  const aging={
+    overdue30:agingSource.filter(item=>{const d=daysFromToday(item.dueDate);return d!==null&&d<=-30;}),
+    overdue8to29:agingSource.filter(item=>{const d=daysFromToday(item.dueDate);return d!==null&&d<=-8&&d>-30;}),
+    overdue1to7:agingSource.filter(item=>{const d=daysFromToday(item.dueDate);return d!==null&&d<0&&d>-8;}),
+    dueSoon:agingSource.filter(item=>{const d=daysFromToday(item.dueDate);return d!==null&&d>=0&&d<=7;}),
+  };
 
   const monthEntries=items.filter(item=>item.status!=='cancelled'&&monthKey(entryDate(item))===month);
   const realizedIn=monthEntries.filter(item=>item.entryType==='receivable'&&item.status==='received').reduce((sum,item)=>sum+Number(item.amount||0),0);
@@ -287,6 +300,14 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
             </>}
           </section>
 
+          {(tab==='payable'||tab==='receivable')&&agingSource.length>0&&<section className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <AgingCard label="+30 dias vencido" items={aging.overdue30} tone="critical"/>
+            <AgingCard label="8–29 dias vencido" items={aging.overdue8to29} tone="danger"/>
+            <AgingCard label="1–7 dias vencido" items={aging.overdue1to7} tone="warning"/>
+            <AgingCard label="Vence em até 7 dias" items={aging.dueSoon} tone="info"/>
+          </section>}
+          {aging.overdue30.length>0&&<div className="mt-3 rounded-2xl border border-red-400/20 bg-red-400/[.06] px-4 py-3 text-xs text-red-200"><b>Alerta financeiro:</b> há {aging.overdue30.length} lançamento(s) vencido(s) há 30 dias ou mais, somando {money(aging.overdue30.reduce((sum,item)=>sum+Number(item.amount||0),0))}.</div>}
+
           {(message||error)&&<div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${error?'border-red-400/20 bg-red-400/[.05] text-red-300':'border-emerald-400/20 bg-emerald-400/[.05] text-emerald-300'}`}>{error||message}</div>}
 
           {tab==='cashflow'?<CashFlowView month={month} setMonth={setMonth} entries={monthEntries} accounts={accountBalances} totalAccountBalance={totalAccountBalance}/>:tab==='dre'?<DreView month={month} setMonth={setMonth} entries={monthEntries}/>:<section className="mt-5 grid gap-4 lg:grid-cols-[.92fr_1.08fr]">
@@ -388,6 +409,12 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
 };
 
 const TabButton=({active,onClick,icon,label,badge}:{active:boolean;onClick:()=>void;icon:React.ReactNode;label:string;badge?:number})=><button onClick={onClick} className={`flex h-10 items-center gap-2 rounded-xl border px-4 text-xs font-semibold transition ${active?'border-sky-400/25 bg-sky-400/[.08] text-sky-300':'border-white/10 bg-white/[.02] text-zinc-500'}`}>{icon}<span>{label}</span>{badge!==undefined&&badge>0&&<span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-[9px] font-bold text-amber-300">{badge}</span>}</button>;
+
+const AgingCard=({label,items,tone}:{label:string;items:FinanceEntry[];tone:'critical'|'danger'|'warning'|'info'})=>{
+  const total=items.reduce((sum,item)=>sum+Number(item.amount||0),0);
+  const cls=tone==='critical'?'border-red-400/25 bg-red-400/[.07] text-red-200':tone==='danger'?'border-orange-400/20 bg-orange-400/[.05] text-orange-200':tone==='warning'?'border-amber-400/20 bg-amber-400/[.05] text-amber-200':'border-sky-400/15 bg-sky-400/[.04] text-sky-200';
+  return <div className={`rounded-2xl border p-3 ${cls}`}><p className="text-[10px] font-bold uppercase tracking-[.08em] opacity-70">{label}</p><div className="mt-1 flex items-end justify-between gap-2"><b className="text-lg">{items.length}</b><span className="text-xs font-semibold">{money(total)}</span></div></div>;
+};
 
 const Metric=({icon,label,value,note,warn,danger}:{icon:React.ReactNode;label:string;value:string;note:string;warn?:boolean;danger?:boolean})=><div className={`rounded-[22px] border p-4 ${danger?'border-red-400/20 bg-red-400/[.05]':warn?'border-amber-400/20 bg-amber-400/[.05]':'border-white/10 bg-white/[.03]'}`}><div className="flex items-center gap-2 text-zinc-500">{icon}<p className="text-xs">{label}</p></div><p className="mt-2 text-2xl font-semibold">{value}</p><p className="mt-1 text-[11px] text-zinc-600">{note}</p></div>;
 
