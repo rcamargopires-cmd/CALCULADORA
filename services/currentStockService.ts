@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import type { OperationalStockItem, User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
 import { DEFAULT_STORE_ID } from './storeService';
+import { dmsVehicleService } from './dmsVehicleService';
 
 const COLLECTION='operational_stock';
 const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
@@ -112,11 +113,12 @@ const deriveLegacy=async(companyId:string,storeId:string):Promise<OperationalSto
 };
 
 const seedCanonical=async(items:OperationalStockItem[],companyId:string,storeId:string)=>{
-  for(const item of items){
+  const enriched=await dmsVehicleService.ensureManyFromStock(items,companyId,storeId);
+  for(const item of enriched){
     const next=normalizeItem(item,companyId,storeId);
     await setDoc(doc(db,COLLECTION,next.id),next,{merge:true});
   }
-  await updateMeta(items,companyId,storeId);
+  await updateMeta(enriched,companyId,storeId);
 };
 
 const reconcileCanonicalV4=async(companyId:string,storeId:string)=>{
@@ -280,6 +282,14 @@ export const currentStockService={
         announce();
       }
     }
+    if(rows.some(item=>!item.vehicleId)){
+      const enriched=await dmsVehicleService.ensureManyFromStock(rows,companyId,storeId);
+      for(const item of enriched){
+        const next=normalizeItem(item,companyId,storeId);
+        await setDoc(doc(db,COLLECTION,next.id),next,{merge:true});
+      }
+      rows=enriched;
+    }
     const unique=new Map<string,OperationalStockItem>();
     rows.filter(isActive).sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b))).forEach(item=>{
       const plate=cleanPlate(item.plate);
@@ -349,7 +359,8 @@ export const currentStockService={
       }
     });
 
-    const nextPlates=new Set(next.map(item=>cleanPlate(item.plate)));
+    const enriched=await dmsVehicleService.ensureManyFromStock(next,companyId,storeId,user);
+    const nextPlates=new Set(enriched.map(item=>cleanPlate(item.plate)));
     const canonical=await readCanonical(companyId,storeId);
     for(const old of canonical){
       const plate=cleanPlate(old.plate);
@@ -357,13 +368,16 @@ export const currentStockService={
       await setDoc(doc(db,COLLECTION,docId(companyId,storeId,plate)),{
         companyId,storeId,plate,status:'Saída',manualActive:false,updatedAt:new Date().toISOString(),
       },{merge:true});
+      if(old.vehicleId){
+        await dmsVehicleService.updateStage(old.vehicleId,'exited',companyId,storeId,user,'Veículo ausente na nova importação oficial.').catch(()=>undefined);
+      }
     }
-    for(const item of next){
+    for(const item of enriched){
       await setDoc(doc(db,COLLECTION,item.id),{...item,updatedAt:new Date().toISOString()},{merge:true});
     }
-    await updateMeta(next,companyId,storeId);
+    await updateMeta(enriched,companyId,storeId);
     announce();
-    return next.filter(isActive);
+    return enriched.filter(isActive);
   },
 
   upsert:async(item:OperationalStockItem,storeId:string,companyId:string):Promise<OperationalStockItem[]>=>{
@@ -372,13 +386,15 @@ export const currentStockService={
     if(!/^[A-Z0-9]{7}$/.test(plate))throw new Error('Informe uma placa válida com 7 caracteres.');
     const previous=current.find(row=>cleanPlate(row.plate)===plate);
     const isManual=item.source==='manual'||previous?.source==='manual';
-    const nextItem=normalizeItem({
+    const draft=normalizeItem({
       ...previous,
       ...item,
+      vehicleId:item.vehicleId||previous?.vehicleId,
       plate,
       ...(isManual?{source:'manual' as const,manualActive:true,manualExitAt:''}:{}),
       updatedAt:new Date().toISOString(),
     },companyId,storeId);
+    const nextItem=await dmsVehicleService.syncFromStock(draft,companyId,storeId);
     await setDoc(doc(db,COLLECTION,nextItem.id),nextItem,{merge:true});
     const next=[...current.filter(row=>cleanPlate(row.plate)!==plate),nextItem];
     await updateMeta(next,companyId,storeId);
@@ -396,6 +412,9 @@ export const currentStockService={
       manualExitAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
     },{merge:true});
     const next=current.filter(item=>cleanPlate(item.plate)!==target);
+    if(existing.vehicleId){
+      await dmsVehicleService.updateStage(existing.vehicleId,'exited',companyId,storeId,undefined,'Saída registrada no estoque atual.').catch(()=>undefined);
+    }
     await updateMeta(next,companyId,storeId);
     announce();
     return next;
