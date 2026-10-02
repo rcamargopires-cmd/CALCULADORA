@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck, TriangleAlert, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, RefreshCw, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import type { DmsDiagnosticIssue, DmsDiagnosticReport, User } from '../types';
 import { dmsIntegrityService } from '../services/dmsIntegrityService';
 import { dmsMigrationService } from '../services/dmsMigrationService';
+import { dmsExportService } from '../services/dmsExportService';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 
@@ -31,6 +32,14 @@ const DmsIntegrityPanel:React.FC<Props>=({currentUser,companyId,storeId,storeNam
   const[filter,setFilter]=useState<'all'|'critical'|'warning'|'info'>('all');
   const[migrating,setMigrating]=useState(false);
   const[migrationMessage,setMigrationMessage]=useState('');
+  const[exporting,setExporting]=useState(false);
+
+  const exportAudit=async()=>{
+    setExporting(true);setError('');
+    try{await dmsExportService.downloadJson(companyId,storeId,currentUser);}
+    catch(cause:any){setError(cause?.message||'Não foi possível exportar os dados e a auditoria.');}
+    finally{setExporting(false);}
+  };
 
   const run=async()=>{
     setLoading(true);setError('');
@@ -80,6 +89,7 @@ const DmsIntegrityPanel:React.FC<Props>=({currentUser,companyId,storeId,storeNam
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button disabled={exporting} onClick={()=>void exportAudit()} className="flex h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-xs font-bold text-blue-700 disabled:opacity-50"><Download size={15}/> {exporting?'EXPORTANDO...':'EXPORTAR AUDITORIA'}</button>
             <button disabled={migrating||loading} onClick={()=>void migrate()} className="flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-700 disabled:opacity-50"><RefreshCw size={15} className={migrating?'animate-spin':''}/> {migrating?'MIGRANDO...':'CORRIGIR VÍNCULOS'}</button>
             <button disabled={loading||migrating} onClick={()=>void run()} className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 disabled:opacity-50"><RefreshCw size={15} className={loading?'animate-spin':''}/> {loading?'VERIFICANDO...':'VERIFICAR AGORA'}</button>
             <button onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-500"><X size={18}/></button>
