@@ -33,7 +33,47 @@ export interface Store { id:string; code:string; name:string; active:boolean; co
 export interface SellerGoals { monthly:number; firstHalf:number; capture:number; margin:number; }
 export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; companyId?:string; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 
-export interface OperationalStockItem { id:string; snapshotDate:string; plate:string; vehicle:string; stockDays:number; cost:number; fipe:number; askingPrice:number; purchaseCost?:number; prepCost?:number; brand?:string; year?:string; km?:number; entryDate?:string; source?:'import'|'manual'; currentRecord?:boolean; manualActive?:boolean; updatedAt?:string; manualExitAt?:string; location?:string; status?:string; storeId?:string; companyId?:string; }
+export type DmsVehicleStage='evaluated'|'purchased'|'documents'|'preparation'|'available'|'reserved'|'sold'|'invoiced'|'delivered'|'after_sales'|'exited';
+export interface VehicleMaster {
+  id:string;
+  kind:'vehicle_master';
+  vehicleId:string;
+  companyId:string;
+  storeId:string;
+  plate:string;
+  brand?:string;
+  model:string;
+  year?:string;
+  km?:number;
+  stage:DmsVehicleStage;
+  purchaseCost?:number;
+  prepCost?:number;
+  currentCost?:number;
+  fipe?:number;
+  askingPrice?:number;
+  entryDate?:string;
+  source?:'import'|'manual'|'evaluation'|'trade_in'|'purchase';
+  createdAt:string;
+  updatedAt:string;
+}
+export interface DmsAuditEvent {
+  id:string;
+  kind:'audit_event';
+  companyId:string;
+  storeId:string;
+  entityType:'vehicle'|'customer'|'supplier'|'proposal'|'sale'|'finance'|'prep'|'document'|'user'|'system';
+  entityId:string;
+  action:string;
+  label:string;
+  details?:string;
+  amount?:number;
+  plate?:string;
+  vehicleId?:string;
+  at:string;
+  actorEmail?:string;
+  actorName?:string;
+}
+export interface OperationalStockItem { id:string; vehicleId?:string; snapshotDate:string; plate:string; vehicle:string; stockDays:number; cost:number; fipe:number; askingPrice:number; purchaseCost?:number; prepCost?:number; brand?:string; year?:string; km?:number; entryDate?:string; source?:'import'|'manual'; currentRecord?:boolean; manualActive?:boolean; updatedAt?:string; manualExitAt?:string; location?:string; status?:string; storeId?:string; companyId?:string; }
 export interface OperationalSaleItem { id:string; saleDate:string; plate:string; vehicle:string; seller:string; invoiceValue:number; marginValue:number; marginPercent:number; hasTradeIn?:boolean; storeId?:string; companyId?:string; }
 export interface MarketPresenceItem { id:string; referenceDate:string; plate:string; vehicle:string; adStatus:'active'|'missing'; photoStatus:'ok'|'insufficient'|'not_validated'|'missing'; photoCount?:number; sitePrice?:number; siteKm?:number; alert?:string; url?:string; auditedAt?:string; storeId?:string; companyId?:string; }
 
@@ -59,6 +99,7 @@ export interface FinanceEntry {
   paymentReference?:string;
   plate?:string;
   vehicle?:string;
+  vehicleId?:string;
   origin:FinanceOrigin;
   originId?:string;
   companyId:string;
@@ -81,7 +122,7 @@ export interface PrepService {
   approvedAt?:string; approvedBy?:string; approvedByName?:string;
   payableId?:string;
 }
-export interface PrepOrder { id:string; plate:string; vehicle:string; openedAt:string; updatedAt:string; completedAt?:string; status:PrepOrderStatus; sold:boolean; destination:PrepDestination; services:PrepService[]; notes?:string; createdBy?:string; storeId:string; companyId:string; }
+export interface PrepOrder { id:string; vehicleId?:string; plate:string; vehicle:string; openedAt:string; updatedAt:string; completedAt?:string; status:PrepOrderStatus; sold:boolean; destination:PrepDestination; services:PrepService[]; notes?:string; createdBy?:string; storeId:string; companyId:string; }
 export interface PrepPayable extends FinanceEntry {
   entryType:'payable';
   status:PrepPayableStatus;
@@ -99,7 +140,7 @@ export interface PrepPayable extends FinanceEntry {
   paidByName?:string;
 }
 export interface VehicleHistoryEvent {
-  id:string; kind:'vehicle_history'; plate:string; vehicle:string; type:VehicleHistoryEventType; label:string; details?:string;
+  id:string; kind:'vehicle_history'; vehicleId?:string; plate:string; vehicle:string; type:VehicleHistoryEventType; label:string; details?:string;
   amount?:number; provider?:string; at:string; byEmail?:string; byName?:string;
   orderId?:string; serviceId?:string; payableId?:string; companyId:string; storeId:string;
 }
@@ -115,6 +156,7 @@ export interface CrmProposalSnapshot {
   version:number;
   status:CrmProposalStatus;
   vehicle:string;
+  vehicleId?:string;
   plate:string;
   year:string;
   km:number;
