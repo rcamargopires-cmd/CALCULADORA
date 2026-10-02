@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDownCircle, ArrowUpCircle, Banknote, CalendarDays, CheckCircle2, CircleDollarSign, Landmark, Plus, Search, TrendingUp, WalletCards, X } from 'lucide-react';
-import type { FinanceAccount, FinanceAccountType, FinanceEntry, FinanceEntryType, User } from '../types';
+import type { FinanceAccount, FinanceAccountType, FinanceChartAccount, FinanceCostCenter, FinanceEntry, FinanceEntryType, User } from '../types';
 import { financeService } from '../services/financeService';
 import { prepFinanceService } from '../services/prepFinanceService';
 import { dmsPermissions } from '../services/dmsPermissions';
 import { financeAccountService } from '../services/financeAccountService';
+import { financeStructureService } from '../services/financeStructureService';
+import FinanceStructurePanel from './FinanceStructurePanel';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 type Tab='payable'|'receivable'|'cashflow'|'dre';
@@ -37,6 +39,8 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   const[tab,setTab]=useState<Tab>('payable');
   const[items,setItems]=useState<FinanceEntry[]>([]);
   const[accounts,setAccounts]=useState<FinanceAccount[]>([]);
+  const[chartAccounts,setChartAccounts]=useState<FinanceChartAccount[]>([]);
+  const[costCenters,setCostCenters]=useState<FinanceCostCenter[]>([]);
   const[selectedId,setSelectedId]=useState('');
   const[search,setSearch]=useState('');
   const[entryOpen,setEntryOpen]=useState(false);
@@ -49,6 +53,9 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   const[installments,setInstallments]=useState('1');
   const[plate,setPlate]=useState('');
   const[vehicle,setVehicle]=useState('');
+  const[chartAccountId,setChartAccountId]=useState('');
+  const[costCenterId,setCostCenterId]=useState('');
+  const[structureOpen,setStructureOpen]=useState(false);
   const[method,setMethod]=useState('Pix');
   const[reference,setReference]=useState('');
   const[financeAccountId,setFinanceAccountId]=useState('');
@@ -90,6 +97,15 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
       cause=>console.warn('Motyq: contas financeiras indisponíveis.',cause),
     );
   },[open,companyId,storeId]);
+
+  const loadStructure=async()=>{
+    try{
+      const data=await financeStructureService.load(companyId,storeId);
+      setChartAccounts(data.chartAccounts.filter(item=>item.active));
+      setCostCenters(data.costCenters.filter(item=>item.active));
+    }catch(cause){console.warn('Motyq: estrutura financeira indisponível.',cause);}
+  };
+  useEffect(()=>{if(open)void loadStructure();},[open,companyId,storeId]);
 
   const selected=items.find(item=>item.id===selectedId)||null;
   const q=search.trim().toLowerCase();
@@ -138,7 +154,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
 
   const resetForm=()=>{
     setEntryType(tab==='receivable'?'receivable':'payable');
-    setCategory('Outros');setDescription('');setParty('');setAmount('');setDueDate('');setInstallments('1');setPlate('');setVehicle('');
+    setCategory('Outros');setDescription('');setParty('');setAmount('');setDueDate('');setInstallments('1');setPlate('');setVehicle('');setChartAccountId('');setCostCenterId('');
   };
 
   const create=async()=>{
@@ -162,6 +178,8 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
           competenceDate:today(),
           plate:plate||undefined,
           vehicle:vehicle.trim()||undefined,
+          chartAccountId:chartAccountId||undefined,
+          costCenterId:costCenterId||undefined,
           origin:'manual',
           companyId,
           storeId,
@@ -258,6 +276,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
             <p className="mt-2 text-sm text-zinc-500">{storeName}. Preparações aprovadas entram automaticamente no contas a pagar.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {canCreate&&<button onClick={()=>setStructureOpen(true)} className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 text-xs font-bold text-zinc-200"><Landmark size={15}/> PLANO / CENTROS</button>}
             {canCreate&&<button onClick={()=>setAccountOpen(true)} className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 text-xs font-bold text-zinc-200"><WalletCards size={15}/> CONTAS / CAIXAS</button>}
             {canCreate&&<button onClick={()=>{resetForm();setEntryOpen(true);}} className="flex h-10 items-center gap-2 rounded-xl bg-sky-400 px-4 text-xs font-bold text-sky-950"><Plus size={15}/> NOVO LANÇAMENTO</button>}
             <button onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-zinc-400"><X size={18}/></button>
@@ -387,6 +406,8 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
       </div>
     </div>}
 
+    <FinanceStructurePanel open={structureOpen} onClose={()=>setStructureOpen(false)} currentUser={currentUser} companyId={companyId} storeId={storeId} storeName={storeName} onChanged={()=>void loadStructure()}/>
+
     {entryOpen&&canCreate&&<div className="fixed inset-0 z-[290] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={()=>setEntryOpen(false)}>
       <div className="w-full max-w-xl rounded-[26px] border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onClick={event=>event.stopPropagation()}>
         <div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.15em] text-sky-300">NOVO LANÇAMENTO</p><h4 className="mt-1 text-xl font-semibold">Financeiro da loja</h4></div><button onClick={()=>setEntryOpen(false)} className="grid h-9 w-9 place-items-center rounded-full bg-white/[.05] text-zinc-400"><X size={17}/></button></div>
@@ -398,6 +419,8 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
           <label className="text-xs text-zinc-500">Valor total<input type="number" value={amount} onChange={e=>setAmount(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
           <label className="text-xs text-zinc-500">Primeiro vencimento<input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"/></label>
           <label className="text-xs text-zinc-500">Parcelas<input type="number" min="1" max="120" value={installments} onChange={e=>setInstallments(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/><span className="mt-1 block text-[10px] text-zinc-600">Acima de 1, o Motyq divide o valor total em vencimentos mensais.</span></label>
+          <label className="text-xs text-zinc-500">Plano de contas<select value={chartAccountId} onChange={e=>setChartAccountId(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"><option value="">Sem conta definida</option>{chartAccounts.map(item=><option key={item.chartAccountId} value={item.chartAccountId}>{item.code} · {item.name}</option>)}</select></label>
+          <label className="text-xs text-zinc-500">Centro de custo<select value={costCenterId} onChange={e=>setCostCenterId(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"><option value="">Sem centro definido</option>{costCenters.map(item=><option key={item.costCenterId} value={item.costCenterId}>{item.code} · {item.name}</option>)}</select></label>
           <label className="text-xs text-zinc-500">Placa opcional<input value={plate} onChange={e=>setPlate(clean(e.target.value).slice(0,7))} placeholder="ABC1D23" className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 font-mono text-sm text-white outline-none"/></label>
           <label className="text-xs text-zinc-500 sm:col-span-2">Veículo / referência<input value={vehicle} onChange={e=>setVehicle(e.target.value)} placeholder="Opcional" className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
         </div>
