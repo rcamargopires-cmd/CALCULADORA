@@ -249,6 +249,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
       companyId:selectedCompany.id,storeId:userForm.storeId,storeIds:userForm.storeIds.length?userForm.storeIds:[userForm.storeId].filter(Boolean),
       companyPlan:selectedCompany.plan,companyStatus:selectedCompany.status,
       companyBilling:selectedCompany.billing,
+      companyFiscal:selectedCompany.fiscal,
       companyModuleOverrides:selectedCompany.moduleOverrides,
       createdAt:base?.createdAt||new Date().toISOString(),
     };
