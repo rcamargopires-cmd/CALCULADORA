@@ -222,6 +222,54 @@ export interface VehicleHistoryEvent {
   orderId?:string; serviceId?:string; payableId?:string; companyId:string; storeId:string;
 }
 
+export type SalesOrderStatus='draft'|'approved'|'credit_pending'|'ready_to_invoice'|'invoiced'|'delivered'|'cancelled';
+export type CreditStatus='not_required'|'pending'|'approved'|'rejected';
+export interface SalesOrder {
+  id:string;
+  kind:'sales_order';
+  salesOrderId:string;
+  companyId:string;
+  storeId:string;
+  leadId:string;
+  proposalId:string;
+  proposalVersion:number;
+  customerId?:string;
+  customerName:string;
+  customerPhone:string;
+  vehicleId?:string;
+  plate:string;
+  vehicle:string;
+  year?:string;
+  salePrice:number;
+  discount:number;
+  netSalePrice:number;
+  cashEntry:number;
+  financedAmount:number;
+  installments:number;
+  estimatedInstallment:number;
+  bankName?:string;
+  creditStatus:CreditStatus;
+  tradeInPlate?:string;
+  tradeInValue:number;
+  tradeInDebt:number;
+  tradeInPurchaseId?:string;
+  status:SalesOrderStatus;
+  receivableIds?:string[];
+  invoiceNumber?:string;
+  invoiceDate?:string;
+  deliveryDate?:string;
+  notes?:string;
+  approvedAt?:string;
+  approvedBy?:string;
+  approvedByName?:string;
+  invoicedAt?:string;
+  deliveredAt?:string;
+  createdAt:string;
+  updatedAt:string;
+  createdBy?:string;
+  createdByName?:string;
+}
+
 export type VehiclePurchaseOrigin='purchase'|'trade_in'|'repasse'|'consignment';
 export type VehiclePurchaseStatus='draft'|'approved'|'payment_pending'|'documents'|'entered'|'cancelled';
 export interface VehiclePurchaseDocuments {
