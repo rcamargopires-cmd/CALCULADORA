@@ -1,7 +1,6 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import { CheckCircle2, FileJson2, FileText, RefreshCw, ShieldAlert, X } from 'lucide-react';
-import type { Company, FiscalInvoiceRecord, SalesOrder, User } from '../types';
-import { companyService } from '../services/companyService';
+import type { FiscalInvoiceRecord, SalesOrder, User } from '../types';
 import { fiscalIntegrationService } from '../services/fiscalIntegrationService';
 
 type Props={
@@ -48,7 +47,6 @@ const defaultPayload=(order:SalesOrder)=>({
 });
 
 const FiscalInvoicePanel:React.FC<Props>=({open,onClose,currentUser,order})=>{
-  const[company,setCompany]=useState<Company|null>(null);
   const[configured,setConfigured]=useState<boolean|null>(null);
   const[record,setRecord]=useState<FiscalInvoiceRecord|null>(null);
   const[payload,setPayload]=useState(()=>JSON.stringify(defaultPayload(order),null,2));
@@ -61,33 +59,25 @@ const FiscalInvoicePanel:React.FC<Props>=({open,onClose,currentUser,order})=>{
     setRecord(null);setError('');setMessage('');
   },[order.salesOrderId]);
 
+  const fiscal=currentUser.companyFiscal;
+  const environment=fiscal?.environment||'homologacao';
+  const provider=fiscal?.provider||'manual';
+
   useEffect(()=>{
     if(!open)return;
     let active=true;
-    void companyService.getAll().then(async companies=>{
+    void fiscalIntegrationService.status(order.companyId,environment).then(async status=>{
       if(!active)return;
-      const found=companies.find(item=>item.id===order.companyId)||null;
-      setCompany(found);
-      const environment=found?.fiscal?.environment||'homologacao';
-      try{
-        const status=await fiscalIntegrationService.status(order.companyId,environment);
-        if(active)setConfigured(Boolean(status?.configured));
-      }catch{
-        if(active)setConfigured(false);
-      }
+      setConfigured(Boolean(status?.configured));
       if(order.fiscalInvoiceId){
         try{
           const refreshed=await fiscalIntegrationService.query(order,environment);
           if(active)setRecord(refreshed);
         }catch{}
       }
-    }).catch(()=>setConfigured(false));
+    }).catch(()=>{if(active)setConfigured(false);});
     return()=>{active=false;};
-  },[open,order.companyId,order.salesOrderId]);
-
-  const fiscal=company?.fiscal;
-  const environment=fiscal?.environment||'homologacao';
-  const provider=fiscal?.provider||'manual';
+  },[open,order.companyId,order.salesOrderId,order.fiscalInvoiceId,environment]);
   const canIssue=provider==='focus_nfe'&&fiscal?.enabled&&configured===true&&['ready_to_invoice','invoiced'].includes(order.status);
   const effectiveStatus=record?.status||order.fiscalStatus;
 
