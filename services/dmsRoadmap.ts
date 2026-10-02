@@ -161,7 +161,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
     title:'Fase 8 · Documentação, fiscal e pós-venda',
     goal:'Acompanhar a vida documental e fiscal do carro até depois da entrega.',
     items:[
-      {id:'F8.01',label:'Dossiê documental do veículo',done:false},
+      {id:'F8.01',label:'Dossiê documental do veículo',done:true},
       {id:'F8.02',label:'ATPV-e / transferência',done:false},
       {id:'F8.03',label:'CRLV e documentos de entrada/saída',done:false},
       {id:'F8.04',label:'Gravame',done:false},
