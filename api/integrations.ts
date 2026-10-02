@@ -416,6 +416,66 @@ export default async function handler(req:any,res:any){
         missing:[...(!apiKey?['ASAAS_API_KEY']:[]),...(!webhookToken?['ASAAS_WEBHOOK_TOKEN']:[])],
       });
     }
+
+    if(action==='update-subscription'||action==='set-subscription-status'){
+      const companyId=String(req.body?.companyId||'').trim();
+      const companies=await getCompanies();
+      const index=companies.findIndex((item:any)=>String(item?.id||'')===companyId);
+      if(index<0)return res.status(404).json({error:'company_not_found'});
+      const company=companies[index];
+      const billing=company.billing||{};
+      const subscriptionId=String(billing.externalSubscriptionId||'').trim();
+      if(!subscriptionId)return res.status(409).json({error:'asaas_subscription_not_active'});
+
+      if(action==='update-subscription'){
+        const amount=Math.max(1,Number(req.body?.amount)||0);
+        const nextDueDate=req.body?.nextDueDate?isoDate(req.body.nextDueDate):String(billing.nextDueAt||'');
+        const updated=await asaas(`/subscriptions/${encodeURIComponent(subscriptionId)}`,{
+          method:'PUT',
+          body:JSON.stringify({
+            value:amount,
+            ...(nextDueDate?{nextDueDate}:{}),
+            updatePendingPayments:req.body?.updatePendingPayments===true,
+            description:`MOTYQ · Plano ${String(req.body?.plan||company.plan||'pro').toUpperCase()}`,
+          }),
+        });
+        const auditId=safe(`audit_billing_update_${companyId}_${Date.now()}`);
+        await motyqFirestore.patch('operational_meta',auditId,{
+          id:auditId,kind:'audit_event',companyId,storeId:'billing',entityType:'system',entityId:companyId,
+          action:'asaas_subscription_updated',label:'Assinatura Asaas atualizada',
+          details:`assinatura=${subscriptionId} · valor=${amount} · pendentes=${req.body?.updatePendingPayments===true?'sim':'não'}`,
+          at:new Date().toISOString(),actorEmail:actor.email,actorName:String(actor.name||actor.email),
+        }).catch(()=>undefined);
+        return res.status(200).json({ok:true,subscriptionId,updated});
+      }
+
+      const status=String(req.body?.status||'').toUpperCase();
+      if(!['ACTIVE','INACTIVE'].includes(status))return res.status(400).json({error:'invalid_subscription_status'});
+      const nextDueDate=status==='ACTIVE'?isoDate(req.body?.nextDueDate||billing.nextDueAt):undefined;
+      const updated=await asaas(`/subscriptions/${encodeURIComponent(subscriptionId)}`,{
+        method:'PUT',
+        body:JSON.stringify({status,...(status==='ACTIVE'?{nextDueDate}:{}),updatePendingPayments:false}),
+      });
+      const nextBilling={
+        ...billing,enabled:status==='ACTIVE',manualBlocked:false,
+        ...(nextDueDate?{nextDueAt:nextDueDate}:{}),updatedAt:new Date().toISOString(),
+      };
+      companies[index]={...company,billing:nextBilling};
+      await saveCompanies(companies);
+      const users=await motyqFirestore.query('users',[{field:'companyId',value:companyId}],250).catch(()=>[]);
+      await Promise.all(users.map((user:any)=>motyqFirestore.patch('users',String(user.id||user.email),{
+        companyBilling:nextBilling,companyPlan:company.plan,companyStatus:company.status,
+      }).catch(()=>undefined)));
+      const auditId=safe(`audit_billing_status_${companyId}_${Date.now()}`);
+      await motyqFirestore.patch('operational_meta',auditId,{
+        id:auditId,kind:'audit_event',companyId,storeId:'billing',entityType:'system',entityId:companyId,
+        action:status==='ACTIVE'?'asaas_subscription_resumed':'asaas_subscription_paused',
+        label:status==='ACTIVE'?'Assinatura Asaas reativada':'Assinatura Asaas pausada',
+        details:`assinatura=${subscriptionId}`,at:new Date().toISOString(),actorEmail:actor.email,actorName:String(actor.name||actor.email),
+      }).catch(()=>undefined);
+      return res.status(200).json({ok:true,subscriptionId,status,updated,billing:nextBilling});
+    }
+
     if(action!=='create-subscription')return res.status(400).json({error:'unsupported_action'});
 
     const companyId=String(req.body?.companyId||'').trim();
