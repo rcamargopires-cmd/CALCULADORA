@@ -4,6 +4,7 @@ import type { OperationalStockItem, User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
 import { DEFAULT_STORE_ID } from './storeService';
 import { dmsVehicleService } from './dmsVehicleService';
+import { stockMovementService } from './stockMovementService';
 
 const COLLECTION='operational_stock';
 const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
@@ -371,16 +372,37 @@ export const currentStockService={
       if(old.vehicleId){
         await dmsVehicleService.updateStage(old.vehicleId,'exited',companyId,storeId,user,'Veículo ausente na nova importação oficial.').catch(()=>undefined);
       }
+      await stockMovementService.record({
+        movementType:'exit',companyId,storeId,vehicleId:old.vehicleId,plate,vehicle:old.vehicle||plate,
+        fromStatus:old.status,toStatus:'Saída',details:'Veículo ausente na nova importação oficial.',actor:user,
+      }).catch(()=>undefined);
     }
     for(const item of enriched){
+      const previous=currentByPlate.get(cleanPlate(item.plate));
       await setDoc(doc(db,COLLECTION,item.id),{...item,updatedAt:new Date().toISOString()},{merge:true});
+      if(!previous){
+        await stockMovementService.record({
+          movementType:'entry',companyId,storeId,vehicleId:item.vehicleId,plate:item.plate,vehicle:item.vehicle,
+          toStatus:item.status||'Disponível',amount:Number(item.cost)||0,details:'Entrada identificada pela importação oficial.',actor:user,
+        }).catch(()=>undefined);
+      }else if(
+        String(previous.status||'')!==String(item.status||'') ||
+        Math.abs((Number(previous.cost)||0)-(Number(item.cost)||0))>0.01
+      ){
+        await stockMovementService.record({
+          movementType:String(previous.status||'')!==String(item.status||'')?'status':'cost',
+          companyId,storeId,vehicleId:item.vehicleId,plate:item.plate,vehicle:item.vehicle,
+          fromStatus:previous.status,toStatus:item.status,amount:Number(item.cost)||0,
+          details:'Estoque atualizado pela importação oficial.',actor:user,
+        }).catch(()=>undefined);
+      }
     }
     await updateMeta(enriched,companyId,storeId);
     announce();
     return enriched.filter(isActive);
   },
 
-  upsert:async(item:OperationalStockItem,storeId:string,companyId:string):Promise<OperationalStockItem[]>=>{
+  upsert:async(item:OperationalStockItem,storeId:string,companyId:string,user?:User):Promise<OperationalStockItem[]>=>{
     const current=await currentStockService.getCurrent(companyId,storeId);
     const plate=cleanPlate(item.plate);
     if(!/^[A-Z0-9]{7}$/.test(plate))throw new Error('Informe uma placa válida com 7 caracteres.');
@@ -394,15 +416,23 @@ export const currentStockService={
       ...(isManual?{source:'manual' as const,manualActive:true,manualExitAt:''}:{}),
       updatedAt:new Date().toISOString(),
     },companyId,storeId);
-    const nextItem=await dmsVehicleService.syncFromStock(draft,companyId,storeId);
+    const nextItem=await dmsVehicleService.syncFromStock(draft,companyId,storeId,user);
     await setDoc(doc(db,COLLECTION,nextItem.id),nextItem,{merge:true});
+    const movementType=!previous?'entry':
+      String(previous.status||'')!==String(nextItem.status||'')?'status':
+      Math.abs((Number(previous.cost)||0)-(Number(nextItem.cost)||0))>0.01?'cost':'update';
+    await stockMovementService.record({
+      movementType,companyId,storeId,vehicleId:nextItem.vehicleId,plate:nextItem.plate,vehicle:nextItem.vehicle,
+      fromStatus:previous?.status,toStatus:nextItem.status,amount:Number(nextItem.cost)||0,
+      details:!previous?'Entrada registrada no estoque atual.':'Cadastro atual do veículo atualizado.',actor:user,
+    }).catch(()=>undefined);
     const next=[...current.filter(row=>cleanPlate(row.plate)!==plate),nextItem];
     await updateMeta(next,companyId,storeId);
     announce();
     return next.filter(isActive);
   },
 
-  markOut:async(plate:string,storeId:string,companyId:string):Promise<OperationalStockItem[]>=>{
+  markOut:async(plate:string,storeId:string,companyId:string,user?:User):Promise<OperationalStockItem[]>=>{
     const target=cleanPlate(plate);
     const current=await currentStockService.getCurrent(companyId,storeId);
     const existing=current.find(item=>cleanPlate(item.plate)===target);
@@ -413,8 +443,13 @@ export const currentStockService={
     },{merge:true});
     const next=current.filter(item=>cleanPlate(item.plate)!==target);
     if(existing.vehicleId){
-      await dmsVehicleService.updateStage(existing.vehicleId,'exited',companyId,storeId,undefined,'Saída registrada no estoque atual.').catch(()=>undefined);
+      await dmsVehicleService.updateStage(existing.vehicleId,'exited',companyId,storeId,user,'Saída registrada no estoque atual.').catch(()=>undefined);
     }
+    await stockMovementService.record({
+      movementType:'exit',companyId,storeId,vehicleId:existing.vehicleId,plate:target,vehicle:existing.vehicle,
+      fromStatus:existing.status,toStatus:'Saída',amount:Number(existing.cost)||0,
+      details:'Saída registrada no estoque atual.',actor:user,
+    }).catch(()=>undefined);
     await updateMeta(next,companyId,storeId);
     announce();
     return next;
