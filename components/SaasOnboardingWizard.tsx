@@ -40,6 +40,7 @@ const SaasOnboardingWizard:React.FC<Props>=({open,onClose,currentUser,onComplete
       const billing=defaultBilling(dueDay);
       const company:Company={
         id:companyId,slug:companyId,name,plan,status:'trial',createdAt:new Date().toISOString(),trialEndsAt:trial.toISOString(),
+        fiscal:{enabled:false,provider:'manual',environment:'homologacao',updatedAt:new Date().toISOString()},
         billing:{
           ...billing,enabled:billingEnabled,dueDay,
           nextDueAt:billingEnabled?nextMonthlyDue(dueDay):'',
