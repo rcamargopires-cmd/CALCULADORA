@@ -45,6 +45,44 @@ const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})
   if(sharedStock.companyId!==companyId||sharedStock.storeId!==storeId)return;
   setStock(sharedStock.rows);
  },[open,sharedStock.rows,sharedStock.companyId,sharedStock.storeId,companyId,storeId]);
+
+ useEffect(()=>{
+  if(!open)return;
+  return prepTrackService.subscribeOrders(
+   companyId,
+   storeId,
+   next=>setOrders(next),
+   error=>console.warn('Motyq: ordens do PrepTrack em tempo real indisponíveis.',error),
+  );
+ },[open,companyId,storeId]);
+
+ useEffect(()=>{
+  if(!open)return;
+  const missing=stock.filter(item=>{
+   const status=String(item.status||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+   const shouldPrepare=item.source==='manual'||status==='em preparacao';
+   return shouldPrepare&&!orders.some(order=>clean(order.plate)===clean(item.plate));
+  });
+  if(!missing.length)return;
+  let cancelled=false;
+  (async()=>{
+   for(const item of missing){
+    if(cancelled)break;
+    try{
+     await prepTrackService.ensureOrder({
+      plate:clean(item.plate),
+      vehicle:item.vehicle,
+      companyId,
+      storeId,
+      createdBy:currentUser.email,
+     });
+    }catch(error){
+     console.warn('Motyq: não foi possível criar a ordem automática de preparação.',item.plate,error);
+    }
+   }
+  })();
+  return()=>{cancelled=true;};
+ },[open,stock,orders,companyId,storeId,currentUser.email]);
  const selected=orders.find(item=>item.id===selectedId)||null;
  const stockByPlate=useMemo(()=>new Map(stock.map(item=>[clean(item.plate),item])),[stock]);
  const q=search.trim().toLowerCase();
