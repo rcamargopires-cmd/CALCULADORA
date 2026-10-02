@@ -7,6 +7,7 @@ import { dmsPermissions } from '../services/dmsPermissions';
 import { financeAccountService } from '../services/financeAccountService';
 import { financeStructureService } from '../services/financeStructureService';
 import FinanceStructurePanel from './FinanceStructurePanel';
+import FinanceReconciliationPanel from './FinanceReconciliationPanel';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 type Tab='payable'|'receivable'|'cashflow'|'dre';
@@ -58,6 +59,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   const[chartAccountId,setChartAccountId]=useState('');
   const[costCenterId,setCostCenterId]=useState('');
   const[structureOpen,setStructureOpen]=useState(false);
+  const[reconciliationOpen,setReconciliationOpen]=useState(false);
   const[method,setMethod]=useState('Pix');
   const[reference,setReference]=useState('');
   const[financeAccountId,setFinanceAccountId]=useState('');
@@ -315,6 +317,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
           <div className="flex flex-wrap gap-2">
             {canCreate&&<button onClick={()=>setStructureOpen(true)} className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 text-xs font-bold text-zinc-200"><Landmark size={15}/> PLANO / CENTROS</button>}
             {canCreate&&<button onClick={()=>setAccountOpen(true)} className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 text-xs font-bold text-zinc-200"><WalletCards size={15}/> CONTAS / CAIXAS</button>}
+            {canSettle&&<button onClick={()=>setReconciliationOpen(true)} className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 text-xs font-bold text-zinc-200"><CheckCircle2 size={15}/> CONCILIAR / FECHAR</button>}
             {canCreate&&<button onClick={()=>{resetForm();setEntryOpen(true);}} className="flex h-10 items-center gap-2 rounded-xl bg-sky-400 px-4 text-xs font-bold text-sky-950"><Plus size={15}/> NOVO LANÇAMENTO</button>}
             <button onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-zinc-400"><X size={18}/></button>
           </div>
@@ -447,6 +450,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
     </div>}
 
     <FinanceStructurePanel open={structureOpen} onClose={()=>setStructureOpen(false)} currentUser={currentUser} companyId={companyId} storeId={storeId} storeName={storeName} onChanged={()=>void loadStructure()}/>
+    <FinanceReconciliationPanel open={reconciliationOpen} onClose={()=>setReconciliationOpen(false)} currentUser={currentUser} companyId={companyId} storeId={storeId} storeName={storeName}/>
 
     {entryOpen&&canCreate&&<div className="fixed inset-0 z-[290] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={()=>setEntryOpen(false)}>
       <div className="w-full max-w-xl rounded-[26px] border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onClick={event=>event.stopPropagation()}>
