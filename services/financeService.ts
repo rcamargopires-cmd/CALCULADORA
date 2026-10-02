@@ -1,6 +1,7 @@
 import { collection, doc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { FinanceEntry, FinanceEntryStatus, FinanceEntryType, FinanceOrigin, User } from '../types';
+import { dmsAuditService } from './dmsAuditService';
 
 const LEDGER='operational_meta';
 const safe=(value:string)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
@@ -67,6 +68,19 @@ export const financeService={
       createdByName:input.actor.name,
     });
     await setDoc(doc(db,LEDGER,id),entry,{merge:true});
+    await dmsAuditService.record({
+      companyId:input.companyId,
+      storeId:input.storeId,
+      entityType:'finance',
+      entityId:id,
+      vehicleId:input.vehicleId,
+      plate:input.plate,
+      action:input.entryType==='payable'?'finance_payable_created':'finance_receivable_created',
+      label:input.entryType==='payable'?'Conta a pagar criada':'Conta a receber criada',
+      details:`${input.category} · ${input.description} · ${input.party}`,
+      amount:Number(entry.amount)||0,
+      actor:input.actor,
+    }).catch(()=>undefined);
     return entry;
   },
 
@@ -92,6 +106,19 @@ export const financeService={
       updatedAt:stamp,
     };
     await setDoc(doc(db,LEDGER,entry.id),patch,{merge:true});
+    await dmsAuditService.record({
+      companyId:entry.companyId,
+      storeId:entry.storeId,
+      entityType:'finance',
+      entityId:entry.id,
+      vehicleId:entry.vehicleId,
+      plate:entry.plate,
+      action:entry.entryType==='payable'?'finance_paid':'finance_received',
+      label:entry.entryType==='payable'?'Pagamento baixado':'Recebimento baixado',
+      details:[entry.description,entry.party,paymentMethod,paymentReference].filter(Boolean).join(' · '),
+      amount:Number(entry.amount)||0,
+      actor,
+    }).catch(()=>undefined);
     return {...entry,...patch};
   },
 
