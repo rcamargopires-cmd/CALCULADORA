@@ -4,6 +4,7 @@ import type { OperationalStockItem, PrepOrder, User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
 import { companyScopeService } from './companyScopeService';
 import { currentStockService } from './currentStockService';
+import { dmsAuditService } from './dmsAuditService';
 
 const localDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const asDate=(value:string)=>new Date(value+'T12:00:00');
@@ -74,7 +75,20 @@ export const manualStockService={
       await currentStockService.markOut(original,storeId,tenant);
     }
     const next=await currentStockService.upsert(nextItem,storeId,tenant);
+    const saved=next.find(row=>cleanPlate(row.plate)===plate);
     await audit(originalPlate?'veículo editado':'veículo incluído',next.length,user,storeId,tenant);
+    await dmsAuditService.record({
+      companyId:tenant,
+      storeId,
+      entityType:'vehicle',
+      entityId:saved?.vehicleId||plate,
+      vehicleId:saved?.vehicleId,
+      plate,
+      action:originalPlate?'stock_manual_updated':'stock_manual_created',
+      label:originalPlate?'Cadastro manual do veículo atualizado':'Veículo incluído manualmente no estoque',
+      amount:Number(saved?.cost||0),
+      actor:user,
+    }).catch(()=>undefined);
     return next.map(row=>rollToToday(row,localDate())).sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
   },
 
@@ -136,8 +150,21 @@ export const manualStockService={
   )=>{
     const tenant=companyId||DEFAULT_COMPANY_ID;
     const target=cleanPlate(plate);
+    const before=await manualStockService.getCurrent(storeId,tenant);
+    const existing=before.find(row=>cleanPlate(row.plate)===target);
     const next=await currentStockService.markOut(target,storeId,tenant);
     await audit(`saída ${target}`,next.length,user,storeId,tenant);
+    await dmsAuditService.record({
+      companyId:tenant,
+      storeId,
+      entityType:'vehicle',
+      entityId:existing?.vehicleId||target,
+      vehicleId:existing?.vehicleId,
+      plate:target,
+      action:'stock_exit',
+      label:'Saída do veículo registrada no estoque',
+      actor:user,
+    }).catch(()=>undefined);
     return next.map(row=>rollToToday(row,localDate())).sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
   },
 };
