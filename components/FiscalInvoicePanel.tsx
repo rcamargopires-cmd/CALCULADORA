@@ -42,7 +42,10 @@ const defaultPayload=(order:SalesOrder)=>{
   items:[
     {
       numero_item:'1',
+      codigo_produto:order.plate,
       descricao:order.vehicle,
+      codigo_ncm:'',
+      cfop:'',
       quantidade_comercial:1,
       quantidade_tributavel:1,
       valor_unitario_comercial:Number(order.netSalePrice)||0,
@@ -164,6 +167,7 @@ const FiscalInvoicePanel:React.FC<Props>=({open,onClose,currentUser,order})=>{
           <textarea value={payload} onChange={e=>setPayload(e.target.value)} spellCheck={false} rows={25} className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-950 p-4 font-mono text-[11px] leading-5 text-slate-100 outline-none"/>
           {!parsedPayload&&<p className="mt-2 text-xs font-semibold text-red-600">JSON inválido. Corrija antes de emitir.</p>}
           {(error||message)&&<div className={`mt-3 rounded-xl border px-3 py-2 text-xs ${error?'border-red-200 bg-red-50 text-red-700':'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{error||message}</div>}
+          {parsedPayload&&(()=>{const item=Array.isArray((parsedPayload as any).items)?(parsedPayload as any).items[0]:null;const missing=[!(parsedPayload as any).cpf_destinatario&&!(parsedPayload as any).cnpj_destinatario?'CPF/CNPJ do destinatário':'',!item?.codigo_ncm?'NCM':'',!item?.cfop?'CFOP':''].filter(Boolean);return missing.length?<div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800"><b>Antes de emitir:</b> complete {missing.join(', ')}.</div>:null;})()}
           <button disabled={busy!==''||!canIssue||!parsedPayload||effectiveStatus==='authorized'} onClick={()=>void issue()} className="mt-4 h-11 w-full rounded-xl bg-indigo-600 text-sm font-bold text-white disabled:opacity-40">{busy==='issue'?'ENVIANDO À SEFAZ...':environment==='producao'?'EMITIR NF-e EM PRODUÇÃO':'EMITIR NF-e EM HOMOLOGAÇÃO'}</button>
           {!canIssue&&provider==='focus_nfe'&&<p className="mt-2 text-center text-[10px] text-slate-500">A emissão exige pedido liberado para faturar, integração ativa e token configurado.</p>}
         </section>
