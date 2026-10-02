@@ -5,6 +5,7 @@ import type { PrepOrder, PrepPayable, PrepService, User, VehicleHistoryEvent, Ve
 const safe=(value:string)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
 const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const now=()=>new Date().toISOString();
+const announce=()=>{try{window.dispatchEvent(new Event('dealmaster:prep-finance-updated'));window.dispatchEvent(new Event('dealmaster:vehicle-history-updated'));}catch{}};
 const payableId=(order:PrepOrder,service:PrepService)=>safe(`${order.companyId}_${order.storeId}_${order.id}_${service.id}`);
 const historyId=(order:PrepOrder,service:PrepService,suffix:string)=>safe(`${order.companyId}_${order.storeId}_${order.id}_${service.id}_${suffix}`);
 
@@ -46,6 +47,7 @@ export const prepFinanceService={
       {details:service.notes||''},
     );
     await setDoc(doc(db,'vehicle_history',event.id),event,{merge:true});
+    announce();
   },
 
   registerApproval:async(order:PrepOrder,service:PrepService,actor:Pick<User,'email'|'name'>)=>{
@@ -82,6 +84,7 @@ export const prepFinanceService={
       {payableId:id,details:`Fornecedor: ${payable.provider}`},
     );
     await setDoc(doc(db,'vehicle_history',event.id),event,{merge:true});
+    announce();
     return payable;
   },
 
@@ -101,6 +104,7 @@ export const prepFinanceService={
       orderId:order.id,
       serviceId:service.id,
     },{merge:true});
+    announce();
   },
 
   recordCompleted:async(order:PrepOrder,service:PrepService,actor?:Pick<User,'email'|'name'>)=>{
@@ -113,6 +117,7 @@ export const prepFinanceService={
       {payableId:service.payableId||payableId(order,service)},
     );
     await setDoc(doc(db,'vehicle_history',event.id),event,{merge:true});
+    announce();
   },
 
   cancel:async(order:PrepOrder,service:PrepService,actor?:Pick<User,'email'|'name'>)=>{
@@ -127,6 +132,7 @@ export const prepFinanceService={
     },{merge:true});
     const event=historyPayload(order,service,'prep_cancelled',`Preparação cancelada: ${service.type}`,actor,{payableId:id});
     await setDoc(doc(db,'vehicle_history',event.id),event,{merge:true});
+    announce();
   },
 
   markPaid:async(
@@ -163,6 +169,7 @@ export const prepFinanceService={
       },
     );
     await setDoc(doc(db,'vehicle_history',event.id),event,{merge:true});
+    announce();
   },
 
   getPayables:async(companyId:string,storeId:string):Promise<PrepPayable[]>=>{
