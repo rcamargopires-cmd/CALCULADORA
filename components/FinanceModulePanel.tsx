@@ -3,6 +3,7 @@ import { ArrowDownCircle, ArrowUpCircle, Banknote, CalendarDays, CheckCircle2, C
 import type { FinanceEntry, FinanceEntryType, User } from '../types';
 import { financeService } from '../services/financeService';
 import { prepFinanceService } from '../services/prepFinanceService';
+import { dmsPermissions } from '../services/dmsPermissions';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 type Tab='payable'|'receivable'|'cashflow';
@@ -22,6 +23,9 @@ const isSettled=(entry:FinanceEntry)=>entry.status==='paid'||entry.status==='rec
 const entryDate=(entry:FinanceEntry)=>String(entry.settledAt||entry.dueDate||entry.competenceDate||entry.createdAt||'').slice(0,10);
 
 const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})=>{
+  const permissions=dmsPermissions(currentUser);
+  const canCreate=permissions.financeCreate;
+  const canSettle=permissions.financeSettle;
   const[open,setOpen]=useState(false);
   const[tab,setTab]=useState<Tab>('payable');
   const[items,setItems]=useState<FinanceEntry[]>([]);
@@ -86,6 +90,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   };
 
   const create=async()=>{
+    if(!canCreate)return setError('Seu perfil pode consultar o financeiro, mas não criar lançamentos.');
     const value=Number(String(amount).replace(',','.'))||0;
     if(!description.trim())return setError('Informe a descrição do lançamento.');
     if(!party.trim())return setError(entryType==='payable'?'Informe o fornecedor/beneficiário.':'Informe o cliente/pagador.');
@@ -114,6 +119,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   };
 
   const settle=async()=>{
+    if(!canSettle)return setError('Somente o Financeiro/Caixa pode baixar pagamentos e recebimentos.');
     if(!selected||selected.status!=='pending')return;
     setBusy(selected.id);setError('');setMessage('');
     try{
@@ -129,6 +135,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   };
 
   const cancel=async()=>{
+    if(!canSettle)return setError('Somente o Financeiro/Caixa pode cancelar lançamentos financeiros.');
     if(!selected||selected.status!=='pending')return;
     if(!window.confirm('Cancelar este lançamento financeiro?'))return;
     setBusy(selected.id);setError('');setMessage('');
@@ -160,7 +167,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
             <p className="mt-2 text-sm text-zinc-500">{storeName}. Preparações aprovadas entram automaticamente no contas a pagar.</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={()=>{resetForm();setEntryOpen(true);}} className="flex h-10 items-center gap-2 rounded-xl bg-sky-400 px-4 text-xs font-bold text-sky-950"><Plus size={15}/> NOVO LANÇAMENTO</button>
+            {canCreate&&<button onClick={()=>{resetForm();setEntryOpen(true);}} className="flex h-10 items-center gap-2 rounded-xl bg-sky-400 px-4 text-xs font-bold text-sky-950"><Plus size={15}/> NOVO LANÇAMENTO</button>}
             <button onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-zinc-400"><X size={18}/></button>
           </div>
         </header>
@@ -171,6 +178,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
             <TabButton active={tab==='receivable'} onClick={()=>{setTab('receivable');setSelectedId('');}} icon={<ArrowUpCircle size={15}/>} label="Contas a receber" badge={receivableOpen.length}/>
             <TabButton active={tab==='cashflow'} onClick={()=>{setTab('cashflow');setSelectedId('');}} icon={<TrendingUp size={15}/>} label="Fluxo de caixa"/>
           </nav>
+          {!canSettle&&<div className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-400/[.05] px-4 py-3 text-xs text-amber-200">Visão gerencial: você acompanha valores e vencimentos, mas a baixa financeira fica reservada ao perfil Financeiro/Caixa.</div>}
 
           <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {tab==='payable'&&<>
@@ -229,7 +237,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
                   <Info label="Origem" value={selected.origin==='prep'?'Preparação':selected.origin==='sale'?'Venda':selected.origin==='manual'?'Manual':'Outro'}/>
                 </div>
 
-                {selected.status==='pending'&&<div className="mt-5 rounded-2xl border border-sky-400/10 bg-sky-400/[.035] p-4">
+                {selected.status==='pending'&&canSettle&&<div className="mt-5 rounded-2xl border border-sky-400/10 bg-sky-400/[.035] p-4">
                   <p className="text-xs font-semibold uppercase tracking-[.13em] text-sky-300">{selected.entryType==='payable'?'Baixar pagamento':'Baixar recebimento'}</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <select value={method} onChange={e=>setMethod(e.target.value)} className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white"><option>Pix</option><option>Transferência</option><option>Boleto</option><option>Dinheiro</option><option>Cartão</option><option>Outro</option></select>
@@ -238,6 +246,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
                   <button disabled={busy===selected.id} onClick={()=>void settle()} className="mt-3 h-11 w-full rounded-xl bg-sky-400 text-sm font-bold text-sky-950 disabled:opacity-50">{busy===selected.id?'Registrando...':selected.entryType==='payable'?'MARCAR COMO PAGO':'MARCAR COMO RECEBIDO'}</button>
                   <button disabled={busy===selected.id} onClick={()=>void cancel()} className="mt-2 h-10 w-full rounded-xl border border-red-400/15 text-xs font-semibold text-red-300 disabled:opacity-50">CANCELAR LANÇAMENTO</button>
                 </div>}
+                {selected.status==='pending'&&!canSettle&&<div className="mt-5 rounded-2xl border border-amber-400/15 bg-amber-400/[.04] p-4 text-sm text-amber-200">Este lançamento aguarda o Financeiro/Caixa para realizar a baixa.</div>}
 
                 {isSettled(selected)&&<div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-400/[.04] p-4 text-sm text-emerald-300">{statusLabel(selected)} em {selected.settledAt?new Date(selected.settledAt).toLocaleString('pt-BR'):'—'}{selected.paymentMethod&&<span> · {selected.paymentMethod}</span>}{selected.paymentReference&&<span> · {selected.paymentReference}</span>}</div>}
               </>}
@@ -247,7 +256,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
       </div>
     </div>}
 
-    {entryOpen&&<div className="fixed inset-0 z-[290] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={()=>setEntryOpen(false)}>
+    {entryOpen&&canCreate&&<div className="fixed inset-0 z-[290] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={()=>setEntryOpen(false)}>
       <div className="w-full max-w-xl rounded-[26px] border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onClick={event=>event.stopPropagation()}>
         <div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.15em] text-sky-300">NOVO LANÇAMENTO</p><h4 className="mt-1 text-xl font-semibold">Financeiro da loja</h4></div><button onClick={()=>setEntryOpen(false)} className="grid h-9 w-9 place-items-center rounded-full bg-white/[.05] text-zinc-400"><X size={17}/></button></div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
