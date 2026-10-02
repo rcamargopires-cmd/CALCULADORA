@@ -80,7 +80,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
       {id:'F4.06',label:'Pagamento do fornecedor ligado à placa/vehicleId',done:true},
       {id:'F4.07',label:'Histórico do veículo com solicitação, aprovação e pagamento',done:true},
       {id:'F4.08',label:'Rejeição de orçamento com motivo',done:true},
-      {id:'F4.09',label:'Múltiplos orçamentos para o mesmo serviço',done:false},
+      {id:'F4.09',label:'Múltiplos orçamentos para o mesmo serviço',done:true},
       {id:'F4.10',label:'Anexo de orçamento, nota fiscal e comprovante',done:false},
       {id:'F4.11',label:'Fotos antes/depois da preparação',done:false},
       {id:'F4.12',label:'Retrabalho e garantia do fornecedor',done:false},
