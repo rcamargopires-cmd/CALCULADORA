@@ -466,6 +466,7 @@ export interface SalesOrder {
   customerId?:string;
   customerName:string;
   customerPhone:string;
+  customerDocument?:string;
   sellerId?:string;
   sellerEmail?:string;
   sellerName?:string;
