@@ -96,6 +96,7 @@ service cloud.firestore {
         (opKind(data) in ['finance_account','finance_chart_account','finance_cost_center','finance_reconciliation','finance_closing','finance_reversal_request'] && canFinanceView()) ||
         (opKind(data) == 'vehicle_purchase' && canPurchases()) ||
         (opKind(data) == 'sales_order' && canSales()) ||
+        (opKind(data) == 'fiscal_invoice' && (canSales() || canDocuments())) ||
         (opKind(data) == 'vehicle_master' && (canStockView() || canPurchases() || canSales() || canPrepView() || canDocuments() || canAfterSales() || canWorkshop() || canEvaluations())) ||
         (opKind(data) == 'stock_movement' && canStockView()) ||
         (opKind(data) == 'vehicle_document_case' && canDocuments()) ||
