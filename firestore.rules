@@ -104,6 +104,7 @@ service cloud.firestore {
         (opKind(data) == 'vehicle_history' && (canPrepView() || canPurchases() || canSales() || canDocuments() || canAfterSales())) ||
         (opKind(data) == 'dms_attachment' && attachmentReadAllowed(data)) ||
         (opKind(data) in ['dms_error','dms_performance'] && canDiagnostics()) ||
+        (opKind(data) == 'data_retention_policy' && canDiagnostics()) ||
         (opKind(data) == 'audit_event' && (canDiagnostics() || canUsersManage())) ||
         (opKind(data) in ['dms_migration_report','dms_integrity_report','dms_migration_version'] && canDiagnostics());
     }
@@ -122,7 +123,8 @@ service cloud.firestore {
         (opKind(data) == 'supplier_master' && (canPrepRequest() || canPurchases() || canFinanceCreate() || canAfterSales())) ||
         (opKind(data) == 'vehicle_history' && (canPrepRequest() || canPrepApprove() || canPurchases() || canSales() || canDocuments() || canAfterSales())) ||
         (opKind(data) == 'dms_attachment' && attachmentWriteAllowed(data)) ||
-        (opKind(data) in ['dms_error','dms_performance'] && isActive()) ||
+        (opKind(data) in ['dms_error','dms_performance'] && (isActive() || isEvaluator())) ||
+        (opKind(data) == 'data_retention_policy' && canDiagnostics()) ||
         (opKind(data) == 'audit_event' && role() == 'manager') ||
         (opKind(data) in ['dms_migration_report','dms_integrity_report','dms_migration_version'] && canDiagnostics());
     }
@@ -154,7 +156,8 @@ service cloud.firestore {
         (opKind(oldData) == 'customer_master' && (canCrm() || canSales())) ||
         (opKind(oldData) == 'supplier_master' && (canPrepRequest() || canPurchases() || canFinanceCreate() || canAfterSales())) ||
         (opKind(oldData) == 'vehicle_history' && (canPrepRequest() || canPrepApprove() || canPurchases() || canSales() || canDocuments() || canAfterSales())) ||
-        (opKind(oldData) in ['dms_migration_report','dms_integrity_report'] && canDiagnostics()) ||
+        (opKind(oldData) == 'data_retention_policy' && canDiagnostics()) ||
+        (opKind(oldData) in ['dms_migration_report','dms_integrity_report','dms_migration_version'] && canDiagnostics()) ||
         (opKind(oldData) == '' && (canStockWrite() || canReports()));
     }
     function isReception() { return isActive() && role() == 'reception'; }
