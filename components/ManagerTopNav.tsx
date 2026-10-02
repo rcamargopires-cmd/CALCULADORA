@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, CircleDollarSign, ListTodo, Wrench } from 'lucide-react';
+import { Banknote, CircleDollarSign, ListTodo, ShieldCheck, Wrench } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
@@ -95,6 +95,15 @@ const ManagerTopNav: React.FC = () => {
       >
         <Banknote size={14}/>
         <span className="motyq-manager-nav-label">FINANCEIRO</span>
+      </button>}
+      {permissions.diagnostics&&<button
+        type="button"
+        title="Diagnóstico DMS"
+        onClick={() => launcherClick('Diagnóstico DMS')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-violet-300 transition-all hover:bg-violet-400/10 hover:text-violet-200"
+      >
+        <ShieldCheck size={14}/>
+        <span className="motyq-manager-nav-label">DMS</span>
       </button>}
     </>, target)}
   </>;
