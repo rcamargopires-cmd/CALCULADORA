@@ -40,8 +40,28 @@ export interface MarketPresenceItem { id:string; referenceDate:string; plate:str
 export type PrepServiceStatus='pending'|'approved'|'in_service'|'waiting_part'|'done'|'cancelled';
 export type PrepOrderStatus='triage'|'preparing'|'waiting_approval'|'waiting_part'|'ready'|'showroom'|'delivery'|'delivered';
 export type PrepDestination='showroom'|'delivery';
-export interface PrepService { id:string; type:string; provider:string; status:PrepServiceStatus; estimatedCost:number; finalCost:number; sentAt?:string; dueAt?:string; returnedAt?:string; notes?:string; }
+export type PrepPayableStatus='pending'|'paid'|'cancelled';
+export type VehicleHistoryEventType='prep_requested'|'prep_approved'|'prep_paid'|'prep_completed'|'prep_cancelled';
+export interface PrepService {
+  id:string; type:string; provider:string; status:PrepServiceStatus; estimatedCost:number; finalCost:number;
+  sentAt?:string; dueAt?:string; returnedAt?:string; notes?:string;
+  requestedAt?:string; requestedBy?:string; requestedByName?:string;
+  approvedAt?:string; approvedBy?:string; approvedByName?:string;
+  payableId?:string;
+}
 export interface PrepOrder { id:string; plate:string; vehicle:string; openedAt:string; updatedAt:string; completedAt?:string; status:PrepOrderStatus; sold:boolean; destination:PrepDestination; services:PrepService[]; notes?:string; createdBy?:string; storeId:string; companyId:string; }
+export interface PrepPayable {
+  id:string; orderId:string; serviceId:string; plate:string; vehicle:string; serviceType:string; provider:string;
+  amount:number; dueAt?:string; status:PrepPayableStatus;
+  requestedBy?:string; requestedByName?:string; approvedBy?:string; approvedByName?:string; approvedAt:string;
+  paidAt?:string; paidBy?:string; paidByName?:string; paymentMethod?:string; paymentReference?:string;
+  companyId:string; storeId:string; createdAt:string; updatedAt:string;
+}
+export interface VehicleHistoryEvent {
+  id:string; plate:string; vehicle:string; type:VehicleHistoryEventType; label:string; details?:string;
+  amount?:number; provider?:string; at:string; byEmail?:string; byName?:string;
+  orderId?:string; serviceId?:string; payableId?:string; companyId:string; storeId:string;
+}
 
 export type ShowroomPassageStatus='waiting'|'in_service'|'evaluation'|'proposal'|'follow_up'|'sale'|'no_deal';
 export type ShowroomPassageOrigin='walk_in'|'requested';
