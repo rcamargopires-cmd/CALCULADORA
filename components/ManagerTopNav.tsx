@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, CarFront, CircleDollarSign, ClipboardCheck, FileCheck2, FileClock, HeartHandshake, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
+import { Banknote, BarChart3, CarFront, CircleDollarSign, ClipboardCheck, FileCheck2, FileClock, HeartHandshake, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
@@ -167,6 +167,15 @@ const ManagerTopNav: React.FC = () => {
       >
         <HeartHandshake size={14}/>
         <span className="motyq-manager-nav-label">PÓS-VENDA</span>
+      </button>}
+      {permissions.reportsView&&<button
+        type="button"
+        title="BI DMS"
+        onClick={() => launcherClick('BI DMS')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-cyan-300 transition-all hover:bg-cyan-400/10 hover:text-cyan-200"
+      >
+        <BarChart3 size={14}/>
+        <span className="motyq-manager-nav-label">BI DMS</span>
       </button>}
     </>, target)}
   </>;
