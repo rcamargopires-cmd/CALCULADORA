@@ -325,22 +325,62 @@ export const salesOrderService={
     return next;
   },
 
-  cancel:async(order:SalesOrder,actor:User):Promise<SalesOrder>=>{
+  cancel:async(order:SalesOrder,actor:User,reason='Venda cancelada'):Promise<SalesOrder>=>{
     if(order.status==='delivered')throw new Error('Venda entregue exige fluxo de devolução, não cancelamento simples.');
-    for(const id of order.receivableIds||[]){
-      const finance=(await financeService.getAll(order.companyId,order.storeId)).find(item=>item.id===id);
-      if(finance&&finance.status==='pending')await financeService.cancel(finance);
+    if(order.status==='cancelled')return order;
+    const cleanReason=String(reason||'').trim()||'Venda cancelada';
+
+    const allFinance=await financeService.getAll(order.companyId,order.storeId);
+    const linkedIds=new Set<string>([
+      ...(order.receivableIds||[]),
+      ...(order.commissionPayableId?[order.commissionPayableId]:[]),
+    ]);
+    const reversedFinanceIds:string[]=[];
+    for(const id of linkedIds){
+      const finance=allFinance.find(item=>item.id===id);
+      if(!finance||finance.status==='cancelled')continue;
+      if(finance.status==='paid'||finance.status==='received'){
+        const reversed=await financeService.reverseSettlement(finance,actor,`Cancelamento da venda ${order.salesOrderId}: ${cleanReason}`);
+        await financeService.cancel(reversed);
+        reversedFinanceIds.push(finance.id);
+      }else if(finance.status==='pending'){
+        await financeService.cancel(finance);
+      }
     }
+
+    if(order.tradeInPurchaseId){
+      const purchases=await vehiclePurchaseService.list(order.companyId,order.storeId);
+      const tradePurchase=purchases.find(item=>item.purchaseId===order.tradeInPurchaseId);
+      if(tradePurchase&&tradePurchase.status==='entered'){
+        throw new Error('A troca desta venda já entrou no estoque. Reverta primeiro a entrada da troca antes de cancelar a venda.');
+      }
+      if(tradePurchase&&tradePurchase.status!=='cancelled'){
+        await vehiclePurchaseService.cancel(tradePurchase,actor);
+      }
+    }
+
     const stock=await currentStockService.getCurrent(order.companyId,order.storeId);
     const item=stock.find(row=>(order.vehicleId&&row.vehicleId===order.vehicleId)||cleanPlate(row.plate)===cleanPlate(order.plate));
     if(item)await currentStockService.upsert({...item,status:'Disponível'},order.storeId,order.companyId,actor);
     if(order.vehicleId)await dmsVehicleService.updateStage(order.vehicleId,'available',order.companyId,order.storeId,actor,'Pedido de Venda cancelado.');
-    const next:SalesOrder={...order,status:'cancelled',updatedAt:now()};
+
+    await setDoc(doc(db,'showroom_passages',order.leadId),{
+      status:'follow_up',
+      closedAt:null,
+      updatedAt:now(),
+    },{merge:true}).catch(()=>undefined);
+
+    const stamp=now();
+    const next:SalesOrder={
+      ...order,status:'cancelled',cancelledAt:stamp,cancelledBy:actor.email,cancelledByName:actor.name,
+      cancellationReason:cleanReason,reversedFinanceIds,updatedAt:stamp,
+    };
     await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
     await dmsAuditService.record({
       companyId:next.companyId,storeId:next.storeId,entityType:'sale',entityId:next.id,
       vehicleId:next.vehicleId,plate:next.plate,action:'sales_order_cancelled',
-      label:'Pedido de Venda cancelado e estoque liberado',amount:next.netSalePrice,actor,
+      label:'Pedido de Venda cancelado, financeiro revertido e estoque liberado',
+      amount:next.netSalePrice,details:`${cleanReason} · estornos=${reversedFinanceIds.length}`,actor,
     }).catch(()=>undefined);
     return next;
   },
