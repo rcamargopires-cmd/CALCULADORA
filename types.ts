@@ -98,7 +98,7 @@ export interface VehicleMaster {
   fipe?:number;
   askingPrice?:number;
   entryDate?:string;
-  source?:'import'|'manual'|'evaluation'|'trade_in'|'purchase';
+  source?:'import'|'manual'|'evaluation'|'trade_in'|'purchase'|'consignment'|'repasse';
   createdAt:string;
   updatedAt:string;
 }
