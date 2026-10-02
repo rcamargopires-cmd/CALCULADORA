@@ -219,7 +219,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
     goal:'O sistema precisa ser confiável o bastante para carregar estoque, dinheiro e histórico real.',
     items:[
       {id:'F11.01',label:'Testes automatizados dos fluxos críticos',done:false},
-      {id:'F11.02',label:'CI com typecheck, build e testes a cada alteração',done:false},
+      {id:'F11.02',label:'CI com typecheck, build e testes a cada alteração',done:true},
       {id:'F11.03',label:'Regras Firestore versionadas e publicadas por ambiente',done:false},
       {id:'F11.04',label:'Índices Firestore versionados',done:false},
       {id:'F11.05',label:'Backup periódico e procedimento de restauração',done:false},
