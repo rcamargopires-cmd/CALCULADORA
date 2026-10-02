@@ -163,6 +163,20 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
     }
 
+    match /prep_payables/{itemId} {
+      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
+      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+      allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    match /vehicle_history/{itemId} {
+      allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
+      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+      allow update: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
     match /showroom_passages/{passageId} {
       allow read: if isAdmin() ||
         (role() == 'manager' && sameStore(resource.data)) ||
