@@ -255,18 +255,18 @@ const ExecutiveOperationsPanel:React.FC<Props>=({currentUser,companyId,stores})=
   </>;
 };
 
-const TrendCard=({item}:{item:TrendMetric})=>{
+const TrendCard=({item}:{key?:React.Key;item:TrendMetric})=>{
   const up=item.direction==='up',down=item.direction==='down';
   const Icon=up?ArrowUpRight:down?ArrowDownRight:ArrowRight;
   const value=item.label==='Vendas'?item.current.toFixed(0):item.current.toFixed(1)+(item.suffix?'%':'');
   const deltaPrefix=item.delta>0?'+':'';
   return <div className={`rounded-2xl border p-4 ${up?'border-emerald-400/20 bg-emerald-400/[.035]':down?'border-red-400/20 bg-red-400/[.035]':'border-white/10 bg-black/15'}`}><div className="flex items-center justify-between gap-2"><p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">{item.label}</p><Icon size={16} className={up?'text-emerald-300':down?'text-red-300':'text-zinc-500'}/></div><p className="mt-2 text-2xl font-semibold text-white">{value}</p><p className={`mt-1 text-xs font-semibold ${up?'text-emerald-300':down?'text-red-300':'text-zinc-500'}`}>{deltaPrefix}{item.delta.toFixed(1)}{item.suffix||''} vs. último registro</p></div>;
 };
-const AlertCard=({alert}:{alert:ExecutiveAlert})=>{
+const AlertCard=({alert}:{key?:React.Key;alert:ExecutiveAlert})=>{
   const critical=alert.level==='critical',opportunity=alert.level==='opportunity';
   return <div className={`rounded-2xl border p-4 ${critical?'border-red-400/20 bg-red-400/[.035]':opportunity?'border-emerald-400/20 bg-emerald-400/[.035]':'border-amber-300/20 bg-amber-300/[.035]'}`}><div className="flex items-start gap-3">{critical?<ShieldAlert size={17} className="mt-0.5 shrink-0 text-red-300"/>:opportunity?<Sparkles size={17} className="mt-0.5 shrink-0 text-emerald-300"/>:<AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-300"/>}<div><div className="flex flex-wrap items-center gap-2"><span className={`text-[9px] font-black uppercase tracking-wide ${critical?'text-red-300':opportunity?'text-emerald-300':'text-amber-300'}`}>{critical?'Crítico':opportunity?'Destaque':'Atenção'}</span><span className="text-[10px] text-zinc-600">{alert.store}</span></div><p className="mt-1 text-sm font-semibold text-white">{alert.title}</p><p className="mt-2 text-xs leading-5 text-zinc-400">{alert.detail}</p></div></div></div>;
 };
-const PriorityCard=({item,index}:{item:WeeklyPriority;index:number})=>{
+const PriorityCard=({item,index}:{key?:React.Key;item:WeeklyPriority;index:number})=>{
   const critical=item.status==='Crítica',monitor=item.status==='Monitorar';
   return <div className={`rounded-2xl border p-4 ${critical?'border-red-400/20 bg-red-400/[.035]':monitor?'border-emerald-400/15 bg-emerald-400/[.03]':'border-fuchsia-300/15 bg-fuchsia-300/[.025]'}`}><div className="flex items-start gap-3"><div className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-black ${critical?'bg-red-400/10 text-red-300':monitor?'bg-emerald-400/10 text-emerald-300':'bg-fuchsia-300/10 text-fuchsia-200'}`}>{index+1}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-white">{item.title}</p><span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase ${critical?'bg-red-400/10 text-red-300':monitor?'bg-emerald-400/10 text-emerald-300':'bg-amber-300/10 text-amber-200'}`}>{item.status}</span></div><p className="mt-2 text-xs leading-5 text-zinc-400">{item.detail}</p><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/10 pt-3 text-[10px] text-zinc-500"><span><b className="text-zinc-400">Responsável:</b> {item.owner}</span><span><b className="text-zinc-400">Prazo:</b> {item.deadline}</span></div></div></div></div>;
 };
