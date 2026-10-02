@@ -145,6 +145,12 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
     }
 
+    match /operational_current_stock/{itemId} {
+      allow read: if isAdmin() || (isDirector() && sameCompany(resource.data)) || (role() == 'manager' && sameStore(resource.data));
+      allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
+      allow update, delete: if isAdmin() || (role() == 'manager' && sameStore(resource.data) && sameStore(request.resource.data));
+    }
+
     match /operational_sales/{itemId} {
       allow read: if isAdmin() || (role() == 'manager' && sameStore(resource.data));
       allow create: if isAdmin() || (role() == 'manager' && sameStore(request.resource.data));
