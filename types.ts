@@ -32,6 +32,10 @@ export type CompanyBilling = {
   manualGraceUntil?:string;
   manualBlocked?:boolean;
   lastPaidAt?:string;
+  provider?:'manual'|'asaas'|'stripe'|'mercadopago'|'other';
+  paymentUrl?:string;
+  externalCustomerId?:string;
+  externalSubscriptionId?:string;
   updatedAt?:string;
 };
 export type DealMasterModule =
