@@ -64,4 +64,25 @@ export const dmsSupplierService={
     }
     return next;
   },
+
+  save:async(supplier:SupplierMaster,actor?:Pick<User,'email'|'name'>|null):Promise<SupplierMaster>=>{
+    const next:SupplierMaster={
+      ...supplier,
+      name:String(supplier.name||'').trim(),
+      document:String(supplier.document||'').replace(/\D/g,'').slice(0,14),
+      phone:String(supplier.phone||'').replace(/\D/g,'').slice(0,15),
+      email:String(supplier.email||'').trim().toLowerCase(),
+      pixKey:String(supplier.pixKey||'').trim(),
+      bankInfo:String(supplier.bankInfo||'').trim(),
+      updatedAt:now(),
+    };
+    if(!next.name)throw new Error('Informe o nome do fornecedor.');
+    await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
+    await dmsAuditService.record({
+      companyId:next.companyId,storeId:next.storeId,entityType:'supplier',entityId:next.supplierId,
+      action:'supplier_master_updated',label:'Cadastro mestre de fornecedor atualizado',
+      details:next.name,actor,
+    }).catch(()=>undefined);
+    return next;
+  },
 };
