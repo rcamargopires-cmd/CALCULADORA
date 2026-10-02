@@ -153,6 +153,7 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
                 </ActionBox>}
 
                 {selected.receivableIds?.length?<div className="mt-4 flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs text-sky-800"><BadgeDollarSign size={17} className="shrink-0"/><div><b>Financeiro integrado</b><p className="mt-1">{selected.receivableIds.length} conta(s) a receber vinculada(s) a esta venda.</p></div></div>:null}
+                {Number(selected.commissionAmount)>0&&<div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800"><BadgeDollarSign size={17} className="shrink-0"/><div><b>Comissão integrada</b><p className="mt-1">{selected.sellerName||'Vendedor'} · {money(Number(selected.commissionAmount)||0)} em Contas a Pagar.</p></div></div>}
 
                 {selected.status==='delivered'&&<div className="mt-4 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><CheckCircle2 size={18} className="shrink-0"/><div><b>Venda concluída.</b><p className="mt-1">Entrega registrada e veículo fora do estoque atual.</p></div></div>}
 
