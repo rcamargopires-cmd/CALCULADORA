@@ -147,7 +147,7 @@ export type DmsDiagnosticSeverity='critical'|'warning'|'info';
 export interface DmsDiagnosticIssue {
   id:string;
   severity:DmsDiagnosticSeverity;
-  domain:'stock'|'vehicle'|'prep'|'finance'|'supplier'|'customer'|'permissions'|'system';
+  domain:'stock'|'vehicle'|'prep'|'finance'|'fiscal'|'supplier'|'customer'|'permissions'|'system';
   title:string;
   detail:string;
   plate?:string;
