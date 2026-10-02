@@ -252,7 +252,45 @@ export interface FinanceEntry {
   reversedByName?:string;
   reversalReason?:string;
   lastSettledAt?:string;
+  reconciliationId?:string;
+  reconciledAt?:string;
 }
+export type FinanceReconciliationStatus='balanced'|'difference';
+export interface FinanceReconciliation {
+  id:string;
+  kind:'finance_reconciliation';
+  companyId:string;
+  storeId:string;
+  financeAccountId:string;
+  startDate:string;
+  endDate:string;
+  systemBalance:number;
+  statementBalance:number;
+  difference:number;
+  status:FinanceReconciliationStatus;
+  financeEntryIds:string[];
+  createdAt:string;
+  createdBy:string;
+  createdByName:string;
+}
+export type FinanceClosingPeriod='daily'|'monthly';
+export interface FinanceClosing {
+  id:string;
+  kind:'finance_closing';
+  companyId:string;
+  storeId:string;
+  financeAccountId:string;
+  periodType:FinanceClosingPeriod;
+  referenceDate:string;
+  systemBalance:number;
+  declaredBalance:number;
+  difference:number;
+  notes?:string;
+  closedAt:string;
+  closedBy:string;
+  closedByName:string;
+}
+
 export type FinanceReversalStatus='pending'|'approved'|'rejected';
 export interface FinanceReversalRequest {
   id:string;
