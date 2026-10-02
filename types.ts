@@ -216,12 +216,13 @@ export interface FinanceEntry {
 }
 
 export type PrepPayableStatus='pending'|'paid'|'cancelled';
-export type VehicleHistoryEventType='prep_requested'|'prep_approved'|'prep_paid'|'prep_completed'|'prep_cancelled';
+export type VehicleHistoryEventType='prep_requested'|'prep_approved'|'prep_rejected'|'prep_paid'|'prep_completed'|'prep_cancelled';
 export interface PrepService {
   id:string; type:string; provider:string; supplierId?:string; status:PrepServiceStatus; estimatedCost:number; finalCost:number;
   sentAt?:string; dueAt?:string; returnedAt?:string; notes?:string;
   requestedAt?:string; requestedBy?:string; requestedByName?:string;
   approvedAt?:string; approvedBy?:string; approvedByName?:string;
+  rejectedAt?:string; rejectedBy?:string; rejectedByName?:string; rejectionReason?:string;
   payableId?:string;
 }
 export interface PrepOrder { id:string; vehicleId?:string; plate:string; vehicle:string; openedAt:string; updatedAt:string; completedAt?:string; status:PrepOrderStatus; sold:boolean; destination:PrepDestination; services:PrepService[]; notes?:string; createdBy?:string; storeId:string; companyId:string; }
