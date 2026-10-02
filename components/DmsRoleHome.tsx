@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Banknote, LogOut, Wrench } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-import type { User } from '../types';
+import type { Store, User } from '../types';
 import { dmsAccessLabel, dmsPermissions } from '../services/dmsPermissions';
+import { storeService } from '../services/storeService';
+import { storeScopeService } from '../services/storeScopeService';
 
 const clickLauncher=(title:string)=>{
   const button=document.querySelector(`button[title="${title}"]`) as HTMLButtonElement|null;
@@ -12,6 +14,21 @@ const clickLauncher=(title:string)=>{
 
 const DmsRoleHome:React.FC<{user:User}>=({user})=>{
   const permissions=dmsPermissions(user);
+  const[stores,setStores]=useState<Store[]>([]);
+  const[storeId,setStoreId]=useState(()=>storeScopeService.get(user));
+  useEffect(()=>{
+    let active=true;
+    void storeService.getByCompany(user.companyId||'abrao-reze').then(items=>{
+      if(!active)return;
+      const allowed=user.storeIds?.length?items.filter(item=>user.storeIds?.includes(item.id)):items.filter(item=>item.id===user.storeId);
+      setStores(allowed);
+      if(allowed.length&&!allowed.some(item=>item.id===storeId)){
+        const next=allowed[0].id;setStoreId(next);storeScopeService.set(next);
+      }
+    });
+    return()=>{active=false;};
+  },[user.companyId,user.storeId,JSON.stringify(user.storeIds||[])]);
+  const selectStore=(next:string)=>{setStoreId(next);storeScopeService.set(next);};
   return <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
@@ -19,8 +36,10 @@ const DmsRoleHome:React.FC<{user:User}>=({user})=>{
           <p className="text-[10px] font-black uppercase tracking-[.16em] text-blue-600">MOTYQ · DMS</p>
           <h1 className="mt-1 text-xl font-semibold">{dmsAccessLabel(user)}</h1>
         </div>
-        <nav className="flex items-center gap-1"/>
-        <button onClick={()=>signOut(auth)} className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600"><LogOut size={15}/> Sair</button>
+        <div className="flex items-center gap-2">
+          {stores.length>1&&<select value={storeId} onChange={event=>selectStore(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700">{stores.map(store=><option key={store.id} value={store.id}>{store.name}</option>)}</select>}
+          <button onClick={()=>signOut(auth)} className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600"><LogOut size={15}/> Sair</button>
+        </div>
       </div>
     </header>
 
