@@ -46,6 +46,10 @@ const cleanManagedUser=(raw:any)=>({
   createdAt:String(raw?.createdAt||new Date().toISOString()),
   companyId:String(raw?.companyId||'abrao-reze').trim()||'abrao-reze',
   storeId:String(raw?.storeId||'').trim(),
+  storeIds:Array.from(new Set([
+    ...(Array.isArray(raw?.storeIds)?raw.storeIds:[]),
+    raw?.storeId,
+  ].map((value:any)=>String(value||'').trim()).filter(Boolean))),
   ...(raw?.role==='manager'&&DMS_ACCESS_PROFILES.has(String(raw?.dmsAccessProfile||''))?{dmsAccessProfile:String(raw.dmsAccessProfile)}:{}),
   ...(raw?.dmsPermissionOverrides&&Object.keys(cleanDmsPermissionOverrides(raw.dmsPermissionOverrides)).length?{dmsPermissionOverrides:cleanDmsPermissionOverrides(raw.dmsPermissionOverrides)}:{}),
   ...(raw?.goals?{goals:raw.goals}:{}),
@@ -261,6 +265,13 @@ const managementContext=async(actor:any,companyId:string)=>{
       companyId,
     }];
   }
+  if(actorRole==='manager'){
+    const authorized=new Set(
+      (Array.isArray(actor?.storeIds)&&actor.storeIds.length?actor.storeIds:[actor?.storeId])
+        .map((value:any)=>String(value||'').trim()).filter(Boolean)
+    );
+    if(authorized.size)stores=stores.filter((store:any)=>authorized.has(String(store?.id||'')));
+  }
   await reconcileOperationalSellers(companyId,users,stores);
   return {companyId,users,stores};
 };
@@ -292,7 +303,8 @@ const handleUserManagement=async(req:any,res:any)=>{
         if(!MANAGER_ALLOWED_ROLES.has(input.role))return res.status(403).json({error:'role_forbidden'});
         const managerContext=await managementContext(actor,companyId);
         const allowedStoreIds=new Set((managerContext.stores||[]).map((store:any)=>String(store?.id||'')).filter(Boolean));
-        if(!allowedStoreIds.has(String(input.storeId||'')))return res.status(403).json({error:'store_forbidden'});
+        const targetStores=Array.isArray(input.storeIds)&&input.storeIds.length?input.storeIds:[input.storeId];
+        if(!targetStores.length||targetStores.some((id:any)=>!allowedStoreIds.has(String(id||''))))return res.status(403).json({error:'store_forbidden'});
         if(existing){
           if(companyOf(existing)!==companyId)return res.status(403).json({error:'cross_company_forbidden'});
           if(!MANAGER_ALLOWED_ROLES.has(roleOf(existing)))return res.status(403).json({error:'protected_user'});
