@@ -39,6 +39,7 @@ import { dmsPermissions } from '../services/dmsPermissions';
 import DmsIntegrityPanel from './DmsIntegrityPanel';
 import DmsIntegrityAutoRunner from './DmsIntegrityAutoRunner';
 import DmsRoadmapPanel from './DmsRoadmapPanel';
+import DmsExternalImportPanel from './DmsExternalImportPanel';
 import VehicleDocumentsPanel from './VehicleDocumentsPanel';
 import AfterSalesPanel from './AfterSalesPanel';
 import DmsAnalyticsPanel from './DmsAnalyticsPanel';
@@ -239,6 +240,7 @@ const OperationalTools: React.FC = () => {
     {permissions.diagnostics && storeId && <DmsIntegrityAutoRunner user={user} companyId={companyId} storeId={storeId}/>}
     {permissions.diagnostics && storeId && <DmsIntegrityPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {permissions.diagnostics && <DmsRoadmapPanel/>} 
+    {permissions.diagnostics && storeId && <DmsExternalImportPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canDocuments && storeId && <VehicleDocumentsPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canAfterSales && storeId && <AfterSalesPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canReports && storeId && <DmsAnalyticsPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
