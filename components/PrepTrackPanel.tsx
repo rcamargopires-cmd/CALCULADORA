@@ -23,7 +23,18 @@ const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})
    const[s,existingOrders]=await Promise.all([storeScopedOperationalService.getLatestStock(storeId,companyId),prepTrackService.getOrders(companyId,storeId)]);
    let nextStock=s;
    const nextOrders=[...existingOrders];
-   const missingManual=s.filter(item=>item.source==='manual'&&!nextOrders.some(order=>clean(order.plate)===clean(item.plate)));
+
+   // Se uma ordem ativa de preparação existir e o carro tiver sumido do snapshot,
+   // recupera o registro histórico da placa sem regravar os demais veículos.
+   const recoverableOrders=nextOrders.filter(order=>!order.sold&&!['delivery','delivered'].includes(order.status));
+   for(const order of recoverableOrders){
+    if(nextStock.some(item=>clean(item.plate)===clean(order.plate)))continue;
+    try{
+     nextStock=await manualStockService.syncPreparation(order,currentUser,storeId,companyId,nextStock);
+    }catch(error){console.warn('Motyq: falha ao recuperar veículo ativo da preparação.',error);}
+   }
+
+   const missingManual=nextStock.filter(item=>item.source==='manual'&&!nextOrders.some(order=>clean(order.plate)===clean(item.plate)));
    for(const item of missingManual){
     try{
      const created=await prepTrackService.ensureOrder({plate:clean(item.plate),vehicle:item.vehicle,companyId,storeId,createdBy:currentUser.email});
