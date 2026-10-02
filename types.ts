@@ -472,6 +472,34 @@ export interface VehiclePurchase {
   createdByName?:string;
 }
 
+export type DocumentProcessStatus='pending'|'ok'|'not_required'|'blocked';
+export type AtpvProcessStatus='pending'|'ready'|'signed'|'submitted'|'completed';
+export interface VehicleDocumentCase {
+  id:string;
+  kind:'vehicle_document_case';
+  companyId:string;
+  storeId:string;
+  vehicleId:string;
+  plate:string;
+  vehicle:string;
+  atpvStatus:AtpvProcessStatus;
+  crlvStatus:DocumentProcessStatus;
+  lienStatus:DocumentProcessStatus;
+  debtsStatus:DocumentProcessStatus;
+  finesAmount:number;
+  debtsAmount:number;
+  dispatcherName?:string;
+  dispatcherCost:number;
+  dispatcherFinanceEntryId?:string;
+  transferDueDate?:string;
+  transferCompletedAt?:string;
+  notes?:string;
+  createdAt:string;
+  updatedAt:string;
+  updatedBy?:string;
+  updatedByName?:string;
+}
+
 export type ShowroomPassageStatus='waiting'|'in_service'|'evaluation'|'proposal'|'follow_up'|'sale'|'no_deal';
 export type ShowroomPassageOrigin='walk_in'|'requested';
 export type CrmLeadSource='showroom'|'whatsapp'|'web'|'instagram'|'manual'|'other';
