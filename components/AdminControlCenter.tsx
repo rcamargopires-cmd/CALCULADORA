@@ -81,8 +81,8 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
     if(storeId)storeScopeService.set(storeId);
 
     if(company.id===DEMO_COMPANY_ID){
-      setMessage('Ambiente demo aberto. Atualizando dados demonstrativos em segundo plano...');
-      void demoSeedService.seed(currentUser).catch((cause:any)=>{
+      setMessage('Ambiente demo isolado aberto. Reiniciando somente os dados demonstrativos...');
+      void demoSeedService.resetAndSeed(currentUser).catch((cause:any)=>{
         console.error('Demo seed failed after entering company',cause);
         setError(cause?.message||'A demo abriu, mas parte dos dados demonstrativos não pôde ser atualizada.');
       });
