@@ -182,6 +182,27 @@ export interface MarketPresenceItem { id:string; referenceDate:string; plate:str
 export type PrepServiceStatus='pending'|'approved'|'in_service'|'waiting_part'|'done'|'cancelled';
 export type PrepOrderStatus='triage'|'preparing'|'waiting_approval'|'waiting_part'|'ready'|'showroom'|'delivery'|'delivered';
 export type PrepDestination='showroom'|'delivery';
+export type DmsAttachmentCategory='budget'|'invoice'|'proof'|'before'|'after'|'document'|'xml'|'other';
+export interface DmsAttachment {
+  id:string;
+  kind:'dms_attachment';
+  companyId:string;
+  storeId:string;
+  entityType:'prep_service'|'finance_entry'|'vehicle_document'|'sales_order'|'purchase'|'after_sales';
+  entityId:string;
+  vehicleId?:string;
+  plate?:string;
+  category:DmsAttachmentCategory;
+  name:string;
+  contentType:string;
+  size:number;
+  storagePath:string;
+  url:string;
+  createdAt:string;
+  createdBy:string;
+  createdByName:string;
+}
+
 export type FinanceEntryType='payable'|'receivable';
 export type FinanceEntryStatus='pending'|'paid'|'received'|'cancelled';
 export type FinanceNature='revenue'|'expense'|'asset'|'liability';
@@ -272,6 +293,7 @@ export interface FinanceEntry {
   lastSettledAt?:string;
   reconciliationId?:string;
   reconciledAt?:string;
+  attachmentIds?:string[];
 }
 export type FinanceReconciliationStatus='balanced'|'difference';
 export interface FinanceReconciliation {
@@ -340,6 +362,10 @@ export interface PrepService {
   approvedAt?:string; approvedBy?:string; approvedByName?:string;
   rejectedAt?:string; rejectedBy?:string; rejectedByName?:string; rejectionReason?:string;
   payableId?:string;
+  attachmentIds?:string[];
+  warrantyUntil?:string;
+  reworkOfServiceId?:string;
+  reworkReason?:string;
 }
 export interface PrepOrder { id:string; vehicleId?:string; plate:string; vehicle:string; openedAt:string; updatedAt:string; completedAt?:string; status:PrepOrderStatus; sold:boolean; destination:PrepDestination; services:PrepService[]; notes?:string; createdBy?:string; storeId:string; companyId:string; }
 export interface PrepPayable extends FinanceEntry {
@@ -548,6 +574,7 @@ export interface VehicleDocumentCase {
   updatedAt:string;
   updatedBy?:string;
   updatedByName?:string;
+  attachmentIds?:string[];
 }
 
 export type ShowroomPassageStatus='waiting'|'in_service'|'evaluation'|'proposal'|'follow_up'|'sale'|'no_deal';
