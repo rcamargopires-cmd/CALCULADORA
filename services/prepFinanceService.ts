@@ -165,7 +165,7 @@ export const prepFinanceService={
     announce();
   },
 
-  markPaid:async(payable:PrepPayable,actor:Pick<User,'email'|'name'>,paymentMethod='',paymentReference='')=>{
+  markPaid:async(payable:PrepPayable,actor:Pick<User,'email'|'name'>,paymentMethod='',paymentReference='',financeAccountId='')=>{
     const stamp=now();
     await setDoc(doc(db,LEDGER,payable.id),{
       status:'paid',
@@ -175,11 +175,12 @@ export const prepFinanceService={
       paidByName:actor.name,
       paymentMethod,
       paymentReference,
+      financeAccountId,
       updatedAt:stamp,
     },{merge:true});
     const service:PrepService={id:payable.serviceId,type:payable.serviceType,provider:payable.provider,status:'approved',estimatedCost:payable.amount,finalCost:payable.amount,payableId:payable.id};
     const order:PrepOrder={id:payable.orderId,vehicleId:payable.vehicleId,plate:payable.plate||'',vehicle:payable.vehicle||'',openedAt:payable.createdAt,updatedAt:stamp,status:'preparing',sold:false,destination:'showroom',services:[service],companyId:payable.companyId,storeId:payable.storeId};
-    const event=historyPayload(order,service,'prep_paid',`Fornecedor pago: ${payable.serviceType}`,actor,{payableId:payable.id,amount:payable.amount,provider:payable.provider,details:[paymentMethod,paymentReference].filter(Boolean).join(' · ')});
+    const event=historyPayload(order,service,'prep_paid',`Fornecedor pago: ${payable.serviceType}`,actor,{payableId:payable.id,amount:payable.amount,provider:payable.provider,details:[paymentMethod,paymentReference,financeAccountId].filter(Boolean).join(' · ')});
     await setDoc(doc(db,LEDGER,event.id),event,{merge:true});
     await dmsAuditService.record({
       companyId:payable.companyId,storeId:payable.storeId,entityType:'finance',
