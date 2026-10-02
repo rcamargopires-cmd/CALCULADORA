@@ -234,7 +234,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
                   <Info label="Categoria" value={selected.category||'—'}/>
                   <Info label="Vencimento" value={displayDate(selected.dueDate)}/>
                   <Info label={selected.entryType==='payable'?'Fornecedor / beneficiário':'Cliente / pagador'} value={selected.party||'—'}/>
-                  <Info label="Origem" value={selected.origin==='prep'?'Preparação':selected.origin==='sale'?'Venda':selected.origin==='manual'?'Manual':'Outro'}/>
+                  <Info label="Origem" value={selected.origin==='prep'?'Preparação':selected.origin==='purchase'?'Compra de veículo':selected.origin==='sale'?'Venda':selected.origin==='commission'?'Comissão':selected.origin==='manual'?'Manual':'Outro'}/>
                 </div>
 
                 {selected.status==='pending'&&canSettle&&<div className="mt-5 rounded-2xl border border-sky-400/10 bg-sky-400/[.035] p-4">
