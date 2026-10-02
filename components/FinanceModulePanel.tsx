@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDownCircle, ArrowUpCircle, Banknote, CalendarDays, CheckCircle2, CircleDollarSign, Plus, Search, TrendingUp, X } from 'lucide-react';
-import type { FinanceEntry, FinanceEntryType, User } from '../types';
+import { ArrowDownCircle, ArrowUpCircle, Banknote, CalendarDays, CheckCircle2, CircleDollarSign, Landmark, Plus, Search, TrendingUp, WalletCards, X } from 'lucide-react';
+import type { FinanceAccount, FinanceAccountType, FinanceEntry, FinanceEntryType, User } from '../types';
 import { financeService } from '../services/financeService';
 import { prepFinanceService } from '../services/prepFinanceService';
 import { dmsPermissions } from '../services/dmsPermissions';
+import { financeAccountService } from '../services/financeAccountService';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
-type Tab='payable'|'receivable'|'cashflow';
+type Tab='payable'|'receivable'|'cashflow'|'dre';
 
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
 const clean=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -29,6 +30,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   const[open,setOpen]=useState(false);
   const[tab,setTab]=useState<Tab>('payable');
   const[items,setItems]=useState<FinanceEntry[]>([]);
+  const[accounts,setAccounts]=useState<FinanceAccount[]>([]);
   const[selectedId,setSelectedId]=useState('');
   const[search,setSearch]=useState('');
   const[entryOpen,setEntryOpen]=useState(false);
@@ -42,6 +44,15 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   const[vehicle,setVehicle]=useState('');
   const[method,setMethod]=useState('Pix');
   const[reference,setReference]=useState('');
+  const[financeAccountId,setFinanceAccountId]=useState('');
+  const[accountOpen,setAccountOpen]=useState(false);
+  const[accountType,setAccountType]=useState<FinanceAccountType>('bank');
+  const[accountName,setAccountName]=useState('');
+  const[accountBank,setAccountBank]=useState('');
+  const[accountAgency,setAccountAgency]=useState('');
+  const[accountNumber,setAccountNumber]=useState('');
+  const[accountPix,setAccountPix]=useState('');
+  const[openingBalance,setOpeningBalance]=useState('');
   const[busy,setBusy]=useState('');
   const[message,setMessage]=useState('');
   const[error,setError]=useState('');
@@ -54,6 +65,22 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
       storeId,
       next=>{setItems(next);setError('');},
       cause=>setError(String((cause as any)?.message||'Não foi possível carregar o financeiro.')),
+    );
+  },[open,companyId,storeId]);
+
+  useEffect(()=>{
+    if(!open)return;
+    return financeAccountService.subscribe(
+      companyId,
+      storeId,
+      next=>{
+        setAccounts(next);
+        if(!financeAccountId){
+          const active=next.find(item=>item.active);
+          if(active)setFinanceAccountId(active.accountId);
+        }
+      },
+      cause=>console.warn('Motyq: contas financeiras indisponíveis.',cause),
     );
   },[open,companyId,storeId]);
 
