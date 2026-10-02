@@ -14,7 +14,9 @@ const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',curr
 const statusLabel=(value?:string)=>value==='authorized'?'AUTORIZADA':value==='pending'?'PROCESSANDO':value==='rejected'?'REJEITADA':value==='cancelled'?'CANCELADA':value==='error'?'ERRO':'RASCUNHO';
 const statusClass=(value?:string)=>value==='authorized'?'bg-emerald-50 text-emerald-700 border-emerald-200':value==='pending'?'bg-amber-50 text-amber-700 border-amber-200':value==='rejected'||value==='error'?'bg-red-50 text-red-700 border-red-200':value==='cancelled'?'bg-slate-100 text-slate-600 border-slate-200':'bg-blue-50 text-blue-700 border-blue-200';
 
-const defaultPayload=(order:SalesOrder)=>({
+const defaultPayload=(order:SalesOrder)=>{
+  const document=String(order.customerDocument||'').replace(/\D/g,'');
+  return {
   natureza_operacao:'Venda de veículo',
   data_emissao:new Date().toISOString(),
   tipo_documento:1,
@@ -23,6 +25,7 @@ const defaultPayload=(order:SalesOrder)=>({
   consumidor_final:1,
   presenca_comprador:1,
   nome_destinatario:order.customerName,
+  ...(document.length===11?{cpf_destinatario:document}:document.length===14?{cnpj_destinatario:document}:{}),
   telefone_destinatario:order.customerPhone||'',
   valor_frete:0,
   valor_seguro:0,
@@ -44,7 +47,8 @@ const defaultPayload=(order:SalesOrder)=>({
       observacao:'Complete NCM, CFOP e tributação conforme orientação contábil antes de emitir.',
     },
   ],
-});
+  };
+};
 
 const FiscalInvoicePanel:React.FC<Props>=({open,onClose,currentUser,order})=>{
   const[configured,setConfigured]=useState<boolean|null>(null);
