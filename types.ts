@@ -204,6 +204,9 @@ export interface FinanceEntry {
   vehicleId?:string;
   origin:FinanceOrigin;
   originId?:string;
+  installmentGroupId?:string;
+  installmentNumber?:number;
+  installmentCount?:number;
   companyId:string;
   storeId:string;
   createdAt:string;
