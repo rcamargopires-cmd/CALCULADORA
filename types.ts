@@ -267,6 +267,9 @@ export interface SalesOrder {
   customerId?:string;
   customerName:string;
   customerPhone:string;
+  sellerId?:string;
+  sellerEmail?:string;
+  sellerName?:string;
   vehicleId?:string;
   plate:string;
   vehicle:string;
@@ -290,6 +293,8 @@ export interface SalesOrder {
   tradeInPurchaseId?:string;
   status:SalesOrderStatus;
   receivableIds?:string[];
+  commissionPayableId?:string;
+  commissionAmount?:number;
   invoiceNumber?:string;
   invoiceDate?:string;
   deliveryDate?:string;
