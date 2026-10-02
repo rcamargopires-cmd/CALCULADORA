@@ -7,6 +7,8 @@ import { currentStockService } from './currentStockService';
 import { financeService } from './financeService';
 import { vehiclePurchaseService } from './vehiclePurchaseService';
 import { dmsAuditService } from './dmsAuditService';
+import { configService } from './configService';
+import { calculateCommission } from '../utils/commission';
 
 const LEDGER='operational_meta';
 const safe=(value:string)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
@@ -103,6 +105,7 @@ export const salesOrderService={
       id,kind:'sales_order',salesOrderId:id,companyId:lead.companyId,storeId:lead.storeId,
       leadId:lead.id,proposalId:proposal.id,proposalVersion:proposal.version,
       customerId:customer.customerId,customerName:lead.customerName,customerPhone:lead.phone,
+      sellerId:lead.assignedSellerId,sellerEmail:lead.assignedSellerEmail,sellerName:lead.assignedSellerName,
       vehicleId:master?.vehicleId,plate,vehicle:proposal.vehicle,year:proposal.year,
       salePrice:Number(proposal.salePrice)||0,discount:Number(proposal.discount)||0,
       netSalePrice:Math.max(0,(Number(proposal.salePrice)||0)-(Number(proposal.discount)||0)),
@@ -231,11 +234,60 @@ export const salesOrderService={
       if(balance&&!receivableIds.includes(balance.id))receivableIds.push(balance.id);
     }
 
+    let commissionPayableId=order.commissionPayableId||'';
+    let commissionAmount=Number(order.commissionAmount)||0;
+    if(!commissionPayableId&&order.sellerName){
+      const stock=await currentStockService.getCurrent(order.companyId,order.storeId);
+      const stockItem=stock.find(row=>(order.vehicleId&&row.vehicleId===order.vehicleId)||cleanPlate(row.plate)===cleanPlate(order.plate));
+      const vehicleCost=Number(stockItem?.cost)||0;
+      const config=await configService.loadConfig();
+      const deal={
+        licensePlate:order.plate,
+        fipeValue:Number(stockItem?.fipe)||0,
+        stockDays:Number(stockItem?.stockDays)||0,
+        invoiceValue:order.netSalePrice,
+        vehicleCost,
+        bankReturn:Number(order.financingReturn)||0,
+        payments:{entry:order.cashEntry,financing:order.financedAmount,tradeIn:order.tradeInValue},
+        costs:{documentation:0,accessories:0,payoff:0,debts:0,others:0},
+        dealStatus:'closed' as const,
+        closingType:order.financedAmount>0?'banking' as const:'standard' as const,
+      };
+      const profit=order.netSalePrice-vehicleCost+(Number(order.financingReturn)||0);
+      const commission=calculateCommission(deal,profit,config.commission);
+      commissionAmount=Math.max(0,Number(commission.total)||0);
+      if(commissionAmount>0.01){
+        const existing=(await financeService.getAll(order.companyId,order.storeId))
+          .find(item=>item.origin==='commission'&&item.originId===order.salesOrderId&&item.status!=='cancelled');
+        const payable=existing||await financeService.create({
+          entryType:'payable',
+          category:'Comissão de venda',
+          description:`Comissão da venda · ${order.plate}`,
+          party:order.sellerName,
+          amount:commissionAmount,
+          dueDate:today(),
+          plate:order.plate,
+          vehicle:order.vehicle,
+          vehicleId:order.vehicleId,
+          origin:'commission',
+          originId:order.salesOrderId,
+          companyId:order.companyId,
+          storeId:order.storeId,
+          actor,
+        });
+        commissionPayableId=payable.id;
+        await financeService.update(payable,{
+          partyId:order.sellerId||order.sellerEmail||'',
+          paymentReference:`commission:${order.salesOrderId}`,
+        });
+      }
+    }
+
     await reserveVehicle(order,actor,'Faturado');
     if(order.vehicleId)await dmsVehicleService.updateStage(order.vehicleId,'invoiced',order.companyId,order.storeId,actor,'Pedido de Venda faturado.');
     const stamp=now();
     const next:SalesOrder={
-      ...order,status:'invoiced',receivableIds,
+      ...order,status:'invoiced',receivableIds,commissionPayableId,commissionAmount,
       invoiceNumber:invoiceNumber.trim(),invoiceDate:today(),invoicedAt:stamp,updatedAt:stamp,
     };
     await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
