@@ -280,6 +280,10 @@ export interface SalesOrder {
   estimatedInstallment:number;
   bankName?:string;
   creditStatus:CreditStatus;
+  creditReference?:string;
+  creditDecisionAt?:string;
+  creditApprovedAt?:string;
+  financingReturn?:number;
   tradeInPlate?:string;
   tradeInValue:number;
   tradeInDebt:number;
