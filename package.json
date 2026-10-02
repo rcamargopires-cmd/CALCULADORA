@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test": "node scripts/smoke-tests.mjs"
+    "test": "node scripts/smoke-tests.mjs && node scripts/critical-flow-tests.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
