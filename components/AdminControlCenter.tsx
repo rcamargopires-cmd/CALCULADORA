@@ -100,7 +100,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
     while(companies.some(company=>company.id===id))id=`${base}-${counter++}`;
     const now=new Date();
     const trial=new Date(now);trial.setDate(trial.getDate()+14);
-    const company:Company={id,slug:id,name:cleanName,plan:companyPlan,status:'trial',createdAt:now.toISOString(),trialEndsAt:trial.toISOString()};
+    const company:Company={id,slug:id,name:cleanName,plan:companyPlan,status:'trial',createdAt:now.toISOString(),trialEndsAt:trial.toISOString(),fiscal:{enabled:false,provider:'manual',environment:'homologacao',updatedAt:now.toISOString()}};
     const store:MotyqStore={id:`${id}-principal`,code:'MATRIZ',name:`${cleanName} · Principal`,active:true,companyId:id};
     setSaving('company');setError('');
     try{
