@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CircleDollarSign, ListTodo } from 'lucide-react';
+import { Banknote, CircleDollarSign, ListTodo } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
@@ -75,6 +75,15 @@ const ManagerTopNav: React.FC = () => {
       >
         <CircleDollarSign size={14}/>
         <span className="motyq-manager-nav-label">IMPACTO</span>
+      </button>
+      <button
+        type="button"
+        title="Financeiro"
+        onClick={() => launcherClick('Financeiro Motyq')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-sky-300 transition-all hover:bg-sky-400/10 hover:text-sky-200"
+      >
+        <Banknote size={14}/>
+        <span className="motyq-manager-nav-label">FINANCEIRO</span>
       </button>
     </>, target)}
   </>;
