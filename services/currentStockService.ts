@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { OperationalStockItem, User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
@@ -14,6 +14,7 @@ const rowMoment=(item:OperationalStockItem)=>`${String(item.snapshotDate||'').sl
 const docId=(companyId:string,storeId:string,plate:string)=>`stock_${safeId(companyId)}_${safeId(storeId)}_${safeId(cleanPlate(plate))}`;
 const currentMetaId=(storeId:string)=>`current_${safeId(storeId)}`;
 const stockSummaryId=(storeId:string,date:string)=>`stock_summary_${safeId(storeId)}_${safeId(date)}`;
+const announce=()=>{try{window.dispatchEvent(new Event('dealmaster:operational-data-updated'));}catch{}};
 
 const belongsToStore=(value:{storeId?:string},storeId:string)=>(value.storeId||DEFAULT_STORE_ID)===storeId;
 const belongsToCompany=(value:{companyId?:string},companyId:string)=>(value.companyId||DEFAULT_COMPANY_ID)===companyId;
@@ -128,6 +129,7 @@ export const currentStockService={
       if(migrated.length){
         await seedCanonical(migrated,companyId,storeId);
         rows=migrated;
+        announce();
       }
     }
     const unique=new Map<string,OperationalStockItem>();
@@ -137,6 +139,32 @@ export const currentStockService={
     });
     return Array.from(unique.values());
   },
+
+  subscribe:(
+    companyId:string,
+    storeId:string,
+    onRows:(rows:OperationalStockItem[])=>void,
+    onError?:(error:unknown)=>void,
+  )=>onSnapshot(
+    query(
+      collection(db,COLLECTION),
+      where('companyId','==',companyId),
+      where('storeId','==',storeId),
+    ),
+    snap=>{
+      const unique=new Map<string,OperationalStockItem>();
+      snap.docs
+        .map(item=>item.data() as OperationalStockItem)
+        .filter(item=>item.currentRecord===true&&isActive(item))
+        .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)))
+        .forEach(item=>{
+          const plate=cleanPlate(item.plate);
+          if(plate)unique.set(plate,normalizeItem(item,companyId,storeId));
+        });
+      onRows(Array.from(unique.values()));
+    },
+    error=>onError?.(error),
+  ),
 
   replaceImported:async(
     items:OperationalStockItem[],
@@ -186,6 +214,7 @@ export const currentStockService={
       await setDoc(doc(db,COLLECTION,item.id),{...item,updatedAt:new Date().toISOString()},{merge:true});
     }
     await updateMeta(next,companyId,storeId);
+    announce();
     return next.filter(isActive);
   },
 
@@ -205,6 +234,7 @@ export const currentStockService={
     await setDoc(doc(db,COLLECTION,nextItem.id),nextItem,{merge:true});
     const next=[...current.filter(row=>cleanPlate(row.plate)!==plate),nextItem];
     await updateMeta(next,companyId,storeId);
+    announce();
     return next.filter(isActive);
   },
 
@@ -219,6 +249,7 @@ export const currentStockService={
     },{merge:true});
     const next=current.filter(item=>cleanPlate(item.plate)!==target);
     await updateMeta(next,companyId,storeId);
+    announce();
     return next;
   },
 };
