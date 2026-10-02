@@ -14,6 +14,8 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
   const[selectedId,setSelectedId]=useState('');
   const[search,setSearch]=useState('');
   const[bankName,setBankName]=useState('');
+  const[creditReference,setCreditReference]=useState('');
+  const[financingReturn,setFinancingReturn]=useState('');
   const[invoiceNumber,setInvoiceNumber]=useState('');
   const[busy,setBusy]=useState('');
   const[message,setMessage]=useState('');
@@ -27,8 +29,10 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
   const selected=items.find(item=>item.id===selectedId)||null;
   useEffect(()=>{
     setBankName(selected?.bankName||'');
+    setCreditReference(selected?.creditReference||'');
+    setFinancingReturn(selected?.financingReturn?String(selected.financingReturn):'');
     setInvoiceNumber(selected?.invoiceNumber||'');
-  },[selectedId,selected?.bankName,selected?.invoiceNumber]);
+  },[selectedId,selected?.bankName,selected?.creditReference,selected?.financingReturn,selected?.invoiceNumber]);
 
   const filtered=useMemo(()=>{
     const q=search.trim().toLowerCase();
@@ -111,6 +115,8 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
                   <Info label="Troca" value={money(selected.tradeInValue)}/>
                   <Info label="Saldo troca" value={money(selected.tradeInDebt)}/>
                 </div>
+                {(selected.bankName||selected.creditReference||Number(selected.financingReturn)>0)&&<div className="mt-3 grid gap-3 sm:grid-cols-3"><Info label="Banco" value={selected.bankName||'—'}/><Info label="Proposta banco" value={selected.creditReference||'—'}/><Info label="Retorno estimado" value={money(Number(selected.financingReturn)||0)}/></div>}
+                {selected.status!=='draft'&&selected.cashEntry>0&&<div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs text-sky-800"><BadgeDollarSign size={17} className="mb-2"/><b>Sinal integrado ao financeiro.</b><p className="mt-1">Ao aprovar o pedido, a entrada de {money(selected.cashEntry)} já nasce em Contas a Receber, antes do faturamento.</p></div>}
 
                 {selected.tradeInPurchaseId&&<div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800"><CarFront size={16} className="mb-2"/><b>Troca vinculada à Compra.</b><p className="mt-1">O veículo {selected.tradeInPlate} já possui processo de entrada criado no módulo Compras.</p></div>}
 
@@ -120,8 +126,12 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
                 </ActionBox>}
 
                 {selected.status==='credit_pending'&&<ActionBox title="Crédito / financiamento" icon={<Building2 size={17}/>}>
-                  <label className="block text-xs font-semibold text-slate-500">Banco / financeira<input value={bankName} onChange={e=>setBankName(e.target.value)} placeholder="Ex.: Banco Volkswagen" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none"/></label>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2"><button disabled={busy!==''||!bankName.trim()} onClick={()=>void act('credit-ok',()=>salesOrderService.setCredit(selected,'approved',bankName,currentUser),'Crédito aprovado. Pedido liberado para faturamento.')} className="h-10 rounded-xl bg-emerald-600 text-xs font-bold text-white disabled:opacity-50">CRÉDITO APROVADO</button><button disabled={busy!==''} onClick={()=>void act('credit-no',()=>salesOrderService.setCredit(selected,'rejected',bankName,currentUser),'Crédito recusado registrado.')} className="h-10 rounded-xl border border-red-200 text-xs font-bold text-red-600 disabled:opacity-50">CRÉDITO RECUSADO</button></div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-xs font-semibold text-slate-500">Banco / financeira<input value={bankName} onChange={e=>setBankName(e.target.value)} placeholder="Ex.: Banco Volkswagen" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none"/></label>
+                    <label className="block text-xs font-semibold text-slate-500">Proposta / referência<input value={creditReference} onChange={e=>setCreditReference(e.target.value)} placeholder="Nº da proposta no banco" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none"/></label>
+                    <label className="block text-xs font-semibold text-slate-500 sm:col-span-2">Retorno financeiro estimado<input type="number" value={financingReturn} onChange={e=>setFinancingReturn(e.target.value)} placeholder="R$ 0,00" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none"/></label>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2"><button disabled={busy!==''||!bankName.trim()} onClick={()=>void act('credit-ok',()=>salesOrderService.setCredit(selected,'approved',bankName,currentUser,creditReference,Number(financingReturn)||0),'Crédito aprovado. Pedido liberado para faturamento.')} className="h-10 rounded-xl bg-emerald-600 text-xs font-bold text-white disabled:opacity-50">CRÉDITO APROVADO</button><button disabled={busy!==''} onClick={()=>void act('credit-no',()=>salesOrderService.setCredit(selected,'rejected',bankName,currentUser,creditReference,Number(financingReturn)||0),'Crédito recusado registrado.')} className="h-10 rounded-xl border border-red-200 text-xs font-bold text-red-600 disabled:opacity-50">CRÉDITO RECUSADO</button></div>
                 </ActionBox>}
 
                 {selected.status==='ready_to_invoice'&&<ActionBox title="Faturamento" icon={<FileCheck2 size={17}/>}>
