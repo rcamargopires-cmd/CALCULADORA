@@ -128,6 +128,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
           companyPlan:nextCompany.plan,
           companyStatus:nextCompany.status,
           companyBilling:nextCompany.billing,
+          companyFiscal:nextCompany.fiscal,
           companyModuleOverrides:nextCompany.moduleOverrides,
         })));
       }
@@ -137,6 +138,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
         companyPlan:nextCompany.plan,
         companyStatus:nextCompany.status,
         companyBilling:nextCompany.billing,
+        companyFiscal:nextCompany.fiscal,
         companyModuleOverrides:nextCompany.moduleOverrides,
       }:user));
       setMessage(`${company.name}: plano e acessos atualizados.`);
