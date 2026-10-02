@@ -17,6 +17,7 @@ export type DmsPermissionKey =
   | 'financeSettle'
   | 'documentsView'
   | 'afterSalesView'
+  | 'workshopView'
   | 'assetsView'
   | 'reportsView'
   | 'diagnostics'
@@ -534,6 +535,150 @@ export interface VehiclePurchase {
   updatedAt:string;
   createdBy?:string;
   createdByName?:string;
+}
+
+export type WorkshopOrderType='preparation'|'warranty'|'internal'|'customer';
+export type WorkshopOrderStatus='scheduled'|'open'|'in_service'|'waiting_part'|'quality_check'|'ready'|'delivered'|'cancelled';
+export interface WorkshopLaborItem {
+  id:string;
+  description:string;
+  technicianId?:string;
+  technicianName?:string;
+  estimatedMinutes:number;
+  actualMinutes:number;
+  hourlyRate:number;
+  cost:number;
+  startedAt?:string;
+  finishedAt?:string;
+}
+export interface WorkshopPartLine {
+  id:string;
+  partId:string;
+  sku:string;
+  description:string;
+  quantity:number;
+  unitCost:number;
+  totalCost:number;
+}
+export interface WorkshopOrder {
+  id:string;
+  kind:'workshop_order';
+  companyId:string;
+  storeId:string;
+  orderNumber:string;
+  orderType:WorkshopOrderType;
+  status:WorkshopOrderStatus;
+  vehicleId?:string;
+  plate:string;
+  vehicle:string;
+  customerId?:string;
+  customerName?:string;
+  prepOrderId?:string;
+  afterSalesCaseId?:string;
+  appointmentId?:string;
+  complaint:string;
+  diagnosis?:string;
+  labor:WorkshopLaborItem[];
+  parts:WorkshopPartLine[];
+  laborCost:number;
+  partsCost:number;
+  totalCost:number;
+  openedAt:string;
+  promisedAt?:string;
+  readyAt?:string;
+  deliveredAt?:string;
+  createdBy:string;
+  createdByName:string;
+  updatedAt:string;
+}
+export interface WorkshopAppointment {
+  id:string;
+  kind:'workshop_appointment';
+  companyId:string;
+  storeId:string;
+  scheduledAt:string;
+  durationMinutes:number;
+  vehicleId?:string;
+  plate:string;
+  vehicle:string;
+  customerId?:string;
+  customerName?:string;
+  reason:string;
+  technicianId?:string;
+  technicianName?:string;
+  status:'scheduled'|'arrived'|'no_show'|'converted'|'cancelled';
+  workshopOrderId?:string;
+  createdAt:string;
+  createdBy:string;
+  createdByName:string;
+  updatedAt:string;
+}
+export interface WorkshopPart {
+  id:string;
+  kind:'workshop_part';
+  companyId:string;
+  storeId:string;
+  partId:string;
+  sku:string;
+  description:string;
+  brand?:string;
+  location?:string;
+  quantity:number;
+  reservedQuantity:number;
+  minQuantity:number;
+  unitCost:number;
+  salePrice:number;
+  active:boolean;
+  updatedAt:string;
+}
+export interface WorkshopPartMovement {
+  id:string;
+  kind:'workshop_part_movement';
+  companyId:string;
+  storeId:string;
+  partId:string;
+  sku:string;
+  workshopOrderId?:string;
+  movement:'entry'|'issue'|'return'|'adjustment';
+  quantity:number;
+  unitCost:number;
+  reason:string;
+  createdAt:string;
+  createdBy:string;
+  createdByName:string;
+}
+export interface WorkshopTechnician {
+  id:string;
+  kind:'workshop_technician';
+  companyId:string;
+  storeId:string;
+  technicianId:string;
+  name:string;
+  email?:string;
+  specialty?:string;
+  hourlyCost:number;
+  active:boolean;
+  updatedAt:string;
+}
+export interface FactoryWarrantyClaim {
+  id:string;
+  kind:'factory_warranty_claim';
+  companyId:string;
+  storeId:string;
+  claimId:string;
+  workshopOrderId:string;
+  vehicleId?:string;
+  plate:string;
+  manufacturer:string;
+  protocol?:string;
+  status:'draft'|'submitted'|'approved'|'rejected'|'paid';
+  requestedAmount:number;
+  approvedAmount:number;
+  submittedAt?:string;
+  decidedAt?:string;
+  paidAt?:string;
+  notes?:string;
+  updatedAt:string;
 }
 
 export type AfterSalesCaseType='warranty'|'complaint'|'documentation'|'return'|'other';
