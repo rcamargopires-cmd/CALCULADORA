@@ -25,22 +25,31 @@ export const prepTrackService={
     const snap=await getDocs(query(collection(db,'prep_orders'),where('companyId','==',companyId),where('storeId','==',storeId)));
     return snap.docs.map(d=>d.data() as PrepOrder).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
   },
-  createOrder:async(input:{plate:string;vehicle:string;companyId:string;storeId:string;createdBy?:string}):Promise<PrepOrder>=>{
+  createOrder:async(input:{vehicleId?:string;plate:string;vehicle:string;companyId:string;storeId:string;createdBy?:string}):Promise<PrepOrder>=>{
     const plate=cleanPlate(input.plate);
     const now=new Date().toISOString();
     const id=safe(`${input.companyId}_${input.storeId}_${plate}`);
-    const order:PrepOrder={id,plate,vehicle:input.vehicle||plate,openedAt:now,updatedAt:now,status:'triage',sold:false,destination:'showroom',services:[],createdBy:input.createdBy||'',storeId:input.storeId,companyId:input.companyId};
+    const order:PrepOrder={id,vehicleId:input.vehicleId||undefined,plate,vehicle:input.vehicle||plate,openedAt:now,updatedAt:now,status:'triage',sold:false,destination:'showroom',services:[],createdBy:input.createdBy||'',storeId:input.storeId,companyId:input.companyId};
     await enqueueWrite(id,()=>setDoc(doc(db,'prep_orders',id),stripUndefined(order),{merge:true}));
     return order;
   },
-  ensureOrder:async(input:{plate:string;vehicle:string;companyId:string;storeId:string;createdBy?:string}):Promise<PrepOrder>=>{
+  ensureOrder:async(input:{vehicleId?:string;plate:string;vehicle:string;companyId:string;storeId:string;createdBy?:string}):Promise<PrepOrder>=>{
     const plate=cleanPlate(input.plate);
     // Não usamos getDoc em um ID ainda inexistente: para gestores, a regra de leitura
     // depende de resource.data e o Firestore pode negar a leitura de um documento ausente.
     // A consulta da unidade é permitida e torna a criação idempotente.
     const existingOrders=await prepTrackService.getOrders(input.companyId,input.storeId);
-    const existing=existingOrders.find(item=>cleanPlate(item.plate)===plate);
-    if(existing)return existing;
+    const existing=existingOrders.find(item=>
+      (input.vehicleId&&item.vehicleId===input.vehicleId) || cleanPlate(item.plate)===plate
+    );
+    if(existing){
+      if(input.vehicleId&&!existing.vehicleId){
+        const patched={...existing,vehicleId:input.vehicleId,updatedAt:new Date().toISOString()};
+        await prepTrackService.saveOrder(patched);
+        return patched;
+      }
+      return existing;
+    }
     return prepTrackService.createOrder(input);
   },
   subscribeOrders:(
