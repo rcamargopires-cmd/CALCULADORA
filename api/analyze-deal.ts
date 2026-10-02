@@ -23,7 +23,7 @@ const DMS_ACCESS_PROFILES = new Set(['management','preparation','finance']);
 const DMS_PERMISSION_KEYS = new Set([
   'crmView','evaluationsView','proposalsView','purchasesView','salesView',
   'stockView','stockWrite','prepView','prepRequest','prepApprove',
-  'financeView','financeCreate','financeSettle','documentsView','afterSalesView',
+  'financeView','financeCreate','financeSettle','documentsView','afterSalesView','workshopView',
   'assetsView','reportsView','diagnostics','usersManage'
 ]);
 const cleanDmsPermissionOverrides=(raw:any)=>{
