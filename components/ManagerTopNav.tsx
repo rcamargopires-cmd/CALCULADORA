@@ -177,6 +177,15 @@ const ManagerTopNav: React.FC = () => {
         <HeartHandshake size={14}/>
         <span className="motyq-manager-nav-label">PÓS-VENDA</span>
       </button>}
+      {permissions.workshopView&&<button
+        type="button"
+        title="Oficina DMS"
+        onClick={() => launcherClick('Oficina DMS')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-orange-300 transition-all hover:bg-orange-400/10 hover:text-orange-200"
+      >
+        <Wrench size={14}/>
+        <span className="motyq-manager-nav-label">OFICINA</span>
+      </button>}
       {permissions.reportsView&&<button
         type="button"
         title="BI DMS"
