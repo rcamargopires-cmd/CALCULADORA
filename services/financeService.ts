@@ -24,6 +24,16 @@ const fromSnapshot=(docs:any[])=>docs
   .map(item=>item as FinanceEntry)
   .sort((a,b)=>String(b.dueDate||b.createdAt||'').localeCompare(String(a.dueDate||a.createdAt||'')));
 
+const addMonths=(iso:string,months:number)=>{
+  const base=iso?new Date(`${iso}T12:00:00`):new Date();
+  const day=base.getDate();
+  base.setDate(1);
+  base.setMonth(base.getMonth()+months);
+  const last=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
+  base.setDate(Math.min(day,last));
+  return `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+};
+
 export const financeService={
   create:async(input:{
     entryType:FinanceEntryType;
@@ -82,6 +92,63 @@ export const financeService={
       actor:input.actor,
     }).catch(()=>undefined);
     return entry;
+  },
+
+  createInstallments:async(input:{
+    entryType:FinanceEntryType;
+    category:string;
+    description:string;
+    party:string;
+    totalAmount:number;
+    installmentCount:number;
+    firstDueDate?:string;
+    competenceDate?:string;
+    plate?:string;
+    vehicle?:string;
+    vehicleId?:string;
+    origin?:FinanceOrigin;
+    originId?:string;
+    companyId:string;
+    storeId:string;
+    actor:Pick<User,'email'|'name'>;
+  }):Promise<FinanceEntry[]>=>{
+    const count=Math.max(1,Math.min(120,Math.trunc(Number(input.installmentCount)||1)));
+    const total=Math.max(0,Number(input.totalAmount)||0);
+    if(total<=0)throw new Error('Informe um valor total maior que zero.');
+    const groupId=safe(`installments_${input.companyId}_${input.storeId}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`);
+    const cents=Math.round(total*100);
+    const baseCents=Math.floor(cents/count);
+    let remaining=cents-baseCents*count;
+    const first=input.firstDueDate||new Date().toISOString().slice(0,10);
+    const created:FinanceEntry[]=[];
+    for(let index=0;index<count;index++){
+      const partCents=baseCents+(remaining>0?1:0);
+      if(remaining>0)remaining-=1;
+      const entry=await financeService.create({
+        entryType:input.entryType,
+        category:input.category,
+        description:`${input.description} · ${index+1}/${count}`,
+        party:input.party,
+        amount:partCents/100,
+        dueDate:addMonths(first,index),
+        competenceDate:input.competenceDate,
+        plate:input.plate,
+        vehicle:input.vehicle,
+        vehicleId:input.vehicleId,
+        origin:input.origin,
+        originId:input.originId,
+        companyId:input.companyId,
+        storeId:input.storeId,
+        actor:input.actor,
+      });
+      const linked=await financeService.update(entry,{
+        installmentGroupId:groupId,
+        installmentNumber:index+1,
+        installmentCount:count,
+      });
+      created.push(linked);
+    }
+    return created;
   },
 
   update:async(entry:FinanceEntry,patch:Partial<FinanceEntry>)=>{
