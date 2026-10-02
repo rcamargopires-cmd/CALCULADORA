@@ -167,7 +167,7 @@ const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})
   const stamp=new Date().toISOString();
   const approved={...service,status:'approved' as PrepServiceStatus,approvedAt:stamp,approvedBy:currentUser.email,approvedByName:currentUser.name};
   const payable=await prepFinanceService.registerApproval(selected,approved,currentUser);
-  const withPayable={...approved,payableId:payable.id};
+  const withPayable={...approved,payableId:payable.id,supplierId:payable.partyId};
   const nextServices=selected.services.map(item=>item.id===id?withPayable:item);
   const hasPending=nextServices.some(item=>item.status==='pending');
   const nextOrder={...selected,services:nextServices,status:(hasPending?'waiting_approval':'preparing') as PrepOrderStatus};
