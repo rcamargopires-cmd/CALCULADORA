@@ -81,7 +81,9 @@ export const salesOrderService={
       installments:Number(proposal.installments)||0,estimatedInstallment:Number(proposal.estimatedInstallment)||0,
       creditStatus:Number(proposal.financedAmount)>0?'pending':'not_required',
       tradeInPlate:cleanPlate(proposal.tradeInPlate),tradeInValue:Number(proposal.tradeInValue)||0,
-      tradeInDebt:Number(proposal.tradeInDebt)||0,status:'draft',notes:proposal.notes||'',
+      tradeInDebt:Number(proposal.tradeInDebt)||0,status:'draft',
+      deliveryChecklist:{financialReleased:false,documentsReady:false,vehicleReady:false,customerConfirmed:false},
+      notes:proposal.notes||'',
       createdAt:stamp,updatedAt:stamp,createdBy:actor.email,createdByName:actor.name,
     };
 
@@ -206,13 +208,22 @@ export const salesOrderService={
     return next;
   },
 
+  updateDeliveryChecklist:async(order:SalesOrder,checklist:SalesOrder['deliveryChecklist']):Promise<SalesOrder>=>{
+    if(!['invoiced','ready_to_invoice'].includes(order.status))throw new Error('Checklist de entrega disponível após liberação/faturamento.');
+    const next:SalesOrder={...order,deliveryChecklist:checklist,updatedAt:now()};
+    await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
+    return next;
+  },
+
   deliver:async(order:SalesOrder,actor:User):Promise<SalesOrder>=>{
     if(order.status!=='invoiced')throw new Error('Somente vendas faturadas podem ser entregues.');
+    const checklist={financialReleased:false,documentsReady:false,vehicleReady:false,customerConfirmed:false,...(order.deliveryChecklist||{})};
+    if(!Object.values(checklist).every(Boolean))throw new Error('Conclua o checklist de entrega antes de liberar o veículo.');
     await currentStockService.markOut(order.plate,order.storeId,order.companyId,actor);
     if(order.vehicleId)await dmsVehicleService.updateStage(order.vehicleId,'delivered',order.companyId,order.storeId,actor,'Veículo entregue ao cliente.');
     await setDoc(doc(db,'showroom_passages',order.leadId),{status:'sale',closedAt:now(),updatedAt:now()},{merge:true});
     const stamp=now();
-    const next:SalesOrder={...order,status:'delivered',deliveryDate:today(),deliveredAt:stamp,updatedAt:stamp};
+    const next:SalesOrder={...order,status:'delivered',deliveryChecklist:checklist,deliveryDate:today(),deliveredAt:stamp,deliveredBy:actor.email,deliveredByName:actor.name,updatedAt:stamp};
     await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
     await dmsAuditService.record({
       companyId:next.companyId,storeId:next.storeId,entityType:'sale',entityId:next.id,
