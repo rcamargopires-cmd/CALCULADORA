@@ -3,6 +3,7 @@ import { FileCheck2, Search, X } from 'lucide-react';
 import type { User, VehicleDocumentCase, VehicleMaster } from '../types';
 import { dmsVehicleService } from '../services/dmsVehicleService';
 import { vehicleDocumentService } from '../services/vehicleDocumentService';
+import DmsAttachmentManager from './DmsAttachmentManager';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
@@ -85,6 +86,17 @@ const VehicleDocumentsPanel:React.FC<Props>=({currentUser,companyId,storeId,stor
           <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[10px] text-zinc-600">Status geral</p><p className="mt-1 text-sm font-semibold text-zinc-300">{statusLabel(current.atpvStatus)} · CRLV {statusLabel(current.crlvStatus)} · Gravame {statusLabel(current.lienStatus)}</p></div>
         </div>
         <label className="mt-3 block text-xs text-zinc-500">Observações<textarea value={current.notes||''} onChange={e=>patch({notes:e.target.value})} rows={4} className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 p-3 text-sm text-white outline-none"/></label>
+        <DmsAttachmentManager
+          currentUser={currentUser}
+          companyId={companyId}
+          storeId={storeId}
+          entityType="vehicle_document"
+          entityId={current.id}
+          vehicleId={current.vehicleId}
+          plate={current.plate}
+          categories={[{value:'document',label:'Documento'},{value:'invoice',label:'Nota fiscal'},{value:'xml',label:'XML fiscal'},{value:'proof',label:'Comprovante'},{value:'other',label:'Outro'}]}
+          title="Documentos do veículo"
+        />
         <button disabled={busy} onClick={()=>void save()} className="mt-4 h-11 w-full rounded-xl bg-violet-400 text-sm font-bold text-violet-950 disabled:opacity-50">{busy?'SALVANDO...':'SALVAR DOSSIÊ DOCUMENTAL'}</button>
         {current.dispatcherFinanceEntryId&&<p className="mt-2 text-center text-[10px] text-zinc-600">Custo do despachante já enviado ao Contas a Pagar.</p>}
       </>}</section>
