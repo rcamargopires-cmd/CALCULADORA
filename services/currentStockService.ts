@@ -347,7 +347,7 @@ export const currentStockService={
         ...previous,
         ...item,
         plate,
-        source:previous?.source==='manual'?'manual':'import',
+        source:previous?.source&&previous.source!=='import'?previous.source:'import',
         ...(previous?.source==='manual'?{manualActive:true,manualExitAt:''}:{}),
       },companyId,storeId));
     });
@@ -355,7 +355,7 @@ export const currentStockService={
     current.forEach(item=>{
       const plate=cleanPlate(item.plate);
       if(imported.has(plate))return;
-      if(item.source==='manual'&&item.manualActive!==false&&!item.manualExitAt){
+      if(item.source&&item.source!=='import'&&item.manualActive!==false&&!item.manualExitAt){
         next.push(normalizeItem(item,companyId,storeId));
       }
     });
