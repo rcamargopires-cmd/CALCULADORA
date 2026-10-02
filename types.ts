@@ -247,6 +247,32 @@ export interface FinanceEntry {
   approvedBy?:string;
   approvedByName?:string;
   approvedAt?:string;
+  reversedAt?:string;
+  reversedBy?:string;
+  reversedByName?:string;
+  reversalReason?:string;
+  lastSettledAt?:string;
+}
+export type FinanceReversalStatus='pending'|'approved'|'rejected';
+export interface FinanceReversalRequest {
+  id:string;
+  kind:'finance_reversal_request';
+  companyId:string;
+  storeId:string;
+  financeEntryId:string;
+  entryType:FinanceEntryType;
+  amount:number;
+  description:string;
+  party:string;
+  reason:string;
+  status:FinanceReversalStatus;
+  requestedAt:string;
+  requestedBy:string;
+  requestedByName:string;
+  decidedAt?:string;
+  decidedBy?:string;
+  decidedByName?:string;
+  decisionNote?:string;
 }
 
 export type PrepPayableStatus='pending'|'paid'|'cancelled';
