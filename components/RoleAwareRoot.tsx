@@ -35,12 +35,13 @@ import SellerMobileHome from './SellerMobileHome';
 import AdminControlCenter from './AdminControlCenter';
 import BillingGate from './BillingGate';
 import { ADMIN_HOME_SCOPE, COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
+import { CurrentStockProvider } from '../contexts/CurrentStockContext';
 
 const Safe = ({ name, children }: { name: string; children: React.ReactNode }) => (
   <ModuleErrorBoundary name={name}>{children}</ModuleErrorBoundary>
 );
 
-const StandardMotyq = ({ user }: { user: User | null }) => <>
+const StandardMotyq = ({ user }: { user: User | null }) => <CurrentStockProvider user={user}>
   <ModuleErrorBoundary name="App" critical><App /></ModuleErrorBoundary>
   <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
   {user && ['seller', 'user'].includes(String(user.role)) && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
@@ -70,7 +71,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => <>
   {user && <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>}
   <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
   <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
-</>;
+</CurrentStockProvider>;
 
 const EvaluatorMotyq = ({ user }: { user: User }) => <>
   <ModuleErrorBoundary name="EvaluatorWorkspace" critical><EvaluatorWorkspace user={user}/></ModuleErrorBoundary>
