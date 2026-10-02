@@ -97,15 +97,17 @@ export const salesOrderService={
       }
     }
 
+    const customerDocument=String(proposal.acceptedCustomerDocument||'').replace(/\D/g,'').slice(0,14);
     const customer=await dmsCustomerService.ensure({
-      companyId:lead.companyId,storeId:lead.storeId,name:lead.customerName,phone:lead.phone,email:lead.customerEmail,actor,
+      companyId:lead.companyId,storeId:lead.storeId,name:lead.customerName,phone:lead.phone,email:lead.customerEmail,
+      document:customerDocument,actor,
     });
     const stamp=now();
     const id=safe(`sale_${lead.companyId}_${lead.storeId}_${plate}_${proposal.id}`);
     const order:SalesOrder={
       id,kind:'sales_order',salesOrderId:id,companyId:lead.companyId,storeId:lead.storeId,
       leadId:lead.id,proposalId:proposal.id,proposalVersion:proposal.version,
-      customerId:customer.customerId,customerName:lead.customerName,customerPhone:lead.phone,
+      customerId:customer.customerId,customerName:lead.customerName,customerPhone:lead.phone,customerDocument,
       sellerId:lead.assignedSellerId,sellerEmail:lead.assignedSellerEmail,sellerName:lead.assignedSellerName,
       vehicleId:master?.vehicleId,plate,vehicle:proposal.vehicle,year:proposal.year,
       salePrice:Number(proposal.salePrice)||0,discount:Number(proposal.discount)||0,
