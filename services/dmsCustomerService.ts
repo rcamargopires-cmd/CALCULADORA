@@ -13,7 +13,7 @@ const docId=(customerId:string)=>safe(`customer_master_${customerId}`);
 
 const list=async(companyId:string,storeId:string):Promise<CustomerMaster[]>=>{
   const snap=await getDocs(query(collection(db,LEDGER),where('companyId','==',companyId),where('storeId','==',storeId)));
-  return snap.docs.map(item=>item.data() as any).filter(item=>item.kind==='customer_master').map(item=>item as CustomerMaster);
+  return snap.docs.map(item=>item.data() as any).filter(item=>item.kind==='customer_master'&&item.active!==false&&!item.mergedIntoCustomerId).map(item=>item as CustomerMaster);
 };
 
 export const dmsCustomerService={
@@ -35,7 +35,9 @@ export const dmsCustomerService={
     const phone=cleanPhone(input.phone);
     const email=cleanEmail(input.email);
     const masters=await list(input.companyId,input.storeId);
+    const document=String(input.document||'').replace(/\D/g,'').slice(0,14);
     const existing=masters.find(item=>
+      (document&&String(item.document||'')===document) ||
       (phone&&cleanPhone(item.phone)===phone) ||
       (email&&cleanEmail(item.email)===email)
     );
@@ -50,11 +52,12 @@ export const dmsCustomerService={
       name:String(input.name||existing?.name||'Cliente').trim(),
       phone:phone||existing?.phone||'',
       email:email||existing?.email||'',
-      document:String(input.document||existing?.document||'').replace(/\D/g,'').slice(0,14),
+      document:document||existing?.document||'',
       address:String(input.address||existing?.address||'').trim(),
       city:String(input.city||existing?.city||'').trim(),
       state:String(input.state||existing?.state||'').trim().toUpperCase().slice(0,2),
       zipCode:String(input.zipCode||existing?.zipCode||'').replace(/\D/g,'').slice(0,8),
+      active:true,
       createdAt:existing?.createdAt||stamp,
       updatedAt:stamp,
     };
@@ -67,6 +70,45 @@ export const dmsCustomerService={
       }).catch(()=>undefined);
     }
     return next;
+  },
+
+  deduplicate:async(companyId:string,storeId:string,actor?:Pick<User,'email'|'name'>|null)=>{
+    const snap=await getDocs(query(collection(db,LEDGER),where('companyId','==',companyId),where('storeId','==',storeId)));
+    const all=snap.docs.map(item=>item.data() as any).filter(item=>item.kind==='customer_master'&&item.active!==false&&!item.mergedIntoCustomerId).map(item=>item as CustomerMaster);
+    const keyFor=(item:CustomerMaster)=>{
+      const document=String(item.document||'').replace(/\D/g,'');
+      const phone=cleanPhone(item.phone);
+      const email=cleanEmail(item.email);
+      if(document.length>=11)return 'doc:'+document;
+      if(phone.length>=8)return 'phone:'+phone;
+      if(email)return 'email:'+email;
+      return '';
+    };
+    const groups=new Map<string,CustomerMaster[]>();
+    all.forEach(item=>{const key=keyFor(item);if(!key)return;const list=groups.get(key)||[];list.push(item);groups.set(key,list);});
+    let merged=0;
+    const passageSnap=await getDocs(query(collection(db,'showroom_passages'),where('companyId','==',companyId),where('storeId','==',storeId)));
+    for(const group of groups.values()){
+      if(group.length<2)continue;
+      const ordered=[...group].sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+      const canonical=ordered[0];
+      for(const duplicate of ordered.slice(1)){
+        for(const passage of passageSnap.docs){
+          const data=passage.data() as any;
+          if(data.customerId===duplicate.customerId){
+            await setDoc(doc(db,'showroom_passages',passage.id),{customerId:canonical.customerId,updatedAt:now()},{merge:true});
+          }
+        }
+        await setDoc(doc(db,LEDGER,duplicate.id),{active:false,mergedIntoCustomerId:canonical.customerId,updatedAt:now()},{merge:true});
+        await dmsAuditService.record({
+          companyId,storeId,entityType:'customer',entityId:duplicate.customerId,
+          action:'customer_master_merged',label:'Cliente duplicado unificado',
+          details:duplicate.name+' → '+canonical.name,actor,
+        }).catch(()=>undefined);
+        merged+=1;
+      }
+    }
+    return merged;
   },
 
   save:async(customer:CustomerMaster,actor?:Pick<User,'email'|'name'>|null):Promise<CustomerMaster>=>{
