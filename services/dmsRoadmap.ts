@@ -84,9 +84,9 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
       {id:'F4.10',label:'Anexo de orçamento, nota fiscal e comprovante',done:false},
       {id:'F4.11',label:'Fotos antes/depois da preparação',done:false},
       {id:'F4.12',label:'Retrabalho e garantia do fornecedor',done:false},
-      {id:'F4.13',label:'SLA e indicadores por fornecedor',done:false},
+      {id:'F4.13',label:'SLA e indicadores por fornecedor',done:true},
       {id:'F4.14',label:'Cadastro/edição de fornecedor com dados bancários e Pix',done:true},
-      {id:'F4.15',label:'Relatório de custo de preparação por carro e fornecedor',done:false},
+      {id:'F4.15',label:'Relatório de custo de preparação por carro e fornecedor',done:true},
     ],
   },
   {
