@@ -2,6 +2,7 @@ import { collection, doc, getDocs, onSnapshot, query, setDoc, where } from 'fire
 import { db } from '../firebase';
 import type { PrepOrder, PrepPayable, PrepService, User, VehicleHistoryEvent, VehicleHistoryEventType } from '../types';
 import { dmsAuditService } from './dmsAuditService';
+import { dmsSupplierService } from './dmsSupplierService';
 
 const LEDGER='operational_meta';
 const safe=(value:string)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
@@ -47,6 +48,12 @@ export const prepFinanceService={
   },
 
   registerApproval:async(order:PrepOrder,service:PrepService,actor:Pick<User,'email'|'name'>)=>{
+    const supplier=await dmsSupplierService.ensure({
+      companyId:order.companyId,
+      storeId:order.storeId,
+      name:service.provider||'Sem fornecedor',
+      actor,
+    });
     const id=payableId(order,service);
     const stamp=now();
     const payable:PrepPayable={
@@ -57,6 +64,7 @@ export const prepFinanceService={
       category:'Preparação de veículo',
       description:service.type,
       party:service.provider||'Sem fornecedor',
+      partyId:supplier.supplierId,
       amount:serviceAmount(service),
       dueDate:service.dueAt?String(service.dueAt).slice(0,10):undefined,
       competenceDate:stamp.slice(0,10),
