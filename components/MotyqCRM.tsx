@@ -569,7 +569,7 @@ const MotyqCRM:React.FC<Props>=({user})=>{
   </>;
 };
 
-const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFuture,onArchive,onDragStart,onDragEnd}:{item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onOpen:()=>void;onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onScheduleFuture:()=>void;onArchive:()=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
+const LeadCard=({item,busy,dragging,matches,onOpen,onPatch,onMove,onScheduleFuture,onArchive,onDragStart,onDragEnd}:{key?:React.Key;item:ShowroomPassage;busy:boolean;dragging:boolean;matches:CrmStockMatch[];onOpen:()=>void;onPatch:(patch:any)=>void;onMove:(status:ShowroomPassageStatus)=>void;onScheduleFuture:()=>void;onArchive:()=>void;onDragStart:(event:React.DragEvent<HTMLElement>)=>void;onDragEnd:()=>void})=>{
   const source=sourceOf(item),temp=temperatureOf(item),wa=whatsappUrl(item.phone),overdue=isOverdue(item.nextFollowUpAt)&&!['sale','no_deal'].includes(item.status);
   const TempIcon=temp==='hot'?Flame:temp==='cold'?Snowflake:SunMedium;
   return <article className={`rounded-2xl border bg-white p-3.5 shadow-sm transition ${dragging?'scale-[.98] opacity-45 shadow-none':overdue?'border-red-200 ring-1 ring-red-100':'border-slate-200'}`}>
