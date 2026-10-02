@@ -159,7 +159,7 @@ export const vehiclePurchaseService={
     });
 
     const payableIds=[...(current.payableIds||[])];
-    if(!payableIds.length){
+    if(!payableIds.length&&current.origin!=='consignment'){
       const ownerBalance=Math.max(0,current.purchasePrice-current.payoffAmount);
       if(ownerBalance>0){
         const entry=await financeService.create({
