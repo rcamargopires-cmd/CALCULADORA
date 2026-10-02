@@ -3,6 +3,7 @@ import { HeartHandshake, Plus, Search, X } from 'lucide-react';
 import type { AfterSalesCase, AfterSalesCaseStatus, AfterSalesCaseType, SalesOrder, User } from '../types';
 import { afterSalesService } from '../services/afterSalesService';
 import { salesOrderService } from '../services/salesOrderService';
+import { workshopService } from '../services/workshopService';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
@@ -66,6 +67,21 @@ const AfterSalesPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
   }catch(e:any){setError(e?.message||'Não foi possível salvar o pós-venda.');}
   finally{setBusy(false);}
  };
+ const openWorkshopOrder=async()=>{
+  const current=cases.find(item=>item.id===selectedId);if(!current)return;
+  setBusy(true);setError('');setMessage('');
+  try{
+    const order=await workshopService.createOrder({
+      companyId,storeId,orderType:current.type==='warranty'?'warranty':'customer',
+      vehicleId:current.vehicleId,plate:current.plate,vehicle:current.vehicle,
+      customerId:current.customerId,customerName:current.customerName,
+      afterSalesCaseId:current.id,complaint:current.title+' · '+current.description,
+      actor:currentUser,
+    });
+    setMessage('OS '+order.orderNumber+' aberta na Oficina DMS.');
+  }catch(e:any){setError(e?.message||'Não foi possível abrir a ordem de serviço.');}
+  finally{setBusy(false);}
+ };
 
  return <>
   <button title="Pós-venda e garantia" onClick={()=>setOpen(true)} className="fixed right-5 z-[135] grid h-12 w-12 place-items-center rounded-full border border-pink-400/25 bg-zinc-950/95 text-pink-300 shadow-2xl" style={{bottom:140}}><HeartHandshake size={18}/></button>
@@ -89,7 +105,7 @@ const AfterSalesPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
             </div>
             <label className="mt-3 block text-xs text-zinc-500">Descrição<textarea rows={4} value={selected.description} onChange={e=>patch({description:e.target.value})} className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 p-3 text-sm outline-none"/></label>
             <label className="mt-3 block text-xs text-zinc-500">Observação da satisfação<textarea rows={2} value={selected.satisfactionNotes||''} onChange={e=>patch({satisfactionNotes:e.target.value})} className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 p-3 text-sm outline-none"/></label>
-            <button disabled={busy} onClick={()=>void save()} className="mt-4 h-11 w-full rounded-xl bg-pink-400 text-sm font-bold text-pink-950 disabled:opacity-50">{busy?'SALVANDO...':'SALVAR PÓS-VENDA'}</button>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2"><button disabled={busy} onClick={()=>void openWorkshopOrder()} className="h-11 rounded-xl border border-orange-400/20 bg-orange-400/[.06] text-sm font-bold text-orange-300 disabled:opacity-50">ABRIR / VER OS</button><button disabled={busy} onClick={()=>void save()} className="h-11 rounded-xl bg-pink-400 text-sm font-bold text-pink-950 disabled:opacity-50">{busy?'SALVANDO...':'SALVAR PÓS-VENDA'}</button></div>
             {selected.financeEntryId&&<p className="mt-2 text-center text-[10px] text-zinc-600">Custo enviado automaticamente ao Contas a Pagar.</p>}
           </>}</div>
         </section>
