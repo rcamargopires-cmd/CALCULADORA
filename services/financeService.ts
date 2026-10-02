@@ -46,6 +46,8 @@ export const financeService={
     plate?:string;
     vehicle?:string;
     vehicleId?:string;
+    chartAccountId?:string;
+    costCenterId?:string;
     origin?:FinanceOrigin;
     originId?:string;
     companyId:string;
@@ -68,6 +70,8 @@ export const financeService={
       plate:input.plate,
       vehicle:input.vehicle,
       vehicleId:input.vehicleId,
+      chartAccountId:input.chartAccountId,
+      costCenterId:input.costCenterId,
       origin:input.origin||'manual',
       originId:input.originId,
       companyId:input.companyId,
@@ -106,6 +110,8 @@ export const financeService={
     plate?:string;
     vehicle?:string;
     vehicleId?:string;
+    chartAccountId?:string;
+    costCenterId?:string;
     origin?:FinanceOrigin;
     originId?:string;
     companyId:string;
@@ -135,6 +141,8 @@ export const financeService={
         plate:input.plate,
         vehicle:input.vehicle,
         vehicleId:input.vehicleId,
+        chartAccountId:input.chartAccountId,
+        costCenterId:input.costCenterId,
         origin:input.origin,
         originId:input.originId,
         companyId:input.companyId,
