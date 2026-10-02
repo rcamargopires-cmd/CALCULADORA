@@ -140,6 +140,15 @@ export const dmsIntegrityService={
       if(sale.status==='invoiced'&&!(sale.receivableIds||[]).length){
         issues.push(issue('critical','finance',`sale-invoiced-no-receivable-${sale.id}`,'Venda faturada sem contas a receber',`${plate} · ${sale.customerName}.`,{plate,vehicleId:sale.vehicleId,entityId:sale.id}));
       }
+      if(['invoiced','delivered'].includes(sale.status)&&sale.fiscalProvider==='focus_nfe'&&sale.fiscalStatus!=='authorized'){
+        issues.push(issue('critical','fiscal',`sale-fiscal-not-authorized-${sale.id}`,'Venda integrada faturada sem NF-e autorizada',`${plate} · status fiscal ${sale.fiscalStatus||'não informado'}.`,{plate,vehicleId:sale.vehicleId,entityId:sale.id}));
+      }
+      if(sale.fiscalStatus==='rejected'||sale.fiscalStatus==='error'){
+        issues.push(issue('warning','fiscal',`sale-fiscal-error-${sale.id}`,'NF-e com rejeição/erro',`${plate} · pedido ${sale.salesOrderId} precisa de correção fiscal.`,{plate,vehicleId:sale.vehicleId,entityId:sale.id}));
+      }
+      if(sale.fiscalStatus==='cancelled'&&['invoiced','delivered'].includes(sale.status)){
+        issues.push(issue('critical','fiscal',`sale-fiscal-cancelled-active-${sale.id}`,'Venda faturada com NF-e cancelada',`${plate} · pedido ${sale.salesOrderId} precisa de regularização.`,{plate,vehicleId:sale.vehicleId,entityId:sale.id}));
+      }
       if(sale.status==='delivered'&&stockItem){
         issues.push(issue('critical','stock',`sale-delivered-in-stock-${sale.id}`,'Veículo entregue ainda aparece no estoque atual',`${plate} · ${sale.customerName}.`,{plate,vehicleId:sale.vehicleId,entityId:sale.id}));
       }
