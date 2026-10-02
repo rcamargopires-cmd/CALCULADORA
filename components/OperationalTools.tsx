@@ -23,7 +23,7 @@ import AssetGuardPanel from './AssetGuardPanel';
 import PlanAccessBadge from './PlanAccessBadge';
 import MarketPresencePanel from './MarketPresencePanel';
 import PrepTrackPanel from './PrepTrackPanel';
-import PrepPayablesPanel from './PrepPayablesPanel';
+import FinanceModulePanel from './FinanceModulePanel';
 import ShowroomFlowHub from './ShowroomFlowHub';
 import ShowroomReports from './ShowroomReports';
 import ReceptionHistoryPanel from './ReceptionHistoryPanel';
@@ -211,7 +211,7 @@ const OperationalTools: React.FC = () => {
     {isManager && storeId && has('stockIntelligence') && <ManualStockPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <PrepTrackPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
-    {isManager && storeId && has('stockIntelligence') && <PrepPayablesPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {isManager && storeId && <FinanceModulePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('executiveInsights') && <ExecutiveInsights/>}
     {isManager && storeId && has('smartAlerts') && <SmartAlerts companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('aiManager') && <AIManagerV2/>}
