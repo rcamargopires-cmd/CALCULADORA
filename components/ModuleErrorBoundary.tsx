@@ -17,6 +17,15 @@ class ModuleErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
     console.error(`[MOTYQ:${this.props.name}] render failure`, error, info);
+    const value=error as any;
+    try{
+      window.dispatchEvent(new CustomEvent('motyq:client-error',{detail:{
+        module:this.props.name,
+        message:String(value?.message||value||'Erro de renderização'),
+        stack:String(value?.stack||''),
+        componentStack:String(info?.componentStack||''),
+      }}));
+    }catch{}
   }
 
   render() {
