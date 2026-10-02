@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, CarFront, CircleDollarSign, ClipboardCheck, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
+import { Banknote, CarFront, CircleDollarSign, ClipboardCheck, FileClock, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
@@ -104,6 +104,15 @@ const ManagerTopNav: React.FC = () => {
       >
         <UsersRound size={14}/>
         <span className="motyq-manager-nav-label">CADASTROS</span>
+      </button>}
+      {isManager&&<button
+        type="button"
+        title="Dossiê"
+        onClick={() => launcherClick('Dossiê do veículo')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-indigo-300 transition-all hover:bg-indigo-400/10 hover:text-indigo-200"
+      >
+        <FileClock size={14}/>
+        <span className="motyq-manager-nav-label">DOSSIÊ</span>
       </button>}
       {permissions.prepView&&<button
         type="button"
