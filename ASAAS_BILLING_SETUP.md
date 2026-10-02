@@ -40,3 +40,16 @@ Configure o mesmo valor de `ASAAS_WEBHOOK_TOKEN` como token de autenticação do
 7. Só depois altere o ambiente para `production`.
 
 A criação da assinatura não é tratada como pagamento. O MOTYQ atualiza o estado financeiro apenas pelos eventos recebidos do Asaas.
+
+
+## Alteração de plano e pausa
+
+Depois que uma empresa possui `externalSubscriptionId`, o MOTYQ não cria outra recorrência ao trocar de plano.
+
+- troca de plano usa `PUT /v3/subscriptions/{id}` e atualiza o valor das cobranças futuras;
+- o plano do tenant e o valor da assinatura são sincronizados no mesmo fluxo server-side;
+- desativar cobrança no MOTYQ coloca a assinatura em `INACTIVE`;
+- reativar cobrança usa `ACTIVE` com a próxima data de vencimento;
+- por segurança, a troca de plano do MOTYQ não altera cobranças pendentes já geradas, salvo se o fluxo for explicitamente alterado para `updatePendingPayments: true`;
+- o webhook continua sendo a fonte principal para confirmar pagamento e inadimplência.
+
