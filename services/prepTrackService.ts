@@ -67,7 +67,7 @@ export const prepTrackService={
     await deleteDoc(doc(db,'prep_orders',orderId));
   },
   addService:async(order:PrepOrder,service:Omit<PrepService,'id'>):Promise<PrepOrder>=>{
-    const next:PrepOrder={...order,status:order.status==='triage'?'preparing':order.status,services:[...(order.services||[]),{...service,id:uid()}],updatedAt:new Date().toISOString()};
+    const next:PrepOrder={...order,status:'waiting_approval',services:[...(order.services||[]),{...service,id:uid()}],updatedAt:new Date().toISOString()};
     await enqueueWrite(order.id,()=>setDoc(doc(db,'prep_orders',order.id),stripUndefined(next),{merge:true}));
     return next;
   },
