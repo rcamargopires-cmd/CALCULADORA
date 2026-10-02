@@ -21,6 +21,7 @@ import ExecutiveInsights from './ExecutiveInsights';
 import MultiStorePanel from './MultiStorePanel';
 import AssetGuardPanel from './AssetGuardPanel';
 import PlanAccessBadge from './PlanAccessBadge';
+import CompanySubscriptionPanel from './CompanySubscriptionPanel';
 import MarketPresencePanel from './MarketPresencePanel';
 import PrepTrackPanel from './PrepTrackPanel';
 import FinanceModulePanel from './FinanceModulePanel';
@@ -208,6 +209,7 @@ const OperationalTools: React.FC = () => {
 
   return <>
     {role === 'admin' && <PlanAccessBadge company={activeCompany}/>} 
+    {isManager && <CompanySubscriptionPanel currentUser={user} company={activeCompany}/>} 
     {storeId && canCrm && <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {canReports && storeId && <ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isSeller && <SellerPrivacyGuard user={user}/>} 
