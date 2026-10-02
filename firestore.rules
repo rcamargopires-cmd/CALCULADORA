@@ -140,7 +140,16 @@ service cloud.firestore {
     function dataCompany(data) { return ('companyId' in data) ? data.companyId : 'abrao-reze'; }
     function dataStore(data) { return ('storeId' in data) ? data.storeId : 'outlet-sorocaba'; }
     function sameCompany(data) { return isActive() && dataCompany(data) == myCompany(); }
-    function sameStore(data) { return sameCompany(data) && dataStore(data) == myStore(); }
+    function sameStore(data) {
+      return sameCompany(data) && (
+        dataStore(data) == myStore() ||
+        (
+          profileExists() &&
+          ('storeIds' in profile()) &&
+          dataStore(data) in profile().storeIds
+        )
+      );
+    }
     function evaluatorSameStore(data) { return isEvaluator() && dataCompany(data) == myCompany() && dataStore(data) == myStore(); }
     function ownsDeal() { return resource.data.userId == request.auth.token.email || resource.data.userId == request.auth.uid; }
     function createsOwnDeal() { return request.resource.data.userId == request.auth.token.email || request.resource.data.userId == request.auth.uid; }
