@@ -4,6 +4,7 @@ import type {OperationalStockItem,User} from '../types';
 import {manualStockService} from '../services/manualStockService';
 import {auth} from '../firebase';
 import {marketIqVehicleCacheService} from '../services/marketIqVehicleCacheService';
+import {prepTrackService} from '../services/prepTrackService';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 type CatalogItem={code:string;name:string};
@@ -15,7 +16,7 @@ const localDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.ge
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 const numberValue=(value:string)=>Number(String(value||'').replace(/\./g,'').replace(',','.'))||0;
 const BRL=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(value||0);
-const emptyForm=():FormState=>({plate:'',brand:'',brandCode:'',vehicle:'',modelCode:'',year:'',yearCode:'',km:'',entryDate:localDate(),cost:'',fipe:'',askingPrice:'',location:'',status:'Disponível'});
+const emptyForm=():FormState=>({plate:'',brand:'',brandCode:'',vehicle:'',modelCode:'',year:'',yearCode:'',km:'',entryDate:localDate(),cost:'',fipe:'',askingPrice:'',location:'',status:'Em preparação'});
 
 const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})=>{
   const[open,setOpen]=useState(false);
@@ -245,7 +246,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
       yearCode:'',
       km:item.km?String(item.km):'',
       entryDate:item.entryDate||'',
-      cost:item.cost?String(item.cost):'',
+      cost:(item.purchaseCost??item.cost)?String(item.purchaseCost??item.cost):'',
       fipe:item.fipe?String(item.fipe):'',
       askingPrice:item.askingPrice?String(item.askingPrice):'',
       location:item.location||'',
@@ -274,6 +275,8 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
         brand:form.brand.trim(),
         stockDays:0,
         cost:numberValue(form.cost),
+        purchaseCost:numberValue(form.cost),
+        prepCost:originalPlate?undefined:0,
         fipe:numberValue(form.fipe),
         askingPrice:numberValue(form.askingPrice),
         year:form.year.trim(),
@@ -281,13 +284,31 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
         entryDate:form.entryDate||undefined,
         source:'manual',
         location:form.location.trim()||storeName,
-        status:form.status.trim()||'Disponível',
+        status:form.status.trim()||'Em preparação',
         companyId,
         storeId,
       };
-      const savedRows=await manualStockService.save(item,currentUser,storeId,companyId,originalPlate||undefined,rows);
+      let savedRows=await manualStockService.save(item,currentUser,storeId,companyId,originalPlate||undefined,rows);
+      if(!originalPlate){
+        try{
+          const order=await prepTrackService.ensureOrder({
+            plate,
+            vehicle:item.vehicle,
+            companyId,
+            storeId,
+            createdBy:currentUser.email,
+          });
+          savedRows=await manualStockService.syncPreparation(order,currentUser,storeId,companyId,savedRows);
+          window.dispatchEvent(new Event('dealmaster:prep-updated'));
+          setMessage({kind:'ok',text:'Veículo incluído no estoque e enviado automaticamente para preparação.'});
+        }catch(error){
+          console.warn('Motyq: não foi possível abrir a preparação automática.',error);
+          setMessage({kind:'ok',text:'Veículo incluído no estoque. A preparação automática não pôde ser aberta agora.'});
+        }
+      }else{
+        setMessage({kind:'ok',text:'Veículo atualizado no estoque.'});
+      }
       setRows([...savedRows].sort((a,b)=>Number(b.stockDays)-Number(a.stockDays)));
-      setMessage({kind:'ok',text:originalPlate?'Veículo atualizado no estoque.':'Veículo incluído no estoque.'});
       setForm(emptyForm());setOriginalPlate('');
       window.dispatchEvent(new Event('dealmaster:operational-data-updated'));
     }catch(error:any){setMessage({kind:'error',text:error?.message||'Não foi possível salvar o veículo.'});}
@@ -369,7 +390,7 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
               <Field label="KM" value={form.km} onChange={value=>setForm({...form,km:value})} type="number" placeholder="32000"/>
               <Field label="Data de entrada" value={form.entryDate} onChange={value=>setForm({...form,entryDate:value})} type="date"/>
               <Field label="Localização" value={form.location} onChange={value=>setForm({...form,location:value})} placeholder={storeName}/>
-              <Field label="Custo atual" value={form.cost} onChange={value=>setForm({...form,cost:value})} type="number" placeholder="85000"/>
+              <Field label="Custo de compra" value={form.cost} onChange={value=>setForm({...form,cost:value})} type="number" placeholder="85000"/>
               <label className="text-xs font-semibold !text-slate-600"><span>FIPE {fipeBusy&&<span className="ml-1 text-[10px] font-medium text-blue-600">consultando...</span>}</span><input type="number" value={form.fipe} onChange={e=>setForm({...form,fipe:e.target.value})} placeholder="Preenchida automaticamente" className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 !bg-white px-3 text-sm font-medium !text-slate-900 outline-none placeholder:!text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"/></label>
               <Field label="Preço de venda" value={form.askingPrice} onChange={value=>setForm({...form,askingPrice:value})} type="number" placeholder="96900"/>
               <label className="text-xs font-semibold text-slate-600"><span>Status</span><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><option>Disponível</option><option>Em preparação</option><option>Reservado</option><option>Em proposta</option><option>Bloqueado</option></select></label>
