@@ -1,6 +1,7 @@
 import { collection, doc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { PrepOrder, PrepPayable, PrepService, User, VehicleHistoryEvent, VehicleHistoryEventType } from '../types';
+import { dmsAuditService } from './dmsAuditService';
 
 const LEDGER='operational_meta';
 const safe=(value:string)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
@@ -84,6 +85,12 @@ export const prepFinanceService={
     await setDoc(doc(db,LEDGER,id),payable,{merge:true});
     const event=historyPayload(order,{...service,payableId:id},'prep_approved',`Preparação aprovada: ${service.type}`,actor,{payableId:id,details:`Fornecedor: ${payable.provider}`});
     await setDoc(doc(db,LEDGER,event.id),event,{merge:true});
+    await dmsAuditService.record({
+      companyId:order.companyId,storeId:order.storeId,entityType:'prep',
+      entityId:order.id,vehicleId:order.vehicleId,plate:cleanPlate(order.plate),
+      action:'prep_approved',label:`Preparação aprovada: ${service.type}`,
+      amount:payable.amount,actor,
+    }).catch(()=>undefined);
     announce();
     return payable;
   },
@@ -166,6 +173,12 @@ export const prepFinanceService={
     const order:PrepOrder={id:payable.orderId,vehicleId:payable.vehicleId,plate:payable.plate||'',vehicle:payable.vehicle||'',openedAt:payable.createdAt,updatedAt:stamp,status:'preparing',sold:false,destination:'showroom',services:[service],companyId:payable.companyId,storeId:payable.storeId};
     const event=historyPayload(order,service,'prep_paid',`Fornecedor pago: ${payable.serviceType}`,actor,{payableId:payable.id,amount:payable.amount,provider:payable.provider,details:[paymentMethod,paymentReference].filter(Boolean).join(' · ')});
     await setDoc(doc(db,LEDGER,event.id),event,{merge:true});
+    await dmsAuditService.record({
+      companyId:payable.companyId,storeId:payable.storeId,entityType:'finance',
+      entityId:payable.id,vehicleId:payable.vehicleId,plate:payable.plate,
+      action:'prep_supplier_paid',label:`Fornecedor pago: ${payable.provider}`,
+      amount:payable.amount,actor,
+    }).catch(()=>undefined);
     announce();
   },
 
