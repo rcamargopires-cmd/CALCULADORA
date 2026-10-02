@@ -6,6 +6,7 @@ import { dmsVehicleService } from './dmsVehicleService';
 import { currentStockService } from './currentStockService';
 import { financeService } from './financeService';
 import { vehiclePurchaseService } from './vehiclePurchaseService';
+import { canApproveOwn, canCancelSale } from './dmsFlowPolicy.mjs';
 import { dmsAuditService } from './dmsAuditService';
 import { configService } from './configService';
 import { calculateCommission } from '../utils/commission';
@@ -151,11 +152,8 @@ export const salesOrderService={
 
   approve:async(order:SalesOrder,actor:Pick<User,'email'|'name'|'role'>):Promise<SalesOrder>=>{
     if(order.status!=='draft')return order;
-    if(
-      actor.role!=='admin' &&
-      order.createdBy &&
-      String(order.createdBy).toLowerCase()===String(actor.email).toLowerCase()
-    )throw new Error('Quem criou a negociação não pode aprovar o próprio Pedido de Venda.');
+    if(!canApproveOwn({createdBy:order.createdBy,actorEmail:actor.email,actorRole:actor.role}))
+      throw new Error('Quem criou a negociação não pode aprovar o próprio Pedido de Venda.');
     const stamp=now();
     const receivableIds=[...(order.receivableIds||[])];
     if(order.cashEntry>0){
@@ -331,8 +329,10 @@ export const salesOrderService={
   },
 
   cancel:async(order:SalesOrder,actor:User,reason='Venda cancelada'):Promise<SalesOrder>=>{
-    if(order.status==='delivered')throw new Error('Venda entregue exige fluxo de devolução, não cancelamento simples.');
-    if(order.status==='cancelled')return order;
+    if(!canCancelSale(order.status)){
+      if(order.status==='cancelled')return order;
+      throw new Error('Venda entregue exige fluxo de devolução, não cancelamento simples.');
+    }
     const cleanReason=String(reason||'').trim()||'Venda cancelada';
 
     const allFinance=await financeService.getAll(order.companyId,order.storeId);
