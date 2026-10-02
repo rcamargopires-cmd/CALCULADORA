@@ -15,7 +15,7 @@ Configure no ambiente de produção:
 
 Cadastre no Asaas:
 
-`https://<dominio-producao>/api/billing-asaas`
+`https://<dominio-producao>/api/integrations`
 
 Eventos mínimos:
 
