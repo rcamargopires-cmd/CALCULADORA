@@ -149,8 +149,13 @@ export const salesOrderService={
     return order;
   },
 
-  approve:async(order:SalesOrder,actor:Pick<User,'email'|'name'>):Promise<SalesOrder>=>{
+  approve:async(order:SalesOrder,actor:Pick<User,'email'|'name'|'role'>):Promise<SalesOrder>=>{
     if(order.status!=='draft')return order;
+    if(
+      actor.role!=='admin' &&
+      order.createdBy &&
+      String(order.createdBy).toLowerCase()===String(actor.email).toLowerCase()
+    )throw new Error('Quem criou a negociação não pode aprovar o próprio Pedido de Venda.');
     const stamp=now();
     const receivableIds=[...(order.receivableIds||[])];
     if(order.cashEntry>0){
