@@ -37,6 +37,7 @@ import ManualStockPanel from './ManualStockPanel';
 import { dmsPermissions } from '../services/dmsPermissions';
 import DmsIntegrityPanel from './DmsIntegrityPanel';
 import DmsRoadmapPanel from './DmsRoadmapPanel';
+import VehicleDocumentsPanel from './VehicleDocumentsPanel';
 import VehiclePurchasePanel from './VehiclePurchasePanel';
 import SalesOrderPanel from './SalesOrderPanel';
 import MasterDataPanel from './MasterDataPanel';
@@ -225,6 +226,7 @@ const OperationalTools: React.FC = () => {
     {canFinance && storeId && <FinanceModulePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {permissions.diagnostics && storeId && <DmsIntegrityPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {permissions.diagnostics && <DmsRoadmapPanel/>} 
+    {isManager && storeId && <VehicleDocumentsPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <VehiclePurchasePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <SalesOrderPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <MasterDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
