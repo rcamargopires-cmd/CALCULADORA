@@ -17,6 +17,7 @@ import { billingSnapshot, defaultBilling, nextMonthlyDue } from '../services/bil
 import DmsPermissionEditor from './DmsPermissionEditor';
 import StoreAccessEditor from './StoreAccessEditor';
 import SaasOnboardingWizard from './SaasOnboardingWizard';
+import { asaasBillingService } from '../services/asaasBillingService';
 
 type Tab='companies'|'users';
 const planLabel:Record<CompanyPlan,string>={starter:'Starter',pro:'Pro',enterprise:'Enterprise'};
@@ -146,6 +147,31 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
   const updateBilling=async(company:Company,patch:Partial<NonNullable<Company['billing']>>)=>{
     const base=company.billing||defaultBilling();
     await updateCompany(company,{billing:{...base,...patch,updatedAt:new Date().toISOString()}});
+  };
+
+  const activateAsaas=async(company:Company)=>{
+    const document=window.prompt('CPF/CNPJ do responsável financeiro da empresa:','')?.trim()||'';
+    if(![11,14].includes(document.replace(/\D/g,'').length))return setError('Informe um CPF ou CNPJ válido para o Asaas.');
+    const email=window.prompt('E-mail financeiro para cobrança:','')?.trim()||'';
+    if(!email.includes('@'))return setError('Informe um e-mail financeiro válido.');
+    const phone=window.prompt('Celular financeiro com DDD (opcional):','')?.trim()||'';
+    const billing=company.billing||defaultBilling();
+    const nextDueDate=company.status==='trial'&&company.trialEndsAt&&new Date(company.trialEndsAt).getTime()>Date.now()
+      ?String(company.trialEndsAt).slice(0,10)
+      :(billing.nextDueAt||nextMonthlyDue(billing.dueDay||10));
+    setSaving(company.id);setError('');setMessage('');
+    try{
+      const result=await asaasBillingService.createSubscription({
+        company,
+        payer:{name:company.name,cpfCnpj:document,email,mobilePhone:phone},
+        amount:PLAN_META[company.plan].price,
+        nextDueDate,
+        billingType:'UNDEFINED',
+      });
+      setMessage(`${company.name}: cobrança recorrente Asaas ativada. Assinatura ${result.subscriptionId}.`);
+      await load();
+    }catch(cause:any){setError(cause?.message||'Não foi possível ativar a recorrência Asaas.');}
+    finally{setSaving('');}
   };
 
   const toggleBilling=async(company:Company)=>{
@@ -323,6 +349,8 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
                 <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Link de cobrança / portal</span><input type="url" value={billing.paymentUrl||''} onChange={e=>void updateBilling(company,{paymentUrl:e.target.value.trim()})} placeholder="https://..." className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs"/></label>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
+                {billing.provider==='asaas'&&!billing.externalSubscriptionId&&<button disabled={saving===company.id} onClick={()=>void activateAsaas(company)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-black text-white"><CreditCard size={13}/> ATIVAR RECORRÊNCIA ASAAS</button>}
+                {billing.provider==='asaas'&&billing.externalSubscriptionId&&<span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-[10px] font-black text-blue-700"><CheckCircle2 size={13}/> ASAAS ATIVO</span>}
                 <button disabled={saving===company.id} onClick={()=>void markPaid(company)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-[10px] font-black text-white"><CheckCircle2 size={13}/> MARCAR PAGO</button>
                 <button disabled={saving===company.id} onClick={()=>void extendGrace(company,3)} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-black text-amber-800"><CalendarClock size={13}/> +3 DIAS</button>
                 <button disabled={saving===company.id} onClick={()=>void toggleManualBlock(company)} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[10px] font-black ${billing.manualBlocked?'border-blue-200 bg-blue-50 text-blue-700':'border-red-200 bg-red-50 text-red-700'}`}><LockKeyhole size={13}/>{billing.manualBlocked?'REATIVAR +3 DIAS':'BLOQUEAR AGORA'}</button>
