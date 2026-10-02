@@ -78,6 +78,27 @@ const ensureManagementScope=(actor:any,targetCompany:string)=>{
 };
 
 const safeDocId=(value:any)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,120);
+const managerPermission=(actor:any,key:string,managementDefault:boolean)=>{
+  if(roleOf(actor)==='admin')return true;
+  if(roleOf(actor)!=='manager')return false;
+  const overrides=actor?.dmsPermissionOverrides&&typeof actor.dmsPermissionOverrides==='object'?actor.dmsPermissionOverrides:{};
+  if(typeof overrides?.[key]==='boolean')return overrides[key]===true;
+  const profile=String(actor?.dmsAccessProfile||'');
+  if(!profile)return true; // gestor legado
+  if(profile==='management')return managementDefault;
+  return false;
+};
+const userAudit=async(actor:any,target:any,action:string,label:string,details='')=>{
+  const companyId=companyOf(target)||companyOf(actor);
+  const storeId=String(target?.storeId||actor?.storeId||'outlet-sorocaba');
+  const at=new Date().toISOString();
+  const id=safeDocId(`audit_user_${companyId}_${emailOf(target?.email||target?.id)}_${Date.now()}`);
+  await motyqFirestore.patch('operational_meta',id,{
+    id,kind:'audit_event',companyId,storeId,entityType:'user',
+    entityId:emailOf(target?.email||target?.id),action,label,details,at,
+    actorEmail:emailOf(actor?.email),actorName:String(actor?.name||actor?.email||''),
+  }).catch(()=>undefined);
+};
 const sellerKeyOf=(value:any)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const uniqueEmails=(items:any[])=>Array.from(new Set(items.map(item=>emailOf(item)).filter(Boolean)));
 const zeroPerformanceSeller=(name:string)=>({
@@ -252,6 +273,7 @@ const handleUserManagement=async(req:any,res:any)=>{
     if(!actor)return res.status(401).json({error:'not_authenticated'});
     const actorRole=roleOf(actor);
     if(actorRole!=='admin'&&actorRole!=='manager')return res.status(403).json({error:'forbidden'});
+    if(actorRole==='manager'&&!managerPermission(actor,'usersManage',true))return res.status(403).json({error:'permission_forbidden'});
 
     if(req.method==='GET'){
       const requested=String(req.query?.companyId||'').trim();
@@ -277,6 +299,15 @@ const handleUserManagement=async(req:any,res:any)=>{
         }
       }
       const saved=await motyqFirestore.patch('users',input.email,input);
+      const beforeSummary=existing?JSON.stringify({
+        role:existing.role,status:existing.status,storeId:existing.storeId,
+        dmsAccessProfile:existing.dmsAccessProfile,dmsPermissionOverrides:existing.dmsPermissionOverrides||{}
+      }):'novo usuário';
+      const afterSummary=JSON.stringify({
+        role:input.role,status:input.status,storeId:input.storeId,
+        dmsAccessProfile:input.dmsAccessProfile,dmsPermissionOverrides:input.dmsPermissionOverrides||{}
+      });
+      await userAudit(actor,input,existing?'user_updated':'user_created',existing?'Usuário e permissões atualizados':'Usuário criado',`${beforeSummary} → ${afterSummary}`);
       if(input.role==='seller'||input.role==='user'){
         const context=await managementContext(actor,companyId);
         await reconcileOperationalSellers(companyId,context.users,context.stores);
@@ -294,6 +325,7 @@ const handleUserManagement=async(req:any,res:any)=>{
       if(!MANAGER_ALLOWED_ROLES.has(roleOf(target)))return res.status(403).json({error:'protected_user'});
     }
     await motyqFirestore.delete('users',targetEmail);
+    await userAudit(actor,target,'user_deleted','Usuário removido',JSON.stringify({role:target.role,storeId:target.storeId,status:target.status}));
     return res.status(200).json({ok:true});
   }catch(error:any){
     const status=Number(error?.status)||500;
