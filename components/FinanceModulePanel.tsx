@@ -222,7 +222,8 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
             <h3 className="mt-2 text-2xl font-semibold">Pagar, receber e enxergar o caixa da loja.</h3>
             <p className="mt-2 text-sm text-zinc-500">{storeName}. Preparações aprovadas entram automaticamente no contas a pagar.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {canCreate&&<button onClick={()=>setAccountOpen(true)} className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 text-xs font-bold text-zinc-200"><WalletCards size={15}/> CONTAS / CAIXAS</button>}
             {canCreate&&<button onClick={()=>{resetForm();setEntryOpen(true);}} className="flex h-10 items-center gap-2 rounded-xl bg-sky-400 px-4 text-xs font-bold text-sky-950"><Plus size={15}/> NOVO LANÇAMENTO</button>}
             <button onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-zinc-400"><X size={18}/></button>
           </div>
@@ -233,6 +234,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
             <TabButton active={tab==='payable'} onClick={()=>{setTab('payable');setSelectedId('');}} icon={<ArrowDownCircle size={15}/>} label="Contas a pagar" badge={payableOpen.length}/>
             <TabButton active={tab==='receivable'} onClick={()=>{setTab('receivable');setSelectedId('');}} icon={<ArrowUpCircle size={15}/>} label="Contas a receber" badge={receivableOpen.length}/>
             <TabButton active={tab==='cashflow'} onClick={()=>{setTab('cashflow');setSelectedId('');}} icon={<TrendingUp size={15}/>} label="Fluxo de caixa"/>
+            <TabButton active={tab==='dre'} onClick={()=>{setTab('dre');setSelectedId('');}} icon={<Landmark size={15}/>} label="DRE gerencial"/>
           </nav>
           {!canSettle&&<div className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-400/[.05] px-4 py-3 text-xs text-amber-200">Visão gerencial: você acompanha valores e vencimentos, mas a baixa financeira fica reservada ao perfil Financeiro/Caixa.</div>}
 
@@ -255,11 +257,17 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
               <Metric icon={<CircleDollarSign size={16}/>} label="Saldo realizado" value={money(realizedBalance)} note="entradas menos saídas" danger={realizedBalance<0}/>
               <Metric icon={<TrendingUp size={16}/>} label="Saldo projetado" value={money(projectedBalance)} note={`+${money(projectedIn)} · -${money(projectedOut)}`} danger={projectedBalance<0}/>
             </>}
+            {tab==='dre'&&<>
+              <Metric icon={<ArrowUpCircle size={16}/>} label="Receitas realizadas" value={money(dreRevenue)} note={month}/>
+              <Metric icon={<ArrowDownCircle size={16}/>} label="Despesas realizadas" value={money(dreExpense)} note={month}/>
+              <Metric icon={<CircleDollarSign size={16}/>} label="Resultado" value={money(dreResult)} note="receitas menos despesas" danger={dreResult<0}/>
+              <Metric icon={<TrendingUp size={16}/>} label="Margem" value={`${dreMargin.toFixed(1)}%`} note="resultado / receitas" danger={dreMargin<0}/>
+            </>}
           </section>
 
           {(message||error)&&<div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${error?'border-red-400/20 bg-red-400/[.05] text-red-300':'border-emerald-400/20 bg-emerald-400/[.05] text-emerald-300'}`}>{error||message}</div>}
 
-          {tab==='cashflow'?<CashFlowView month={month} setMonth={setMonth} entries={monthEntries}/>:<section className="mt-5 grid gap-4 lg:grid-cols-[.92fr_1.08fr]">
+          {tab==='cashflow'?<CashFlowView month={month} setMonth={setMonth} entries={monthEntries} accounts={accountBalances} totalAccountBalance={totalAccountBalance}/>:tab==='dre'?<DreView month={month} setMonth={setMonth} entries={monthEntries}/>:<section className="mt-5 grid gap-4 lg:grid-cols-[.92fr_1.08fr]">
             <div className="rounded-[24px] border border-white/10 bg-white/[.025] p-4">
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3">
                 <Search size={14} className="text-zinc-600"/>
@@ -296,6 +304,10 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
                 {selected.status==='pending'&&canSettle&&<div className="mt-5 rounded-2xl border border-sky-400/10 bg-sky-400/[.035] p-4">
                   <p className="text-xs font-semibold uppercase tracking-[.13em] text-sky-300">{selected.entryType==='payable'?'Baixar pagamento':'Baixar recebimento'}</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <select value={financeAccountId} onChange={e=>setFinanceAccountId(e.target.value)} className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white sm:col-span-2">
+                      <option value="">Selecione banco / caixa...</option>
+                      {accountBalances.map(account=><option key={account.accountId} value={account.accountId}>{account.accountType==='cash'?'Caixa':'Banco'} · {account.name} · {money(account.currentBalance)}</option>)}
+                    </select>
                     <select value={method} onChange={e=>setMethod(e.target.value)} className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white"><option>Pix</option><option>Transferência</option><option>Boleto</option><option>Dinheiro</option><option>Cartão</option><option>Outro</option></select>
                     <input value={reference} onChange={e=>setReference(e.target.value)} placeholder="Comprovante / referência" className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white outline-none"/>
                   </div>
@@ -304,10 +316,30 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
                 </div>}
                 {selected.status==='pending'&&!canSettle&&<div className="mt-5 rounded-2xl border border-amber-400/15 bg-amber-400/[.04] p-4 text-sm text-amber-200">Este lançamento aguarda o Financeiro/Caixa para realizar a baixa.</div>}
 
-                {isSettled(selected)&&<div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-400/[.04] p-4 text-sm text-emerald-300">{statusLabel(selected)} em {selected.settledAt?new Date(selected.settledAt).toLocaleString('pt-BR'):'—'}{selected.paymentMethod&&<span> · {selected.paymentMethod}</span>}{selected.paymentReference&&<span> · {selected.paymentReference}</span>}</div>}
+                {isSettled(selected)&&<div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-400/[.04] p-4 text-sm text-emerald-300">{statusLabel(selected)} em {selected.settledAt?new Date(selected.settledAt).toLocaleString('pt-BR'):'—'}{selected.paymentMethod&&<span> · {selected.paymentMethod}</span>}{selected.financeAccountId&&<span> · {accounts.find(account=>account.accountId===selected.financeAccountId)?.name||selected.financeAccountId}</span>}{selected.paymentReference&&<span> · {selected.paymentReference}</span>}</div>}
               </>}
             </div>
           </section>}
+        </div>
+      </div>
+    </div>}
+
+    {accountOpen&&canCreate&&<div className="fixed inset-0 z-[292] overflow-y-auto bg-black/75 p-4 backdrop-blur-sm" onClick={()=>setAccountOpen(false)}>
+      <div className="mx-auto my-8 w-full max-w-2xl rounded-[26px] border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onClick={event=>event.stopPropagation()}>
+        <div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.15em] text-sky-300">BANCOS E CAIXAS</p><h4 className="mt-1 text-xl font-semibold">Contas financeiras da unidade</h4></div><button onClick={()=>setAccountOpen(false)} className="grid h-9 w-9 place-items-center rounded-full bg-white/[.05] text-zinc-400"><X size={17}/></button></div>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          {accountBalances.map(account=><div key={account.accountId} className="rounded-2xl border border-white/10 bg-white/[.025] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-zinc-300">{account.accountType==='cash'?'CAIXA':'BANCO'} · {account.name}</p><p className="mt-1 text-[10px] text-zinc-600">{account.bankName||account.pixKey||'Conta da unidade'}</p></div><strong className="text-sm">{money(account.currentBalance)}</strong></div></div>)}
+          {!accountBalances.length&&<div className="sm:col-span-2 rounded-2xl border border-dashed border-white/10 p-5 text-center text-xs text-zinc-600">Nenhum banco ou caixa cadastrado.</div>}
+        </div>
+        <div className="mt-5 rounded-2xl border border-sky-400/10 bg-sky-400/[.035] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[.13em] text-sky-300">Nova conta / caixa</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <select value={accountType} onChange={e=>setAccountType(e.target.value as FinanceAccountType)} className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white"><option value="bank">Conta bancária</option><option value="cash">Caixa físico</option></select>
+            <input value={accountName} onChange={e=>setAccountName(e.target.value)} placeholder={accountType==='cash'?'Ex.: Caixa Loja':'Ex.: Bradesco Movimento'} className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white outline-none"/>
+            {accountType==='bank'&&<><input value={accountBank} onChange={e=>setAccountBank(e.target.value)} placeholder="Banco" className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white outline-none"/><input value={accountAgency} onChange={e=>setAccountAgency(e.target.value)} placeholder="Agência" className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white outline-none"/><input value={accountNumber} onChange={e=>setAccountNumber(e.target.value)} placeholder="Conta" className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white outline-none"/><input value={accountPix} onChange={e=>setAccountPix(e.target.value)} placeholder="Chave Pix" className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white outline-none"/></>}
+            <input type="number" value={openingBalance} onChange={e=>setOpeningBalance(e.target.value)} placeholder="Saldo inicial" className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white outline-none"/>
+          </div>
+          <button disabled={busy==='account'} onClick={()=>void createAccount()} className="mt-3 h-11 w-full rounded-xl bg-sky-400 text-sm font-bold text-sky-950 disabled:opacity-50">{busy==='account'?'SALVANDO...':'CADASTRAR CONTA / CAIXA'}</button>
         </div>
       </div>
     </div>}
@@ -349,12 +381,33 @@ const EntryRow=({entry,active,onClick}:{entry:FinanceEntry;active:boolean;onClic
   </button>;
 };
 
-const CashFlowView=({month,setMonth,entries}:{month:string;setMonth:(value:string)=>void;entries:FinanceEntry[]})=>{
+const CashFlowView=({month,setMonth,entries,accounts,totalAccountBalance}:{month:string;setMonth:(value:string)=>void;entries:FinanceEntry[];accounts:Array<FinanceAccount&{currentBalance:number}>;totalAccountBalance:number})=>{
   const ordered=[...entries].sort((a,b)=>entryDate(a).localeCompare(entryDate(b)));
   let running=0;
   return <section className="mt-5 rounded-[24px] border border-white/10 bg-white/[.025] p-4 md:p-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.13em] text-zinc-500">MOVIMENTO DO MÊS</p><h4 className="mt-1 text-lg font-semibold">Fluxo realizado + previsto</h4></div><input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"/></div>
+    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{accounts.map(account=><div key={account.accountId} className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-zinc-600">{account.accountType==='cash'?'Caixa':'Banco'} · {account.name}</p><p className="mt-1 text-lg font-semibold text-zinc-300">{money(account.currentBalance)}</p></div>)}<div className="rounded-xl border border-sky-400/10 bg-sky-400/[.04] p-3"><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-sky-500">Disponível nas contas</p><p className="mt-1 text-lg font-semibold text-sky-300">{money(totalAccountBalance)}</p></div></div>
     <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="border-b border-white/10 text-[10px] font-semibold uppercase tracking-[.1em] text-zinc-600"><tr><th className="p-3">Data</th><th className="p-3">Movimento</th><th className="p-3">Parte</th><th className="p-3">Status</th><th className="p-3 text-right">Entrada</th><th className="p-3 text-right">Saída</th><th className="p-3 text-right">Saldo acumulado</th></tr></thead><tbody>{ordered.map(entry=>{running+=entry.status==='cancelled'?0:entry.entryType==='receivable'?Number(entry.amount||0):-Number(entry.amount||0);return <tr key={entry.id} className="border-b border-white/5"><td className="p-3 text-zinc-500">{displayDate(entryDate(entry))}</td><td className="p-3"><p className="font-semibold text-zinc-300">{entry.description}</p>{entry.plate&&<p className="mt-1 font-mono text-[10px] text-zinc-600">{entry.plate}</p>}</td><td className="p-3 text-zinc-500">{entry.party}</td><td className="p-3 text-zinc-500">{statusLabel(entry)}</td><td className="p-3 text-right font-semibold text-emerald-300">{entry.entryType==='receivable'?money(entry.amount):'—'}</td><td className="p-3 text-right font-semibold text-red-300">{entry.entryType==='payable'?money(entry.amount):'—'}</td><td className={`p-3 text-right font-semibold ${running<0?'text-red-300':'text-zinc-300'}`}>{money(running)}</td></tr>})}{!ordered.length&&<tr><td colSpan={7} className="p-10 text-center text-zinc-600">Nenhum movimento neste mês.</td></tr>}</tbody></table></div>
+  </section>;
+};
+
+const DreView=({month,setMonth,entries}:{month:string;setMonth:(value:string)=>void;entries:FinanceEntry[]})=>{
+  const settled=entries.filter(isSettled);
+  const byCategory=new Map<string,{revenue:number;expense:number}>();
+  settled.forEach(entry=>{
+    const key=entry.category||'Outros';
+    const row=byCategory.get(key)||{revenue:0,expense:0};
+    if(entry.entryType==='receivable')row.revenue+=Number(entry.amount)||0;
+    else row.expense+=Number(entry.amount)||0;
+    byCategory.set(key,row);
+  });
+  const rows=Array.from(byCategory.entries()).map(([category,value])=>({category,...value,result:value.revenue-value.expense})).sort((a,b)=>Math.abs(b.result)-Math.abs(a.result));
+  const revenue=rows.reduce((sum,row)=>sum+row.revenue,0);
+  const expense=rows.reduce((sum,row)=>sum+row.expense,0);
+  const result=revenue-expense;
+  return <section className="mt-5 rounded-[24px] border border-white/10 bg-white/[.025] p-4 md:p-5">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.13em] text-zinc-500">DRE GERENCIAL</p><h4 className="mt-1 text-lg font-semibold">Receitas e despesas realizadas por categoria</h4><p className="mt-1 text-xs text-zinc-600">Visão gerencial baseada nas baixas financeiras do Motyq.</p></div><input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"/></div>
+    <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead className="border-b border-white/10 text-[10px] font-semibold uppercase tracking-[.1em] text-zinc-600"><tr><th className="p-3">Categoria</th><th className="p-3 text-right">Receitas</th><th className="p-3 text-right">Despesas</th><th className="p-3 text-right">Resultado</th></tr></thead><tbody>{rows.map(row=><tr key={row.category} className="border-b border-white/5"><td className="p-3 font-semibold text-zinc-300">{row.category}</td><td className="p-3 text-right text-emerald-300">{money(row.revenue)}</td><td className="p-3 text-right text-red-300">{money(row.expense)}</td><td className={`p-3 text-right font-semibold ${row.result<0?'text-red-300':'text-zinc-300'}`}>{money(row.result)}</td></tr>)}{!rows.length&&<tr><td colSpan={4} className="p-10 text-center text-zinc-600">Nenhuma baixa financeira neste mês.</td></tr>}<tr className="border-t border-white/10"><td className="p-3 font-bold text-white">RESULTADO</td><td className="p-3 text-right font-bold text-emerald-300">{money(revenue)}</td><td className="p-3 text-right font-bold text-red-300">{money(expense)}</td><td className={`p-3 text-right text-base font-bold ${result<0?'text-red-300':'text-emerald-300'}`}>{money(result)}</td></tr></tbody></table></div>
   </section>;
 };
 
