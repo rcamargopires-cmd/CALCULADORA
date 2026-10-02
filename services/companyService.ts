@@ -41,6 +41,10 @@ const normalizeBilling = (value: unknown): CompanyBilling | undefined => {
     ...(manualGraceUntil ? { manualGraceUntil } : {}),
     ...(raw.manualBlocked === true ? { manualBlocked: true } : {}),
     ...(lastPaidAt ? { lastPaidAt } : {}),
+    ...(['manual','asaas','stripe','mercadopago','other'].includes(String(raw.provider||'')) ? { provider: String(raw.provider) as CompanyBilling['provider'] } : {}),
+    ...(String(raw.paymentUrl||'').trim() ? { paymentUrl: String(raw.paymentUrl).trim() } : {}),
+    ...(String(raw.externalCustomerId||'').trim() ? { externalCustomerId: String(raw.externalCustomerId).trim() } : {}),
+    ...(String(raw.externalSubscriptionId||'').trim() ? { externalSubscriptionId: String(raw.externalSubscriptionId).trim() } : {}),
     ...(updatedAt ? { updatedAt } : {}),
   };
 };
