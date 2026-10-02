@@ -71,6 +71,7 @@ const normalizeCompanies = (raw: unknown): Company[] => {
       name: String(item?.name || '').trim(),
       plan: validPlan(item?.plan),
       status: item?.status === 'suspended' ? 'suspended' : item?.status === 'trial' ? 'trial' : 'active',
+      ...(item?.environment === 'demo' ? { environment: 'demo' as const } : item?.environment === 'production' ? { environment: 'production' as const } : {}),
       createdAt: String(item?.createdAt || new Date().toISOString()),
       ...(trialEndsAt ? { trialEndsAt } : {}),
       ...(billing ? { billing } : {}),
