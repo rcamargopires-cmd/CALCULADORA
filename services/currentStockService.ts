@@ -45,7 +45,7 @@ const updateMeta=async(items:OperationalStockItem[],companyId:string,storeId:str
     critical90:critical.length,critical90Value,updatedAt:serverTimestamp(),
   },{merge:true});
   await setDoc(doc(db,'operational_meta',currentMetaId(storeId)),{
-    companyId,storeId,latestStockDate:today,stockRows:active.length,stockValue,updatedAt:serverTimestamp(),
+    companyId,storeId,latestStockDate:today,stockRows:active.length,stockValue,canonicalStockVersion:3,updatedAt:serverTimestamp(),
   },{merge:true});
 };
 
@@ -119,10 +119,126 @@ const seedCanonical=async(items:OperationalStockItem[],companyId:string,storeId:
   await updateMeta(items,companyId,storeId);
 };
 
+const reconcileCanonicalV3=async(companyId:string,storeId:string)=>{
+  const meta=await getDoc(doc(db,'operational_meta',currentMetaId(storeId)));
+  if(Number(meta.data()?.canonicalStockVersion||0)>=3)return;
+
+  const scoped=await getDocs(query(
+    collection(db,'operational_stock'),
+    where('companyId','==',companyId),
+    where('storeId','==',storeId),
+  ));
+  const all=scoped.docs.map(item=>item.data() as OperationalStockItem);
+  if(!all.length)return;
+
+  const canonical=all.filter(item=>item.currentRecord===true);
+  const history=all.filter(item=>item.currentRecord!==true);
+
+  const importedHistory=history.filter(item=>item.source!=='manual');
+  const latestImportedDate=importedHistory
+    .map(item=>String(item.snapshotDate||'').slice(0,10))
+    .filter(Boolean)
+    .sort()
+    .at(-1)||'';
+
+  const target=new Map<string,OperationalStockItem>();
+  importedHistory
+    .filter(item=>String(item.snapshotDate||'').slice(0,10)===latestImportedDate)
+    .filter(item=>normalizedStatus(item.status)!=='saida')
+    .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)))
+    .forEach(item=>{
+      const plate=cleanPlate(item.plate);
+      if(plate)target.set(plate,{...item,source:'import'});
+    });
+
+  const canonicalManual=new Map<string,OperationalStockItem>();
+  canonical
+    .filter(item=>item.source==='manual')
+    .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)))
+    .forEach(item=>{
+      const plate=cleanPlate(item.plate);
+      if(plate)canonicalManual.set(plate,item);
+    });
+
+  const legacyManualByPlate=new Map<string,OperationalStockItem[]>();
+  history.filter(item=>item.source==='manual').forEach(item=>{
+    const plate=cleanPlate(item.plate);
+    if(!plate)return;
+    const list=legacyManualByPlate.get(plate)||[];
+    list.push(item);
+    legacyManualByPlate.set(plate,list);
+  });
+
+  const manualPlates=new Set<string>([
+    ...Array.from(canonicalManual.keys()),
+    ...Array.from(legacyManualByPlate.keys()),
+  ]);
+
+  manualPlates.forEach(plate=>{
+    const currentManual=canonicalManual.get(plate);
+    if(currentManual?.manualExitAt||currentManual?.manualActive===false){
+      target.delete(plate);
+      return;
+    }
+    if(currentManual&&isActive(currentManual)){
+      target.set(plate,currentManual);
+      return;
+    }
+
+    const historyRows=[...(legacyManualByPlate.get(plate)||[])]
+      .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)));
+    const newest=historyRows.at(-1);
+    if(!newest)return;
+    if(newest.manualExitAt){
+      target.delete(plate);
+      return;
+    }
+    const candidate=[...historyRows].reverse().find(item=>!item.manualExitAt);
+    if(!candidate)return;
+    target.set(plate,{
+      ...candidate,
+      source:'manual',
+      manualActive:true,
+      manualExitAt:'',
+      status:normalizedStatus(candidate.status)==='saida'?'Em preparação':(candidate.status||'Em preparação'),
+    });
+  });
+
+  const next=Array.from(target.values()).map(item=>normalizeItem(item,companyId,storeId));
+  const targetPlates=new Set(next.map(item=>cleanPlate(item.plate)));
+
+  for(const item of canonical){
+    const plate=cleanPlate(item.plate);
+    if(!plate||targetPlates.has(plate))continue;
+    await setDoc(doc(db,COLLECTION,docId(companyId,storeId,plate)),{
+      ...item,
+      currentRecord:true,
+      companyId,
+      storeId,
+      plate,
+      status:'Saída',
+      manualActive:false,
+      updatedAt:new Date().toISOString(),
+    },{merge:true});
+  }
+
+  for(const item of next){
+    await setDoc(doc(db,COLLECTION,item.id),{
+      ...item,
+      currentRecord:true,
+      updatedAt:new Date().toISOString(),
+    },{merge:true});
+  }
+
+  await updateMeta(next,companyId,storeId);
+  announce();
+};
+
 export const currentStockService={
   collectionName:COLLECTION,
 
   getCurrent:async(companyId:string,storeId:string):Promise<OperationalStockItem[]>=>{
+    await reconcileCanonicalV3(companyId,storeId);
     let rows=await readCanonical(companyId,storeId);
     if(!rows.length){
       const migrated=await deriveLegacy(companyId,storeId);
