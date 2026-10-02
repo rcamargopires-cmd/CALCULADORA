@@ -166,6 +166,33 @@ export type PrepOrderStatus='triage'|'preparing'|'waiting_approval'|'waiting_par
 export type PrepDestination='showroom'|'delivery';
 export type FinanceEntryType='payable'|'receivable';
 export type FinanceEntryStatus='pending'|'paid'|'received'|'cancelled';
+export type FinanceNature='revenue'|'expense'|'asset'|'liability';
+export interface FinanceChartAccount {
+  id:string;
+  kind:'finance_chart_account';
+  chartAccountId:string;
+  code:string;
+  name:string;
+  nature:FinanceNature;
+  active:boolean;
+  companyId:string;
+  storeId:string;
+  createdAt:string;
+  updatedAt:string;
+}
+export interface FinanceCostCenter {
+  id:string;
+  kind:'finance_cost_center';
+  costCenterId:string;
+  code:string;
+  name:string;
+  active:boolean;
+  companyId:string;
+  storeId:string;
+  createdAt:string;
+  updatedAt:string;
+}
+
 export type FinanceAccountType='bank'|'cash';
 export interface FinanceAccount {
   id:string;
@@ -201,6 +228,8 @@ export interface FinanceEntry {
   paymentMethod?:string;
   paymentReference?:string;
   financeAccountId?:string;
+  chartAccountId?:string;
+  costCenterId?:string;
   plate?:string;
   vehicle?:string;
   vehicleId?:string;
