@@ -1,7 +1,9 @@
-import { doc, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { CrmProposalSnapshot, CrmProposalStatus, ShowroomPassage, ShowroomPassageActivity } from '../types';
 import { salesOrderService } from './salesOrderService';
+import { dmsVehicleService } from './dmsVehicleService';
+import { currentStockService } from './currentStockService';
 
 export type ProposalInput=Pick<CrmProposalSnapshot,
   'vehicle'|'plate'|'year'|'km'|'location'|'stockPriceAtCreation'|'salePrice'|'discount'|
@@ -54,6 +56,21 @@ export const crmProposalService={
       throw new Error('O total das parcelas informadas é menor que o saldo a financiar. Revise a estimativa.');
     }
     const ref=doc(db,'showroom_passages',input.leadId);
+    const proposalPlate=String(p.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
+    if(!/^[A-Z0-9]{7}$/.test(proposalPlate))throw new Error('Selecione um veículo do estoque com placa válida para criar a proposta.');
+    const preSnap=await getDoc(ref);
+    if(!preSnap.exists())throw new Error('Cliente não encontrado.');
+    const preLead=preSnap.data() as ShowroomPassage;
+    let master=await dmsVehicleService.findByPlate(preLead.companyId,preLead.storeId,proposalPlate);
+    if(!master){
+      const current=await currentStockService.getCurrent(preLead.companyId,preLead.storeId);
+      const stockItem=current.find(item=>String(item.plate||'').toUpperCase()===proposalPlate);
+      if(stockItem){
+        await dmsVehicleService.syncFromStock(stockItem,preLead.companyId,preLead.storeId,input.actor);
+        master=await dmsVehicleService.findByPlate(preLead.companyId,preLead.storeId,proposalPlate);
+      }
+    }
+    if(!master)throw new Error('Este veículo não está no cadastro mestre da unidade. Atualize o estoque antes de criar a proposta.');
     const timestamp=new Date().toISOString();
     return runTransaction(db,async transaction=>{
       const snap=await transaction.get(ref);
@@ -70,7 +87,8 @@ export const crmProposalService={
       const row:CrmProposalSnapshot={
         id,version:(prior?.version||0)+1,status:'draft',
         vehicle:p.vehicle.trim().slice(0,180),
-        plate:String(p.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7),
+        vehicleId:master.vehicleId,
+        plate:proposalPlate,
         year:String(p.year||'').slice(0,24),
         km:amounts.km,
         location:String(p.location||'').slice(0,120),
