@@ -307,7 +307,9 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
       let savedRows=await manualStockService.save(item,currentUser,storeId,companyId,originalPlate||undefined,rows);
       if(!originalPlate){
         try{
+          const savedVehicle=savedRows.find(row=>cleanPlate(row.plate)===plate);
           const order=await prepTrackService.ensureOrder({
+            vehicleId:savedVehicle?.vehicleId,
             plate,
             vehicle:item.vehicle,
             companyId,
