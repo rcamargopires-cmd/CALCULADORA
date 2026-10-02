@@ -209,8 +209,8 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
       {id:'F10.08',label:'Cobrança recorrente automatizada',done:false},
       {id:'F10.09',label:'Portal do cliente para cobrança/plano',done:true},
       {id:'F10.10',label:'Onboarding guiado de nova loja',done:true},
-      {id:'F10.11',label:'Importador/migrador de dados de outro DMS',done:false},
-      {id:'F10.12',label:'Ambiente demo totalmente isolado',done:false},
+      {id:'F10.11',label:'Importador/migrador de dados de outro DMS',done:true},
+      {id:'F10.12',label:'Ambiente demo totalmente isolado',done:true},
     ],
   },
   {
@@ -218,7 +218,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
     title:'Fase 11 · Segurança, confiabilidade e operação',
     goal:'O sistema precisa ser confiável o bastante para carregar estoque, dinheiro e histórico real.',
     items:[
-      {id:'F11.01',label:'Testes automatizados dos fluxos críticos',done:false},
+      {id:'F11.01',label:'Testes automatizados dos fluxos críticos',done:true},
       {id:'F11.02',label:'CI com typecheck, build e testes a cada alteração',done:true},
       {id:'F11.03',label:'Regras Firestore versionadas e publicadas por ambiente',done:false},
       {id:'F11.04',label:'Índices Firestore versionados',done:true},
