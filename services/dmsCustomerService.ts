@@ -26,6 +26,10 @@ export const dmsCustomerService={
     phone?:string;
     email?:string;
     document?:string;
+    address?:string;
+    city?:string;
+    state?:string;
+    zipCode?:string;
     actor?:Pick<User,'email'|'name'>|null;
   }):Promise<CustomerMaster>=>{
     const phone=cleanPhone(input.phone);
@@ -47,6 +51,10 @@ export const dmsCustomerService={
       phone:phone||existing?.phone||'',
       email:email||existing?.email||'',
       document:String(input.document||existing?.document||'').replace(/\D/g,'').slice(0,14),
+      address:String(input.address||existing?.address||'').trim(),
+      city:String(input.city||existing?.city||'').trim(),
+      state:String(input.state||existing?.state||'').trim().toUpperCase().slice(0,2),
+      zipCode:String(input.zipCode||existing?.zipCode||'').replace(/\D/g,'').slice(0,8),
       createdAt:existing?.createdAt||stamp,
       updatedAt:stamp,
     };
@@ -58,6 +66,29 @@ export const dmsCustomerService={
         details:[next.name,next.phone,next.email].filter(Boolean).join(' · '),actor:input.actor,
       }).catch(()=>undefined);
     }
+    return next;
+  },
+
+  save:async(customer:CustomerMaster,actor?:Pick<User,'email'|'name'>|null):Promise<CustomerMaster>=>{
+    const next:CustomerMaster={
+      ...customer,
+      name:String(customer.name||'').trim(),
+      phone:cleanPhone(customer.phone),
+      email:cleanEmail(customer.email),
+      document:String(customer.document||'').replace(/\D/g,'').slice(0,14),
+      address:String(customer.address||'').trim(),
+      city:String(customer.city||'').trim(),
+      state:String(customer.state||'').trim().toUpperCase().slice(0,2),
+      zipCode:String(customer.zipCode||'').replace(/\D/g,'').slice(0,8),
+      updatedAt:now(),
+    };
+    if(!next.name)throw new Error('Informe o nome do cliente.');
+    await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
+    await dmsAuditService.record({
+      companyId:next.companyId,storeId:next.storeId,entityType:'customer',entityId:next.customerId,
+      action:'customer_master_updated',label:'Cadastro mestre de cliente atualizado',
+      details:[next.name,next.phone,next.email].filter(Boolean).join(' · '),actor,
+    }).catch(()=>undefined);
     return next;
   },
 };
