@@ -97,6 +97,14 @@ export const workshopService={
     complaint:string;promisedAt?:string;actor:Pick<User,'email'|'name'>;
   }):Promise<WorkshopOrder>=>{
     if(!input.vehicle.trim())throw new Error('Informe o veículo da OS.');
+    if(input.prepOrderId||input.afterSalesCaseId||input.appointmentId){
+      const existing=(await workshopService.listOrders(input.companyId,input.storeId)).find(order=>
+        (input.prepOrderId&&order.prepOrderId===input.prepOrderId) ||
+        (input.afterSalesCaseId&&order.afterSalesCaseId===input.afterSalesCaseId) ||
+        (input.appointmentId&&order.appointmentId===input.appointmentId)
+      );
+      if(existing)return existing;
+    }
     const stamp=now();
     const id=newId('workshop_order',input.companyId,input.storeId);
     const order:WorkshopOrder={
