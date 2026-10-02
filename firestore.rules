@@ -68,6 +68,26 @@ service cloud.firestore {
         ((data.origin == 'sale' || data.origin == 'commission') && canSales())
       );
     }
+    function attachmentReadAllowed(data) {
+      return ('entityType' in data) && (
+        (data.entityType == 'prep_service' && canPrepView()) ||
+        (data.entityType == 'finance_entry' && canFinanceView()) ||
+        (data.entityType == 'vehicle_document' && canDocuments()) ||
+        (data.entityType == 'sales_order' && canSales()) ||
+        (data.entityType == 'purchase' && canPurchases()) ||
+        (data.entityType == 'after_sales' && canAfterSales())
+      );
+    }
+    function attachmentWriteAllowed(data) {
+      return ('entityType' in data) && (
+        (data.entityType == 'prep_service' && (canPrepRequest() || canPrepApprove())) ||
+        (data.entityType == 'finance_entry' && (canFinanceCreate() || canFinanceSettle())) ||
+        (data.entityType == 'vehicle_document' && canDocuments()) ||
+        (data.entityType == 'sales_order' && canSales()) ||
+        (data.entityType == 'purchase' && canPurchases()) ||
+        (data.entityType == 'after_sales' && canAfterSales())
+      );
+    }
     function operationalReadAllowed(data) {
       return
         (opKind(data) == '' && (canReports() || canStockView())) ||
@@ -82,8 +102,10 @@ service cloud.firestore {
         (opKind(data) == 'customer_master' && (canCrm() || canSales())) ||
         (opKind(data) == 'supplier_master' && (canPrepView() || canPurchases() || canFinanceView() || canAfterSales())) ||
         (opKind(data) == 'vehicle_history' && (canPrepView() || canPurchases() || canSales() || canDocuments() || canAfterSales())) ||
+        (opKind(data) == 'dms_attachment' && attachmentReadAllowed(data)) ||
+        (opKind(data) in ['dms_error','dms_performance'] && canDiagnostics()) ||
         (opKind(data) == 'audit_event' && (canDiagnostics() || canUsersManage())) ||
-        (opKind(data) in ['dms_migration_report','dms_integrity_report'] && canDiagnostics());
+        (opKind(data) in ['dms_migration_report','dms_integrity_report','dms_migration_version'] && canDiagnostics());
     }
     function operationalCreateAllowed(data) {
       return
@@ -99,8 +121,10 @@ service cloud.firestore {
         (opKind(data) == 'customer_master' && (canCrm() || canSales())) ||
         (opKind(data) == 'supplier_master' && (canPrepRequest() || canPurchases() || canFinanceCreate() || canAfterSales())) ||
         (opKind(data) == 'vehicle_history' && (canPrepRequest() || canPrepApprove() || canPurchases() || canSales() || canDocuments() || canAfterSales())) ||
+        (opKind(data) == 'dms_attachment' && attachmentWriteAllowed(data)) ||
+        (opKind(data) in ['dms_error','dms_performance'] && isActive()) ||
         (opKind(data) == 'audit_event' && role() == 'manager') ||
-        (opKind(data) in ['dms_migration_report','dms_integrity_report'] && canDiagnostics());
+        (opKind(data) in ['dms_migration_report','dms_integrity_report','dms_migration_version'] && canDiagnostics());
     }
     function operationalUpdateAllowed(oldData, newData) {
       return
@@ -205,7 +229,8 @@ service cloud.firestore {
       allow create: if isAdmin() ||
         (canSales() && sameStore(request.resource.data)) ||
         (isSeller() && createsOwnDeal() && sameStore(request.resource.data));
-      allow update: if isAdmin() ||
+      allow update: if opKind(resource.data) != 'audit_event' && (
+        isAdmin() ||
         (canSales() && sameStore(resource.data) && sameStore(request.resource.data)) ||
         (isSeller() && ownsDeal() && createsOwnDeal() && sameStore(resource.data) && sameStore(request.resource.data));
       allow delete: if isAdmin();
@@ -366,9 +391,11 @@ service cloud.firestore {
           request.resource.data.kind == resource.data.kind &&
           request.resource.data.companyId == resource.data.companyId &&
           request.resource.data.storeId == resource.data.storeId
-        );
+        )
+      );
 
-      allow delete: if isAdmin() ||
+      allow delete: if opKind(resource.data) != 'audit_event' && (
+        isAdmin() ||
         (
           sameStore(resource.data) &&
           (
@@ -377,6 +404,7 @@ service cloud.firestore {
             (opKind(resource.data) == 'sales_order' && canSales()) ||
             (opKind(resource.data) == 'vehicle_document_case' && canDocuments()) ||
             (opKind(resource.data) == 'after_sales_case' && canAfterSales()) ||
+            (opKind(resource.data) == 'dms_attachment' && attachmentWriteAllowed(resource.data)) ||
             (opKind(resource.data) == 'supplier_master' && (canPurchases() || canFinanceCreate())) ||
             (opKind(resource.data) == 'customer_master' && canCrm())
           )
@@ -384,7 +412,8 @@ service cloud.firestore {
         (
           evaluatorSameStore(resource.data) && resource.data.kind == 'marketiq_media' &&
           ('createdByEmail' in resource.data) && resource.data.createdByEmail == request.auth.token.email
-        );
+        )
+      );
     }
 
     match /operational_imports/{itemId} {
