@@ -50,7 +50,7 @@ const SaasOnboardingWizard:React.FC<Props>=({open,onClose,currentUser,onComplete
       const managerUser:User={
         id:email,email,name:manager,role:'manager',status:'active',
         companyId,storeId,storeIds:[storeId],dmsAccessProfile:'management',
-        companyPlan:plan,companyStatus:'trial',companyBilling:company.billing,
+        companyPlan:plan,companyStatus:'trial',companyBilling:company.billing,companyFiscal:company.fiscal,
         createdAt:new Date().toISOString(),
       };
       await companyService.saveAll([...companies.filter(item=>item.id!==company.id),company]);
