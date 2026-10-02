@@ -1,4 +1,4 @@
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   Company, MarketPresenceItem, OperationalPerformanceSeller, OperationalSaleItem,
@@ -19,6 +19,7 @@ export const DEMO_COMPANY: Company = {
   name: 'Motyq Demo Motors',
   plan: 'enterprise',
   status: 'active',
+  environment:'demo',
   createdAt: '2026-08-01T00:00:00.000Z',
 };
 
@@ -28,6 +29,7 @@ export const DEMO_STORE: Store = {
   name: 'Motyq Demo Motors · Matriz',
   active: true,
   companyId: DEMO_COMPANY_ID,
+  environment:'demo',
 };
 
 const safeId = (value: string) => value
@@ -60,14 +62,14 @@ const daysAhead = (days:number, hour=10, minute=0) => {
 };
 
 const demoUsers: User[] = [
-  { id:'mariana.lopes@demo.motyq',email:'mariana.lopes@demo.motyq',name:'Mariana Lopes',role:'manager',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,companyPlan:'enterprise',companyStatus:'active' },
-  { id:'ana.costa@demo.motyq',email:'ana.costa@demo.motyq',name:'Ana Costa',role:'seller',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,companyPlan:'enterprise',companyStatus:'active',goals:{monthly:15,firstHalf:6,capture:60,margin:8} },
-  { id:'bruno.lima@demo.motyq',email:'bruno.lima@demo.motyq',name:'Bruno Lima',role:'seller',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,companyPlan:'enterprise',companyStatus:'active',goals:{monthly:15,firstHalf:6,capture:60,margin:8} },
-  { id:'carla.mendes@demo.motyq',email:'carla.mendes@demo.motyq',name:'Carla Mendes',role:'seller',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,companyPlan:'enterprise',companyStatus:'active',goals:{monthly:15,firstHalf:6,capture:60,margin:8} },
-  { id:'diego.rocha@demo.motyq',email:'diego.rocha@demo.motyq',name:'Diego Rocha',role:'seller',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,companyPlan:'enterprise',companyStatus:'active',goals:{monthly:15,firstHalf:6,capture:60,margin:8} },
-  { id:'julia.alves@demo.motyq',email:'julia.alves@demo.motyq',name:'Júlia Alves',role:'reception',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,companyPlan:'enterprise',companyStatus:'active' },
-  { id:'ricardo.nunes@demo.motyq',email:'ricardo.nunes@demo.motyq',name:'Ricardo Nunes',role:'evaluator',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,companyPlan:'enterprise',companyStatus:'active' },
-  { id:'rafael.martins@demo.motyq',email:'rafael.martins@demo.motyq',name:'Rafael Martins',role:'director',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,companyPlan:'enterprise',companyStatus:'active' },
+  { id:'mariana.lopes@demo.motyq',email:'mariana.lopes@demo.motyq',name:'Mariana Lopes',role:'manager',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,storeIds:[DEMO_STORE_ID],companyPlan:'enterprise',companyStatus:'active' },
+  { id:'ana.costa@demo.motyq',email:'ana.costa@demo.motyq',name:'Ana Costa',role:'seller',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,storeIds:[DEMO_STORE_ID],companyPlan:'enterprise',companyStatus:'active',goals:{monthly:15,firstHalf:6,capture:60,margin:8} },
+  { id:'bruno.lima@demo.motyq',email:'bruno.lima@demo.motyq',name:'Bruno Lima',role:'seller',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,storeIds:[DEMO_STORE_ID],companyPlan:'enterprise',companyStatus:'active',goals:{monthly:15,firstHalf:6,capture:60,margin:8} },
+  { id:'carla.mendes@demo.motyq',email:'carla.mendes@demo.motyq',name:'Carla Mendes',role:'seller',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,storeIds:[DEMO_STORE_ID],companyPlan:'enterprise',companyStatus:'active',goals:{monthly:15,firstHalf:6,capture:60,margin:8} },
+  { id:'diego.rocha@demo.motyq',email:'diego.rocha@demo.motyq',name:'Diego Rocha',role:'seller',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,storeIds:[DEMO_STORE_ID],companyPlan:'enterprise',companyStatus:'active',goals:{monthly:15,firstHalf:6,capture:60,margin:8} },
+  { id:'julia.alves@demo.motyq',email:'julia.alves@demo.motyq',name:'Júlia Alves',role:'reception',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,storeIds:[DEMO_STORE_ID],companyPlan:'enterprise',companyStatus:'active' },
+  { id:'ricardo.nunes@demo.motyq',email:'ricardo.nunes@demo.motyq',name:'Ricardo Nunes',role:'evaluator',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,storeIds:[DEMO_STORE_ID],companyPlan:'enterprise',companyStatus:'active' },
+  { id:'rafael.martins@demo.motyq',email:'rafael.martins@demo.motyq',name:'Rafael Martins',role:'director',status:'active',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,storeIds:[DEMO_STORE_ID],companyPlan:'enterprise',companyStatus:'active' },
 ];
 
 const seller = (
@@ -391,7 +393,45 @@ const seedTasks=async(currentUser:User)=>{
   },{merge:true})));
 };
 
+const scopedCollections=[
+  'operational_stock','operational_sales','market_presence','prep_orders','showroom_passages',
+  'showroom_queue','evaluation_requests','deals','operational_imports','operational_meta',
+] as const;
+
+const clearDemoData=async()=>{
+  for(const collectionName of scopedCollections){
+    let snap;
+    try{
+      snap=await getDocs(query(collection(db,collectionName),where('companyId','==',DEMO_COMPANY_ID)));
+    }catch{continue;}
+    const docs=snap.docs.filter(item=>{
+      const data=item.data() as any;
+      return !data.storeId||data.storeId===DEMO_STORE_ID;
+    });
+    for(let start=0;start<docs.length;start+=400){
+      const batch=writeBatch(db);
+      docs.slice(start,start+400).forEach(item=>batch.delete(item.ref));
+      await batch.commit();
+    }
+  }
+  try{
+    const users=await getDocs(query(collection(db,'users'),where('companyId','==',DEMO_COMPANY_ID)));
+    for(let start=0;start<users.docs.length;start+=400){
+      const batch=writeBatch(db);
+      users.docs.slice(start,start+400).forEach(item=>batch.delete(item.ref));
+      await batch.commit();
+    }
+  }catch{}
+  await deleteDoc(doc(db,'config',`group_stock_${safeId(DEMO_COMPANY_ID)}`)).catch(()=>undefined);
+};
+
 export const demoSeedService={
+  resetAndSeed:async(currentUser:User)=>{
+    if(currentUser.role!=='admin')throw new Error('Somente o administrador pode reiniciar o ambiente demo.');
+    await clearDemoData();
+    await demoSeedService.seed(currentUser);
+  },
+
   seed:async(currentUser:User)=>{
     if(currentUser.role!=='admin')throw new Error('Somente o administrador pode preparar o ambiente demo.');
     await seedCompaniesStoresUsers();
