@@ -98,8 +98,10 @@ const DmsIntegrityPanel:React.FC<Props>=({currentUser,companyId,storeId,storeNam
               <SummaryCard label="Estoque atual" value={report.stockCount} note={`${report.vehicleMasterCount} veículo(s) no mestre`} tone="neutral"/>
             </section>
 
-            <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <Mini label="Ordens PrepTrack" value={report.prepOrderCount}/>
+              <Mini label="Compras" value={report.purchaseCount}/>
+              <Mini label="Pedidos de Venda" value={report.salesOrderCount}/>
               <Mini label="Lançamentos financeiros" value={report.financeEntryCount}/>
               <Mini label="Fornecedores mestre" value={report.supplierCount}/>
               <Mini label="Clientes mestre" value={report.customerCount}/>
