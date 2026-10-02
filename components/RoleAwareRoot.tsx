@@ -37,12 +37,14 @@ import BillingGate from './BillingGate';
 import { ADMIN_HOME_SCOPE, COMPANY_SCOPE_EVENT, companyScopeService } from '../services/companyScopeService';
 import { CurrentStockProvider } from '../contexts/CurrentStockContext';
 import DmsRoleHome from './DmsRoleHome';
+import { dmsPermissions } from '../services/dmsPermissions';
 
 const Safe = ({ name, children }: { name: string; children: React.ReactNode }) => (
   <ModuleErrorBoundary name={name}>{children}</ModuleErrorBoundary>
 );
 
 const StandardMotyq = ({ user }: { user: User | null }) => {
+  const permissions=dmsPermissions(user);
   const restrictedDms = user?.role==='manager' && ['preparation','finance'].includes(String(user.dmsAccessProfile||''));
   if(restrictedDms&&user){
     return <CurrentStockProvider user={user}>
@@ -57,15 +59,15 @@ const StandardMotyq = ({ user }: { user: User | null }) => {
     <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
     {user && ['seller', 'user'].includes(String(user.role)) && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
     <Safe name="OperationalTools"><OperationalTools /></Safe>
-    <Safe name="TradeCheckShell"><TradeCheckShell /></Safe>
-    <Safe name="MarketPresenceCorrectionShell"><MarketPresenceCorrectionShell /></Safe>
+    {permissions.evaluationsView&&<Safe name="TradeCheckShell"><TradeCheckShell /></Safe>}
+    {permissions.stockView&&<Safe name="MarketPresenceCorrectionShell"><MarketPresenceCorrectionShell /></Safe>}
     <Safe name="UnifiedStockAuditNotice"><UnifiedStockAuditNotice /></Safe>
     <Safe name="EnvironmentHeaderBadge"><EnvironmentHeaderBadge /></Safe>
     <Safe name="SellerShowroomSoundAlert"><SellerShowroomSoundAlert /></Safe>
     <Safe name="ShowroomDealLinkBridge"><ShowroomDealLinkBridge /></Safe>
-    <Safe name="GroupStockModule"><GroupStockModule /></Safe>
-    <Safe name="GroupStockHostRepair"><GroupStockHostRepair /></Safe>
-    <Safe name="ManagerShowroomProposalsShell"><ManagerShowroomProposalsShell /></Safe>
+    {permissions.stockView&&<Safe name="GroupStockModule"><GroupStockModule /></Safe>}
+    {permissions.stockView&&<Safe name="GroupStockHostRepair"><GroupStockHostRepair /></Safe>}
+    {permissions.proposalsView&&<Safe name="ManagerShowroomProposalsShell"><ManagerShowroomProposalsShell /></Safe>}
     <Safe name="SellerShowroomAutoReset"><SellerShowroomAutoReset /></Safe>
     {user && ['seller', 'user'].includes(String(user.role)) && <>
       <Safe name="SellerAgendaDock"><SellerAgendaDock /></Safe>
@@ -76,12 +78,14 @@ const StandardMotyq = ({ user }: { user: User | null }) => {
     </>}
     {user && ['manager', 'admin'].includes(String(user.role)) &&
       <Safe name="ManagerShowroomHistory"><ManagerShowroomHistory user={user}/></Safe>}
-    <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
-    <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
-    <Safe name="MarketIQShell"><MarketIQShell /></Safe>
-    {user && <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>}
-    <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
-    <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
+    {permissions.evaluationsView&&<>
+      <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
+      <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
+      <Safe name="MarketIQShell"><MarketIQShell /></Safe>
+      {user && <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>}
+      <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
+      <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
+    </>}
   </CurrentStockProvider>;
 };
 
