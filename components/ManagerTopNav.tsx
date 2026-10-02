@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, CarFront, CircleDollarSign, ClipboardCheck, FileClock, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
+import { Banknote, CarFront, CircleDollarSign, ClipboardCheck, FileCheck2, FileClock, HeartHandshake, ListTodo, ShieldCheck, ShoppingCart, UsersRound, Wrench } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
