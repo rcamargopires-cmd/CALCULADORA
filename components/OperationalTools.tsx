@@ -76,10 +76,10 @@ const OperationalTools: React.FC = () => {
       const companySnapshot = companySnapshotForUser(profile);
       const context = await userService.getManagementContext(profile, resolvedCompany);
       const companyStores = (context.stores || []).filter(store => store.active && storeCompanyId(store) === resolvedCompany);
-      const preferredStore = storeIdForUser(profile);
+      const preferredStore = storeScopeService.get(profile);
       const resolvedStore = companyStores.some(store => store.id === preferredStore)
         ? preferredStore
-        : companyStores[0]?.id || preferredStore;
+        : companyStores[0]?.id || storeIdForUser(profile);
       companyScopeService.set(resolvedCompany);
       if (resolvedStore) storeScopeService.set(resolvedStore);
       setCompanyId(resolvedCompany);
