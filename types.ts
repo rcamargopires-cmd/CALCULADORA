@@ -54,7 +54,7 @@ export type DealMasterModule =
   | 'groupOverview'
   | 'dmsConnect';
 
-export interface Company { id:string; slug:string; name:string; plan:CompanyPlan; status:CompanyStatus; environment?:'production'|'demo'; createdAt?:string; trialEndsAt?:string; billing?:CompanyBilling; moduleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
+export interface Company { id:string; slug:string; name:string; plan:CompanyPlan; status:CompanyStatus; environment?:'production'|'demo'; createdAt?:string; trialEndsAt?:string; billing?:CompanyBilling; fiscal?:{enabled:boolean;provider:FiscalProvider;environment:'homologacao'|'producao';updatedAt?:string}; moduleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 export interface Store { id:string; code:string; name:string; active:boolean; companyId?:string; environment?:'production'|'demo'; }
 export interface SellerGoals { monthly:number; firstHalf:number; capture:number; margin:number; }
 export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; storeIds?:string[]; companyId?:string; companyName?:string; dmsAccessProfile?:DmsAccessProfile; dmsPermissionOverrides?:Partial<Record<DmsPermissionKey,boolean>>; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
@@ -411,7 +411,7 @@ export interface VehicleHistoryEvent {
   orderId?:string; serviceId?:string; payableId?:string; companyId:string; storeId:string;
 }
 
-export type FiscalProvider='manual'|'nuvem_fiscal'|'other';
+export type FiscalProvider='manual'|'focus_nfe'|'nuvem_fiscal'|'other';
 export type FiscalDocumentStatus='draft'|'pending'|'authorized'|'rejected'|'cancelled'|'error';
 export interface FiscalInvoiceRecord {
   id:string;
@@ -432,6 +432,9 @@ export interface FiscalInvoiceRecord {
   protocol?:string;
   total:number;
   messages?:Array<{code?:string;message:string}>;
+  danfeUrl?:string;
+  xmlUrl?:string;
+  providerPayload?:Record<string,unknown>;
   requestedAt?:string;
   authorizedAt?:string;
   updatedAt:string;
@@ -498,6 +501,8 @@ export interface SalesOrder {
   fiscalStatus?:FiscalDocumentStatus;
   fiscalAccessKey?:string;
   fiscalExternalId?:string;
+  fiscalDanfeUrl?:string;
+  fiscalXmlUrl?:string;
   deliveryDate?:string;
   deliveryChecklist:SalesDeliveryChecklist;
   deliveredBy?:string;
