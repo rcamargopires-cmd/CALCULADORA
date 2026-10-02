@@ -149,7 +149,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
       {id:'F7.11',label:'Centros de custo',done:false},
       {id:'F7.12',label:'DRE gerencial',done:true},
       {id:'F7.13',label:'Comissões a pagar',done:true},
-      {id:'F7.14',label:'Recebíveis de bancos/financiamento',done:false},
+      {id:'F7.14',label:'Recebíveis de bancos/financiamento',done:true},
       {id:'F7.15',label:'Anexo de comprovantes e documentos financeiros',done:false},
       {id:'F7.16',label:'Estorno de baixa com aprovação e auditoria',done:false},
       {id:'F7.17',label:'Aging de contas e alertas de vencimento',done:false},
