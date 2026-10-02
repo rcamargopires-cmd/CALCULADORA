@@ -40,6 +40,38 @@ export interface MarketPresenceItem { id:string; referenceDate:string; plate:str
 export type PrepServiceStatus='pending'|'approved'|'in_service'|'waiting_part'|'done'|'cancelled';
 export type PrepOrderStatus='triage'|'preparing'|'waiting_approval'|'waiting_part'|'ready'|'showroom'|'delivery'|'delivered';
 export type PrepDestination='showroom'|'delivery';
+export type FinanceEntryType='payable'|'receivable';
+export type FinanceEntryStatus='pending'|'paid'|'received'|'cancelled';
+export type FinanceOrigin='prep'|'manual'|'sale'|'other';
+export interface FinanceEntry {
+  id:string;
+  kind:'finance_entry';
+  entryType:FinanceEntryType;
+  status:FinanceEntryStatus;
+  category:string;
+  description:string;
+  party:string;
+  amount:number;
+  dueDate?:string;
+  competenceDate?:string;
+  settledAt?:string;
+  paymentMethod?:string;
+  paymentReference?:string;
+  plate?:string;
+  vehicle?:string;
+  origin:FinanceOrigin;
+  originId?:string;
+  companyId:string;
+  storeId:string;
+  createdAt:string;
+  updatedAt:string;
+  createdBy?:string;
+  createdByName?:string;
+  approvedBy?:string;
+  approvedByName?:string;
+  approvedAt?:string;
+}
+
 export type PrepPayableStatus='pending'|'paid'|'cancelled';
 export type VehicleHistoryEventType='prep_requested'|'prep_approved'|'prep_paid'|'prep_completed'|'prep_cancelled';
 export interface PrepService {
@@ -50,12 +82,21 @@ export interface PrepService {
   payableId?:string;
 }
 export interface PrepOrder { id:string; plate:string; vehicle:string; openedAt:string; updatedAt:string; completedAt?:string; status:PrepOrderStatus; sold:boolean; destination:PrepDestination; services:PrepService[]; notes?:string; createdBy?:string; storeId:string; companyId:string; }
-export interface PrepPayable {
-  id:string; orderId:string; serviceId:string; plate:string; vehicle:string; serviceType:string; provider:string;
-  amount:number; dueAt?:string; status:PrepPayableStatus;
-  requestedBy?:string; requestedByName?:string; approvedBy?:string; approvedByName?:string; approvedAt:string;
-  paidAt?:string; paidBy?:string; paidByName?:string; paymentMethod?:string; paymentReference?:string;
-  companyId:string; storeId:string; createdAt:string; updatedAt:string;
+export interface PrepPayable extends FinanceEntry {
+  entryType:'payable';
+  status:PrepPayableStatus;
+  origin:'prep';
+  orderId:string;
+  serviceId:string;
+  serviceType:string;
+  provider:string;
+  dueAt?:string;
+  requestedBy?:string;
+  requestedByName?:string;
+  approvedAt:string;
+  paidAt?:string;
+  paidBy?:string;
+  paidByName?:string;
 }
 export interface VehicleHistoryEvent {
   id:string; plate:string; vehicle:string; type:VehicleHistoryEventType; label:string; details?:string;
