@@ -271,7 +271,7 @@ const signalToneClasses = {
   positive: 'border-emerald-500/20 bg-emerald-500/[0.06]',
 };
 
-const SignalCard = ({ signal }: { signal: ManagerAiSignal }) => (
+const SignalCard = ({ signal }: { key?: React.Key; signal: ManagerAiSignal }) => (
   <div className={`rounded-[22px] border p-4 ${signalToneClasses[signal.tone]}`}>
     <div className="flex gap-3">
       <div className={`mt-0.5 ${signal.tone === 'critical' ? 'text-red-300' : signal.tone === 'attention' ? 'text-amber-300' : 'text-emerald-300'}`}>
