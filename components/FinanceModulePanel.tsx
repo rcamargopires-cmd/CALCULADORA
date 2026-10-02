@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDownCircle, ArrowUpCircle, Banknote, CalendarDays, CheckCircle2, CircleDollarSign, Landmark, Plus, Search, TrendingUp, WalletCards, X } from 'lucide-react';
-import type { FinanceAccount, FinanceAccountType, FinanceChartAccount, FinanceCostCenter, FinanceEntry, FinanceEntryType, User } from '../types';
+import type { FinanceAccount, FinanceAccountType, FinanceChartAccount, FinanceCostCenter, FinanceEntry, FinanceEntryType, FinanceReversalRequest, User } from '../types';
 import { financeService } from '../services/financeService';
 import { prepFinanceService } from '../services/prepFinanceService';
 import { dmsPermissions } from '../services/dmsPermissions';
@@ -35,9 +35,11 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
   const permissions=dmsPermissions(currentUser);
   const canCreate=permissions.financeCreate;
   const canSettle=permissions.financeSettle;
+  const canApproveReversal=permissions.management;
   const[open,setOpen]=useState(false);
   const[tab,setTab]=useState<Tab>('payable');
   const[items,setItems]=useState<FinanceEntry[]>([]);
+  const[reversalRequests,setReversalRequests]=useState<FinanceReversalRequest[]>([]);
   const[accounts,setAccounts]=useState<FinanceAccount[]>([]);
   const[chartAccounts,setChartAccounts]=useState<FinanceChartAccount[]>([]);
   const[costCenters,setCostCenters]=useState<FinanceCostCenter[]>([]);
@@ -79,6 +81,15 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
       storeId,
       next=>{setItems(next);setError('');},
       cause=>setError(String((cause as any)?.message||'Não foi possível carregar o financeiro.')),
+    );
+  },[open,companyId,storeId]);
+
+  useEffect(()=>{
+    if(!open)return;
+    return financeService.subscribeReversalRequests(
+      companyId,storeId,
+      next=>setReversalRequests(next),
+      cause=>console.warn('Motyq: solicitações de estorno indisponíveis.',cause),
     );
   },[open,companyId,storeId]);
 
@@ -254,6 +265,32 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
     }catch(cause:any){setError(cause?.message||'Não foi possível cancelar o lançamento.');}
     finally{setBusy('');}
   };
+
+  const requestReversal=async()=>{
+    if(!selected||!canSettle||!isSettled(selected))return;
+    const reason=window.prompt('Motivo do estorno desta baixa:','')?.trim()||'';
+    if(!reason)return;
+    setBusy('reversal-'+selected.id);setError('');setMessage('');
+    try{
+      await financeService.requestReversal(selected,currentUser,reason);
+      setMessage('Pedido de estorno enviado ao gestor para aprovação.');
+    }catch(cause:any){setError(cause?.message||'Não foi possível solicitar o estorno.');}
+    finally{setBusy('');}
+  };
+
+  const decideReversal=async(request:FinanceReversalRequest,approved:boolean)=>{
+    if(!canApproveReversal)return;
+    const note=approved?'':window.prompt('Motivo da rejeição do estorno:','')?.trim()||'';
+    if(!approved&&!note)return;
+    setBusy('reversal-decision-'+request.id);setError('');setMessage('');
+    try{
+      await financeService.decideReversal(request,approved,currentUser,note);
+      setMessage(approved?'Estorno aprovado e baixa revertida.':'Pedido de estorno rejeitado.');
+    }catch(cause:any){setError(cause?.message||'Não foi possível decidir o estorno.');}
+    finally{setBusy('');}
+  };
+
+  const pendingReversals=reversalRequests.filter(item=>item.status==='pending');
 
   const title=tab==='payable'?'Contas a pagar':tab==='receivable'?'Contas a receber':tab==='cashflow'?'Fluxo de caixa':'DRE gerencial';
 
