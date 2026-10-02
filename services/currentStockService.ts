@@ -4,7 +4,7 @@ import type { OperationalStockItem, User } from '../types';
 import { DEFAULT_COMPANY_ID } from './companyService';
 import { DEFAULT_STORE_ID } from './storeService';
 
-const COLLECTION='operational_current_stock';
+const COLLECTION='operational_stock';
 const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const safeId=(value:string)=>value.replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
 const localDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
@@ -27,6 +27,7 @@ const normalizeItem=(item:OperationalStockItem,companyId:string,storeId:string):
     companyId,
     storeId,
     snapshotDate:String(item.snapshotDate||localDate()).slice(0,10),
+    currentRecord:true,
     updatedAt:item.updatedAt||new Date().toISOString(),
   };
 };
@@ -53,7 +54,9 @@ const readCanonical=async(companyId:string,storeId:string)=>{
     where('companyId','==',companyId),
     where('storeId','==',storeId),
   ));
-  return snap.docs.map(item=>item.data() as OperationalStockItem);
+  return snap.docs
+    .map(item=>item.data() as OperationalStockItem)
+    .filter(item=>item.currentRecord===true);
 };
 
 const deriveLegacy=async(companyId:string,storeId:string):Promise<OperationalStockItem[]>=>{
@@ -62,13 +65,14 @@ const deriveLegacy=async(companyId:string,storeId:string):Promise<OperationalSto
     where('companyId','==',companyId),
     where('storeId','==',storeId),
   ));
-  let all=scoped.docs.map(item=>item.data() as OperationalStockItem);
+  let all=scoped.docs.map(item=>item.data() as OperationalStockItem).filter(item=>item.currentRecord!==true);
 
   if(!all.length&&companyId===DEFAULT_COMPANY_ID&&storeId===DEFAULT_STORE_ID){
     try{
       const legacy=await getDocs(collection(db,'operational_stock'));
       all=legacy.docs
         .map(item=>item.data() as OperationalStockItem)
+        .filter(item=>item.currentRecord!==true)
         .filter(item=>belongsToCompany(item,companyId)&&belongsToStore(item,storeId));
     }catch{}
   }
