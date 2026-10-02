@@ -12,6 +12,7 @@ const diffDays=(from:string,to:string)=>Math.max(0,Math.round((asDate(to).getTim
 const cleanPlate=(value:string)=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 const currentId=(storeId:string)=>`current_${safeId(storeId)}`;
 const stockSummaryId=(storeId:string,date:string)=>`stock_summary_${safeId(storeId)}_${safeId(date)}`;
+const manualDocId=(tenant:string,storeId:string,plate:string)=>`manual_${safeId(tenant)}_${safeId(storeId)}_${safeId(plate)}`;
 
 const rollToToday=(item:OperationalStockItem,today:string):OperationalStockItem=>{
   const plate=cleanPlate(item.plate);
@@ -40,15 +41,18 @@ const persist=async(items:OperationalStockItem[],user:User|undefined,storeId:str
   const finalRows=Array.from(unique.values());
 
   for(const item of finalRows){
+    const isManual=item.source==='manual';
+    const docId=isManual?manualDocId(tenant,storeId,item.plate):safeId(`${tenant}_${storeId}_${today}_${item.plate}`);
     const next:OperationalStockItem={
       ...item,
-      id:safeId(`${tenant}_${storeId}_${today}_${item.plate}`),
+      id:docId,
       snapshotDate:today,
       companyId:tenant,
       storeId,
+      ...(isManual?{manualActive:true,manualExitAt:''}:{}),
       updatedAt:new Date().toISOString(),
     };
-    await setDoc(doc(db,'operational_stock',next.id),next,{merge:true});
+    await setDoc(doc(db,'operational_stock',docId),next,{merge:true});
   }
 
   const stockValue=finalRows.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
@@ -112,6 +116,7 @@ export const manualStockService={
       prepCost,
       cost:purchaseCost+prepCost,
       source:item.source||'manual',
+      manualActive:true,
       manualExitAt:'',
     });
     return persist(next,user,storeId,tenant,originalPlate?'veículo editado':'veículo incluído');
@@ -140,7 +145,7 @@ export const manualStockService={
       ));
       const history=scoped.docs
         .map(item=>item.data() as OperationalStockItem)
-        .filter(item=>cleanPlate(item.plate)===plate&&!item.manualExitAt)
+        .filter(item=>cleanPlate(item.plate)===plate&&!item.manualExitAt&&item.manualActive!==false)
         .sort((a,b)=>String(b.snapshotDate||'').localeCompare(String(a.snapshotDate||'')));
       if(history.length){
         existing=rollToToday(history[0],today);
@@ -161,9 +166,11 @@ export const manualStockService={
         ? 'Disponível'
         : 'Em preparação';
 
+    const isManual=existing.source==='manual';
+    const targetId=isManual?manualDocId(tenant,storeId,plate):safeId(`${tenant}_${storeId}_${today}_${plate}`);
     const nextItem:OperationalStockItem={
       ...existing,
-      id:safeId(`${tenant}_${storeId}_${today}_${plate}`),
+      id:targetId,
       snapshotDate:today,
       plate,
       purchaseCost,
@@ -172,12 +179,13 @@ export const manualStockService={
       status,
       companyId:tenant,
       storeId,
+      ...(isManual?{manualActive:true,manualExitAt:''}:{}),
       updatedAt:new Date().toISOString(),
     };
 
     // Preparação atualiza somente o veículo alvo. Nunca regrava o snapshot inteiro,
     // evitando que uma leitura parcial remova outros carros do estoque.
-    await setDoc(doc(db,'operational_stock',nextItem.id),nextItem,{merge:true});
+    await setDoc(doc(db,'operational_stock',targetId),nextItem,{merge:true});
 
     const next=[
       ...current.filter(row=>cleanPlate(row.plate)!==plate),
@@ -197,6 +205,78 @@ export const manualStockService={
     },{merge:true});
 
     return next.sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
+  },
+
+  recoverPlate:async(
+    plate:string,
+    user:User|undefined,
+    storeId:string,
+    companyId=companyScopeService.get(),
+    currentRows?:OperationalStockItem[],
+  ):Promise<OperationalStockItem[]|null>=>{
+    const tenant=companyId||DEFAULT_COMPANY_ID;
+    const target=cleanPlate(plate);
+    if(!/^[A-Z0-9]{7}$/.test(target))return null;
+
+    const current=Array.isArray(currentRows)
+      ? currentRows.map(row=>rollToToday(row,localDate()))
+      : await manualStockService.getCurrent(storeId,tenant);
+    if(current.some(row=>cleanPlate(row.plate)===target))return current;
+
+    const scoped=await getDocs(query(
+      collection(db,'operational_stock'),
+      where('companyId','==',tenant),
+      where('storeId','==',storeId),
+    ));
+    const history=scoped.docs
+      .map(item=>item.data() as OperationalStockItem)
+      .filter(item=>cleanPlate(item.plate)===target&&item.source==='manual'&&!item.manualExitAt&&item.manualActive!==false)
+      .sort((a,b)=>`${String(b.snapshotDate||'')}|${String(b.updatedAt||'')}`.localeCompare(`${String(a.snapshotDate||'')}|${String(a.updatedAt||'')}`));
+    if(!history.length)return null;
+
+    const today=localDate();
+    const base=rollToToday(history[0],today);
+    const recovered:OperationalStockItem={
+      ...base,
+      id:manualDocId(tenant,storeId,target),
+      snapshotDate:today,
+      plate:target,
+      source:'manual',
+      manualActive:true,
+      manualExitAt:'',
+      status:String(base.status||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()==='saida'
+        ? 'Em preparação'
+        : (base.status||'Em preparação'),
+      companyId:tenant,
+      storeId,
+      updatedAt:new Date().toISOString(),
+    };
+    await setDoc(doc(db,'operational_stock',recovered.id),recovered,{merge:true});
+
+    const next=[
+      ...current.filter(row=>cleanPlate(row.plate)!==target),
+      recovered,
+    ].sort((a,b)=>Number(b.stockDays)-Number(a.stockDays));
+
+    const stockValue=next.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
+    const aged60=next.filter(item=>Number(item.stockDays)>60).length;
+    const critical=next.filter(item=>Number(item.stockDays)>90);
+    const critical90Value=critical.reduce((sum,item)=>sum+(Number(item.cost)||0),0);
+    await setDoc(doc(db,'operational_meta',stockSummaryId(storeId,today)),{
+      referenceDate:today,companyId:tenant,storeId,stockCount:next.length,stockValue,aged60,
+      critical90:critical.length,critical90Value,updatedAt:serverTimestamp(),
+    },{merge:true});
+    await setDoc(doc(db,'operational_meta',currentId(storeId)),{
+      companyId:tenant,storeId,latestStockDate:today,stockRows:next.length,updatedAt:serverTimestamp(),
+    },{merge:true});
+
+    try{
+      await addDoc(collection(db,'operational_imports'),{
+        type:'stock',companyId:tenant,storeId,referenceDate:today,rows:next.length,
+        fileName:`Recuperação manual · ${target}`,importedBy:user?.email||'',importedAt:serverTimestamp(),
+      });
+    }catch{}
+    return next;
   },
 
   remove:async(
@@ -222,6 +302,7 @@ export const manualStockService={
       if(cleanPlate(data.plate)!==target)continue;
       await setDoc(oldDoc.ref,{
         status:'Saída',
+        manualActive:false,
         manualExitAt:new Date().toISOString(),
         updatedAt:new Date().toISOString(),
         companyId:tenant,
