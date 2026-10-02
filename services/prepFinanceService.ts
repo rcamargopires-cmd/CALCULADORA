@@ -66,7 +66,12 @@ export const prepFinanceService={
     announce();
   },
 
-  registerApproval:async(order:PrepOrder,service:PrepService,actor:Pick<User,'email'|'name'>)=>{
+  registerApproval:async(order:PrepOrder,service:PrepService,actor:Pick<User,'email'|'name'|'role'>)=>{
+    if(
+      actor.role!=='admin' &&
+      service.requestedBy &&
+      String(service.requestedBy).toLowerCase()===String(actor.email).toLowerCase()
+    )throw new Error('Quem solicitou a preparação não pode aprovar o próprio serviço. Encaminhe para outro gestor.');
     const supplier=await dmsSupplierService.ensure({
       companyId:order.companyId,
       storeId:order.storeId,
