@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Building2, CalendarClock, CheckCircle2, ChevronRight, CreditCard, LockKeyhole, LogOut, Pencil, Plus, RefreshCw,
+  Building2, CalendarClock, CheckCircle2, ChevronRight, CreditCard, LockKeyhole, LogOut, Pencil, Plus, ReceiptText, RefreshCw,
   UserCog, Users, X
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
@@ -334,6 +334,17 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
               <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Situação</span><select disabled={saving===company.id} value={company.status} onChange={e=>void updateCompany(company,{status:e.target.value as Company['status']})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="trial">Avaliação</option><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></label>
             </div>
             <button disabled={saving===company.id} onClick={()=>setEditingModules(company)} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 text-xs font-bold text-violet-700 disabled:opacity-50"><LockKeyhole size={14}/> CONFIGURAR MÓDULOS DO PLANO</button>
+            {(()=>{const fiscal=company.fiscal||{enabled:false,provider:'manual' as const,environment:'homologacao' as const};return <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><div className="flex items-center gap-2"><ReceiptText size={15} className="text-indigo-600"/><p className="text-[10px] font-black uppercase tracking-[.12em] text-indigo-700">Integração fiscal</p></div><p className="mt-1 text-xs text-slate-500">NF-e integrada ao Pedido de Venda. A tributação continua parametrizada pela empresa/contador.</p></div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={fiscal.enabled} onChange={e=>void updateCompany(company,{fiscal:{...fiscal,enabled:e.target.checked,updatedAt:new Date().toISOString()}})}/> Ativa</label>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Provedor fiscal</span><select value={fiscal.provider} onChange={e=>void updateCompany(company,{fiscal:{...fiscal,provider:e.target.value as NonNullable<Company['fiscal']>['provider'],updatedAt:new Date().toISOString()}})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs"><option value="manual">Manual</option><option value="focus_nfe">Focus NFe</option><option value="nuvem_fiscal">Nuvem Fiscal</option><option value="other">Outro</option></select></label>
+                <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Ambiente</span><select value={fiscal.environment} onChange={e=>void updateCompany(company,{fiscal:{...fiscal,environment:e.target.value as 'homologacao'|'producao',updatedAt:new Date().toISOString()}})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs"><option value="homologacao">Homologação</option><option value="producao">Produção</option></select></label>
+              </div>
+              {fiscal.provider==='focus_nfe'&&<p className="mt-3 rounded-xl border border-indigo-100 bg-white p-3 text-[10px] leading-5 text-slate-500">O token da Focus NFe fica somente no servidor, em <b>FOCUS_NFE_TOKEN</b> ou no mapa multiempresa <b>FOCUS_NFE_TOKENS_JSON</b>. Ele nunca é salvo no navegador.</p>}
+            </div>})()}
             {(()=>{const billing=company.billing||defaultBilling();const finance=billingSnapshot(billing);return <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><div className="flex items-center gap-2"><CreditCard size={15} className="text-blue-600"/><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-500">Cobrança mensal</p></div><p className="mt-1 text-xs text-slate-500">{billing.enabled?`Próximo vencimento ${dateBr(finance.dueDate)} · tolerância ${billing.graceDays} dia(s)`:'Controle financeiro desativado para esta empresa.'}</p></div>
