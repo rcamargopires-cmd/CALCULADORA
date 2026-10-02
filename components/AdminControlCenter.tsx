@@ -178,9 +178,39 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
     finally{setSaving('');}
   };
 
+  const changePlan=async(company:Company,nextPlan:CompanyPlan)=>{
+    if(nextPlan===company.plan)return;
+    const billing=company.billing||defaultBilling();
+    setSaving(company.id);setError('');setMessage('');
+    try{
+      if(billing.provider==='asaas'&&billing.externalSubscriptionId){
+        await asaasBillingService.updateSubscription({
+          companyId:company.id,amount:PLAN_META[nextPlan].price,plan:nextPlan,
+          nextDueDate:billing.nextDueAt,updatePendingPayments:false,
+        });
+      }
+      await updateCompany(company,{plan:nextPlan});
+      setMessage(`${company.name}: plano alterado para ${planLabel[nextPlan]}${billing.provider==='asaas'&&billing.externalSubscriptionId?' e recorrência Asaas sincronizada':''}.`);
+    }catch(cause:any){setError(cause?.message||'Não foi possível alterar o plano.');}
+    finally{setSaving('');}
+  };
+
   const toggleBilling=async(company:Company)=>{
     const base=company.billing||defaultBilling();
     const enabled=!base.enabled;
+    if(base.provider==='asaas'&&base.externalSubscriptionId){
+      setSaving(company.id);setError('');setMessage('');
+      try{
+        await asaasBillingService.setSubscriptionStatus({
+          companyId:company.id,status:enabled?'ACTIVE':'INACTIVE',
+          ...(enabled?{nextDueDate:base.nextDueAt||nextMonthlyDue(base.dueDay||10)}:{}),
+        });
+        await load();
+        setMessage(`${company.name}: recorrência Asaas ${enabled?'reativada':'pausada'}.`);
+      }catch(cause:any){setError(cause?.message||'Não foi possível alterar a recorrência Asaas.');}
+      finally{setSaving('');}
+      return;
+    }
     await updateBilling(company,{
       enabled,
       nextDueAt:enabled?(base.nextDueAt||nextMonthlyDue(base.dueDay||10)):base.nextDueAt,
@@ -335,7 +365,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
               <Stat label="Plano" value={planLabel[company.plan]}/>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Plano</span><select disabled={saving===company.id} value={company.plan} onChange={e=>void updateCompany(company,{plan:e.target.value as CompanyPlan})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="starter">Starter</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></label>
+              <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Plano</span><select disabled={saving===company.id} value={company.plan} onChange={e=>void changePlan(company,e.target.value as CompanyPlan)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="starter">Starter</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></label>
               <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Situação</span><select disabled={saving===company.id} value={company.status} onChange={e=>void updateCompany(company,{status:e.target.value as Company['status']})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="trial">Avaliação</option><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></label>
             </div>
             <button disabled={saving===company.id} onClick={()=>setEditingModules(company)} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 text-xs font-bold text-violet-700 disabled:opacity-50"><LockKeyhole size={14}/> CONFIGURAR MÓDULOS DO PLANO</button>
