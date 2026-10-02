@@ -2,7 +2,7 @@
 
 Este arquivo é a fonte de acompanhamento do projeto. Um item só é considerado concluído quando está marcado com `[x]` aqui e no painel **PLANO** do Motyq.
 
-**Progresso atual:** 47/160 itens concluídos.
+**Progresso atual:** 71/160 itens concluídos.
 
 ## Regras do projeto
 
@@ -17,7 +17,7 @@ Este arquivo é a fonte de acompanhamento do projeto. Um item só é considerado
 
 Um veículo, cliente, fornecedor e lançamento financeiro devem existir uma única vez e ser reutilizados por todos os módulos.
 
-**Progresso da fase:** 12/15
+**Progresso da fase:** 15/15
 
 - [x] **F1.01** Estoque atual canônico único
 - [x] **F1.02** Identidade estável do veículo com vehicleId
@@ -31,9 +31,9 @@ Um veículo, cliente, fornecedor e lançamento financeiro devem existir uma úni
 - [x] **F1.10** Razão financeiro único base
 - [x] **F1.11** Trilha de auditoria base
 - [x] **F1.12** Diagnóstico de integridade DMS
-- [ ] **F1.13** Migração dos dados antigos para IDs mestres
-- [ ] **F1.14** Validação automática contra duplicidades de mestre
-- [ ] **F1.15** Histórico de movimentos do estoque separado do estoque atual
+- [x] **F1.13** Migração dos dados antigos para IDs mestres
+- [x] **F1.14** Validação automática contra duplicidades de mestre
+- [x] **F1.15** Histórico de movimentos do estoque separado do estoque atual
 
 ## Fase 2 · Usuários, funções e segurança
 
@@ -58,25 +58,25 @@ Cada pessoa acessa somente o necessário para sua responsabilidade.
 
 Explicar de onde cada carro veio, quanto custou, quem vendeu e como entrou na operação.
 
-**Progresso da fase:** 4/17
+**Progresso da fase:** 14/17
 
 - [x] **F3.01** Cadastro manual de veículo com FIPE
 - [x] **F3.02** Importação de estoque sem duplicar fonte de verdade
 - [x] **F3.03** Aging automático do estoque
 - [x] **F3.04** Custo atual = compra + preparação aprovada
-- [ ] **F3.05** Avaliação aprovada virar intenção de compra
-- [ ] **F3.06** Pedido de compra do veículo
-- [ ] **F3.07** Cadastro do proprietário/vendedor do veículo
-- [ ] **F3.08** Origem da entrada: compra, troca, repasse ou consignação
-- [ ] **F3.09** Quitação de financiamento do veículo comprado
-- [ ] **F3.10** Débitos, multas e pendências na compra
-- [ ] **F3.11** Conta a pagar da compra
+- [x] **F3.05** Avaliação aprovada virar intenção de compra
+- [x] **F3.06** Pedido de compra do veículo
+- [x] **F3.07** Cadastro do proprietário/vendedor do veículo
+- [x] **F3.08** Origem da entrada: compra, troca, repasse ou consignação
+- [x] **F3.09** Quitação de financiamento do veículo comprado
+- [x] **F3.10** Débitos, multas e pendências na compra
+- [x] **F3.11** Conta a pagar da compra
 - [ ] **F3.12** Formas e etapas do pagamento da compra
-- [ ] **F3.13** Checklist documental de entrada
-- [ ] **F3.14** Entrada formal no estoque após compra
+- [x] **F3.13** Checklist documental de entrada
+- [x] **F3.14** Entrada formal no estoque após compra
 - [ ] **F3.15** Transferência entre unidades com histórico
 - [ ] **F3.16** Consignação com proprietário e vencimentos
-- [ ] **F3.17** Dossiê completo do custo de aquisição
+- [x] **F3.17** Dossiê completo do custo de aquisição
 
 ## Fase 4 · Preparação e fornecedores
 
@@ -123,23 +123,23 @@ Levar o cliente do primeiro contato até uma proposta sem redigitação.
 
 Transformar proposta aceita em venda completa, sem atalhos paralelos.
 
-**Progresso da fase:** 0/16
+**Progresso da fase:** 11/16
 
-- [ ] **F6.01** Pedido de Venda central
-- [ ] **F6.02** Proposta aceita gerar Pedido de Venda
-- [ ] **F6.03** Reserva automática do estoque ao abrir pedido
-- [ ] **F6.04** Aprovação gerencial da venda
+- [x] **F6.01** Pedido de Venda central
+- [x] **F6.02** Proposta aceita gerar Pedido de Venda
+- [x] **F6.03** Reserva automática do estoque ao abrir pedido
+- [x] **F6.04** Aprovação gerencial da venda
 - [ ] **F6.05** Entrada/sinal do cliente
 - [ ] **F6.06** Financiamento com banco, status e retorno
-- [ ] **F6.07** Análise/liberação de crédito
-- [ ] **F6.08** Troca vinculada ao pedido
-- [ ] **F6.09** Troca aceita virar compra e novo estoque
+- [x] **F6.07** Análise/liberação de crédito
+- [x] **F6.08** Troca vinculada ao pedido
+- [x] **F6.09** Troca aceita virar compra e novo estoque
 - [ ] **F6.10** Comissão ligada ao pedido de venda
-- [ ] **F6.11** Faturamento do veículo
-- [ ] **F6.12** Contas a receber geradas pelo faturamento
+- [x] **F6.11** Faturamento do veículo
+- [x] **F6.12** Contas a receber geradas pelo faturamento
 - [ ] **F6.13** Checklist de entrega
-- [ ] **F6.14** Entrega registrada com data e responsável
-- [ ] **F6.15** Saída definitiva do estoque somente após evento correto
+- [x] **F6.14** Entrega registrada com data e responsável
+- [x] **F6.15** Saída definitiva do estoque somente após evento correto
 - [ ] **F6.16** Cancelamento/estorno de venda com reversões automáticas
 
 ## Fase 7 · Financeiro completo
