@@ -4,6 +4,7 @@ import type { OperationalStockItem, User, VehiclePurchase, VehiclePurchaseDocume
 import type { EvaluationQueueRequest } from './evaluationQueueService';
 import { dmsVehicleService } from './dmsVehicleService';
 import { dmsSupplierService } from './dmsSupplierService';
+import { canApproveOwn } from './dmsFlowPolicy.mjs';
 import { financeService } from './financeService';
 import { currentStockService } from './currentStockService';
 import { prepTrackService } from './prepTrackService';
@@ -145,11 +146,8 @@ export const vehiclePurchaseService={
 
   approve:async(purchase:VehiclePurchase,actor:Pick<User,'email'|'name'|'role'>):Promise<VehiclePurchase>=>{
     const current=normalize(purchase);
-    if(
-      actor.role!=='admin' &&
-      current.createdBy &&
-      String(current.createdBy).toLowerCase()===String(actor.email).toLowerCase()
-    )throw new Error('Quem iniciou a compra não pode aprovar o próprio processo. Encaminhe para outro gestor.');
+    if(!canApproveOwn({createdBy:current.createdBy,actorEmail:actor.email,actorRole:actor.role}))
+      throw new Error('Quem iniciou a compra não pode aprovar o próprio processo. Encaminhe para outro gestor.');
     if(!current.ownerName.trim())throw new Error('Informe o proprietário/vendedor do veículo.');
     if(current.purchasePrice<=0)throw new Error('Informe o valor de compra.');
 
