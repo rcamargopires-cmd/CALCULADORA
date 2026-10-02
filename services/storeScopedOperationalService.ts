@@ -146,19 +146,37 @@ export const storeScopedOperationalService = {
       });
 
     // Veículos cadastrados manualmente não podem "sumir" quando nasce um novo snapshot.
-    // Usamos o registro manual mais recente de cada placa como fonte de verdade.
-    const latestManual = new Map<string, OperationalStockItem>();
+    // "Saída" só vale como retirada definitiva quando manualExitAt estiver preenchido.
+    // Isso também recupera registros que foram marcados como saída por versões antigas do fluxo.
+    const manualByPlate = new Map<string, OperationalStockItem[]>();
     allRows
       .filter(item => item.source === 'manual')
-      .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)))
       .forEach(item => {
         const plate = cleanPlate(item.plate);
-        if (plate) latestManual.set(plate, item);
+        if (!plate) return;
+        const list = manualByPlate.get(plate) || [];
+        list.push(item);
+        manualByPlate.set(plate, list);
       });
 
-    latestManual.forEach((item, plate) => {
-      if (isOut(item)) unique.delete(plate);
-      else unique.set(plate, item);
+    manualByPlate.forEach((items, plate) => {
+      const ordered = [...items].sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)));
+      const explicitExit = ordered.filter(item => Boolean(item.manualExitAt)).at(-1);
+      const lastActive = ordered.filter(item => !isOut(item) && !item.manualExitAt).at(-1);
+      const newest = ordered.at(-1);
+
+      if (explicitExit && newest === explicitExit) {
+        unique.delete(plate);
+        return;
+      }
+      if (lastActive) {
+        unique.set(plate, lastActive);
+        return;
+      }
+      if (newest && !newest.manualExitAt) {
+        // Compatibilidade com registros antigos que receberam "Saída" automaticamente.
+        unique.set(plate, { ...newest, status: 'Em preparação' });
+      }
     });
 
     const rows = Array.from(unique.values());
