@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PrepOrder, PrepService } from '../types';
 
@@ -33,6 +33,13 @@ export const prepTrackService={
     await enqueueWrite(id,()=>setDoc(doc(db,'prep_orders',id),stripUndefined(order),{merge:true}));
     return order;
   },
+  ensureOrder:async(input:{plate:string;vehicle:string;companyId:string;storeId:string;createdBy?:string}):Promise<PrepOrder>=>{
+    const plate=cleanPlate(input.plate);
+    const id=safe(`${input.companyId}_${input.storeId}_${plate}`);
+    const existing=await getDoc(doc(db,'prep_orders',id));
+    if(existing.exists())return existing.data() as PrepOrder;
+    return prepTrackService.createOrder(input);
+  },
   saveOrder:async(order:PrepOrder):Promise<void>=>{
     const payload=stripUndefined({...order,plate:cleanPlate(order.plate),updatedAt:new Date().toISOString()});
     await enqueueWrite(order.id,()=>setDoc(doc(db,'prep_orders',order.id),payload,{merge:true}));
@@ -43,7 +50,7 @@ export const prepTrackService={
     await deleteDoc(doc(db,'prep_orders',orderId));
   },
   addService:async(order:PrepOrder,service:Omit<PrepService,'id'>):Promise<PrepOrder>=>{
-    const next={...order,services:[...(order.services||[]),{...service,id:uid()}],updatedAt:new Date().toISOString()};
+    const next:PrepOrder={...order,status:order.status==='triage'?'preparing':order.status,services:[...(order.services||[]),{...service,id:uid()}],updatedAt:new Date().toISOString()};
     await enqueueWrite(order.id,()=>setDoc(doc(db,'prep_orders',order.id),stripUndefined(next),{merge:true}));
     return next;
   },
