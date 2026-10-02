@@ -1,6 +1,7 @@
 import { doc, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { CrmProposalSnapshot, CrmProposalStatus, ShowroomPassage, ShowroomPassageActivity } from '../types';
+import { salesOrderService } from './salesOrderService';
 
 export type ProposalInput=Pick<CrmProposalSnapshot,
   'vehicle'|'plate'|'year'|'km'|'location'|'stockPriceAtCreation'|'salePrice'|'discount'|
@@ -102,7 +103,7 @@ export const crmProposalService={
   })=>{
     const ref=doc(db,'showroom_passages',input.leadId);
     const timestamp=new Date().toISOString();
-    return runTransaction(db,async transaction=>{
+    const updated=await runTransaction(db,async transaction=>{
       const snap=await transaction.get(ref);
       if(!snap.exists())throw new Error('Cliente não encontrado.');
       const lead=snap.data() as ShowroomPassage;
@@ -124,5 +125,9 @@ export const crmProposalService={
       });
       return next;
     });
+    if(input.status==='accepted'){
+      await salesOrderService.createFromAcceptedProposal(input.leadId,updated,input.actor as any);
+    }
+    return updated;
   },
 };
