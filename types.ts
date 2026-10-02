@@ -99,7 +99,7 @@ export interface PrepPayable extends FinanceEntry {
   paidByName?:string;
 }
 export interface VehicleHistoryEvent {
-  id:string; plate:string; vehicle:string; type:VehicleHistoryEventType; label:string; details?:string;
+  id:string; kind:'vehicle_history'; plate:string; vehicle:string; type:VehicleHistoryEventType; label:string; details?:string;
   amount?:number; provider?:string; at:string; byEmail?:string; byName?:string;
   orderId?:string; serviceId?:string; payableId?:string; companyId:string; storeId:string;
 }
