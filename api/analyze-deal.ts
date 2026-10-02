@@ -20,7 +20,12 @@ const pct = (value: number) => `${(Number(value) || 0).toFixed(2).replace('.', '
 const OWNER_ADMIN = 'r.camargo.pires@gmail.com';
 const MANAGER_ALLOWED_ROLES = new Set(['manager','seller','user','reception','evaluator']);
 const DMS_ACCESS_PROFILES = new Set(['management','preparation','finance']);
-const DMS_PERMISSION_KEYS = new Set(['stockView','stockWrite','prepView','prepRequest','prepApprove','financeView','financeCreate','financeSettle','diagnostics','usersManage']);
+const DMS_PERMISSION_KEYS = new Set([
+  'crmView','evaluationsView','proposalsView','purchasesView','salesView',
+  'stockView','stockWrite','prepView','prepRequest','prepApprove',
+  'financeView','financeCreate','financeSettle','documentsView','afterSalesView',
+  'assetsView','reportsView','diagnostics','usersManage'
+]);
 const cleanDmsPermissionOverrides=(raw:any)=>{
   const out:any={};
   if(!raw||typeof raw!=='object')return out;
