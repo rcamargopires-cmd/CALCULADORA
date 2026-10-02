@@ -47,6 +47,25 @@ export const prepFinanceService={
     announce();
   },
 
+  recordRejection:async(order:PrepOrder,service:PrepService,reason:string,actor:Pick<User,'email'|'name'>)=>{
+    const event=historyPayload(
+      order,
+      service,
+      'prep_rejected',
+      `Preparação rejeitada: ${service.type}`,
+      actor,
+      {details:reason},
+    );
+    await setDoc(doc(db,LEDGER,event.id),event,{merge:true});
+    await dmsAuditService.record({
+      companyId:order.companyId,storeId:order.storeId,entityType:'prep',
+      entityId:order.id,vehicleId:order.vehicleId,plate:cleanPlate(order.plate),
+      action:'prep_rejected',label:`Preparação rejeitada: ${service.type}`,
+      details:reason,amount:serviceAmount(service),actor,
+    }).catch(()=>undefined);
+    announce();
+  },
+
   registerApproval:async(order:PrepOrder,service:PrepService,actor:Pick<User,'email'|'name'>)=>{
     const supplier=await dmsSupplierService.ensure({
       companyId:order.companyId,
