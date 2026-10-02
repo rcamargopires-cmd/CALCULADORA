@@ -229,8 +229,7 @@ service cloud.firestore {
       allow create: if isAdmin() ||
         (canSales() && sameStore(request.resource.data)) ||
         (isSeller() && createsOwnDeal() && sameStore(request.resource.data));
-      allow update: if opKind(resource.data) != 'audit_event' && (
-        isAdmin() ||
+      allow update: if isAdmin() ||
         (canSales() && sameStore(resource.data) && sameStore(request.resource.data)) ||
         (isSeller() && ownsDeal() && createsOwnDeal() && sameStore(resource.data) && sameStore(request.resource.data));
       allow delete: if isAdmin();
@@ -374,7 +373,8 @@ service cloud.firestore {
         (sameStore(request.resource.data) && operationalCreateAllowed(request.resource.data)) ||
         (evaluatorSameStore(request.resource.data) && isMarketIqRecord(request.resource.data));
 
-      allow update: if isAdmin() ||
+      allow update: if opKind(resource.data) != 'audit_event' && (
+        isAdmin() ||
         (
           sameStore(resource.data) && sameStore(request.resource.data) &&
           operationalUpdateAllowed(resource.data, request.resource.data)
