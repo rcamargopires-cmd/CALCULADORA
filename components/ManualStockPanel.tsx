@@ -42,11 +42,14 @@ const ManualStockPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName
       let current=await manualStockService.getCurrent(storeId,companyId);
       const orders=await prepTrackService.getOrders(companyId,storeId).catch(()=>[]);
       const activeOrders=orders.filter(order=>!order.sold&&!['delivery','delivered'].includes(order.status));
+      let restored=false;
       for(const order of activeOrders){
         if(current.some(item=>cleanPlate(item.plate)===cleanPlate(order.plate)))continue;
         current=await manualStockService.syncPreparation(order,currentUser,storeId,companyId,current);
+        restored=true;
       }
       setRows(current);
+      if(restored)window.dispatchEvent(new Event('dealmaster:operational-data-updated'));
     }
     catch(error:any){setMessage({kind:'error',text:error?.message||'Não foi possível carregar o estoque atual.'});}
     finally{setLoading(false);}
