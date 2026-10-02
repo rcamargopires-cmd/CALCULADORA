@@ -188,9 +188,12 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
           companyId:company.id,amount:PLAN_META[nextPlan].price,plan:nextPlan,
           nextDueDate:billing.nextDueAt,updatePendingPayments:false,
         });
+        await load();
+        setMessage(`${company.name}: plano alterado para ${planLabel[nextPlan]} e recorrência Asaas sincronizada.`);
+        return;
       }
       await updateCompany(company,{plan:nextPlan});
-      setMessage(`${company.name}: plano alterado para ${planLabel[nextPlan]}${billing.provider==='asaas'&&billing.externalSubscriptionId?' e recorrência Asaas sincronizada':''}.`);
+      setMessage(`${company.name}: plano alterado para ${planLabel[nextPlan]}.`);
     }catch(cause:any){setError(cause?.message||'Não foi possível alterar o plano.');}
     finally{setSaving('');}
   };
