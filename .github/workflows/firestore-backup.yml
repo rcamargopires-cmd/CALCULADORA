@@ -1,0 +1,31 @@
+name: Firestore Backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - name: Export Firestore database
+        run: |
+          STAMP="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
+          DEST="gs://gen-lang-client-0531247430.firebasestorage.app/motyq-backups/$STAMP"
+          echo "Exporting to $DEST"
+          gcloud firestore export "$DEST" \
+            --project=gen-lang-client-0531247430 \
+            --database=ai-studio-447676b4-da38-4e69-b22f-6aa10f85367b \
+            --async
