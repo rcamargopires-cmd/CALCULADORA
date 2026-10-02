@@ -4,8 +4,9 @@ import {
   CarFront, Clock3, FileText, History, Mail, MessageSquareText, PencilLine,
   Phone, Repeat2, Save, UserRound, WalletCards, X
 } from 'lucide-react';
-import { CrmLeadTemperature, ShowroomPassage, ShowroomPassageActivity, ShowroomPassageStatus, User } from '../types';
+import { CrmLeadTemperature, CustomerConsentStatus, CustomerMaster, ShowroomPassage, ShowroomPassageActivity, ShowroomPassageStatus, User } from '../types';
 import { showroomFlowService } from '../services/showroomFlowService';
+import { dmsCustomerService } from '../services/dmsCustomerService';
 import type { GroupStockItem } from '../services/groupStockService';
 import CrmCommercialProposals from './CrmCommercialProposals';
 import CrmPersonalizedCatalog from './CrmPersonalizedCatalog';
@@ -146,6 +147,22 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
   const[temperature,setTemperature]=useState<CrmLeadTemperature>('warm');
   const[followUp,setFollowUp]=useState('');
   const[newNote,setNewNote]=useState('');
+  const[customerMaster,setCustomerMaster]=useState<CustomerMaster|null>(null);
+  const[consentStatus,setConsentStatus]=useState<CustomerConsentStatus>('unknown');
+  const[consentPurposes,setConsentPurposes]=useState<string[]>(['contato comercial']);
+  const[savingConsent,setSavingConsent]=useState(false);
+
+  useEffect(()=>{
+    let active=true;
+    if(!latest.customerId){setCustomerMaster(null);setConsentStatus('unknown');return()=>{active=false;};}
+    void dmsCustomerService.getById(latest.companyId,latest.storeId,latest.customerId).then(customer=>{
+      if(!active)return;
+      setCustomerMaster(customer);
+      setConsentStatus(customer?.consentStatus||'unknown');
+      setConsentPurposes(customer?.consentPurposes?.length?customer.consentPurposes:['contato comercial']);
+    }).catch(()=>undefined);
+    return()=>{active=false;};
+  },[latest.customerId,latest.companyId,latest.storeId]);
 
   useEffect(()=>{
     setDesiredVehicle(String(latest.desiredVehicle||latest.interestModel||''));
@@ -162,6 +179,21 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
     latest.purchaseTimeline,latest.preferredContact,latest.tradeInPlate,latest.desiredEntry,
     latest.desiredPayment,latest.leadTemperature,latest.nextFollowUpAt
   ]);
+
+  const saveConsent=async(status:CustomerConsentStatus)=>{
+    if(!customerMaster)return;
+    setSavingConsent(true);setFeedback('');
+    try{
+      const saved=await dmsCustomerService.setConsent({
+        customer:customerMaster,status,source:'Ficha comercial Motyq',
+        purposes:consentPurposes.length?consentPurposes:['contato comercial'],
+        actor:{email:user.email,name:user.name},
+      });
+      setCustomerMaster(saved);setConsentStatus(saved.consentStatus||'unknown');
+      setFeedback(status==='granted'?'Autorização de contato registrada com sucesso.':'Autorização de contato revogada e auditada.');
+    }catch(error:any){setFeedback(error?.message||'Não foi possível atualizar o registro LGPD.');}
+    finally{setSavingConsent(false);}
+  };
 
   const save=async()=>{
     setSaving(true);setFeedback('');
@@ -242,6 +274,18 @@ const CustomerAttendanceDossier:React.FC<Props>=({selected,items,user,stockItems
           <Info label="Prazo de compra" value={TIMELINE[latest.purchaseTimeline||'']||'—'} />
           <Info label="Contato preferido" value={CONTACT[latest.preferredContact||'']||'—'} />
           <Info label="Entrada / parcela" value={(latest.desiredEntry||latest.desiredPayment)?money(latest.desiredEntry)+' / '+money(latest.desiredPayment):'—'} />
+        </section>}
+
+        {customerMaster&&<section className="rounded-[24px] border border-indigo-200 bg-white p-4 md:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-indigo-700">LGPD · REGISTRO DE CONTATO</p><p className="mt-1 text-sm font-semibold text-slate-900">{consentStatus==='granted'?'Autorização registrada':consentStatus==='revoked'?'Autorização revogada':'Autorização ainda não registrada'}</p><p className="mt-1 text-xs text-slate-500">O Motyq guarda data, finalidade e responsável pela alteração no histórico do cliente.</p></div>
+            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${consentStatus==='granted'?'bg-emerald-50 text-emerald-700':consentStatus==='revoked'?'bg-red-50 text-red-700':'bg-amber-50 text-amber-700'}`}>{consentStatus==='granted'?'AUTORIZADO':consentStatus==='revoked'?'REVOGADO':'PENDENTE'}</span>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {['contato comercial','WhatsApp','ligação','e-mail'].map(purpose=><label key={purpose} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"><input type="checkbox" checked={consentPurposes.includes(purpose)} onChange={e=>setConsentPurposes(current=>e.target.checked?Array.from(new Set([...current,purpose])):current.filter(item=>item!==purpose))}/><span>{purpose}</span></label>)}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2"><button disabled={savingConsent} onClick={()=>void saveConsent('granted')} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">REGISTRAR AUTORIZAÇÃO</button>{consentStatus==='granted'&&<button disabled={savingConsent} onClick={()=>void saveConsent('revoked')} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 disabled:opacity-50">REVOGAR</button>}</div>
+          {customerMaster.consentUpdatedAt&&<p className="mt-3 text-[10px] text-slate-400">Última alteração: {dateTime(customerMaster.consentUpdatedAt)} · {customerMaster.consentUpdatedByName||customerMaster.consentUpdatedBy||'—'}</p>}
         </section>}
 
         {editing&&<section id="motyq-dossier-edit" className="rounded-[26px] border border-cyan-200 bg-white p-5 shadow-sm md:p-6">
