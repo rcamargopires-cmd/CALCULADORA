@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, Search, UserRound, UsersRound, X } from 'lucide-react';
+import { Building2, Merge, Search, UserRound, UsersRound, X } from 'lucide-react';
 import type { CustomerMaster, SupplierMaster, User } from '../types';
 import { dmsCustomerService } from '../services/dmsCustomerService';
 import { dmsSupplierService } from '../services/dmsSupplierService';
@@ -46,6 +46,18 @@ const MasterDataPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
     }catch(cause:any){setError(cause?.message||'Não foi possível salvar o cliente.');}
     finally{setBusy(false);}
   };
+  const deduplicateCustomers=async()=>{
+    if(!window.confirm('Unificar clientes duplicados por CPF/CNPJ, telefone ou e-mail? O histórico de CRM será apontado para um único customerId.'))return;
+    setBusy(true);setError('');setMessage('');
+    try{
+      const merged=await dmsCustomerService.deduplicate(companyId,storeId,currentUser);
+      setMessage(merged?merged+' cadastro(s) duplicado(s) unificado(s).':'Nenhum cliente duplicado encontrado.');
+      setSelectedCustomer(null);
+      await load();
+    }catch(cause:any){setError(cause?.message||'Não foi possível unificar clientes duplicados.');}
+    finally{setBusy(false);}
+  };
+
   const saveSupplier=async()=>{
     if(!selectedSupplier)return;
     setBusy(true);setError('');setMessage('');
@@ -79,7 +91,7 @@ const MasterDataPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
         </header>
 
         <div className="p-5 md:p-7">
-          <nav className="flex flex-wrap gap-2"><TabButton active={tab==='customers'} icon={<UserRound size={15}/>} label={`Clientes (${customers.length})`} onClick={()=>{setTab('customers');setSelectedSupplier(null);}}/><TabButton active={tab==='suppliers'} icon={<Building2 size={15}/>} label={`Fornecedores (${suppliers.length})`} onClick={()=>{setTab('suppliers');setSelectedCustomer(null);}}/></nav>
+          <nav className="flex flex-wrap items-center gap-2"><TabButton active={tab==='customers'} icon={<UserRound size={15}/>} label={`Clientes (${customers.length})`} onClick={()=>{setTab('customers');setSelectedSupplier(null);}}/><TabButton active={tab==='suppliers'} icon={<Building2 size={15}/>} label={`Fornecedores (${suppliers.length})`} onClick={()=>{setTab('suppliers');setSelectedCustomer(null);}}/>{tab==='customers'&&<button disabled={busy} onClick={()=>void deduplicateCustomers()} className="ml-auto flex h-10 items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-bold text-violet-700 disabled:opacity-50"><Merge size={14}/> UNIFICAR DUPLICADOS</button>}</nav>
           {(message||error)&&<div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${error?'border-red-200 bg-red-50 text-red-700':'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>{error||message}</div>}
 
           <section className="mt-5 grid gap-4 lg:grid-cols-[.8fr_1.2fr]">
