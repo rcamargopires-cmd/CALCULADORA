@@ -36,7 +36,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
       {id:'F2.05',label:'Separar solicitação de preparação da aprovação gerencial',done:true},
       {id:'F2.06',label:'Separar visão financeira de baixa financeira',done:true},
       {id:'F2.07',label:'Checkboxes para CRM, avaliações, propostas, documentos, ativos e relatórios',done:true},
-      {id:'F2.08',label:'Permissões por unidade e múltiplas unidades por usuário',done:false},
+      {id:'F2.08',label:'Permissões por unidade e múltiplas unidades por usuário',done:true},
       {id:'F2.09',label:'Aplicar permissões também no backend/API',done:false},
       {id:'F2.10',label:'Aplicar permissões nas regras Firestore',done:false},
       {id:'F2.11',label:'Auditar alteração de permissões e usuários',done:true},
@@ -105,7 +105,7 @@ export const DMS_ROADMAP_PHASES:DmsRoadmapPhase[]=[
       {id:'F5.09',label:'Reserva do veículo por proposta',done:true},
       {id:'F5.10',label:'Prazo de validade e expiração automática da reserva',done:false},
       {id:'F5.11',label:'Aceite digital da proposta',done:false},
-      {id:'F5.12',label:'LGPD, consentimento e trilha de dados pessoais',done:false},
+      {id:'F5.12',label:'LGPD, consentimento e trilha de dados pessoais',done:true},
     ],
   },
   {
