@@ -8,6 +8,7 @@ import { financeAccountService } from '../services/financeAccountService';
 import { financeStructureService } from '../services/financeStructureService';
 import FinanceStructurePanel from './FinanceStructurePanel';
 import FinanceReconciliationPanel from './FinanceReconciliationPanel';
+import DmsAttachmentManager from './DmsAttachmentManager';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 type Tab='payable'|'receivable'|'cashflow'|'dre';
@@ -403,6 +404,17 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
                   <Info label={selected.entryType==='payable'?'Fornecedor / beneficiário':'Cliente / pagador'} value={selected.party||'—'}/>
                   <Info label="Origem" value={selected.origin==='prep'?'Preparação':selected.origin==='purchase'?'Compra de veículo':selected.origin==='sale'?'Venda':selected.origin==='commission'?'Comissão':selected.origin==='manual'?'Manual':'Outro'}/>
                 </div>
+                <DmsAttachmentManager
+                  currentUser={currentUser}
+                  companyId={companyId}
+                  storeId={storeId}
+                  entityType="finance_entry"
+                  entityId={selected.id}
+                  vehicleId={selected.vehicleId}
+                  plate={selected.plate}
+                  categories={[{value:'proof',label:'Comprovante'},{value:'invoice',label:'Nota fiscal'},{value:'document',label:'Documento'},{value:'xml',label:'XML'},{value:'other',label:'Outro'}]}
+                  title="Comprovantes e documentos financeiros"
+                />
 
                 {selected.status==='pending'&&canSettle&&<div className="mt-5 rounded-2xl border border-sky-400/10 bg-sky-400/[.035] p-4">
                   <p className="text-xs font-semibold uppercase tracking-[.13em] text-sky-300">{selected.entryType==='payable'?'Baixar pagamento':'Baixar recebimento'}</p>
