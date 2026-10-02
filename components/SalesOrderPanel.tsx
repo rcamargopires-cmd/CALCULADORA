@@ -54,6 +54,17 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
     finally{setBusy('');}
   };
 
+  const updateChecklist=async(key:keyof SalesOrder['deliveryChecklist'],value:boolean)=>{
+    if(!selected)return;
+    const checklist={financialReleased:false,documentsReady:false,vehicleReady:false,customerConfirmed:false,...(selected.deliveryChecklist||{}),[key]:value};
+    setBusy('checklist');setError('');
+    try{
+      const next=await salesOrderService.updateDeliveryChecklist(selected,checklist);
+      setItems(prev=>prev.map(item=>item.id===next.id?next:item));
+    }catch(cause:any){setError(cause?.message||'Não foi possível atualizar o checklist.');}
+    finally{setBusy('');}
+  };
+
   return <>
     <button type="button" title="Pedidos de venda" className="hidden" onClick={()=>setOpen(true)}>Pedidos de venda</button>
 
@@ -118,9 +129,17 @@ const SalesOrderPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
                   <button disabled={busy!==''} onClick={()=>void act('invoice',()=>salesOrderService.invoice(selected,invoiceNumber,currentUser),'Venda faturada. Contas a receber geradas.')} className="mt-3 h-11 w-full rounded-xl bg-blue-600 text-sm font-bold text-white disabled:opacity-50">{busy==='invoice'?'FATURANDO...':'FATURAR E GERAR RECEBÍVEIS'}</button>
                 </ActionBox>}
 
-                {selected.status==='invoiced'&&<ActionBox title="Entrega" icon={<CarFront size={17}/>}>
-                  <p className="text-xs text-slate-600">Ao confirmar a entrega o veículo sai do estoque atual e fica registrado como entregue no cadastro mestre.</p>
-                  <button disabled={busy!==''} onClick={()=>void act('deliver',()=>salesOrderService.deliver(selected,currentUser),'Veículo entregue e retirado do estoque atual.')} className="mt-3 h-11 w-full rounded-xl bg-emerald-600 text-sm font-bold text-white disabled:opacity-50">{busy==='deliver'?'ENTREGANDO...':'CONFIRMAR ENTREGA'}</button>
+                {selected.status==='invoiced'&&<ActionBox title="Checklist e entrega" icon={<CarFront size={17}/>}>
+                  <p className="text-xs text-slate-600">A entrega só é liberada depois que os quatro pontos essenciais forem confirmados.</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {([
+                      ['financialReleased','Financeiro liberado'],
+                      ['documentsReady','Documentos prontos'],
+                      ['vehicleReady','Veículo conferido'],
+                      ['customerConfirmed','Cliente confirmou a entrega'],
+                    ] as Array<[keyof SalesOrder['deliveryChecklist'],string]>).map(([key,label])=><label key={key} className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-700"><input type="checkbox" disabled={busy==='checklist'} checked={Boolean(selected.deliveryChecklist?.[key])} onChange={e=>void updateChecklist(key,e.target.checked)}/>{label}</label>)}
+                  </div>
+                  <button disabled={busy!==''||!Object.values({financialReleased:false,documentsReady:false,vehicleReady:false,customerConfirmed:false,...(selected.deliveryChecklist||{})}).every(Boolean)} onClick={()=>void act('deliver',()=>salesOrderService.deliver(selected,currentUser),'Veículo entregue e retirado do estoque atual.')} className="mt-3 h-11 w-full rounded-xl bg-emerald-600 text-sm font-bold text-white disabled:opacity-50">{busy==='deliver'?'ENTREGANDO...':'CONFIRMAR ENTREGA'}</button>
                 </ActionBox>}
 
                 {selected.receivableIds?.length?<div className="mt-4 flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs text-sky-800"><BadgeDollarSign size={17} className="shrink-0"/><div><b>Financeiro integrado</b><p className="mt-1">{selected.receivableIds.length} conta(s) a receber vinculada(s) a esta venda.</p></div></div>:null}
