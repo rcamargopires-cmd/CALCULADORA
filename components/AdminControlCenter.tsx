@@ -15,6 +15,7 @@ import { PLAN_META } from '../services/planEntitlementService';
 import { DEMO_COMPANY_ID, demoSeedService } from '../services/demoSeedService';
 import { billingSnapshot, defaultBilling, nextMonthlyDue } from '../services/billingService';
 import DmsPermissionEditor from './DmsPermissionEditor';
+import StoreAccessEditor from './StoreAccessEditor';
 
 type Tab='companies'|'users';
 const planLabel:Record<CompanyPlan,string>={starter:'Starter',pro:'Pro',enterprise:'Enterprise'};
@@ -38,7 +39,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
   const[editingUser,setEditingUser]=useState<User|null>(null);
   const[companyName,setCompanyName]=useState('');
   const[companyPlan,setCompanyPlan]=useState<CompanyPlan>('pro');
-  const[userForm,setUserForm]=useState({name:'',email:'',role:'manager' as UserRole,dmsAccessProfile:'management' as DmsAccessProfile,dmsPermissionOverrides:{} as Partial<Record<DmsPermissionKey,boolean>>,status:'active' as UserStatus,storeId:''});
+  const[userForm,setUserForm]=useState({name:'',email:'',role:'manager' as UserRole,dmsAccessProfile:'management' as DmsAccessProfile,dmsPermissionOverrides:{} as Partial<Record<DmsPermissionKey,boolean>>,status:'active' as UserStatus,storeId:'',storeIds:[] as string[]});
 
   const load=async()=>{
     setLoading(true);setError('');
@@ -182,7 +183,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
   const openNewUser=()=>{
     const storeId=selectedStores[0]?.id||'';
     setEditingUser(null);
-    setUserForm({name:'',email:'',role:'manager',dmsAccessProfile:'management',dmsPermissionOverrides:{},status:'active',storeId});
+    setUserForm({name:'',email:'',role:'manager',dmsAccessProfile:'management',dmsPermissionOverrides:{},status:'active',storeId,storeIds:storeId?[storeId]:[]});
     setNewUserOpen(true);
   };
 
@@ -196,6 +197,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
       dmsPermissionOverrides:user.dmsPermissionOverrides||{},
       status:user.status,
       storeId:user.storeId||selectedStores[0]?.id||'',
+      storeIds:user.storeIds?.length?user.storeIds:[user.storeId||selectedStores[0]?.id||''].filter(Boolean),
     });
     setError('');
     setMessage('');
@@ -213,7 +215,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
       dmsAccessProfile:userForm.role==='manager'?userForm.dmsAccessProfile:undefined,
       dmsPermissionOverrides:userForm.role==='manager'?userForm.dmsPermissionOverrides:undefined,
       status:userForm.status,
-      companyId:selectedCompany.id,storeId:userForm.storeId,
+      companyId:selectedCompany.id,storeId:userForm.storeId,storeIds:userForm.storeIds.length?userForm.storeIds:[userForm.storeId].filter(Boolean),
       companyPlan:selectedCompany.plan,companyStatus:selectedCompany.status,
       companyBilling:selectedCompany.billing,
       companyModuleOverrides:selectedCompany.moduleOverrides,
@@ -351,7 +353,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
         <Field label="E-mail" value={userForm.email} type="email" disabled={Boolean(editingUser)} onChange={value=>setUserForm(prev=>({...prev,email:value}))}/>
         <div className="grid grid-cols-2 gap-3"><label><span className="text-xs font-semibold text-slate-500">Perfil</span><select value={userForm.role} onChange={e=>setUserForm(prev=>({...prev,role:e.target.value as UserRole}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="manager">Gestor / operacional</option><option value="seller">Vendedor</option><option value="reception">Recepção</option><option value="evaluator">Avaliador</option><option value="director">Diretoria</option></select></label><label><span className="text-xs font-semibold text-slate-500">Status</span><select value={userForm.status} onChange={e=>setUserForm(prev=>({...prev,status:e.target.value as UserStatus}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="active">Ativo</option><option value="inactive">Inativo</option></select></label></div>
         {userForm.role==='manager'&&<DmsPermissionEditor profile={userForm.dmsAccessProfile} overrides={userForm.dmsPermissionOverrides} onProfileChange={value=>setUserForm(prev=>({...prev,dmsAccessProfile:value}))} onOverridesChange={value=>setUserForm(prev=>({...prev,dmsPermissionOverrides:value}))}/>} 
-        <label><span className="text-xs font-semibold text-slate-500">Unidade</span><select value={userForm.storeId} onChange={e=>setUserForm(prev=>({...prev,storeId:e.target.value}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="">Selecione...</option>{selectedStores.map(store=><option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+        <StoreAccessEditor stores={selectedStores} primaryStoreId={userForm.storeId} storeIds={userForm.storeIds} onChange={(primary,ids)=>setUserForm(prev=>({...prev,storeId:primary,storeIds:ids}))}/>
       </div>
       <button disabled={saving==='user'} onClick={()=>void saveUser()} className="mt-5 h-11 w-full rounded-xl bg-blue-600 text-sm font-bold text-white disabled:opacity-40">{saving==='user'?'Salvando...':editingUser?'Salvar alterações':'Criar usuário'}</button>
     </Modal>}
