@@ -310,6 +310,7 @@ export interface VehiclePurchase {
   totalAcquisitionCost:number;
   paymentMethod?:string;
   paymentDueDate?:string;
+  consignmentExpiresAt?:string;
   payableId?:string;
   payableIds?:string[];
   documents:VehiclePurchaseDocuments;
