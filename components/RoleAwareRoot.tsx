@@ -38,6 +38,7 @@ import { ADMIN_HOME_SCOPE, COMPANY_SCOPE_EVENT, companyScopeService } from '../s
 import { CurrentStockProvider } from '../contexts/CurrentStockContext';
 import DmsRoleHome from './DmsRoleHome';
 import { dmsPermissions } from '../services/dmsPermissions';
+import ErrorMonitoringBridge from './ErrorMonitoringBridge';
 
 const Safe = ({ name, children }: { name: string; children: React.ReactNode }) => (
   <ModuleErrorBoundary name={name}>{children}</ModuleErrorBoundary>
@@ -147,9 +148,9 @@ const RoleAwareRoot: React.FC = () => {
   }, []);
 
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#f6f8fb] text-sm font-semibold text-slate-500">Carregando MOTYQ...</div>;
-  if (profile?.role === 'evaluator') return <BillingGate user={profile}><EvaluatorMotyq user={profile}/></BillingGate>;
-  if (profile?.role === 'admin' && adminScope === ADMIN_HOME_SCOPE) return <AdminControlCenter currentUser={profile}/>;
-  if (profile) return <BillingGate user={profile}><StandardMotyq user={profile}/></BillingGate>;
+  if (profile?.role === 'evaluator') return <><ErrorMonitoringBridge user={profile}/><BillingGate user={profile}><EvaluatorMotyq user={profile}/></BillingGate></>;
+  if (profile?.role === 'admin' && adminScope === ADMIN_HOME_SCOPE) return <><ErrorMonitoringBridge user={profile}/><AdminControlCenter currentUser={profile}/></>;
+  if (profile) return <><ErrorMonitoringBridge user={profile}/><BillingGate user={profile}><StandardMotyq user={profile}/></BillingGate></>;
   return <StandardMotyq user={null}/>;
 };
 
