@@ -145,39 +145,18 @@ export const storeScopedOperationalService = {
         if (plate) unique.set(plate, item);
       });
 
-    // Veículos cadastrados manualmente não podem "sumir" quando nasce um novo snapshot.
-    // "Saída" só vale como retirada definitiva quando manualExitAt estiver preenchido.
-    // Isso também recupera registros que foram marcados como saída por versões antigas do fluxo.
-    const manualByPlate = new Map<string, OperationalStockItem[]>();
+    // Registros manuais atuais usam uma flag explícita. Assim evitamos ressuscitar
+    // veículos antigos/removidos e mantemos os cadastrados manualmente entre snapshots.
+    const activeManual = new Map<string, OperationalStockItem>();
     allRows
-      .filter(item => item.source === 'manual')
+      .filter(item => item.source === 'manual' && item.manualActive === true && !item.manualExitAt)
+      .sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)))
       .forEach(item => {
         const plate = cleanPlate(item.plate);
-        if (!plate) return;
-        const list = manualByPlate.get(plate) || [];
-        list.push(item);
-        manualByPlate.set(plate, list);
+        if (plate) activeManual.set(plate, item);
       });
 
-    manualByPlate.forEach((items, plate) => {
-      const ordered = [...items].sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b)));
-      const explicitExit = ordered.filter(item => Boolean(item.manualExitAt)).at(-1);
-      const lastActive = ordered.filter(item => !isOut(item) && !item.manualExitAt).at(-1);
-      const newest = ordered.at(-1);
-
-      if (explicitExit && newest === explicitExit) {
-        unique.delete(plate);
-        return;
-      }
-      if (lastActive) {
-        unique.set(plate, lastActive);
-        return;
-      }
-      if (newest && !newest.manualExitAt) {
-        // Compatibilidade com registros antigos que receberam "Saída" automaticamente.
-        unique.set(plate, { ...newest, status: 'Em preparação' });
-      }
-    });
+    activeManual.forEach((item, plate) => unique.set(plate, item));
 
     const rows = Array.from(unique.values());
     if (rows.length) return rows;
