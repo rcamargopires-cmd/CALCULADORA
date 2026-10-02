@@ -34,6 +34,7 @@ import MotyqImpact from './MotyqImpact';
 import OperationHub from './OperationHub';
 import StockHub from './StockHub';
 import ManualStockPanel from './ManualStockPanel';
+import { dmsPermissions } from '../services/dmsPermissions';
 
 const OperationalTools: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -179,14 +180,18 @@ const OperationalTools: React.FC = () => {
     </>;
   }
 
-  const isManager = role === 'admin' || role === 'manager';
+  const permissions = dmsPermissions(user);
+  const isManager = permissions.management;
   const isSeller = role === 'seller' || role === 'user';
+  const canPrep = permissions.prepView;
+  const canFinance = permissions.financeView;
+  const canWriteStock = permissions.stockWrite;
   const has = (module: DealMasterModule) => moduleEnabled(activeCompany, module);
   const hasOperationalData = has('commandCenter') || has('stockIntelligence') || has('smartAlerts') || has('executiveInsights') || has('aiManager');
 
   return <>
     {role === 'admin' && <PlanAccessBadge company={activeCompany}/>} 
-    {storeId && <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {storeId && (isManager || isSeller) && <ShowroomFlowHub currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <ShowroomReports companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isSeller && <SellerPrivacyGuard user={user}/>} 
     {isSeller && storeId && <SellerActionInbox currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
@@ -208,14 +213,14 @@ const OperationalTools: React.FC = () => {
     {isManager && storeId && <ActionCenter currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && <MotyqImpact currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && hasOperationalData && <OperationalDataPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
-    {isManager && storeId && has('stockIntelligence') && <ManualStockPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {canWriteStock && storeId && has('stockIntelligence') && <ManualStockPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && storeId && has('stockIntelligence') && <MarketPresencePanel companyId={companyId} storeId={storeId} storeName={storeName}/>} 
-    {isManager && storeId && has('stockIntelligence') && <PrepTrackPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
-    {isManager && storeId && <FinanceModulePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {canPrep && storeId && has('stockIntelligence') && <PrepTrackPanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
+    {canFinance && storeId && <FinanceModulePanel currentUser={user} companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('executiveInsights') && <ExecutiveInsights/>}
     {isManager && storeId && has('smartAlerts') && <SmartAlerts companyId={companyId} storeId={storeId} storeName={storeName}/>} 
     {isManager && has('aiManager') && <AIManagerV2/>}
-    {storeId && has('assetGuard') && <AssetGuardPanel currentUser={user} companyId={companyId} storeId={storeId} companyName={companyName} storeName={storeName}/>} 
+    {isManager && storeId && has('assetGuard') && <AssetGuardPanel currentUser={user} companyId={companyId} storeId={storeId} companyName={companyName} storeName={storeName}/>} 
     {isManager && <HierarchyPanel currentUser={user}/>} 
     {isManager && <MultiStorePanel currentUser={user} companyId={companyId} companyName={companyName}/>} 
     {role === 'admin' && <button onClick={()=>setDirectorOpen(true)} title="Diretoria · Panorama do Grupo" className="group fixed bottom-72 left-5 z-[144] grid h-12 w-12 place-items-center rounded-full border border-amber-300/25 bg-[#20242c] text-amber-200 shadow-2xl transition hover:border-amber-300/50 hover:bg-[#272c35]"><Landmark size={18}/><span className="pointer-events-none absolute left-14 whitespace-nowrap rounded-lg border border-white/10 bg-[#20242c] px-3 py-2 text-xs font-semibold text-amber-100 opacity-0 shadow-xl transition group-hover:opacity-100">Diretoria</span></button>}
