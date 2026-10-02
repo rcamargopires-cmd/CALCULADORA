@@ -10,7 +10,6 @@ import { canApproveOwn, canCancelSale } from './dmsFlowPolicy.mjs';
 import { dmsAuditService } from './dmsAuditService';
 import { configService } from './configService';
 import { calculateCommission } from '../utils/commission';
-import { companyService } from './companyService';
 
 const LEDGER='operational_meta';
 const safe=(value:string)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
@@ -211,8 +210,8 @@ export const salesOrderService={
 
   invoice:async(order:SalesOrder,invoiceNumber:string,actor:User):Promise<SalesOrder>=>{
     if(order.status!=='ready_to_invoice')throw new Error('Pedido ainda não está liberado para faturamento.');
-    const tenant=(await companyService.getAll()).find(company=>company.id===order.companyId);
-    if(tenant?.fiscal?.enabled&&tenant.fiscal.provider==='focus_nfe'&&order.fiscalStatus!=='authorized'){
+    const tenantFiscal=actor.companyFiscal;
+    if(tenantFiscal?.enabled&&tenantFiscal.provider==='focus_nfe'&&order.fiscalStatus!=='authorized'){
       throw new Error('A empresa exige NF-e integrada. Aguarde a autorização fiscal antes de concluir o faturamento.');
     }
     if(order.financedAmount>0&&order.creditStatus!=='approved')throw new Error('O financiamento precisa estar aprovado.');
