@@ -150,6 +150,15 @@ const ManagerTopNav: React.FC = () => {
         <ClipboardCheck size={14}/>
         <span className="motyq-manager-nav-label">PLANO</span>
       </button>}
+      {isManager&&<button
+        type="button"
+        title="Documentação"
+        onClick={() => launcherClick('Documentos do veículo')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-violet-300 transition-all hover:bg-violet-400/10 hover:text-violet-200"
+      >
+        <FileCheck2 size={14}/>
+        <span className="motyq-manager-nav-label">DOCUMENTOS</span>
+      </button>}
     </>, target)}
   </>;
 };
