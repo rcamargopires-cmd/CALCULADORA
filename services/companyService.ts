@@ -49,6 +49,19 @@ const normalizeBilling = (value: unknown): CompanyBilling | undefined => {
   };
 };
 
+const normalizeFiscal = (value: unknown): Company['fiscal'] | undefined => {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const provider = ['manual','focus_nfe','nuvem_fiscal','other'].includes(String(raw.provider||'')) ? String(raw.provider) as NonNullable<Company['fiscal']>['provider'] : 'manual';
+  const environment = String(raw.environment||'homologacao') === 'producao' ? 'producao' : 'homologacao';
+  return {
+    enabled: raw.enabled === true,
+    provider,
+    environment,
+    ...(String(raw.updatedAt||'') ? { updatedAt: String(raw.updatedAt) } : {}),
+  };
+};
+
 const normalizeOverrides = (value: unknown): Partial<Record<DealMasterModule, boolean>> | undefined => {
   if (!value || typeof value !== 'object') return undefined;
   const raw = value as Record<string, unknown>;
@@ -65,6 +78,7 @@ const normalizeCompanies = (raw: unknown): Company[] => {
     const trialEndsAt = item?.trialEndsAt ? String(item.trialEndsAt) : '';
     const moduleOverrides = normalizeOverrides(item?.moduleOverrides);
     const billing = normalizeBilling(item?.billing);
+    const fiscal = normalizeFiscal(item?.fiscal);
     return {
       id: String(item?.id || '').trim(),
       slug: String(item?.slug || item?.id || '').trim(),
@@ -75,6 +89,7 @@ const normalizeCompanies = (raw: unknown): Company[] => {
       createdAt: String(item?.createdAt || new Date().toISOString()),
       ...(trialEndsAt ? { trialEndsAt } : {}),
       ...(billing ? { billing } : {}),
+      ...(fiscal ? { fiscal } : {}),
       ...(moduleOverrides ? { moduleOverrides } : {}),
     } as Company;
   }).filter(item => item.id && item.name) as Company[];
