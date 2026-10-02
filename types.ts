@@ -43,7 +43,7 @@ export type DealMasterModule =
 export interface Company { id:string; slug:string; name:string; plan:CompanyPlan; status:CompanyStatus; createdAt?:string; trialEndsAt?:string; billing?:CompanyBilling; moduleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 export interface Store { id:string; code:string; name:string; active:boolean; companyId?:string; }
 export interface SellerGoals { monthly:number; firstHalf:number; capture:number; margin:number; }
-export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; companyId?:string; dmsAccessProfile?:DmsAccessProfile; dmsPermissionOverrides?:Partial<Record<DmsPermissionKey,boolean>>; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
+export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; companyId?:string; companyName?:string; dmsAccessProfile?:DmsAccessProfile; dmsPermissionOverrides?:Partial<Record<DmsPermissionKey,boolean>>; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 
 export interface CustomerMaster {
   id:string;
@@ -155,7 +155,7 @@ export interface StockMovement {
   fromStatus?:string; toStatus?:string; fromStoreId?:string; toStoreId?:string; amount?:number; details?:string;
   companyId:string; storeId:string; at:string; actorEmail?:string; actorName?:string;
 }
-export interface OperationalStockItem { id:string; vehicleId?:string; snapshotDate:string; plate:string; vehicle:string; stockDays:number; cost:number; fipe:number; askingPrice:number; purchaseCost?:number; prepCost?:number; brand?:string; year?:string; km?:number; entryDate?:string; source?:StockSource; currentRecord?:boolean; manualActive?:boolean; updatedAt?:string; manualExitAt?:string; location?:string; status?:string; storeId?:string; companyId?:string; }
+export interface OperationalStockItem { id:string; vehicleId?:string; snapshotDate:string; plate:string; vehicle:string; model?:string; stockDays:number; cost:number; fipe:number; askingPrice:number; purchaseCost?:number; prepCost?:number; brand?:string; year?:string; km?:number; entryDate?:string; source?:StockSource; currentRecord?:boolean; manualActive?:boolean; updatedAt?:string; manualExitAt?:string; location?:string; status?:string; storeId?:string; companyId?:string; }
 export interface OperationalSaleItem { id:string; saleDate:string; plate:string; vehicle:string; seller:string; invoiceValue:number; marginValue:number; marginPercent:number; hasTradeIn?:boolean; storeId?:string; companyId?:string; }
 export interface MarketPresenceItem { id:string; referenceDate:string; plate:string; vehicle:string; adStatus:'active'|'missing'; photoStatus:'ok'|'insufficient'|'not_validated'|'missing'; photoCount?:number; sitePrice?:number; siteKm?:number; alert?:string; url?:string; auditedAt?:string; storeId?:string; companyId?:string; }
 
