@@ -12,6 +12,7 @@ const domainLabel:Record<DmsDiagnosticIssue['domain'],string>={
   vehicle:'Veículo mestre',
   prep:'PrepTrack',
   finance:'Financeiro',
+  fiscal:'Fiscal',
   supplier:'Fornecedores',
   customer:'Clientes',
   permissions:'Permissões',
