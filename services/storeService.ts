@@ -25,6 +25,7 @@ const normalizeStores = (raw: unknown, includeDefault = true): Store[] => {
       name: String(item?.name || '').trim(),
       active: item?.active !== false,
       companyId: String(item?.companyId || DEFAULT_COMPANY_ID).trim(),
+      ...(item?.environment === 'demo' ? { environment: 'demo' as const } : item?.environment === 'production' ? { environment: 'production' as const } : {}),
     }))
     .filter(item => item.id && item.name);
 
