@@ -368,7 +368,7 @@ const TabButton=({active,onClick,icon,label,badge}:{active:boolean;onClick:()=>v
 
 const Metric=({icon,label,value,note,warn,danger}:{icon:React.ReactNode;label:string;value:string;note:string;warn?:boolean;danger?:boolean})=><div className={`rounded-[22px] border p-4 ${danger?'border-red-400/20 bg-red-400/[.05]':warn?'border-amber-400/20 bg-amber-400/[.05]':'border-white/10 bg-white/[.03]'}`}><div className="flex items-center gap-2 text-zinc-500">{icon}<p className="text-xs">{label}</p></div><p className="mt-2 text-2xl font-semibold">{value}</p><p className="mt-1 text-[11px] text-zinc-600">{note}</p></div>;
 
-const EntryRow=({entry,active,onClick}:{entry:FinanceEntry;active:boolean;onClick:()=>void})=>{
+const EntryRow=({entry,active,onClick}:{key?:React.Key;entry:FinanceEntry;active:boolean;onClick:()=>void})=>{
   const late=entry.status==='pending'&&entry.dueDate&&new Date(`${entry.dueDate}T23:59:59`).getTime()<Date.now();
   return <button onClick={onClick} className={`w-full rounded-2xl border p-4 text-left ${active?'border-sky-400/30 bg-sky-400/[.06]':'border-white/10 bg-black/20'}`}>
     <div className="flex items-start justify-between gap-3">
