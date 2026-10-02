@@ -1,6 +1,17 @@
 export type BankType = 'volks' | 'others';
 export type UserRole = 'admin' | 'manager' | 'director' | 'seller' | 'user' | 'reception' | 'evaluator';
 export type DmsAccessProfile = 'management' | 'preparation' | 'finance';
+export type DmsPermissionKey =
+  | 'stockView'
+  | 'stockWrite'
+  | 'prepView'
+  | 'prepRequest'
+  | 'prepApprove'
+  | 'financeView'
+  | 'financeCreate'
+  | 'financeSettle'
+  | 'diagnostics'
+  | 'usersManage';
 export type UserStatus = 'active' | 'inactive';
 export type CompanyPlan = 'starter' | 'pro' | 'enterprise';
 export type CompanyStatus = 'trial' | 'active' | 'suspended';
@@ -32,7 +43,7 @@ export type DealMasterModule =
 export interface Company { id:string; slug:string; name:string; plan:CompanyPlan; status:CompanyStatus; createdAt?:string; trialEndsAt?:string; billing?:CompanyBilling; moduleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 export interface Store { id:string; code:string; name:string; active:boolean; companyId?:string; }
 export interface SellerGoals { monthly:number; firstHalf:number; capture:number; margin:number; }
-export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; companyId?:string; dmsAccessProfile?:DmsAccessProfile; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
+export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; companyId?:string; dmsAccessProfile?:DmsAccessProfile; dmsPermissionOverrides?:Partial<Record<DmsPermissionKey,boolean>>; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 
 export interface CustomerMaster {
   id:string;
