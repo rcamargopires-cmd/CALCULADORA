@@ -1,22 +1,37 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import { AlertTriangle, BarChart3, CircleDollarSign, RefreshCw, ShoppingCart, TrendingUp, X } from 'lucide-react';
 import type { User } from '../types';
-import { dmsAnalyticsService, type DmsAnalyticsReport } from '../services/dmsAnalyticsService';
+import { dmsAnalyticsService, type DmsAnalyticsReport, type DmsAnalyticsUnitRow } from '../services/dmsAnalyticsService';
+import { storeService } from '../services/storeService';
 
 type Props={currentUser:User;companyId:string;storeId:string;storeName:string};
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
 const pct=(value:number)=>`${(Number(value)||0).toFixed(1).replace('.',',')}%`;
 
-const DmsAnalyticsPanel:React.FC<Props>=({companyId,storeId,storeName})=>{
+const DmsAnalyticsPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})=>{
   const[open,setOpen]=useState(false);
   const[report,setReport]=useState<DmsAnalyticsReport|null>(null);
   const[loading,setLoading]=useState(false);
   const[error,setError]=useState('');
-  const[tab,setTab]=useState<'overview'|'vehicles'|'sellers'|'suppliers'>('overview');
+  const[units,setUnits]=useState<DmsAnalyticsUnitRow[]>([]);
+  const[tab,setTab]=useState<'overview'|'vehicles'|'sellers'|'suppliers'|'units'>('overview');
 
   const run=async()=>{
     setLoading(true);setError('');
-    try{setReport(await dmsAnalyticsService.run(companyId,storeId));}
+    try{
+      const [current,allStores]=await Promise.all([
+        dmsAnalyticsService.run(companyId,storeId),
+        storeService.getByCompany(companyId).catch(()=>[]),
+      ]);
+      setReport(current);
+      const allowed=allStores.filter(store=>{
+        if(!store.active)return false;
+        if(currentUser.role==='admin'||currentUser.role==='director')return true;
+        const ids=currentUser.storeIds?.length?currentUser.storeIds:[currentUser.storeId||storeId];
+        return ids.includes(store.id);
+      });
+      setUnits(allowed.length>1?await dmsAnalyticsService.runUnits(companyId,allowed.map(store=>({id:store.id,name:store.name}))):[]);
+    }
     catch(cause:any){setError(cause?.message||'Não foi possível montar a visão transacional do DMS.');}
     finally{setLoading(false);}
   };
@@ -50,6 +65,7 @@ const DmsAnalyticsPanel:React.FC<Props>=({companyId,storeId,storeName})=>{
               <Tab active={tab==='vehicles'} onClick={()=>setTab('vehicles')} label="Rentabilidade por carro"/>
               <Tab active={tab==='sellers'} onClick={()=>setTab('sellers')} label="Por vendedor"/>
               <Tab active={tab==='suppliers'} onClick={()=>setTab('suppliers')} label="Preparação / fornecedores"/>
+              {units.length>1&&<Tab active={tab==='units'} onClick={()=>setTab('units')} label="Resultado por unidade"/>}
             </nav>
 
             {tab==='overview'&&<>
