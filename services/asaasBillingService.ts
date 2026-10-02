@@ -11,11 +11,11 @@ export const asaasBillingService={
   })=>{
     const token=await auth.currentUser?.getIdToken();
     if(!token)throw new Error('Sessão administrativa expirada.');
-    const response=await fetch('/api/billing-asaas',{
+    const response=await fetch('/api/integrations',{
       method:'POST',
       headers:{'content-type':'application/json',authorization:`Bearer ${token}`},
       body:JSON.stringify({
-        action:'create-subscription',companyId:input.company.id,payer:input.payer,
+        domain:'billing',action:'create-subscription',companyId:input.company.id,payer:input.payer,
         amount:input.amount,nextDueDate:input.nextDueDate,billingType:input.billingType||'UNDEFINED',
       }),
     });
