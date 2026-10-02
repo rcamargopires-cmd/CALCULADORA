@@ -12,8 +12,6 @@ import {
 } from '../types';
 import { normalize } from '../services/operationalDataService';
 import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
-import { prepTrackService } from '../services/prepTrackService';
-import { manualStockService } from '../services/manualStockService';
 import { DEMO_COMPANY_ID, demoStockRows, demoPerformanceSnapshots } from '../services/demoSeedService';
 import { evaluationQueueService, EvaluationQueueRequest } from '../services/evaluationQueueService';
 import { showroomFlowService } from '../services/showroomFlowService';
@@ -163,27 +161,12 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   ) => {
     setLoading(true);
     try {
-      const [stockData, performanceData, perf, prepOrders] = await Promise.all([
+      const [stockData, performanceData, perf] = await Promise.all([
         storeScopedOperationalService.getLatestStock(storeId, companyId),
         storeScopedOperationalService.getLatestPerformance(storeId, companyId),
         getDoc(doc(db, 'config/performance')),
-        prepTrackService.getOrders(companyId, storeId).catch(() => []),
       ]);
-      let effectiveStock = companyId===DEMO_COMPANY_ID && !(stockData||[]).length ? demoStockRows() : (stockData||[]);
-
-      if(companyId!==DEMO_COMPANY_ID){
-        const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-        const activePrepOrders=prepOrders.filter(order=>!order.sold&&!['delivery','delivered'].includes(order.status));
-        for(const order of activePrepOrders){
-          if(effectiveStock.some(item=>cleanPlate(item.plate)===cleanPlate(order.plate)))continue;
-          try{
-            effectiveStock=await manualStockService.syncPreparation(order,currentUser,storeId,companyId,effectiveStock);
-          }catch(error){
-            console.warn('MOTYQ dashboard could not restore active preparation vehicle',order.plate,error);
-          }
-        }
-      }
-
+      const effectiveStock = companyId===DEMO_COMPANY_ID && !(stockData||[]).length ? demoStockRows() : (stockData||[]);
       const effectivePerformance = companyId===DEMO_COMPANY_ID && !performanceData
         ? (demoPerformanceSnapshots().slice(-1)[0] as OperationalPerformanceSnapshot)
         : performanceData;
