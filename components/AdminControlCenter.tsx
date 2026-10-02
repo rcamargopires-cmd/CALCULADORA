@@ -11,7 +11,7 @@ import { companyScopeService } from '../services/companyScopeService';
 import { storeCompanyId, storeService } from '../services/storeService';
 import { storeScopeService } from '../services/storeScopeService';
 import { userService } from '../services/userService';
-import { PLAN_META } from '../services/planEntitlementService';
+import { MODULES, PLAN_META, defaultModuleEnabled } from '../services/planEntitlementService';
 import { DEMO_COMPANY_ID, demoSeedService } from '../services/demoSeedService';
 import { billingSnapshot, defaultBilling, nextMonthlyDue } from '../services/billingService';
 import DmsPermissionEditor from './DmsPermissionEditor';
@@ -39,6 +39,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
   const[onboardingOpen,setOnboardingOpen]=useState(false);
   const[newUserOpen,setNewUserOpen]=useState(false);
   const[editingUser,setEditingUser]=useState<User|null>(null);
+  const[editingModules,setEditingModules]=useState<Company|null>(null);
   const[companyName,setCompanyName]=useState('');
   const[companyPlan,setCompanyPlan]=useState<CompanyPlan>('pro');
   const[userForm,setUserForm]=useState({name:'',email:'',role:'manager' as UserRole,dmsAccessProfile:'management' as DmsAccessProfile,dmsPermissionOverrides:{} as Partial<Record<DmsPermissionKey,boolean>>,status:'active' as UserStatus,storeId:'',storeIds:[] as string[]});
@@ -306,6 +307,7 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
               <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Plano</span><select disabled={saving===company.id} value={company.plan} onChange={e=>void updateCompany(company,{plan:e.target.value as CompanyPlan})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="starter">Starter</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></label>
               <label><span className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Situação</span><select disabled={saving===company.id} value={company.status} onChange={e=>void updateCompany(company,{status:e.target.value as Company['status']})} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="trial">Avaliação</option><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></label>
             </div>
+            <button disabled={saving===company.id} onClick={()=>setEditingModules(company)} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 text-xs font-bold text-violet-700 disabled:opacity-50"><LockKeyhole size={14}/> CONFIGURAR MÓDULOS DO PLANO</button>
             {(()=>{const billing=company.billing||defaultBilling();const finance=billingSnapshot(billing);return <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><div className="flex items-center gap-2"><CreditCard size={15} className="text-blue-600"/><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-500">Cobrança mensal</p></div><p className="mt-1 text-xs text-slate-500">{billing.enabled?`Próximo vencimento ${dateBr(finance.dueDate)} · tolerância ${billing.graceDays} dia(s)`:'Controle financeiro desativado para esta empresa.'}</p></div>
@@ -349,6 +351,27 @@ const AdminControlCenter:React.FC<{currentUser:User}>=({currentUser})=>{
       <button disabled={!companyName.trim()||saving==='company'} onClick={()=>void createCompany()} className="mt-5 h-11 w-full rounded-xl bg-blue-600 text-sm font-bold text-white disabled:opacity-40">{saving==='company'?'Criando...':'Criar empresa'}</button>
     </Modal>}
 
+    {editingModules&&<Modal title="Módulos do plano" eyebrow={editingModules.name} onClose={()=>setEditingModules(null)}>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-600">O plano define o padrão. Um checkbox personalizado pode liberar ou bloquear um módulo sem trocar o plano inteiro.</div>
+      <div className="mt-4 space-y-2">
+        {MODULES.map(module=>{
+          const planDefault=defaultModuleEnabled(editingModules.plan,module.id);
+          const override=editingModules.moduleOverrides?.[module.id];
+          const enabled=typeof override==='boolean'?override:planDefault;
+          return <label key={module.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+            <input type="checkbox" checked={enabled} onChange={event=>{
+              const nextOverrides={...(editingModules.moduleOverrides||{}),[module.id]:event.target.checked};
+              const next={...editingModules,moduleOverrides:nextOverrides};
+              setEditingModules(next);
+              void updateCompany(editingModules,{moduleOverrides:nextOverrides});
+            }} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-violet-600"/>
+            <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-slate-800">{module.label}</span><span className="mt-0.5 block text-[10px] leading-4 text-slate-500">{module.description}</span></span>
+            <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${typeof override==='boolean'?'bg-violet-50 text-violet-700':'bg-slate-100 text-slate-500'}`}>{typeof override==='boolean'?'PERSONALIZADO':planDefault?'PLANO':'UPGRADE'}</span>
+          </label>;
+        })}
+      </div>
+      <button disabled={saving===editingModules.id} onClick={()=>{void updateCompany(editingModules,{moduleOverrides:{}});setEditingModules({...editingModules,moduleOverrides:{}});}} className="mt-4 h-10 w-full rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50">RESTAURAR PADRÃO DO PLANO</button>
+    </Modal>}
     <SaasOnboardingWizard open={onboardingOpen} onClose={()=>setOnboardingOpen(false)} currentUser={currentUser} onComplete={load}/>
     {newUserOpen&&selectedCompany&&<Modal title={editingUser?'Editar usuário':'Novo usuário'} eyebrow={selectedCompany.name} onClose={()=>{setNewUserOpen(false);setEditingUser(null);}}>
       <div className="grid gap-4">
