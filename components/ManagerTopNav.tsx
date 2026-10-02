@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Banknote, CircleDollarSign, ListTodo, ShieldCheck, Wrench } from 'lucide-react';
+import { Banknote, CircleDollarSign, ClipboardCheck, ListTodo, ShieldCheck, Wrench } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { User } from '../types';
@@ -104,6 +104,15 @@ const ManagerTopNav: React.FC = () => {
       >
         <ShieldCheck size={14}/>
         <span className="motyq-manager-nav-label">DMS</span>
+      </button>}
+      {permissions.diagnostics&&<button
+        type="button"
+        title="Roadmap DMS"
+        onClick={() => launcherClick('Roadmap DMS')}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold text-fuchsia-300 transition-all hover:bg-fuchsia-400/10 hover:text-fuchsia-200"
+      >
+        <ClipboardCheck size={14}/>
+        <span className="motyq-manager-nav-label">PLANO</span>
       </button>}
     </>, target)}
   </>;
