@@ -4,6 +4,7 @@ import type { CrmProposalSnapshot, CrmProposalStatus, ShowroomPassage, ShowroomP
 import { salesOrderService } from './salesOrderService';
 import { dmsVehicleService } from './dmsVehicleService';
 import { currentStockService } from './currentStockService';
+import { proposalExpired, stockStatusForProposalEvent } from './dmsFlowPolicy.mjs';
 
 export type ProposalInput=Pick<CrmProposalSnapshot,
   'vehicle'|'plate'|'year'|'km'|'location'|'stockPriceAtCreation'|'salePrice'|'discount'|
@@ -12,7 +13,7 @@ export type ProposalInput=Pick<CrmProposalSnapshot,
 export const proposalMoney=(value:number)=>Number(value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 
 const defaultValidUntil=()=>new Date(Date.now()+48*60*60*1000).toISOString();
-const expired=(value?:string)=>Boolean(value&&new Date(value).getTime()<=Date.now());
+const expired=(value?:string)=>proposalExpired(value);
 const cleanDocument=(value:string)=>String(value||'').replace(/\D/g,'').slice(0,14);
 
 const finiteNonnegative=(value:number,label:string)=>{
@@ -161,7 +162,7 @@ export const crmProposalService={
       if(!item)throw new Error('Veículo não está no estoque atual para reserva.');
       const status=String(item.status||'').toLowerCase();
       if(status.includes('reserv')&&item.vehicleId!==updated.vehicleId)throw new Error('Veículo já reservado em outra negociação.');
-      await currentStockService.upsert({...item,status:'Reservado'},lead.storeId,lead.companyId,input.actor as any);
+      await currentStockService.upsert({...item,status:stockStatusForProposalEvent('sent')||'Reservado'},lead.storeId,lead.companyId,input.actor as any);
       if(updated.vehicleId)await dmsVehicleService.updateStage(updated.vehicleId,'reserved',lead.companyId,lead.storeId,input.actor as any,'Reserva temporária por proposta enviada.');
     }
     if(input.status==='rejected'){
@@ -170,7 +171,7 @@ export const crmProposalService={
       const current=await currentStockService.getCurrent(lead.companyId,lead.storeId);
       const item=current.find(row=>String(row.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===String(updated.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
       if(item&&String(item.status||'').toLowerCase().includes('reserv')){
-        await currentStockService.upsert({...item,status:'Disponível'},lead.storeId,lead.companyId,input.actor as any);
+        await currentStockService.upsert({...item,status:stockStatusForProposalEvent('rejected')||'Disponível'},lead.storeId,lead.companyId,input.actor as any);
         if(updated.vehicleId)await dmsVehicleService.updateStage(updated.vehicleId,'available',lead.companyId,lead.storeId,input.actor as any,'Reserva liberada por recusa da proposta.');
       }
     }
@@ -232,7 +233,7 @@ export const crmProposalService={
       const current=await currentStockService.getCurrent(lead.companyId,lead.storeId);
       const item=current.find(stock=>String(stock.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===String(row.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
       if(item&&String(item.status||'').toLowerCase().includes('reserv')){
-        await currentStockService.upsert({...item,status:'Disponível'},lead.storeId,lead.companyId);
+        await currentStockService.upsert({...item,status:stockStatusForProposalEvent('expired')||'Disponível'},lead.storeId,lead.companyId);
         if(row.vehicleId)await dmsVehicleService.updateStage(row.vehicleId,'available',lead.companyId,lead.storeId,null,'Reserva expirada automaticamente.');
       }
     }
