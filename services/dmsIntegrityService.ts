@@ -1,0 +1,180 @@
+import type { DmsDiagnosticIssue, DmsDiagnosticReport, FinanceEntry, PrepOrder, User } from '../types';
+import { currentStockService } from './currentStockService';
+import { dmsVehicleService } from './dmsVehicleService';
+import { prepTrackService } from './prepTrackService';
+import { financeService } from './financeService';
+import { dmsSupplierService } from './dmsSupplierService';
+import { dmsCustomerService } from './dmsCustomerService';
+import { userService } from './userService';
+
+const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
+const norm=(value:unknown)=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+
+const issue=(
+  severity:DmsDiagnosticIssue['severity'],
+  domain:DmsDiagnosticIssue['domain'],
+  id:string,
+  title:string,
+  detail:string,
+  extra:Partial<DmsDiagnosticIssue>={},
+):DmsDiagnosticIssue=>({id,severity,domain,title,detail,...extra});
+
+export const dmsIntegrityService={
+  run:async(companyId:string,storeId:string,currentUser?:User|null):Promise<DmsDiagnosticReport>=>{
+    const [stock,masters,orders,finance,suppliers,customers,users]=await Promise.all([
+      currentStockService.getCurrent(companyId,storeId),
+      dmsVehicleService.list(companyId,storeId),
+      prepTrackService.getOrders(companyId,storeId),
+      financeService.getAll(companyId,storeId),
+      dmsSupplierService.list(companyId,storeId),
+      dmsCustomerService.list(companyId,storeId),
+      currentUser?userService.getAll(companyId,storeId).catch(()=>[]):Promise.resolve([]),
+    ]);
+
+    const issues:DmsDiagnosticIssue[]=[];
+    const mastersById=new Map(masters.map(item=>[item.vehicleId,item]));
+    const stockByPlate=new Map(stock.map(item=>[cleanPlate(item.plate),item]));
+    const ordersByVehicle=new Map<string,PrepOrder>();
+    orders.forEach(order=>{
+      if(order.vehicleId)ordersByVehicle.set(order.vehicleId,order);
+    });
+
+    for(const item of stock){
+      const plate=cleanPlate(item.plate);
+      if(!item.vehicleId){
+        issues.push(issue('critical','stock',`stock-no-vehicle-${plate}`,'Veículo em estoque sem identidade DMS',`${plate} · ${item.vehicle} não possui vehicleId.`,{plate,entityId:item.id}));
+        continue;
+      }
+      const master=mastersById.get(item.vehicleId);
+      if(!master){
+        issues.push(issue('critical','vehicle',`stock-master-missing-${item.vehicleId}`,'Cadastro mestre do veículo não encontrado',`${plate} aponta para ${item.vehicleId}, mas o mestre não existe.`,{plate,vehicleId:item.vehicleId,entityId:item.id}));
+        continue;
+      }
+      if(cleanPlate(master.plate)!==plate){
+        issues.push(issue('warning','vehicle',`plate-mismatch-${item.vehicleId}`,'Placa divergente entre estoque e veículo mestre',`Estoque: ${plate}. Mestre: ${cleanPlate(master.plate)}.`,{plate,vehicleId:item.vehicleId}));
+      }
+    }
+
+    const activeMasters=masters.filter(item=>item.stage!=='exited');
+    const plateGroups=new Map<string,typeof activeMasters>();
+    activeMasters.forEach(item=>{
+      const plate=cleanPlate(item.plate);
+      if(!plate)return;
+      const group=plateGroups.get(plate)||[];
+      group.push(item);
+      plateGroups.set(plate,group);
+    });
+    plateGroups.forEach((group,plate)=>{
+      if(group.length>1){
+        issues.push(issue('critical','vehicle',`duplicate-master-${plate}`,'Placa duplicada no cadastro mestre',`${plate} possui ${group.length} cadastros mestres ativos.`,{plate}));
+      }
+    });
+
+    for(const order of orders){
+      const plate=cleanPlate(order.plate);
+      if(!order.vehicleId){
+        issues.push(issue('warning','prep',`prep-no-vehicle-${order.id}`,'PrepTrack sem vínculo com veículo mestre',`${plate} · ${order.vehicle} ainda está vinculado apenas pela placa.`,{plate,entityId:order.id}));
+      }else if(!mastersById.has(order.vehicleId)){
+        issues.push(issue('critical','prep',`prep-master-missing-${order.id}`,'Preparação aponta para veículo inexistente',`${plate} usa vehicleId ${order.vehicleId}, mas o cadastro mestre não foi encontrado.`,{plate,vehicleId:order.vehicleId,entityId:order.id}));
+      }
+
+      const pending=(order.services||[]).filter(service=>service.status==='pending');
+      if(pending.length&&order.status!=='waiting_approval'){
+        issues.push(issue('warning','prep',`prep-status-${order.id}`,'Ordem com aprovação pendente fora da etapa correta',`${plate} tem ${pending.length} serviço(s) aguardando gerente, mas a ordem está em ${order.status}.`,{plate,vehicleId:order.vehicleId,entityId:order.id}));
+      }
+
+      for(const service of order.services||[]){
+        if(['approved','in_service','waiting_part','done'].includes(service.status)){
+          if(!service.payableId){
+            issues.push(issue('warning','finance',`approved-no-payable-${order.id}-${service.id}`,'Serviço aprovado sem conta a pagar vinculada',`${plate} · ${service.type} · ${service.provider||'sem fornecedor'}.`,{plate,vehicleId:order.vehicleId,entityId:order.id}));
+          }
+          if(service.provider&&!service.supplierId){
+            issues.push(issue('warning','supplier',`approved-no-supplier-${order.id}-${service.id}`,'Serviço aprovado sem fornecedor mestre',`${plate} · ${service.provider} ainda não possui supplierId.`,{plate,vehicleId:order.vehicleId,entityId:order.id}));
+          }
+        }
+      }
+
+      const stockItem=order.vehicleId
+        ? stock.find(item=>item.vehicleId===order.vehicleId)
+        : stockByPlate.get(plate);
+      const approvedServices=(order.services||[]).filter(service=>['approved','in_service','waiting_part','done'].includes(service.status));
+      if(stockItem&&approvedServices.length){
+        const expected=approvedServices.reduce((sum,service)=>sum+(Number(service.finalCost)||Number(service.estimatedCost)||0),0);
+        const actual=Number(stockItem.prepCost)||0;
+        if(Math.abs(expected-actual)>1){
+          issues.push(issue('warning','stock',`prep-cost-mismatch-${order.id}`,'Custo de preparação divergente no estoque',`${plate}: PrepTrack soma R$ ${expected.toFixed(2)}, estoque registra R$ ${actual.toFixed(2)}.`,{plate,vehicleId:stockItem.vehicleId,entityId:order.id}));
+        }
+      }
+    }
+
+    for(const entry of finance as FinanceEntry[]){
+      if(entry.status==='cancelled')continue;
+      if(Number(entry.amount)<=0){
+        issues.push(issue('critical','finance',`finance-zero-${entry.id}`,'Lançamento financeiro sem valor válido',`${entry.description} · ${entry.party}.`,{plate:entry.plate,vehicleId:entry.vehicleId,entityId:entry.id}));
+      }
+      if(entry.origin==='prep'){
+        if(!entry.vehicleId){
+          issues.push(issue('warning','finance',`prep-finance-no-vehicle-${entry.id}`,'Conta de preparação sem vehicleId',`${entry.description} · ${entry.party} não está ligada ao veículo mestre.`,{plate:entry.plate,entityId:entry.id}));
+        }
+        if(entry.entryType==='payable'&&!entry.partyId){
+          issues.push(issue('warning','supplier',`prep-finance-no-supplier-${entry.id}`,'Conta de preparação sem fornecedor mestre',`${entry.party} ainda está apenas como texto no financeiro.`,{plate:entry.plate,vehicleId:entry.vehicleId,entityId:entry.id}));
+        }
+      }
+      if((entry.status==='paid'||entry.status==='received')&&!entry.settledAt){
+        issues.push(issue('warning','finance',`settled-no-date-${entry.id}`,'Baixa financeira sem data de liquidação',`${entry.description} está como ${entry.status}, mas settledAt está vazio.`,{plate:entry.plate,vehicleId:entry.vehicleId,entityId:entry.id}));
+      }
+      if(entry.status==='pending'&&!entry.dueDate){
+        issues.push(issue('info','finance',`finance-no-due-${entry.id}`,'Lançamento pendente sem vencimento',`${entry.description} · ${entry.party}.`,{plate:entry.plate,vehicleId:entry.vehicleId,entityId:entry.id}));
+      }
+    }
+
+    const supplierGroups=new Map<string,typeof suppliers>();
+    suppliers.filter(item=>item.active!==false).forEach(item=>{
+      const key=norm(item.document)||norm(item.name);
+      if(!key)return;
+      const group=supplierGroups.get(key)||[];
+      group.push(item);
+      supplierGroups.set(key,group);
+    });
+    supplierGroups.forEach((group,key)=>{
+      if(group.length>1)issues.push(issue('warning','supplier',`supplier-duplicate-${key}`,'Fornecedor possivelmente duplicado',group.map(item=>item.name).join(' · ')));
+    });
+
+    const customerPhoneGroups=new Map<string,typeof customers>();
+    customers.forEach(item=>{
+      const key=String(item.phone||'').replace(/\D/g,'');
+      if(!key)return;
+      const group=customerPhoneGroups.get(key)||[];
+      group.push(item);
+      customerPhoneGroups.set(key,group);
+    });
+    customerPhoneGroups.forEach((group,key)=>{
+      if(group.length>1)issues.push(issue('warning','customer',`customer-duplicate-${key}`,'Cliente possivelmente duplicado pelo telefone',group.map(item=>item.name).join(' · ')));
+    });
+
+    users.filter(user=>user.status==='active'&&user.role==='manager'&&!user.dmsAccessProfile).forEach(user=>{
+      issues.push(issue('info','permissions',`legacy-manager-${user.email}`,'Gestor ainda usa acesso legado completo',`${user.name} ainda não foi classificado como Gestor, Preparação ou Financeiro/Caixa.`,{entityId:user.email}));
+    });
+
+    issues.sort((a,b)=>{
+      const weight={critical:0,warning:1,info:2};
+      return weight[a.severity]-weight[b.severity]||a.domain.localeCompare(b.domain);
+    });
+
+    return{
+      generatedAt:new Date().toISOString(),
+      companyId,
+      storeId,
+      stockCount:stock.length,
+      vehicleMasterCount:masters.length,
+      prepOrderCount:orders.length,
+      financeEntryCount:finance.length,
+      supplierCount:suppliers.length,
+      customerCount:customers.length,
+      criticalCount:issues.filter(item=>item.severity==='critical').length,
+      warningCount:issues.filter(item=>item.severity==='warning').length,
+      infoCount:issues.filter(item=>item.severity==='info').length,
+      issues,
+    };
+  },
+};
