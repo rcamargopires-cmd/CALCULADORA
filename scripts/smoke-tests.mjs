@@ -61,6 +61,30 @@ const dealsBlock=dealsStart>=0&&dealsEnd>dealsStart?rules.slice(dealsStart,deals
 if(!dealsBlock)fail('Deals rules block missing.');
 if(dealsBlock.includes("opKind(resource.data) != 'audit_event'"))fail('Audit guard leaked into deals rule.');
 
+const dealGuard=read('services/dealTenantService.ts');
+for(const required of ["Informe uma placa válida antes de salvar a negociação.","O total das formas de pagamento deve conferir com o valor da venda.","cleanupKnownQaRecords"]){
+  if(!dealGuard.includes(required))fail('Negotiation data guard missing: '+required);
+}
+
+const financeGuard=read('services/financeService.ts');
+for(const required of ['withoutUndefined','Informe o primeiro vencimento do lançamento.']){
+  if(!financeGuard.includes(required))fail('Finance persistence guard missing: '+required);
+}
+
+const marketIq=read('components/MarketIQ.tsx');
+if(!marketIq.includes('plate,vehicle,year,km,fipe,notes,value:calc.recommendedBuy'))fail('MarketIQ approval no longer sends complete evaluation context.');
+const marketIqBridge=read('components/MarketIQPersistenceBridge.tsx');
+if(!marketIqBridge.includes('Complete veículo, ano/modelo, KM e FIPE antes de concluir a avaliação.'))fail('MarketIQ incomplete-decision guard missing.');
+
+const prepTrackPanel=read('components/PrepTrackPanel.tsx');
+if(!prepTrackPanel.includes('stockByVehicleId'))fail('PrepTrack no longer resolves canonical stock by vehicleId.');
+
+const dashboard=read('components/ExecutiveDashboard.tsx');
+if(!dashboard.includes('salesOrderService.subscribe'))fail('Dashboard is no longer driven by formal DMS sales orders.');
+
+const aiManager=read('components/AIManagerV2.tsx');
+if(!aiManager.includes('Dados pendentes'))fail('AI Manager data-pending guard missing.');
+
 const firebaseConfig=JSON.parse(read('firebase.json'));
 if(!firebaseConfig.firestore?.[0]?.rules||!firebaseConfig.firestore?.[0]?.indexes)fail('Firebase rules/index deploy config missing.');
 const indexes=JSON.parse(read('firestore.indexes.json'));
