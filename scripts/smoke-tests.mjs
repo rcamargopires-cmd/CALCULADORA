@@ -74,7 +74,7 @@ const appSource=read('App.tsx');
 if(!appSource.includes('Negociação arquivada com histórico preservado.'))fail('Negotiation archival UX guard missing.');
 
 const dealGuard=read('services/dealTenantService.ts');
-for(const required of ["Informe uma placa válida antes de salvar a negociação.","O total das formas de pagamento deve conferir com o valor da venda.","cleanupKnownQaRecords","kind:'deal_archived'","archiveReason"]){
+for(const required of ["Informe uma placa válida antes de salvar a negociação.","O total das formas de pagamento deve conferir com o valor da venda.","cleanupKnownQaRecords","kind:'deal_archived'","archiveReason","qaCleanup:true"]){
   if(!dealGuard.includes(required))fail('Negotiation data guard missing: '+required);
 }
 
