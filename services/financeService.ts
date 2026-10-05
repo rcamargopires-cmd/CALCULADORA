@@ -56,7 +56,11 @@ export const financeService={
     storeId:string;
     actor:Pick<User,'email'|'name'>;
   })=>{
-    if((input.origin||'manual')==='manual'&&!String(input.dueDate||'').trim())throw new Error('Informe o primeiro vencimento do lançamento.');
+    if((input.origin||'manual')==='manual'){
+      if(!String(input.dueDate||'').trim())throw new Error('Informe o primeiro vencimento do lançamento.');
+      if(!String(input.chartAccountId||'').trim())throw new Error('Selecione o Plano de Contas do lançamento.');
+      if(!String(input.costCenterId||'').trim())throw new Error('Selecione o Centro de Custo do lançamento.');
+    }
     const stamp=now();
     const id=safe(`finance_${input.companyId}_${input.storeId}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
     const entry=normalize({
