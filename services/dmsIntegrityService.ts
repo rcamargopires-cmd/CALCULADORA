@@ -1,6 +1,6 @@
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { DmsDiagnosticIssue, DmsDiagnosticReport, FinanceEntry, PrepOrder, User } from '../types';
+import type { DmsDiagnosticIssue, DmsDiagnosticReport, FinanceEntry, PrepOrder, SavedCalculation, User, VehicleDocumentCase } from '../types';
 import { currentStockService } from './currentStockService';
 import { dmsVehicleService } from './dmsVehicleService';
 import { prepTrackService } from './prepTrackService';
@@ -26,7 +26,7 @@ const issue=(
 
 export const dmsIntegrityService={
   run:async(companyId:string,storeId:string,currentUser?:User|null):Promise<DmsDiagnosticReport>=>{
-    const [stock,masters,orders,purchases,sales,finance,suppliers,customers,users]=await Promise.all([
+    const [stock,masters,orders,purchases,sales,finance,suppliers,customers,users,documents,dealsSnap]=await Promise.all([
       currentStockService.getCurrent(companyId,storeId),
       dmsVehicleService.list(companyId,storeId),
       prepTrackService.getOrders(companyId,storeId),
@@ -36,9 +36,12 @@ export const dmsIntegrityService={
       dmsSupplierService.list(companyId,storeId),
       dmsCustomerService.list(companyId,storeId),
       currentUser?userService.getAll(companyId,storeId).catch(()=>[]):Promise.resolve([]),
+      import('./vehicleDocumentService').then(module=>module.vehicleDocumentService.list(companyId,storeId)).catch(()=>[] as VehicleDocumentCase[]),
+      getDocs(query(collection(db,'deals'),where('companyId','==',companyId),where('storeId','==',storeId))).catch(()=>null),
     ]);
 
     const issues:DmsDiagnosticIssue[]=[];
+    const deals:SavedCalculation[]=dealsSnap?dealsSnap.docs.map(item=>({id:item.id,...item.data()} as SavedCalculation)):[];
     const mastersById=new Map(masters.map(item=>[item.vehicleId,item]));
     const stockByPlate=new Map(stock.map(item=>[cleanPlate(item.plate),item]));
     const ordersByVehicle=new Map<string,PrepOrder>();
@@ -56,6 +59,9 @@ export const dmsIntegrityService={
       if(!master){
         issues.push(issue('critical','vehicle',`stock-master-missing-${item.vehicleId}`,'Cadastro mestre do veículo não encontrado',`${plate} aponta para ${item.vehicleId}, mas o mestre não existe.`,{plate,vehicleId:item.vehicleId,entityId:item.id}));
         continue;
+      }
+      if(Number(item.fipe)>0&&Number(master.fipe)>0&&Math.abs(Number(item.fipe)-Number(master.fipe))>1){
+        issues.push(issue('warning','vehicle',`fipe-mismatch-${item.vehicleId}`,'FIPE divergente entre estoque e veículo mestre',`${plate}: estoque ${moneyForIssue(Number(item.fipe))}, mestre ${moneyForIssue(Number(master.fipe))}.`,{plate,vehicleId:item.vehicleId}));
       }
       if(cleanPlate(master.plate)!==plate){
         issues.push(issue('warning','vehicle',`plate-mismatch-${item.vehicleId}`,'Placa divergente entre estoque e veículo mestre',`Estoque: ${plate}. Mestre: ${cleanPlate(master.plate)}.`,{plate,vehicleId:item.vehicleId}));
@@ -157,6 +163,27 @@ export const dmsIntegrityService={
       }
     }
 
+    const documentGroups=new Map<string,VehicleDocumentCase[]>();
+    for(const item of documents as VehicleDocumentCase[]){
+      const key=String(item.vehicleId||cleanPlate(item.plate));
+      const group=documentGroups.get(key)||[];group.push(item);documentGroups.set(key,group);
+    }
+    documentGroups.forEach((group,key)=>{
+      if(group.length>1){
+        const first=group[0];
+        issues.push(issue('critical','vehicle',`duplicate-document-${key}`,'Dossiê documental duplicado',`${cleanPlate(first.plate)} possui ${group.length} dossiês para o mesmo veículo.`,{plate:cleanPlate(first.plate),vehicleId:first.vehicleId}));
+      }
+    });
+
+    for(const deal of deals){
+      const plate=cleanPlate(deal.data?.licensePlate);
+      const saleValue=Number(deal.data?.invoiceValue)||0;
+      const totalPayment=Number(deal.data?.payments?.entry||0)+Number(deal.data?.payments?.financing||0)+Number(deal.data?.payments?.tradeIn||0);
+      if(deal.data?.dealStatus==='closed'&&(!/^[A-Z0-9]{7}$/.test(plate)||saleValue<=0||totalPayment<=0||Math.abs(totalPayment-saleValue)>1||!String(deal.userId||'').trim())){
+        issues.push(issue('critical','vehicle',`invalid-closed-deal-${deal.id}`,'Negociação fechada com dados inválidos',`${plate||'SEM PLACA'} · ${moneyForIssue(saleValue)} · pagamentos ${moneyForIssue(totalPayment)}.`,{plate:plate||undefined,entityId:deal.id}));
+      }
+    }
+
     for(const entry of finance as FinanceEntry[]){
       if(entry.status==='cancelled')continue;
       if(Number(entry.amount)<=0){
@@ -172,6 +199,9 @@ export const dmsIntegrityService={
       }
       if((entry.status==='paid'||entry.status==='received')&&!entry.settledAt){
         issues.push(issue('warning','finance',`settled-no-date-${entry.id}`,'Baixa financeira sem data de liquidação',`${entry.description} está como ${entry.status}, mas settledAt está vazio.`,{plate:entry.plate,vehicleId:entry.vehicleId,entityId:entry.id}));
+      }
+      if(entry.origin==='manual'&&(!entry.chartAccountId||!entry.costCenterId)){
+        issues.push(issue('warning','finance',`manual-finance-structure-${entry.id}`,'Lançamento manual sem Plano de Contas/Centro de Custo',`${entry.description} · ${entry.party}.`,{plate:entry.plate,vehicleId:entry.vehicleId,entityId:entry.id}));
       }
       if(entry.status==='pending'&&!entry.dueDate){
         issues.push(issue('info','finance',`finance-no-due-${entry.id}`,'Lançamento pendente sem vencimento',`${entry.description} · ${entry.party}.`,{plate:entry.plate,vehicleId:entry.vehicleId,entityId:entry.id}));
