@@ -94,6 +94,10 @@ if(!dashboard.includes('salesOrderService.subscribe'))fail('Dashboard is no long
 const integrityServiceSource=read('services/dmsIntegrityService.ts');
 for(const required of ['duplicate-document-','invalid-closed-deal-','manual-finance-structure-','fipe-mismatch-']){if(!integrityServiceSource.includes(required))fail('Expanded DMS integrity guard missing: '+required);}
 
+const permissionEditor=read('components/DmsPermissionEditor.tsx');
+const permissionSource=read('services/dmsPermissions.ts');
+for(const required of ['stockWrite','prepApprove','financeCreate','financeSettle','documentsView','afterSalesView','reportsView']){if(!permissionEditor.includes(required)&&!permissionSource.includes(required))fail('Granular permission editor guard missing: '+required);}
+
 const autoHealth=read('components/DmsIntegrityAutoRunner.tsx');
 if(!autoHealth.includes('cleanupKnownQaRecords'))fail('Automatic DMS health no longer cleans known QA deals before diagnosis.');
 
