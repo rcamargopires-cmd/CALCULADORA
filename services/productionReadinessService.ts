@@ -2,8 +2,8 @@ import { auth } from '../firebase';
 
 export type ProductionReadiness={
   serverFirebase:boolean;
-  asaas:{configured:boolean;apiKey:boolean;webhookToken:boolean;environment:string};
-  fiscal:{configured:boolean;companyId:string;environment:string;provider:string};
+  asaas:{configured:boolean;apiKey:boolean;webhookToken:boolean;environment:string;missing:string[]};
+  fiscal:{configured:boolean;companyId:string;environment:string;provider:string;missing:string[]};
   external:{githubFirebaseSecret:string;firstBackup:string;oemCredentials:string};
 };
 
