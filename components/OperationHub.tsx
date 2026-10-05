@@ -20,10 +20,11 @@ type Props = {
   canAlerts: boolean;
   canAi: boolean;
   canReports: boolean;
+  canDiagnostics: boolean;
   isAdmin: boolean;
 };
 
-type ToolKey = 'overview' | 'showroom' | 'team' | 'director' | 'actions' | 'alerts' | 'ai' | 'impact' | 'reports';
+type ToolKey = 'overview' | 'showroom' | 'team' | 'director' | 'actions' | 'alerts' | 'ai' | 'impact' | 'reports' | 'health';
 
 const findButton = (predicate: (button: HTMLButtonElement) => boolean) =>
   Array.from(document.querySelectorAll('button')).find(button => predicate(button as HTMLButtonElement)) as HTMLButtonElement | undefined;
@@ -94,9 +95,14 @@ const tools: Array<{
     description: 'Compare hoje, 7 dias, quinzena e mês sem criar uma leitura paralela fora da operação.',
     icon: <BarChart3 size={19}/>,
   },
+  {
+    key: 'health', eyebrow: 'Homologação', title: 'Saúde do DMS',
+    description: 'Cruza estoque, veículo mestre, preparação, vendas, financeiro, documentos e vínculos antes do aceite final.',
+    icon: <CheckCircle2 size={19}/>,
+  },
 ];
 
-const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports, isAdmin }) => {
+const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports, canDiagnostics, isAdmin }) => {
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
 
@@ -105,6 +111,7 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
     if (key === 'ai') return canAi;
     if (key === 'reports') return canReports;
     if (key === 'director') return isAdmin;
+    if (key === 'health') return canDiagnostics;
     return true;
   };
 
@@ -124,6 +131,7 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
     if (key === 'ai') found = clickText('MOTYQ AI');
     if (key === 'impact') found = clickTitle('Impacto Motyq');
     if (key === 'reports') found = clickText('Executive');
+    if (key === 'health') found = clickTitle('Diagnóstico DMS');
 
     if (!found) {
       setFeedback('O módulo está carregando. Tente novamente em instantes.');
