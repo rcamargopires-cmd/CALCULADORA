@@ -42,6 +42,9 @@ const safeId = (value: string) => value
 const localDate = (date = new Date()) =>
   `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 
+const vehicleIdForPlate=(plate:string)=>`demo_vehicle_${String(plate||'').toLowerCase()}`;
+const localDaysAgo=(days:number)=>{const d=new Date();d.setDate(d.getDate()-days);return localDate(d);};
+
 const monthDate = (day:number) => {
   const now=new Date();
   return localDate(new Date(now.getFullYear(),now.getMonth(),Math.max(1,Math.min(day,now.getDate()))));
@@ -143,9 +146,11 @@ export const demoStockRows=():OperationalStockItem[]=>{
   const snapshotDate=localDate();
   return stockTuples.map(([plate,vehicle,stockDays,cost,fipe,askingPrice],index)=>({
     id:safeId(`${DEMO_COMPANY_ID}_${DEMO_STORE_ID}_${snapshotDate}_${plate}`),
-    snapshotDate,plate,vehicle,stockDays,cost,fipe,askingPrice,
+    vehicleId:vehicleIdForPlate(plate),snapshotDate,plate,vehicle,stockDays,cost,fipe,askingPrice,
+    purchaseCost:Math.max(0,cost-(index%4)*450),prepCost:(index%4)*450,
+    brand:stockTuples[index][9],year:stockTuples[index][6],km:stockTuples[index][7],entryDate:localDaysAgo(stockDays),source:'import',currentRecord:true,
     location:index<7?'Pátio A':index<13?'Pátio B':'Showroom',
-    status:'available',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+    status:index<3?'Disponível':index<6?'Em preparação':'Disponível',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
   }));
 };
 
@@ -193,6 +198,21 @@ const seedStock=async()=>{
   await setDoc(doc(db,'operational_meta',`current_${safeId(DEMO_STORE_ID)}`),{
     companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,latestStockDate:snapshotDate,latestStockBatchId:batchId,stockRows:stock.length,updatedAt:serverTimestamp(),
   },{merge:true});
+
+  await Promise.all(stock.map(item=>Promise.all([
+    setDoc(doc(db,'operational_meta',safeId(`vehicle_master_${item.vehicleId}`)),{
+      id:safeId(`vehicle_master_${item.vehicleId}`),kind:'vehicle_master',vehicleId:item.vehicleId,
+      companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,plate:item.plate,brand:item.brand||'',model:item.vehicle,year:item.year||'',
+      km:Number(item.km)||0,stage:String(item.status||'').toLowerCase().includes('prepar')?'preparation':'available',
+      purchaseCost:Number(item.purchaseCost)||0,prepCost:Number(item.prepCost)||0,currentCost:Number(item.cost)||0,
+      fipe:Number(item.fipe)||0,askingPrice:Number(item.askingPrice)||0,entryDate:item.entryDate||'',source:'import',
+      createdAt:daysAgo(Math.max(1,item.stockDays)),updatedAt:new Date().toISOString(),
+    },{merge:true}),
+    setDoc(doc(db,'operational_meta',safeId(`vehicle_plate_index_${DEMO_COMPANY_ID}_${DEMO_STORE_ID}_${item.plate}`)),{
+      id:safeId(`vehicle_plate_index_${DEMO_COMPANY_ID}_${DEMO_STORE_ID}_${item.plate}`),kind:'vehicle_plate_index',
+      companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,plate:item.plate,vehicleId:item.vehicleId,updatedAt:new Date().toISOString(),
+    },{merge:true}),
+  ])));
 
   const groupItems=stockTuples.map(([plate,model,days,cost,,suggestedPrice,year,km,color,brand,transmission])=>({
     plate,model,stockOwner:'Motyq Demo Motors',location:'Matriz',days,cost,suggestedPrice,km,year,color,
@@ -393,6 +413,127 @@ const seedTasks=async(currentUser:User)=>{
   },{merge:true})));
 };
 
+
+const seedFormalDms=async()=>{
+  const now=new Date().toISOString();
+  const soldVehicles=[
+    {plate:'VDM0003',vehicle:'Hyundai Creta Limited 2023',vehicleId:vehicleIdForPlate('VDM0003'),cost:106000,fipe:124000,price:118900,year:'2022/2023',km:41800},
+    {plate:'VDM0011',vehicle:'VW T-Cross Comfortline 2023',vehicleId:vehicleIdForPlate('VDM0011'),cost:89000,fipe:108000,price:99900,year:'2022/2023',km:36600},
+    {plate:'VDM0018',vehicle:'Chevrolet Tracker LT 2023',vehicleId:vehicleIdForPlate('VDM0018'),cost:82000,fipe:97000,price:89900,year:'2022/2023',km:45100},
+  ];
+  await Promise.all(soldVehicles.map(item=>Promise.all([
+    setDoc(doc(db,'operational_meta',safeId(`vehicle_master_${item.vehicleId}`)),{
+      id:safeId(`vehicle_master_${item.vehicleId}`),kind:'vehicle_master',vehicleId:item.vehicleId,companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+      plate:item.plate,brand:item.vehicle.split(' ')[0],model:item.vehicle,year:item.year,km:item.km,stage:'exited',
+      purchaseCost:item.cost,prepCost:900,currentCost:item.cost+900,fipe:item.fipe,askingPrice:item.price,entryDate:localDaysAgo(35),source:'purchase',
+      createdAt:daysAgo(40),updatedAt:now,
+    },{merge:true}),
+    setDoc(doc(db,'operational_meta',safeId(`vehicle_plate_index_${DEMO_COMPANY_ID}_${DEMO_STORE_ID}_${item.plate}`)),{
+      id:safeId(`vehicle_plate_index_${DEMO_COMPANY_ID}_${DEMO_STORE_ID}_${item.plate}`),kind:'vehicle_plate_index',
+      companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,plate:item.plate,vehicleId:item.vehicleId,updatedAt:now,
+    },{merge:true}),
+  ])));
+
+  const orders=[
+    {id:'demo_sales_approved',salesOrderId:'PV-DEMO-1001',leadId:'demo_crm_07',proposalId:'prop_demo_1',proposalVersion:1,customerId:'demo_customer_gustavo',customerName:'Gustavo Ribeiro',customerPhone:'15900001007',customerDocument:'12345678901',sellerId:'carla.mendes@demo.motyq',sellerEmail:'carla.mendes@demo.motyq',sellerName:'Carla Mendes',vehicleId:vehicleIdForPlate('DMT0K10'),plate:'DMT0K10',vehicle:'Honda City EX 2023',year:'2022/2023',salePrice:103900,discount:1500,netSalePrice:102400,cashEntry:27400,financedAmount:75000,installments:48,estimatedInstallment:1890,tradeInValue:0,tradeInDebt:0,status:'approved',creditStatus:'approved',deliveryChecklist:{financialReleased:false,documentsReady:false,vehicleReady:false,customerConfirmed:false}},
+    {id:'demo_sales_credit',salesOrderId:'PV-DEMO-1002',leadId:'demo_crm_08',proposalId:'prop_demo_2',proposalVersion:1,customerId:'demo_customer_larissa',customerName:'Larissa Martins',customerPhone:'15900001008',sellerId:'diego.rocha@demo.motyq',sellerEmail:'diego.rocha@demo.motyq',sellerName:'Diego Rocha',vehicleId:vehicleIdForPlate('DMT4P14'),plate:'DMT4P14',vehicle:'Nissan Kicks Exclusive 2023',year:'2022/2023',salePrice:106900,discount:1000,netSalePrice:105900,cashEntry:30900,financedAmount:75000,installments:48,estimatedInstallment:1980,tradeInValue:0,tradeInDebt:0,status:'credit_pending',creditStatus:'pending',deliveryChecklist:{financialReleased:false,documentsReady:false,vehicleReady:true,customerConfirmed:false}},
+    {id:'demo_sales_invoiced',salesOrderId:'PV-DEMO-0998',leadId:'demo_crm_17',proposalId:'prop_demo_998',proposalVersion:1,customerId:'demo_customer_marcia',customerName:'Márcia Cardoso',customerPhone:'15900001017',sellerId:'ana.costa@demo.motyq',sellerEmail:'ana.costa@demo.motyq',sellerName:'Ana Costa',vehicleId:vehicleIdForPlate('VDM0003'),plate:'VDM0003',vehicle:'Hyundai Creta Limited 2023',year:'2022/2023',salePrice:118900,discount:0,netSalePrice:118900,cashEntry:28900,financedAmount:90000,installments:48,estimatedInstallment:2350,tradeInValue:0,tradeInDebt:0,status:'invoiced',creditStatus:'approved',invoiceNumber:'000998',invoiceDate:localDaysAgo(2),invoicedAt:daysAgo(2,16),deliveryChecklist:{financialReleased:true,documentsReady:true,vehicleReady:true,customerConfirmed:false}},
+    {id:'demo_sales_delivered',salesOrderId:'PV-DEMO-0997',leadId:'demo_crm_19',proposalId:'prop_demo_997',proposalVersion:1,customerId:'demo_customer_aline',customerName:'Aline Batista',customerPhone:'15900001019',sellerId:'carla.mendes@demo.motyq',sellerEmail:'carla.mendes@demo.motyq',sellerName:'Carla Mendes',vehicleId:vehicleIdForPlate('VDM0011'),plate:'VDM0011',vehicle:'VW T-Cross Comfortline 2023',year:'2022/2023',salePrice:99900,discount:1000,netSalePrice:98900,cashEntry:28900,financedAmount:70000,installments:36,estimatedInstallment:2280,tradeInValue:0,tradeInDebt:0,status:'delivered',creditStatus:'approved',invoiceNumber:'000997',invoiceDate:localDaysAgo(5),invoicedAt:daysAgo(5,15),deliveryDate:localDaysAgo(3),deliveredAt:daysAgo(3,17),deliveredBy:'mariana.lopes@demo.motyq',deliveredByName:'Mariana Lopes',deliveryChecklist:{financialReleased:true,documentsReady:true,vehicleReady:true,customerConfirmed:true}},
+  ];
+  await Promise.all(orders.map((order:any)=>setDoc(doc(db,'operational_meta',order.id),{
+    ...order,kind:'sales_order',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+    createdAt:daysAgo(order.status==='delivered'?8:order.status==='invoiced'?4:1),updatedAt:now,createdBy:order.sellerEmail,createdByName:order.sellerName,
+  },{merge:false})));
+
+  const customers=[
+    ['demo_customer_gustavo','Gustavo Ribeiro','15900001007','gustavo.ribeiro@exemplo.com'],
+    ['demo_customer_larissa','Larissa Martins','15900001008','larissa.martins@exemplo.com'],
+    ['demo_customer_marcia','Márcia Cardoso','15900001017','marcia.cardoso@exemplo.com'],
+    ['demo_customer_aline','Aline Batista','15900001019','aline.batista@exemplo.com'],
+  ];
+  await Promise.all(customers.map(([customerId,name,phone,email])=>setDoc(doc(db,'operational_meta',`customer_master_${customerId}`),{
+    id:`customer_master_${customerId}`,kind:'customer_master',customerId,companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+    name,phone,email,active:true,consentStatus:'granted',consentAt:daysAgo(15),consentSource:'Atendimento presencial',createdAt:daysAgo(30),updatedAt:now,
+  },{merge:true})));
+};
+
+const seedFinance=async()=>{
+  const now=new Date().toISOString();
+  const chart=[
+    {id:'demo_chart_sales',chartAccountId:'demo_chart_sales',code:'3.01',name:'Receita de venda de veículos',nature:'revenue'},
+    {id:'demo_chart_prep',chartAccountId:'demo_chart_prep',code:'4.02',name:'Preparação de veículos',nature:'expense'},
+    {id:'demo_chart_commission',chartAccountId:'demo_chart_commission',code:'4.03',name:'Comissões de vendas',nature:'expense'},
+    {id:'demo_chart_admin',chartAccountId:'demo_chart_admin',code:'4.10',name:'Despesas administrativas',nature:'expense'},
+  ];
+  const centers=[
+    {id:'demo_cc_sales',costCenterId:'demo_cc_sales',code:'COM',name:'Comercial'},
+    {id:'demo_cc_stock',costCenterId:'demo_cc_stock',code:'EST',name:'Estoque & Preparação'},
+    {id:'demo_cc_admin',costCenterId:'demo_cc_admin',code:'ADM',name:'Administrativo'},
+  ];
+  const accounts=[
+    {id:'demo_fin_bank',accountId:'demo_fin_bank',accountType:'bank',name:'Banco Motyq Demo',bankName:'Banco Demo',agency:'0001',accountNumber:'12345-6',pixKey:'financeiro@demo.motyq',openingBalance:125000},
+    {id:'demo_fin_cash',accountId:'demo_fin_cash',accountType:'cash',name:'Caixa Matriz',openingBalance:8500},
+  ];
+  await Promise.all([
+    ...chart.map((item:any)=>setDoc(doc(db,'operational_meta',item.id),{...item,kind:'finance_chart_account',active:true,companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,createdAt:daysAgo(60),updatedAt:now},{merge:true})),
+    ...centers.map((item:any)=>setDoc(doc(db,'operational_meta',item.id),{...item,kind:'finance_cost_center',active:true,companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,createdAt:daysAgo(60),updatedAt:now},{merge:true})),
+    ...accounts.map((item:any)=>setDoc(doc(db,'operational_meta',item.id),{...item,kind:'finance_account',active:true,companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,createdAt:daysAgo(60),updatedAt:now},{merge:true})),
+  ]);
+  const entries=[
+    {id:'demo_fin_recv_1',entryType:'receivable',status:'received',category:'Venda de veículo',description:'Entrada PV-DEMO-0997',party:'Aline Batista',amount:28900,dueDate:localDaysAgo(5),settledAt:daysAgo(5,15),paymentMethod:'PIX',financeAccountId:'demo_fin_bank',chartAccountId:'demo_chart_sales',costCenterId:'demo_cc_sales',plate:'VDM0011',vehicle:'VW T-Cross Comfortline 2023',vehicleId:vehicleIdForPlate('VDM0011'),origin:'sale',originId:'demo_sales_delivered'},
+    {id:'demo_fin_recv_2',entryType:'receivable',status:'received',category:'Venda de veículo',description:'Entrada PV-DEMO-0998',party:'Márcia Cardoso',amount:28900,dueDate:localDaysAgo(2),settledAt:daysAgo(2,16),paymentMethod:'PIX',financeAccountId:'demo_fin_bank',chartAccountId:'demo_chart_sales',costCenterId:'demo_cc_sales',plate:'VDM0003',vehicle:'Hyundai Creta Limited 2023',vehicleId:vehicleIdForPlate('VDM0003'),origin:'sale',originId:'demo_sales_invoiced'},
+    {id:'demo_fin_pay_1',entryType:'payable',status:'paid',category:'Preparação',description:'Polimento técnico DMT8T18',party:'Estética Prime Demo',amount:620,dueDate:localDaysAgo(1),settledAt:daysAgo(1,10),paymentMethod:'PIX',financeAccountId:'demo_fin_bank',chartAccountId:'demo_chart_prep',costCenterId:'demo_cc_stock',plate:'DMT8T18',vehicle:'VW Virtus Highline 2024',vehicleId:vehicleIdForPlate('DMT8T18'),origin:'prep',originId:'demo_prep_3'},
+    {id:'demo_fin_pay_2',entryType:'payable',status:'pending',category:'Preparação',description:'Lanterna traseira DMT3N13',party:'AutoPeças Demo',amount:780,dueDate:daysAhead(2).slice(0,10),financeAccountId:'demo_fin_bank',chartAccountId:'demo_chart_prep',costCenterId:'demo_cc_stock',plate:'DMT3N13',vehicle:'Fiat Fastback Audace 2024',vehicleId:vehicleIdForPlate('DMT3N13'),origin:'prep',originId:'demo_prep_2'},
+    {id:'demo_fin_pay_3',entryType:'payable',status:'pending',category:'Comissão',description:'Comissão venda PV-DEMO-0997',party:'Carla Mendes',amount:1450,dueDate:daysAhead(5).slice(0,10),financeAccountId:'demo_fin_bank',chartAccountId:'demo_chart_commission',costCenterId:'demo_cc_sales',plate:'VDM0011',vehicle:'VW T-Cross Comfortline 2023',vehicleId:vehicleIdForPlate('VDM0011'),origin:'commission',originId:'demo_sales_delivered'},
+    {id:'demo_fin_admin',entryType:'payable',status:'pending',category:'Administrativo',description:'Software de telefonia e CRM',party:'Fornecedor Demo Tecnologia',amount:1290,dueDate:daysAhead(7).slice(0,10),financeAccountId:'demo_fin_bank',chartAccountId:'demo_chart_admin',costCenterId:'demo_cc_admin',origin:'manual'},
+  ];
+  await Promise.all(entries.map((item:any)=>setDoc(doc(db,'operational_meta',item.id),{
+    ...item,kind:'finance_entry',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,createdAt:daysAgo(8),updatedAt:now,createdBy:'mariana.lopes@demo.motyq',createdByName:'Mariana Lopes',
+  },{merge:true})));
+  await Promise.all([
+    setDoc(doc(db,'operational_meta','demo_reconciliation'),{id:'demo_reconciliation',kind:'finance_reconciliation',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,financeAccountId:'demo_fin_bank',startDate:localDaysAgo(7),endDate:localDate(),systemBalance:181180,statementBalance:181180,difference:0,status:'balanced',financeEntryIds:['demo_fin_recv_1','demo_fin_recv_2','demo_fin_pay_1'],createdAt:now,createdBy:'mariana.lopes@demo.motyq',createdByName:'Mariana Lopes'},{merge:true}),
+    setDoc(doc(db,'operational_meta','demo_closing'),{id:'demo_closing',kind:'finance_closing',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,financeAccountId:'demo_fin_cash',periodType:'daily',referenceDate:localDaysAgo(1),systemBalance:8500,declaredBalance:8500,difference:0,notes:'Fechamento demonstrativo sem divergência.',closedAt:daysAgo(1,18),closedBy:'mariana.lopes@demo.motyq',closedByName:'Mariana Lopes'},{merge:true}),
+  ]);
+};
+
+const seedDocuments=async()=>{
+  const stock=demoStockRows();
+  await Promise.all(stock.map((item,index)=>setDoc(doc(db,'operational_meta',`demo_docs_${item.vehicleId}`),{
+    id:`demo_docs_${item.vehicleId}`,kind:'vehicle_document_case',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+    vehicleId:item.vehicleId,plate:item.plate,vehicle:item.vehicle,
+    atpvStatus:index===0?'submitted':index===1?'signed':'ready',
+    crlvStatus:index===2?'pending':'ok',lienStatus:index===3?'blocked':'ok',debtsStatus:index===4?'pending':'ok',
+    finesAmount:index===4?684.22:0,debtsAmount:index===4?1290.80:0,dispatcherName:index%4===0?'Despachante Demo Sorocaba':'',
+    dispatcherCost:index%4===0?280:0,transferDueDate:index<5?daysAhead(8+index).slice(0,10):undefined,
+    notes:index===3?'Baixa de gravame em acompanhamento.':index===4?'Pendência financeira identificada antes da transferência.':'Documentação em ordem.',
+    createdAt:daysAgo(Math.min(item.stockDays,30)),updatedAt:new Date().toISOString(),updatedBy:'mariana.lopes@demo.motyq',updatedByName:'Mariana Lopes',
+  },{merge:true})));
+};
+
+const seedMarketIq=async()=>{
+  const rows=[
+    {id:'demo_miq_1',plate:'DMT1A01',vehicle:'VW Nivus Highline 2023',year:'2022/2023',km:'68400',fipe:'116500',recommendedBuy:101000,status:'approved',commercialClass:'C',commercialDestination:'OUTLET',notes:'Aging alto. Compra aprovada somente com margem de segurança.',damages:[{id:'dm1',description:'Risco para-choque traseiro',cost:650}],damageTotal:650,customerName:'André Oliveira',sellerName:'Ana Costa',sellerEmail:'ana.costa@demo.motyq'},
+    {id:'demo_miq_2',plate:'DEF4G56',vehicle:'Honda HR-V EXL 2020',year:'2019/2020',km:'81200',fipe:'104800',recommendedBuy:88500,status:'draft',commercialClass:'B',commercialDestination:'SHOWROOM',notes:'Troca do cliente Roberto. Aguardando fotos adicionais.',damages:[{id:'dm2',description:'Pneu dianteiro próximo do limite',cost:1200}],damageTotal:1200,customerName:'Roberto Mendes',sellerName:'Ana Costa',sellerEmail:'ana.costa@demo.motyq',showroomPassageId:'demo_crm_05'},
+    {id:'demo_miq_3',plate:'ZZZ9Z99',vehicle:'Jeep Compass Limited 2019',year:'2018/2019',km:'118000',fipe:'101500',recommendedBuy:76000,status:'rejected',commercialClass:'D',commercialDestination:'REPASSE',notes:'Quilometragem e preparação acima do desejável para varejo.',damages:[{id:'dm3',description:'Funilaria lateral direita',cost:3200},{id:'dm4',description:'Revisão pneus',cost:2600}],damageTotal:5800,customerName:'Cliente Demonstração',sellerName:'Bruno Lima',sellerEmail:'bruno.lima@demo.motyq'},
+  ];
+  await Promise.all(rows.map((item:any)=>setDoc(doc(db,'operational_meta',item.id),{
+    ...item,kind:'marketiq_evaluation',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,storeName:DEMO_STORE.name,
+    createdByEmail:'ricardo.nunes@demo.motyq',createdByName:'Ricardo Nunes',
+    revisionHistory:[{id:`rev_${item.id}`,at:daysAgo(2),type:'created',byEmail:'ricardo.nunes@demo.motyq',byName:'Ricardo Nunes',status:'draft',vehicle:item.vehicle,year:item.year,km:item.km,fipe:item.fipe,notes:item.notes,recommendedBuy:item.recommendedBuy}],
+    createdAt:daysAgo(2),updatedAt:new Date().toISOString(),...(item.status!=='draft'?{decidedAt:daysAgo(1)}:{}),
+  },{merge:true})));
+};
+
+const seedAfterSales=async()=>{
+  const cases=[
+    {id:'demo_after_1',salesOrderId:'PV-DEMO-0997',customerId:'demo_customer_aline',customerName:'Aline Batista',customerPhone:'15900001019',vehicleId:vehicleIdForPlate('VDM0011'),plate:'VDM0011',vehicle:'VW T-Cross Comfortline 2023',type:'warranty',status:'in_progress',title:'Ruído no acabamento da porta',description:'Cliente relatou pequeno ruído após a entrega. Retorno agendado para avaliação.',supplierName:'Oficina Demo',cost:0,openedAt:daysAgo(1,10),updatedAt:new Date().toISOString()},
+    {id:'demo_after_2',salesOrderId:'PV-DEMO-0998',customerId:'demo_customer_marcia',customerName:'Márcia Cardoso',customerPhone:'15900001017',vehicleId:vehicleIdForPlate('VDM0003'),plate:'VDM0003',vehicle:'Hyundai Creta Limited 2023',type:'documentation',status:'resolved',title:'Segunda via de documento de entrega',description:'Cliente solicitou reenvio do documento digital. Resolvido pelo atendimento.',supplierName:'',cost:0,openedAt:daysAgo(2,9),resolvedAt:daysAgo(1,15),updatedAt:new Date().toISOString(),satisfactionScore:5,satisfactionNotes:'Atendimento rápido.'},
+  ];
+  await Promise.all(cases.map((item:any)=>setDoc(doc(db,'operational_meta',item.id),{
+    ...item,kind:'after_sales_case',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,openedBy:'mariana.lopes@demo.motyq',openedByName:'Mariana Lopes',
+  },{merge:true})));
+};
+
 const scopedCollections=[
   'operational_stock','operational_sales','market_presence','prep_orders','showroom_passages',
   'showroom_queue','evaluation_requests','deals','operational_imports','operational_meta',
@@ -437,7 +578,7 @@ export const demoSeedService={
     await seedCompaniesStoresUsers();
     await Promise.all([seedStock(),seedPerformance(),seedSales()]);
     await Promise.all([seedQueueAndCrm(),seedDeals(),seedPrepTrack()]);
-    await Promise.all([seedMarketPresence(),seedTasks(currentUser)]);
+    await Promise.all([seedMarketPresence(),seedTasks(currentUser),seedFormalDms(),seedFinance(),seedDocuments(),seedMarketIq(),seedAfterSales()]);
 
     companyScopeService.set(DEMO_COMPANY_ID);
     storeScopeService.set(DEMO_STORE_ID);
