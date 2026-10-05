@@ -28,7 +28,11 @@ const AfterSalesPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName}
  useEffect(()=>{
   if(!open)return;
   const unsub=afterSalesService.subscribe(companyId,storeId,setCases,cause=>setError(String((cause as any)?.message||'Falha ao carregar pós-venda.')));
-  void salesOrderService.list(companyId,storeId).then(list=>setSales(list.filter(item=>['invoiced','delivered'].includes(item.status)))).catch(()=>setSales([]));
+  void salesOrderService.list(companyId,storeId).then(list=>setSales(list.filter(item=>{
+    if(!['invoiced','delivered'].includes(item.status))return false;
+    const plate=String(item.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    return /^[A-Z0-9]{7}$/.test(plate)&&Boolean(item.vehicleId)&&Boolean(String(item.customerId||'').trim())&&Number(item.netSalePrice||0)>0;
+  }))).catch(()=>setSales([]));
   return unsub;
  },[open,companyId,storeId]);
 
