@@ -37,6 +37,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [form, setForm] = useState(emptyForm);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const companyName = useMemo(() => {
     if (!isAdmin) return 'Sua empresa';
@@ -44,6 +45,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   }, [companies, companyId, isAdmin]);
 
   const load = async (targetCompany = companyId) => {
+    setLoading(true);
     setError('');
     try {
       const [context, companyList] = await Promise.all([
@@ -56,6 +58,8 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     } catch (cause: any) {
       console.error('Equipe & Usuários: falha ao carregar escopo.', cause);
       setError(cause?.message || 'Não foi possível carregar a equipe agora.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -242,9 +246,9 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
         <div className="p-5 md:p-6">
           <div className="mb-5 grid gap-3 sm:grid-cols-3">
-            <Metric label="Usuários" value={users.length}/>
-            <Metric label="Ativos" value={users.filter(user => user.status === 'active').length}/>
-            <Metric label="Gestores" value={users.filter(user => user.role === 'manager').length}/>
+            <Metric label="Usuários" value={loading ? undefined : users.length}/>
+            <Metric label="Ativos" value={loading ? undefined : users.filter(user => user.status === 'active').length}/>
+            <Metric label="Gestores" value={loading ? undefined : users.filter(user => user.role === 'manager').length}/>
           </div>
 
           {isAdmin && <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-blue-900">
@@ -275,7 +279,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     </div></td>
                   </tr>;
                 })}
-                {!users.length && <tr><td colSpan={5} className="p-10 text-center text-sm text-slate-500">Nenhum usuário cadastrado nesta empresa.</td></tr>}
+                {loading?<tr><td colSpan={5} className="p-10 text-center text-sm text-slate-500">Carregando usuários...</td></tr>:!users.length && <tr><td colSpan={5} className="p-10 text-center text-sm text-slate-500">Nenhum usuário cadastrado nesta empresa.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -309,7 +313,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   </>;
 };
 
-const Metric = ({ label, value }: { label: string; value: number }) => <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-slate-500">{label}</p><p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p></div>;
+const Metric = ({ label, value }: { label: string; value?: number }) => <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-slate-500">{label}</p><p className="mt-1 text-2xl font-semibold text-slate-900">{value===undefined?'…':value}</p></div>;
 const Field = ({label,value,onChange,type='text',wide=false,disabled=false}:{label:string;value:string;onChange:(value:string)=>void;type?:string;wide?:boolean;disabled?:boolean}) => <label className={wide?'sm:col-span-2':''}><span className="text-xs font-semibold text-slate-500">{label}</span><input type={type} disabled={disabled} value={value} onChange={event=>onChange(event.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50 disabled:text-slate-500"/></label>;
 const GoalField=({label,value,onChange,step='1'}:{label:string;value:number;onChange:(value:number)=>void;step?:string})=><label className="rounded-2xl border border-slate-200 bg-slate-50 p-3"><span className="text-xs text-slate-500">{label}</span><input type="number" min="0" step={step} value={value} onChange={event=>onChange(Math.max(0,Number(event.target.value)||0))} className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-lg font-semibold text-slate-900 outline-none"/></label>;
 
