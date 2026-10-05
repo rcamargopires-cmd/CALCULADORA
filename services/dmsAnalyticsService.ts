@@ -28,7 +28,7 @@ export interface DmsAnalyticsUnitRow {
 }
 export interface DmsAnalyticsReport {
   generatedAt:string;
-  stock:{count:number;value:number;aged90:number;aged90Value:number};
+  stock:{count:number;value:number;aged90:number;aged90Value:number;manualCount:number;importedCount:number};
   purchases:{enteredMonth:number;valueMonth:number;open:number};
   sales:{month:number;revenue:number;profit:number;marginPercent:number;delivered:number;invoiced:number};
   finance:{payableOpen:number;receivableOpen:number;realizedIn:number;realizedOut:number;realizedResult:number};
@@ -124,7 +124,7 @@ export const dmsAnalyticsService={
 
     return{
       generatedAt:new Date().toISOString(),
-      stock:{count:stock.length,value:stockValue,aged90:aged90.length,aged90Value:aged90.reduce((sum,item)=>sum+(Number(item.cost)||0),0)},
+      stock:{count:stock.length,value:stockValue,aged90:aged90.length,aged90Value:aged90.reduce((sum,item)=>sum+(Number(item.cost)||0),0),manualCount:stock.filter(item=>item.source==='manual').length,importedCount:stock.filter(item=>item.source!=='manual').length},
       purchases:{
         enteredMonth:purchases.filter(item=>item.status==='entered'&&monthKey(item.enteredAt||item.updatedAt)===month).length,
         valueMonth:purchases.filter(item=>item.status==='entered'&&monthKey(item.enteredAt||item.updatedAt)===month).reduce((sum,item)=>sum+(Number(item.totalAcquisitionCost)||0),0),
