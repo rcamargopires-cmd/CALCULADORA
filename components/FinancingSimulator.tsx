@@ -50,14 +50,14 @@ const FinancingSimulator: React.FC<FinancingSimulatorProps> = ({ initialVehicleV
   // Cálculos Financeiros Completos
   const netBalance = Math.max(0, vehicleValue - entryValue); // Saldo Devedor (Lataria)
   
-  // IOF é calculado sobre (Saldo + TAC)
-  const baseForIOF = netBalance + tacValue;
-  const iofValue = includeIOF ? calculateEstimatedIOF(baseForIOF, term) : 0;
+  // Sem principal financiado, TAC/IOF não podem criar uma dívida artificial.
+  const baseForIOF = netBalance > 0 ? netBalance + tacValue : 0;
+  const iofValue = netBalance > 0 && includeIOF ? calculateEstimatedIOF(baseForIOF, term) : 0;
   
-  // O banco financia TUDO: Saldo + TAC + IOF
-  const totalFinancedAmount = netBalance + tacValue + iofValue;
+  // O banco financia saldo + TAC + IOF somente quando existe saldo devedor real.
+  const totalFinancedAmount = netBalance > 0 ? netBalance + tacValue + iofValue : 0;
   
-  const installment = calculatePMT(totalFinancedAmount, monthlyRate / 100, term);
+  const installment = totalFinancedAmount > 0 ? calculatePMT(totalFinancedAmount, monthlyRate / 100, term) : 0;
   
   // Coeficiente real (Parcela / Saldo Líquido) para o vendedor saber
   const coefficient = netBalance > 0 ? installment / netBalance : 0;
