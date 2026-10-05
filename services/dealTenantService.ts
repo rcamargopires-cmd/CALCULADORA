@@ -85,7 +85,17 @@ export const dealTenantService = {
 
   save: async (user: User, item: DealWithoutId, existingId?: string) => {
     const tenant = contextFor(user);
-    const payload = { ...item, ...tenant };
+    const plate=String(item.data?.licensePlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(!/^[A-Z0-9]{7}$/.test(plate))throw new Error('Informe uma placa válida antes de salvar a negociação.');
+    const saleValue=Number(item.data?.invoiceValue)||0;
+    if(saleValue<=0)throw new Error('Informe um valor de venda maior que zero.');
+    if(item.data?.dealStatus==='closed'){
+      const totalPayment=Number(item.data?.payments?.entry||0)+Number(item.data?.payments?.financing||0)+Number(item.data?.payments?.tradeIn||0);
+      if(totalPayment<=0)throw new Error('Informe as formas de pagamento antes de fechar a venda.');
+      if(Math.abs(totalPayment-saleValue)>1)throw new Error('O total das formas de pagamento deve conferir com o valor da venda.');
+      if(!String(item.userId||user.id||'').trim()||!String(item.userName||user.name||'').trim())throw new Error('Identifique o vendedor responsável antes de fechar a venda.');
+    }
+    const payload = { ...item, data:{...item.data,licensePlate:plate}, ...tenant };
     if (existingId) {
       await setDoc(doc(db, 'deals', existingId), { ...payload, updatedAt: new Date().toISOString() }, { merge: true });
       return existingId;
