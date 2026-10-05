@@ -18,6 +18,9 @@ const currentStock=read('services/currentStockService.ts');
 if(!currentStock.includes("currentRecord===true"))fail('Current stock no longer filters canonical records.');
 if(currentStock.includes('operational_current_stock'))fail('Legacy parallel current-stock collection returned.');
 
+const vehicleMaster=read('services/dmsVehicleService.ts');
+if(!vehicleMaster.includes('claimVehicleId(input.companyId,input.storeId,plate,preferredVehicleId)'))fail('Purchase flow no longer claims plate-index identity.');
+
 const purchase=read('services/vehiclePurchaseService.ts');
 for(const required of ['createFromEvaluation','approve:async','enterStock:async']){
   if(!purchase.includes(required))fail('Vehicle purchase critical step missing: '+required);
