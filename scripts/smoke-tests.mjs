@@ -106,6 +106,9 @@ for(const required of ['duplicateCount','uniqueByPlate','a última ocorrência d
 const readinessApi=read('api/integrations.ts');
 for(const required of ['ASAAS_API_KEY','ASAAS_WEBHOOK_TOKEN','FOCUS_NFE_TOKEN ou FOCUS_NFE_TOKENS_JSON','GitHub Environment']){if(!readinessApi.includes(required))fail('Readiness blocker detail guard missing: '+required);}
 
+const afterSalesPanel=read('components/AfterSalesPanel.tsx');
+for(const required of ['Nenhuma venda DMS elegível','Pedidos de Venda DMS faturados ou entregues','busy||!sales.length']){if(!afterSalesPanel.includes(required))fail('After-sales eligibility UX guard missing: '+required);}
+
 const permissionEditor=read('components/DmsPermissionEditor.tsx');
 const permissionSource=read('services/dmsPermissions.ts');
 for(const required of ['stockWrite','prepApprove','financeCreate','financeSettle','documentsView','afterSalesView','reportsView']){if(!permissionEditor.includes(required)&&!permissionSource.includes(required))fail('Granular permission editor guard missing: '+required);}
