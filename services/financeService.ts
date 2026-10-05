@@ -56,6 +56,7 @@ export const financeService={
     storeId:string;
     actor:Pick<User,'email'|'name'>;
   })=>{
+    if((input.origin||'manual')==='manual'&&!String(input.dueDate||'').trim())throw new Error('Informe o primeiro vencimento do lançamento.');
     const stamp=now();
     const id=safe(`finance_${input.companyId}_${input.storeId}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
     const entry=normalize({
