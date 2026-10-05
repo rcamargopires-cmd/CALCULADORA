@@ -7,6 +7,8 @@ import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companySco
 import { storeScopeService } from '../services/storeScopeService';
 import { groupStockService, GroupStockItem, GroupStockSnapshot } from '../services/groupStockService';
 import { marketIqVehicleCacheService } from '../services/marketIqVehicleCacheService';
+import { currentStockService } from '../services/currentStockService';
+import { dmsPermissions } from '../services/dmsPermissions';
 
 const CRLV_PARSER_VERSION = 3;
 const cleanPlate = (value: string) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
@@ -388,6 +390,9 @@ const MarketIQLookupBridge: React.FC = () => {
             }
 
             fill({ model: resolvedModel, year, km: stockItem?.km, fipe: fipeValue });
+            if(stockItem&&fipeValue>0&&dmsPermissions(user).stockWrite){
+              void currentStockService.updateFipe(companyId,storeId,plate,fipeValue,user).catch(()=>undefined);
+            }
             const currentUser = auth.currentUser;
             if (currentUser) {
               void marketIqVehicleCacheService.save({
@@ -437,7 +442,11 @@ const MarketIQLookupBridge: React.FC = () => {
           const result = await lookupFipe({ brand: stockItem.brand, model: stockItem.model, year: stockItem.year, fuel: stockItem.fuel });
           if (currentRequest !== requestId.current) return;
           if (result?.value) {
-            fill({ model: stockItem.model || result.model, year: stockItem.year || String(result.year), km: stockItem.km, fipe: Number(result.value) || 0 });
+            const resolvedFipe=Number(result.value)||0;
+            fill({ model: stockItem.model || result.model, year: stockItem.year || String(result.year), km: stockItem.km, fipe: resolvedFipe });
+            if(resolvedFipe>0&&dmsPermissions(user).stockWrite){
+              void currentStockService.updateFipe(companyId,storeId,plate,resolvedFipe,user).catch(()=>undefined);
+            }
             setNotice({ kind: 'ok', text: `Consulta de placa indisponível; veículo localizado no estoque. FIPE ${result.referenceMonth || 'atual'} preenchida automaticamente.` });
           } else {
             setNotice({ kind: 'warn', text: 'Veículo localizado no estoque, mas a versão FIPE precisa ser confirmada.' });
