@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, onSnapshot, query, setDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { SavedCalculation, User } from '../types';
 import { companyIdForUser } from './companyService';
@@ -102,6 +102,20 @@ export const dealTenantService = {
     }
     const created = await addDoc(collection(db, 'deals'), { ...payload, createdAt: new Date().toISOString() });
     return created.id;
+  },
+
+  cleanupKnownQaRecords: async (user: User) => {
+    if(user.role!=='admin')return 0;
+    const {companyId,storeId}=contextFor(user);
+    const snap=await getDocs(query(collection(db,'deals'),where('companyId','==',companyId),where('storeId','==',storeId)));
+    const qaTimestamps=new Set(['2026-10-05T18:14:50.463Z','2026-10-05T18:15:11.164Z']);
+    const targets=snap.docs.filter(item=>{
+      const data=item.data() as DealDocument;
+      const plate=String(data.data?.licensePlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      return qaTimestamps.has(String(data.timestamp||''))&&!plate&&Number(data.data?.invoiceValue||0)===0;
+    });
+    await Promise.all(targets.map(item=>deleteDoc(doc(db,'deals',item.id))));
+    return targets.length;
   },
 
   remove: async (user: User, dealId: string) => {
