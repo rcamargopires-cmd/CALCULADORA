@@ -21,9 +21,9 @@ const ProductionReadinessPanel:React.FC<Props>=({open,onClose,currentUser,compan
   if(!open)return null;
   const checks=[
     {label:'Servidor Firebase',ok:Boolean(data?.serverFirebase),detail:'Credencial server-side da aplicação'},
-    {label:'Asaas API',ok:Boolean(data?.asaas.apiKey),detail:data?.asaas.environment||'sandbox'},
-    {label:'Asaas webhook',ok:Boolean(data?.asaas.webhookToken),detail:'Token de autenticação do webhook'},
-    {label:'Focus NFe',ok:company.fiscal?.provider!=='focus_nfe'||Boolean(data?.fiscal.configured),detail:company.fiscal?.provider==='focus_nfe'?(company.fiscal.environment||'homologacao'):'Integração não exigida'},
+    {label:'Asaas API',ok:Boolean(data?.asaas.apiKey),detail:data?.asaas.apiKey?(data?.asaas.environment||'sandbox'):(data?.asaas.missing?.join(', ')||'ASAAS_API_KEY')},
+    {label:'Asaas webhook',ok:Boolean(data?.asaas.webhookToken),detail:data?.asaas.webhookToken?'Token de autenticação configurado':(data?.asaas.missing?.join(', ')||'ASAAS_WEBHOOK_TOKEN')},
+    {label:'Focus NFe',ok:company.fiscal?.provider!=='focus_nfe'||Boolean(data?.fiscal.configured),detail:company.fiscal?.provider==='focus_nfe'?(data?.fiscal.configured?(company.fiscal.environment||'homologacao'):(data?.fiscal.missing?.join(', ')||'Token fiscal pendente')):'Integração não exigida'},
   ];
   const appReady=checks.every(item=>item.ok);
   return <div className="fixed inset-0 z-[950] overflow-y-auto bg-slate-950/75 p-4 backdrop-blur-sm" onClick={onClose}>
@@ -39,7 +39,7 @@ const ProductionReadinessPanel:React.FC<Props>=({open,onClose,currentUser,compan
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
         <p className="text-xs font-bold text-slate-700">Validações externas que não podem ser concluídas pelo navegador</p>
         <div className="mt-2 space-y-2 text-xs text-slate-500">
-          <p>• GitHub Environment: confirmar <b>FIREBASE_SERVICE_ACCOUNT_JSON</b>.</p>
+          <p>• Vercel: credencial Firebase server-side já é verificada acima. GitHub Environment: ainda precisa ter <b>FIREBASE_SERVICE_ACCOUNT_JSON</b> para publicar Rules e executar backup.</p>
           <p>• GitHub Actions: executar primeiro backup real e validar restauração em homologação.</p>
           <p>• Fiscal: homologar NF-e com contador e certificado antes de produção.</p>
           <p>• Montadoras: dependem de contrato/API de cada fabricante.</p>
