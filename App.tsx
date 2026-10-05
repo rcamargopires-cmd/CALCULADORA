@@ -23,6 +23,9 @@ import { configService } from './services/configService';
 import { calculateCommission } from './utils/commission';
 import { dealTenantService } from './services/dealTenantService';
 import MotyqShell from './components/MotyqShell';
+import { currentStockService } from './services/currentStockService';
+import { companyIdForUser } from './services/companyService';
+import { storeIdForUser } from './services/storeService';
 
 const getInitialData = (): DealData => ({
   licensePlate: '',
@@ -165,6 +168,29 @@ const App: React.FC = () => {
     if (clean.length < 7) return null;
     return /^[A-Z]{3}\d{4}$/.test(clean) || /^[A-Z]{3}\d[A-Z]\d{2}$/.test(clean);
   }, [data.licensePlate]);
+
+  useEffect(() => {
+    if(!user)return;
+    const plate=String(data.licensePlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(plate.length!==7)return;
+    let active=true;
+    void currentStockService.getCurrent(companyIdForUser(user),storeIdForUser(user)).then(rows=>{
+      if(!active)return;
+      const item=rows.find(row=>String(row.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===plate);
+      if(!item)return;
+      setData(prev=>{
+        const currentPlate=String(prev.licensePlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+        if(currentPlate!==plate)return prev;
+        return{
+          ...prev,
+          stockDays:Number(item.stockDays)||0,
+          vehicleCost:Number(item.cost)||Number(item.purchaseCost)||0,
+          fipeValue:Number(item.fipe)||prev.fipeValue||0,
+        };
+      });
+    }).catch(error=>console.warn('Motyq: não foi possível preencher a negociação pelo estoque.',error));
+    return()=>{active=false;};
+  },[data.licensePlate,user]);
 
   const getStockStatus = (days: number) => {
     const safeDays = Number(days) || 0;
