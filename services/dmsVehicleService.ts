@@ -149,7 +149,9 @@ export const dmsVehicleService={
     const existing=masters
       .filter(item=>item.stage!=='exited'&&cleanPlate(item.plate)===plate)
       .sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')))[0];
-    const vehicleId=existing?.vehicleId||newVehicleId(input.companyId);
+    const preferredVehicleId=existing?.vehicleId||newVehicleId(input.companyId);
+    const vehicleId=await claimVehicleId(input.companyId,input.storeId,plate,preferredVehicleId);
+    const canonicalExisting=masters.find(item=>item.vehicleId===vehicleId)||existing;
     const stamp=now();
     const master:VehicleMaster={
       id:masterDocId(vehicleId),
@@ -158,23 +160,23 @@ export const dmsVehicleService={
       companyId:input.companyId,
       storeId:input.storeId,
       plate,
-      brand:input.brand||existing?.brand||'',
-      model:input.vehicle||existing?.model||plate,
-      year:input.year||existing?.year||'',
-      km:Number(input.km??existing?.km??0)||0,
+      brand:input.brand||canonicalExisting?.brand||'',
+      model:input.vehicle||canonicalExisting?.model||plate,
+      year:input.year||canonicalExisting?.year||'',
+      km:Number(input.km??canonicalExisting?.km??0)||0,
       stage:'purchased',
       purchaseCost:Number(input.purchaseCost)||0,
-      prepCost:Number(existing?.prepCost)||0,
-      currentCost:(Number(input.purchaseCost)||0)+(Number(existing?.prepCost)||0),
-      fipe:Number(existing?.fipe)||0,
-      askingPrice:Number(existing?.askingPrice)||0,
-      entryDate:existing?.entryDate||'',
+      prepCost:Number(canonicalExisting?.prepCost)||0,
+      currentCost:(Number(input.purchaseCost)||0)+(Number(canonicalExisting?.prepCost)||0),
+      fipe:Number(canonicalExisting?.fipe)||0,
+      askingPrice:Number(canonicalExisting?.askingPrice)||0,
+      entryDate:canonicalExisting?.entryDate||'',
       source:input.source||'purchase',
-      createdAt:existing?.createdAt||stamp,
+      createdAt:canonicalExisting?.createdAt||stamp,
       updatedAt:stamp,
     };
     await setDoc(doc(db,LEDGER,master.id),master,{merge:true});
-    if(!existing){
+    if(!canonicalExisting){
       await dmsAuditService.record({
         companyId:input.companyId,storeId:input.storeId,entityType:'vehicle',entityId:vehicleId,
         vehicleId,plate,action:'vehicle_purchase_master_created',
