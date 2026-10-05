@@ -117,6 +117,8 @@ const autoHealth=read('components/DmsIntegrityAutoRunner.tsx');
 for(const required of ['TST0Z01','currentStockService.markOut','prepTrackService.deleteOrder']){if(!autoHealth.includes(required))fail('Synthetic QA vehicle cleanup guard missing: '+required);}
 if(!autoHealth.includes('cleanupKnownQaRecords'))fail('Automatic DMS health no longer cleans known QA deals before diagnosis.');
 
+for(const filePath of ['components/SmartAlerts.tsx','components/ExecutiveInsights.tsx','components/AssetGuardPanel.tsx']){const source=read(filePath);if(source.includes('DealMaster'))fail('Legacy DealMaster label guard missing in '+filePath);}
+
 const aiManager=read('components/AIManagerV2.tsx');
 if(!aiManager.includes('Dados pendentes'))fail('AI Manager data-pending guard missing.');
 
