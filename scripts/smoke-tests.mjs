@@ -107,6 +107,9 @@ const permissionEditor=read('components/DmsPermissionEditor.tsx');
 const permissionSource=read('services/dmsPermissions.ts');
 for(const required of ['stockWrite','prepApprove','financeCreate','financeSettle','documentsView','afterSalesView','reportsView']){if(!permissionEditor.includes(required)&&!permissionSource.includes(required))fail('Granular permission editor guard missing: '+required);}
 
+const financeAccountSource=read('services/financeAccountService.ts');
+if(!financeAccountSource.includes('cleanupKnownQaAccounts')||!financeAccountSource.includes('QA TEMPORÁRIA - REMOVER'))fail('QA finance cleanup guard missing.');
+
 const autoHealth=read('components/DmsIntegrityAutoRunner.tsx');
 if(!autoHealth.includes('cleanupKnownQaRecords'))fail('Automatic DMS health no longer cleans known QA deals before diagnosis.');
 
