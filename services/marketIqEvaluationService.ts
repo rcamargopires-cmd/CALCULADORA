@@ -72,6 +72,32 @@ export type MarketIQEvaluation = {
 
 const cleanPlate = (value: string) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 180);
+const isIncompleteLegacyDecision=(item:MarketIQEvaluation)=>item.status!=='draft'&&Boolean(item.previousEvaluationId)&&(!String(item.vehicle||'').trim()||!String(item.year||'').trim()||!String(item.km||'').trim()||!String(item.fipe||'').trim());
+const coalesceLegacy=(items:MarketIQEvaluation[])=>{
+  const byId=new Map(items.map(item=>[item.id,item]));
+  const hidden=new Set<string>();
+  const merged=items.map(item=>{
+    if(!isIncompleteLegacyDecision(item))return item;
+    const base=byId.get(String(item.previousEvaluationId||''));
+    if(!base)return item;
+    hidden.add(base.id);
+    return{
+      ...base,
+      ...item,
+      vehicle:item.vehicle||base.vehicle,
+      year:item.year||base.year,
+      km:item.km||base.km,
+      fipe:item.fipe||base.fipe,
+      notes:item.notes||base.notes,
+      photos:item.photos?.length?item.photos:base.photos,
+      damages:item.damages?.length?item.damages:base.damages,
+      damageTotal:Number(item.damageTotal||base.damageTotal||0),
+      revisionHistory:[...(base.revisionHistory||[]),...(item.revisionHistory||[])],
+      createdAt:base.createdAt||item.createdAt,
+    } as MarketIQEvaluation;
+  });
+  return merged.filter(item=>!hidden.has(item.id));
+};
 const sortNewest = (items: MarketIQEvaluation[]) => items.sort((a, b) => {
   const ta = Number((a.createdAt as any)?.seconds || 0);
   const tb = Number((b.createdAt as any)?.seconds || 0);
@@ -119,7 +145,7 @@ export const marketIqEvaluationService = {
       where('storeId', '==', storeId),
       where('plate', '==', plate),
     ));
-    return sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() } as MarketIQEvaluation)));
+    return sortNewest(coalesceLegacy(snap.docs.map(item => ({ id: item.id, ...item.data() } as MarketIQEvaluation))));
   },
 
   listByStore: async (companyId: string, storeId: string): Promise<MarketIQEvaluation[]> => {
@@ -130,7 +156,7 @@ export const marketIqEvaluationService = {
       where('companyId', '==', companyId),
       where('storeId', '==', storeId),
     ));
-    return sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() } as MarketIQEvaluation)));
+    return sortNewest(coalesceLegacy(snap.docs.map(item => ({ id: item.id, ...item.data() } as MarketIQEvaluation))));
   },
 
   listByPassage: async (companyId: string, storeId: string, passageId: string): Promise<MarketIQEvaluation[]> => {
