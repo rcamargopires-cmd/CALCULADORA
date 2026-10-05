@@ -111,7 +111,7 @@ const permissionSource=read('services/dmsPermissions.ts');
 for(const required of ['stockWrite','prepApprove','financeCreate','financeSettle','documentsView','afterSalesView','reportsView']){if(!permissionEditor.includes(required)&&!permissionSource.includes(required))fail('Granular permission editor guard missing: '+required);}
 
 const financeAccountSource=read('services/financeAccountService.ts');
-if(!financeAccountSource.includes('cleanupKnownQaAccounts')||!financeAccountSource.includes('QA TEMPORÁRIA - REMOVER'))fail('QA finance cleanup guard missing.');
+if(!financeAccountSource.includes('cleanupKnownQaAccounts')||!financeAccountSource.includes('QA TEMPORÁRIA - REMOVER')||!financeAccountSource.includes('CAIXA TESTE MOTYQ CHECKLIST — TEMPORÁRIO'))fail('QA finance cleanup guard missing.');
 
 const autoHealth=read('components/DmsIntegrityAutoRunner.tsx');
 for(const required of ['TST0Z01','currentStockService.markOut','prepTrackService.deleteOrder']){if(!autoHealth.includes(required))fail('Synthetic QA vehicle cleanup guard missing: '+required);}
