@@ -85,6 +85,20 @@ if(!dashboard.includes('salesOrderService.subscribe'))fail('Dashboard is no long
 const aiManager=read('components/AIManagerV2.tsx');
 if(!aiManager.includes('Dados pendentes'))fail('AI Manager data-pending guard missing.');
 
+const rulesText=read('firestore.rules');
+if(!rulesText.includes("['vehicle_master','vehicle_plate_index','stock_movement']"))fail('Stock write rules no longer authorize vehicle plate index.');
+
+const stockSource=read('services/currentStockService.ts');
+for(const required of ['diffDays(entryDate,today)','snapshotDate:today','stockDays,','updateFipe:async']){
+  if(!stockSource.includes(required))fail('Canonical stock consistency guard missing: '+required);
+}
+
+const marketIqLookup=read('components/MarketIQLookupBridge.tsx');
+if(!marketIqLookup.includes('currentStockService.updateFipe'))fail('Resolved FIPE no longer synchronizes into canonical stock.');
+
+const docsPanel=read('components/VehicleDocumentsPanel.tsx');
+if(!docsPanel.includes('const unique=new Map<string,VehicleMaster>()'))fail('Vehicle documents list no longer deduplicates canonical vehicles.');
+
 const firebaseConfig=JSON.parse(read('firebase.json'));
 if(!firebaseConfig.firestore?.[0]?.rules||!firebaseConfig.firestore?.[0]?.indexes)fail('Firebase rules/index deploy config missing.');
 const indexes=JSON.parse(read('firestore.indexes.json'));
