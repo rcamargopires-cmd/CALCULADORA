@@ -88,8 +88,8 @@ if(!prepTrackPanel.includes('stockByVehicleId'))fail('PrepTrack no longer resolv
 const dashboard=read('components/ExecutiveDashboard.tsx');
 if(!dashboard.includes('salesOrderService.subscribe'))fail('Dashboard is no longer driven by formal DMS sales orders.');
 
-const integrity=read('services/dmsIntegrityService.ts');
-for(const required of ['duplicate-document-','invalid-closed-deal-','manual-finance-structure-','fipe-mismatch-']){if(!integrity.includes(required))fail('Expanded DMS integrity guard missing: '+required);}
+const integrityServiceSource=read('services/dmsIntegrityService.ts');
+for(const required of ['duplicate-document-','invalid-closed-deal-','manual-finance-structure-','fipe-mismatch-']){if(!integrityServiceSource.includes(required))fail('Expanded DMS integrity guard missing: '+required);}
 
 const aiManager=read('components/AIManagerV2.tsx');
 if(!aiManager.includes('Dados pendentes'))fail('AI Manager data-pending guard missing.');
