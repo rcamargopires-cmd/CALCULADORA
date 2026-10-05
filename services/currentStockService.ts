@@ -10,6 +10,8 @@ const COLLECTION='operational_stock';
 const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const safeId=(value:string)=>value.replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
 const localDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+const asLocalDate=(value:string)=>new Date(`${value}T12:00:00`);
+const diffDays=(from:string,to:string)=>Math.max(0,Math.round((asLocalDate(to).getTime()-asLocalDate(from).getTime())/86400000));
 const normalizedStatus=(value:unknown)=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const isActive=(item:OperationalStockItem)=>item.manualActive!==false&&normalizedStatus(item.status)!=='saida';
 const rowMoment=(item:OperationalStockItem)=>`${String(item.snapshotDate||'').slice(0,10)}|${String(item.updatedAt||'')}`;
@@ -23,13 +25,20 @@ const belongsToCompany=(value:{companyId?:string},companyId:string)=>(value.comp
 
 const normalizeItem=(item:OperationalStockItem,companyId:string,storeId:string):OperationalStockItem=>{
   const plate=cleanPlate(item.plate);
+  const today=localDate();
+  const entryDate=String(item.entryDate||'').slice(0,10);
+  const snapshotDate=String(item.snapshotDate||today).slice(0,10);
+  const stockDays=entryDate
+    ? diffDays(entryDate,today)
+    : Math.max(0,Number(item.stockDays)||0)+diffDays(snapshotDate,today);
   return{
     ...item,
     id:docId(companyId,storeId,plate),
     plate,
     companyId,
     storeId,
-    snapshotDate:String(item.snapshotDate||localDate()).slice(0,10),
+    snapshotDate:today,
+    stockDays,
     currentRecord:true,
     updatedAt:item.updatedAt||new Date().toISOString(),
   };
