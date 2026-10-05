@@ -117,8 +117,10 @@ export const dmsAnalyticsService={
     const aged90=stock.filter(item=>Number(item.stockDays)>90);
     const saleRevenue=vehicleRows.reduce((sum,item)=>sum+item.saleValue,0);
     const saleProfit=vehicleRows.reduce((sum,item)=>sum+item.profit,0);
-    const prepApproved=prep.flatMap(order=>order.services||[]).filter(service=>['approved','in_service','waiting_part','done'].includes(service.status));
-    const pendingApproval=prep.flatMap(order=>order.services||[]).filter(service=>service.status==='pending').length;
+    const trackedPrep=prep.filter(order=>!(!(order.services||[]).length&&!order.sold&&order.status==='triage'&&order.destination==='showroom'&&!order.vehicleId&&!String(order.createdBy||'').trim()));
+    const activePrep=trackedPrep.filter(order=>!['showroom','delivery','delivered'].includes(order.status));
+    const prepApproved=activePrep.flatMap(order=>order.services||[]).filter(service=>['approved','in_service','waiting_part','done'].includes(service.status));
+    const pendingApproval=trackedPrep.flatMap(order=>order.services||[]).filter(service=>service.status==='pending').length;
 
     return{
       generatedAt:new Date().toISOString(),
@@ -139,7 +141,7 @@ export const dmsAnalyticsService={
         realizedIn,realizedOut,realizedResult:realizedIn-realizedOut,
       },
       prep:{
-        activeOrders:prep.filter(item=>!['showroom','delivery','delivered'].includes(item.status)).length,
+        activeOrders:activePrep.length,
         approvedCost:prepApproved.reduce((sum,item)=>sum+(Number(item.finalCost)||Number(item.estimatedCost)||0),0),
         pendingApproval,
       },
