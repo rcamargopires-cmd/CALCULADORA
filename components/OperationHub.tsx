@@ -115,7 +115,7 @@ const OperationHub: React.FC<Props> = ({ storeName, canAlerts, canAi, canReports
     }
 
     let found = false;
-    if (key === 'overview') found = clickText('DASHBOARD');
+    if (key === 'overview') { window.scrollTo({top:0,behavior:'smooth'}); found = true; }
     if (key === 'showroom') found = clickTitle('ShowroomFlow · passagens');
     if (key === 'team') found = clickTitle('Equipe & Usuários');
     if (key === 'director') found = clickTitle('Diretoria · Panorama do Grupo');
