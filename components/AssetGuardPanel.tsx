@@ -16,8 +16,9 @@ const AssetGuardPanel:React.FC<Props>=({currentUser,companyId,storeId,companyNam
  const refreshConnection=()=>setConnected(Boolean(assetGuardIntegrationService.getToken(companyId)));
  const openPanel=()=>{setOpen(true);loadStock();refreshConnection();};
  const contextParams=(item?:OperationalStockItem)=>{const params=new URLSearchParams();const selectedPlate=item?.plate||cleanPlate;if(selectedPlate)params.set('plate',String(selectedPlate).toUpperCase().replace(/[^A-Z0-9]/g,''));if(item?.vehicle)params.set('model',item.vehicle);params.set('source','dealmaster');params.set('vehicleStore',storeName||'Unidade atual');params.set('company',companyName||'Empresa');return params;};
- const openManualTrack=(item?:OperationalStockItem)=>window.open(`${MANUAL_TRACK_URL}?${contextParams(item).toString()}`,'_blank','noopener,noreferrer');
- const registerAsset=(item:OperationalStockItem)=>window.open(`${MANUAL_REGISTER_URL}?${contextParams(item).toString()}`,'_blank','noopener,noreferrer');
+ const openExternal=(url:string)=>{const opened=window.open(url,'_blank','noopener,noreferrer');if(!opened)window.location.assign(url);};
+ const openManualTrack=(item?:OperationalStockItem)=>openExternal(`${MANUAL_TRACK_URL}?${contextParams(item).toString()}`);
+ const registerAsset=(item:OperationalStockItem)=>openExternal(`${MANUAL_REGISTER_URL}?${contextParams(item).toString()}`);
  const connectAssetGuard=()=>{setConnectionMessage('');window.open(assetGuardIntegrationService.pairingUrl(),'assetguard-connect','width=620,height=720,resizable=yes,scrollbars=yes');};
  const disconnectAssetGuard=()=>{assetGuardIntegrationService.clearToken(companyId);setConnected(false);setConnectionMessage('Conexão removida deste navegador.');};
  const money=(value:number|null)=>value===null?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(value);
