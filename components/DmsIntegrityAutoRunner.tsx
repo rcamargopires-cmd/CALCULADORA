@@ -1,6 +1,7 @@
 import React,{useEffect} from 'react';
 import type { User } from '../types';
 import { dmsIntegrityService } from '../services/dmsIntegrityService';
+import { dealTenantService } from '../services/dealTenantService';
 
 const dayKey=()=>new Date().toISOString().slice(0,10);
 
@@ -11,7 +12,8 @@ const DmsIntegrityAutoRunner:React.FC<{user:User;companyId:string;storeId:string
     if(localStorage.getItem(key)==='done')return;
     let cancelled=false;
     const timer=window.setTimeout(()=>{
-      void dmsIntegrityService.runAndStore(companyId,storeId,user)
+      const prepare=user.role==='admin'?dealTenantService.cleanupKnownQaRecords(user).catch(()=>0):Promise.resolve(0);
+      void prepare.then(()=>dmsIntegrityService.runAndStore(companyId,storeId,user))
         .then(report=>{
           if(cancelled)return;
           localStorage.setItem(key,'done');
