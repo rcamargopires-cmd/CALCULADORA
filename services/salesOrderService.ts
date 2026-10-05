@@ -86,7 +86,12 @@ export const salesOrderService={
     if(existing)return existing;
 
     const plate=cleanPlate(proposal.plate);
-    if(!plate)throw new Error('A proposta aceita precisa ter uma placa do estoque.');
+    if(!/^[A-Z0-9]{7}$/.test(plate))throw new Error('A proposta aceita precisa ter uma placa válida do estoque.');
+    if(!String(lead.customerName||'').trim())throw new Error('Informe o cliente antes de aceitar a proposta.');
+    if(!String(lead.assignedSellerEmail||lead.assignedSellerId||'').trim())throw new Error('Defina o vendedor responsável antes de aceitar a proposta.');
+    const salePrice=Number(proposal.salePrice)||0;
+    const discount=Math.max(0,Number(proposal.discount)||0);
+    if(salePrice<=0||salePrice-discount<=0)throw new Error('Informe um valor de venda válido antes de aceitar a proposta.');
     let master=await dmsVehicleService.findByPlate(lead.companyId,lead.storeId,plate);
     if(!master){
       const current=await currentStockService.getCurrent(lead.companyId,lead.storeId);
@@ -96,6 +101,10 @@ export const salesOrderService={
         master=await dmsVehicleService.findByPlate(lead.companyId,lead.storeId,synced.plate);
       }
     }
+
+    if(!master)throw new Error('O veículo da proposta não foi localizado no estoque atual. Atualize o estoque antes de gerar o pedido.');
+    const vehicleName=String(proposal.vehicle||master.model||'').trim();
+    if(!vehicleName)throw new Error('Identifique o veículo antes de aceitar a proposta.');
 
     const customerDocument=String(proposal.acceptedCustomerDocument||'').replace(/\D/g,'').slice(0,14);
     const customer=await dmsCustomerService.ensure({
@@ -111,9 +120,9 @@ export const salesOrderService={
       customerEmail:customer.email||lead.customerEmail||'',customerAddress:customer.address||'',customerCity:customer.city||'',
       customerState:customer.state||'',customerZipCode:customer.zipCode||'',
       sellerId:lead.assignedSellerId,sellerEmail:lead.assignedSellerEmail,sellerName:lead.assignedSellerName,
-      vehicleId:master?.vehicleId,plate,vehicle:proposal.vehicle,year:proposal.year,
-      salePrice:Number(proposal.salePrice)||0,discount:Number(proposal.discount)||0,
-      netSalePrice:Math.max(0,(Number(proposal.salePrice)||0)-(Number(proposal.discount)||0)),
+      vehicleId:master.vehicleId,plate,vehicle:vehicleName,year:proposal.year||master.year,
+      salePrice,discount,
+      netSalePrice:salePrice-discount,
       cashEntry:Number(proposal.cashEntry)||0,financedAmount:Number(proposal.financedAmount)||0,
       installments:Number(proposal.installments)||0,estimatedInstallment:Number(proposal.estimatedInstallment)||0,
       creditStatus:Number(proposal.financedAmount)>0?'pending':'not_required',
