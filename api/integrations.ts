@@ -406,16 +406,18 @@ export default async function handler(req:any,res:any){
           configured:asaasApi&&asaasWebhook,
           apiKey:asaasApi,webhookToken:asaasWebhook,
           environment:String(process.env.ASAAS_ENVIRONMENT||'sandbox'),
+          missing:[...(!asaasApi?['ASAAS_API_KEY']:[]),...(!asaasWebhook?['ASAAS_WEBHOOK_TOKEN']:[])],
         },
         fiscal:{
           configured:focus,
           companyId,
           environment:focusEnvironment(req.body?.fiscalEnvironment),
           provider:'focus_nfe',
+          missing:focus?[]:['FOCUS_NFE_TOKEN ou FOCUS_NFE_TOKENS_JSON'],
         },
         external:{
-          githubFirebaseSecret:'check_github_environment',
-          firstBackup:'check_github_actions',
+          githubFirebaseSecret:'FIREBASE_SERVICE_ACCOUNT_JSON precisa existir também no GitHub Environment para deploy de Rules/backup',
+          firstBackup:'Executar backup real no GitHub Actions e validar uma restauração controlada',
           oemCredentials:'manufacturer_specific',
         },
       });
