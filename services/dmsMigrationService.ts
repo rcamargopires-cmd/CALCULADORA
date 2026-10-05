@@ -21,6 +21,7 @@ export type DmsMigrationResult={
   customersLinked:number;
   proposalsLinked:number;
   duplicateMastersArchived:number;
+  duplicateDocumentsArchived:number;
   skippedAmbiguous:number;
 };
 
@@ -28,7 +29,7 @@ export const dmsMigrationService={
   runSafeMigration:async(companyId:string,storeId:string,actor:Pick<User,'email'|'name'>):Promise<DmsMigrationResult>=>{
     const result:DmsMigrationResult={
       stockLinked:0,prepLinked:0,prepSuppliersLinked:0,financeLinked:0,financeSuppliersLinked:0,
-      historyLinked:0,customersLinked:0,proposalsLinked:0,duplicateMastersArchived:0,skippedAmbiguous:0,
+      historyLinked:0,customersLinked:0,proposalsLinked:0,duplicateMastersArchived:0,duplicateDocumentsArchived:0,skippedAmbiguous:0,
     };
 
     const stock=await currentStockService.getCurrent(companyId,storeId);
@@ -117,6 +118,37 @@ export const dmsMigrationService={
         result.financeSuppliersLinked++;
       }
       if(Object.keys(patch).length)await setDoc(doc(db,LEDGER,snap.id),{...patch,updatedAt:new Date().toISOString()},{merge:true});
+    }
+
+    const documentGroups=new Map<string,any[]>();
+    for(const snap of ledgerSnap.docs){
+      const data:any=snap.data();
+      if(data.kind!=='vehicle_document_case')continue;
+      const canonicalVehicleId=alias.get(String(data.vehicleId||''))||String(data.vehicleId||'')||canonicalByPlate.get(cleanPlate(data.plate))?.vehicleId||'';
+      if(!canonicalVehicleId)continue;
+      const group=documentGroups.get(canonicalVehicleId)||[];
+      group.push({snap,data,canonicalVehicleId});
+      documentGroups.set(canonicalVehicleId,group);
+    }
+    for(const [canonicalVehicleId,group] of documentGroups){
+      const sorted=[...group].sort((a,b)=>String(b.data.updatedAt||b.data.createdAt||'').localeCompare(String(a.data.updatedAt||a.data.createdAt||'')));
+      const canonical=sorted.find(item=>item.snap.id===`vehicle_docs_${canonicalVehicleId}`)||sorted[0];
+      if(canonical&&canonical.data.vehicleId!==canonicalVehicleId){
+        await setDoc(doc(db,LEDGER,canonical.snap.id),{vehicleId:canonicalVehicleId,updatedAt:new Date().toISOString()},{merge:true});
+      }
+      for(const duplicate of sorted){
+        if(!canonical||duplicate.snap.id===canonical.snap.id)continue;
+        await setDoc(doc(db,LEDGER,duplicate.snap.id),{
+          kind:'vehicle_document_case_archived',
+          duplicateOf:canonical.snap.id,
+          canonicalVehicleId,
+          archivedAt:new Date().toISOString(),
+          archivedBy:actor.email,
+          archivedByName:actor.name,
+          updatedAt:new Date().toISOString(),
+        },{merge:true});
+        result.duplicateDocumentsArchived++;
+      }
     }
 
     const passagesSnap=await getDocs(query(collection(db,'showroom_passages'),where('companyId','==',companyId),where('storeId','==',storeId)));
