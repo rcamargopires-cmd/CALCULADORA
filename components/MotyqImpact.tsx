@@ -94,6 +94,7 @@ const MotyqImpact: React.FC<Props> = ({ currentUser, companyId, storeId, storeNa
   const month = monthKey();
   const monthTasks = useMemo(() => tasks.filter(task => String(task.sourceDate || '').startsWith(month)), [tasks, month]);
   const doneTasks = useMemo(() => monthTasks.filter(task => task.status === 'done'), [monthTasks]);
+  const carryoverOpen = useMemo(() => tasks.filter(task => task.status !== 'done' && !String(task.sourceDate || '').startsWith(month)), [tasks, month]);
   const resultTasks = useMemo(() => doneTasks.filter(task => String(task.result || '').trim()), [doneTasks]);
   const completion = monthTasks.length ? (doneTasks.length / monthTasks.length) * 100 : 0;
 
@@ -183,7 +184,7 @@ const MotyqImpact: React.FC<Props> = ({ currentUser, companyId, storeId, storeNa
             <ImpactCard icon={<CheckCircle2 size={18}/>} label="Ações concluídas" value={`${doneTasks.length}`} hint={`${monthTasks.length} atribuída(s) no mês`} />
             <ImpactCard icon={<Target size={18}/>} label="Taxa de execução" value={`${completion.toFixed(0)}%`} hint={`${resultTasks.length} com resultado registrado`} />
             <ImpactCard icon={<CircleDollarSign size={18}/>} label="Capital crítico atual" value={formatCurrency(currentCriticalValue)} hint={`${currentCritical} veículo(s) acima de 90 dias`} />
-            <ImpactCard icon={<Activity size={18}/>} label="Sinais positivos" value={`${positiveSignals}`} hint="indicadores com evolução favorável" />
+            <ImpactCard icon={<Activity size={18}/>} label="Backlog anterior" value={`${carryoverOpen.length}`} hint="ações abertas criadas antes deste mês" />
           </section>
 
           <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5 md:p-6">
