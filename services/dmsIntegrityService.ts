@@ -10,6 +10,7 @@ import { dmsCustomerService } from './dmsCustomerService';
 import { userService } from './userService';
 import { vehiclePurchaseService } from './vehiclePurchaseService';
 import { salesOrderService } from './salesOrderService';
+import { vehicleDocumentService } from './vehicleDocumentService';
 
 const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const norm=(value:unknown)=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
@@ -36,7 +37,7 @@ export const dmsIntegrityService={
       dmsSupplierService.list(companyId,storeId),
       dmsCustomerService.list(companyId,storeId),
       currentUser?userService.getAll(companyId,storeId).catch(()=>[]):Promise.resolve([]),
-      import('./vehicleDocumentService').then(module=>module.vehicleDocumentService.list(companyId,storeId)).catch(()=>[] as VehicleDocumentCase[]),
+      vehicleDocumentService.list(companyId,storeId).catch(()=>[] as VehicleDocumentCase[]),
       getDocs(query(collection(db,'deals'),where('companyId','==',companyId),where('storeId','==',storeId))).catch(()=>null),
     ]);
 
