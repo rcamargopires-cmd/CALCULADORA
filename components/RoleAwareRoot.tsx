@@ -59,7 +59,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => {
   return <CurrentStockProvider user={user}>
     <ModuleErrorBoundary name="App" critical><App /></ModuleErrorBoundary>
     <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
-    {user && ['seller', 'user'].includes(String(user.role)) && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
+    {user && permissions.crmView && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
     <Safe name="OperationalTools"><OperationalTools /></Safe>
     {permissions.evaluationsView&&<Safe name="TradeCheckShell"><TradeCheckShell /></Safe>}
     {permissions.stockView&&<Safe name="MarketPresenceCorrectionShell"><MarketPresenceCorrectionShell /></Safe>}
