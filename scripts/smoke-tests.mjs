@@ -70,6 +70,9 @@ if(dealsBlock.includes("opKind(resource.data) != 'audit_event'"))fail('Audit gua
 const appShell=read('App.tsx');
 if(!appShell.includes('currentStockService.getCurrent(companyIdForUser(user),storeIdForUser(user))'))fail('Negotiation stock autofill guard missing.');
 
+const demoSeed=read('services/demoSeedService.ts');
+for(const required of ['seedFormalDms','seedFinance','seedDocuments','seedMarketIq','seedAfterSales','PV-DEMO-0997','demo_fin_bank','vehicle_document_case','marketiq_evaluation','after_sales_case']){if(!demoSeed.includes(required))fail('Demo showcase guard missing: '+required);}
+
 const appSource=read('App.tsx');
 if(!appSource.includes('Negociação arquivada com histórico preservado.'))fail('Negotiation archival UX guard missing.');
 
