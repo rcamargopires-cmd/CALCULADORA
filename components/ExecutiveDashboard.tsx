@@ -8,7 +8,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   CommissionConfig, OperationalPerformanceSeller, OperationalPerformanceSnapshot,
-  OperationalStockItem, SavedCalculation, ShowroomPassage, User,
+  OperationalStockItem, SavedCalculation, SalesOrder, ShowroomPassage, User,
 } from '../types';
 import { normalize } from '../services/operationalDataService';
 import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
@@ -18,6 +18,7 @@ import { evaluationQueueService, EvaluationQueueRequest } from '../services/eval
 import { showroomFlowService } from '../services/showroomFlowService';
 import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companyScopeService';
 import { storeScopeService, STORE_SCOPE_EVENT } from '../services/storeScopeService';
+import { salesOrderService } from '../services/salesOrderService';
 
 type Props = {
   history: SavedCalculation[];
@@ -130,6 +131,7 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   const [snapshot, setSnapshot] = useState<OperationalPerformanceSnapshot | null>(null);
   const [evaluations, setEvaluations] = useState<EvaluationQueueRequest[]>([]);
   const [leads, setLeads] = useState<ShowroomPassage[]>([]);
+  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [focus, setFocus] = useState<FocusPanel>(null);
 
@@ -227,6 +229,16 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
       scope.storeId,
       setLeads,
       error => console.warn('MOTYQ dashboard CRM unavailable', error),
+    );
+  }, [scope.companyId, scope.storeId]);
+
+  useEffect(() => {
+    if (!scope.companyId || !scope.storeId) return;
+    return salesOrderService.subscribe(
+      scope.companyId,
+      scope.storeId,
+      setSalesOrders,
+      error => console.warn('MOTYQ dashboard sales orders unavailable', error),
     );
   }, [scope.companyId, scope.storeId]);
 
@@ -352,7 +364,14 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
 
   const margin = Number(total?.marginPercent || 0);
   const projection = Number(total?.projection || 0);
-  const actualSales = officialClosingCount(total);
+  const performanceSales = officialClosingCount(total);
+  const currentMonth = (()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;})();
+  const dmsSalesMonth = useMemo(() => salesOrders.filter(order => {
+    if(order.status==='cancelled')return false;
+    const stamp=String(order.invoicedAt||order.deliveredAt||order.updatedAt||'');
+    return stamp.slice(0,7)===currentMonth;
+  }), [salesOrders,currentMonth]);
+  const actualSales=dmsSalesMonth.length;
 
   const sellerRows = useMemo(() => sellers.map(seller => {
     const sellerName = normalize(String(seller.seller || ''));
@@ -411,7 +430,7 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
         focus: 'opportunities',
       });
     }
-    if (actualSales > 0 && margin < goals.margin) {
+    if (performanceSales > 0 && margin < goals.margin) {
       items.push({
         tone: 'attention',
         title: 'Margem abaixo da meta',
@@ -440,13 +459,13 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
     return items.slice(0, 5);
   }, [
     stockOver120, stockOver90, pendingEvaluations, staleEvaluations, hotOpportunities, waitingLeads,
-    actualSales, margin, goals.margin, projection, goals.store,
+    performanceSales, margin, goals.margin, projection, goals.store,
   ]);
 
   const maxBand = Math.max(...ageBands.map(item => item.count), 1);
   const completedEvaluations = evaluations.filter(item => item.status === 'completed').length;
   const rejectedEvaluations = evaluations.filter(item => item.status === 'rejected').length;
-  const closedSales = leads.filter(item => item.status === 'sale').length;
+  const closedSales = actualSales;
   const proposals = leads.filter(item => item.status === 'proposal').length;
 
   const openCrm = () => window.dispatchEvent(new CustomEvent('motyq:open-crm', { detail: {} }));
@@ -505,9 +524,9 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
         </button>
         <button className="mx-kpi-card" onClick={() => setFocus('margin')}>
           <div className="mx-kpi-icon"><BarChart3 size={20} /></div>
-          <div className="mx-kpi-label">Vendas no mês</div>
+          <div className="mx-kpi-label">Vendas DMS no mês</div>
           <strong>{actualSales}</strong>
-          <span>Projeção {projection.toFixed(1)} · meta {goals.store}</span>
+          <span>Mapa {performanceSales} · projeção {projection.toFixed(1)} · meta {goals.store}</span>
           <ChevronRight className="mx-kpi-chevron" size={17} />
         </button>
       </section>
