@@ -50,6 +50,13 @@ export const financeAccountService={
     return account;
   },
 
+  cleanupKnownQaAccounts:async(companyId:string,storeId:string,actor:Pick<User,'email'|'name'>)=>{
+    const accounts=await financeAccountService.list(companyId,storeId);
+    const targets=accounts.filter(account=>account.active&&String(account.name||'').trim().toUpperCase()==='QA TEMPORÁRIA - REMOVER');
+    for(const account of targets)await financeAccountService.deactivate(account,actor);
+    return targets.length;
+  },
+
   deactivate:async(account:FinanceAccount,actor:Pick<User,'email'|'name'>)=>{
     if(!account.active)return account;
     const next:FinanceAccount={...account,active:false,updatedAt:now()};
