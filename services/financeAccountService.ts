@@ -52,7 +52,8 @@ export const financeAccountService={
 
   cleanupKnownQaAccounts:async(companyId:string,storeId:string,actor:Pick<User,'email'|'name'>)=>{
     const accounts=await financeAccountService.list(companyId,storeId);
-    const targets=accounts.filter(account=>account.active&&String(account.name||'').trim().toUpperCase()==='QA TEMPORÁRIA - REMOVER');
+    const qaNames=new Set(['QA TEMPORÁRIA - REMOVER','CAIXA TESTE MOTYQ CHECKLIST — TEMPORÁRIO']);
+    const targets=accounts.filter(account=>account.active&&qaNames.has(String(account.name||'').trim().toUpperCase()));
     for(const account of targets)await financeAccountService.deactivate(account,actor);
     return targets.length;
   },
