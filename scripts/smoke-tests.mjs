@@ -70,8 +70,11 @@ if(dealsBlock.includes("opKind(resource.data) != 'audit_event'"))fail('Audit gua
 const appShell=read('App.tsx');
 if(!appShell.includes('currentStockService.getCurrent(companyIdForUser(user),storeIdForUser(user))'))fail('Negotiation stock autofill guard missing.');
 
+const appSource=read('App.tsx');
+if(!appSource.includes('Negociação arquivada com histórico preservado.'))fail('Negotiation archival UX guard missing.');
+
 const dealGuard=read('services/dealTenantService.ts');
-for(const required of ["Informe uma placa válida antes de salvar a negociação.","O total das formas de pagamento deve conferir com o valor da venda.","cleanupKnownQaRecords"]){
+for(const required of ["Informe uma placa válida antes de salvar a negociação.","O total das formas de pagamento deve conferir com o valor da venda.","cleanupKnownQaRecords","kind:'deal_archived'","archiveReason"]){
   if(!dealGuard.includes(required))fail('Negotiation data guard missing: '+required);
 }
 
