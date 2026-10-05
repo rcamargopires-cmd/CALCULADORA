@@ -147,7 +147,9 @@ const AIManagerV2: React.FC = () => {
     }
   };
 
-  const health = brief.status === 'critical'
+  const health = !snapshot
+    ? { label: 'Dados pendentes', dot: 'bg-zinc-500', chip: 'bg-zinc-500/10 text-zinc-300' }
+    : brief.status === 'critical'
     ? { label: 'Crítico', dot: 'bg-red-500', chip: 'bg-red-500/10 text-red-300' }
     : brief.status === 'attention'
       ? { label: 'Atenção', dot: 'bg-amber-400', chip: 'bg-amber-400/10 text-amber-300' }
@@ -204,11 +206,12 @@ const AIManagerV2: React.FC = () => {
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <AiMetric label="Vendas" value={`${brief.metrics.sales}`} />
-                <AiMetric label="Projeção" value={brief.metrics.projection.toFixed(1)} delta={brief.metrics.projectionDelta}/>
-                <AiMetric label="Captura" value={`${brief.metrics.capture.toFixed(1)}%`} delta={brief.metrics.captureDelta} suffix=" p.p."/>
-                <AiMetric label="Margem MC" value={`${brief.metrics.margin.toFixed(1)}%`} delta={brief.metrics.marginDelta} suffix=" p.p."/>
+                <AiMetric label="Vendas" value={snapshot?`${brief.metrics.sales}`:'—'} />
+                <AiMetric label="Projeção" value={snapshot?brief.metrics.projection.toFixed(1):'—'} delta={snapshot?brief.metrics.projectionDelta:undefined}/>
+                <AiMetric label="Captura" value={snapshot?`${brief.metrics.capture.toFixed(1)}%`:'—'} delta={snapshot?brief.metrics.captureDelta:undefined} suffix=" p.p."/>
+                <AiMetric label="Margem MC" value={snapshot?`${brief.metrics.margin.toFixed(1)}%`:'—'} delta={snapshot?brief.metrics.marginDelta:undefined} suffix=" p.p."/>
               </div>
+              {!snapshot&&<div className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-400/[.05] px-4 py-3 text-sm text-amber-100">Mapa de Performance não importado. Indicadores comerciais ficam indisponíveis até existir uma fotografia válida, em vez de serem exibidos como zero.</div>}
             </section>
 
             <div className="mt-5 grid gap-5 xl:grid-cols-[1.12fr_.88fr]">
