@@ -70,7 +70,7 @@ const DmsAnalyticsPanel:React.FC<Props>=({currentUser,companyId,storeId,storeNam
 
             {tab==='overview'&&<>
               <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Metric icon={<ShoppingCart size={16}/>} label="Estoque atual" value={String(report.stock.count)} note={money(report.stock.value)}/>
+                <Metric icon={<ShoppingCart size={16}/>} label="Estoque atual" value={String(report.stock.count)} note={`${money(report.stock.value)} · ${report.stock.importedCount} importado(s) + ${report.stock.manualCount} manual(is)`}/>
                 <Metric icon={<TrendingUp size={16}/>} label="Vendas do mês" value={String(report.sales.month)} note={`${money(report.sales.revenue)} · margem ${pct(report.sales.marginPercent)}`}/>
                 <Metric icon={<CircleDollarSign size={16}/>} label="Resultado bruto DMS" value={money(report.sales.profit)} note="venda + retorno - custo - pós-venda" danger={report.sales.profit<0}/>
                 <Metric icon={<AlertTriangle size={16}/>} label="Integridade" value={String(report.integrity.critical)} note={`${report.integrity.warning} atenção(ões)`} danger={report.integrity.critical>0}/>
