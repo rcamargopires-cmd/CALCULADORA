@@ -18,6 +18,9 @@ const currentStock=read('services/currentStockService.ts');
 if(!currentStock.includes("currentRecord===true"))fail('Current stock no longer filters canonical records.');
 if(currentStock.includes('operational_current_stock'))fail('Legacy parallel current-stock collection returned.');
 
+const migrationSource=read('services/dmsMigrationService.ts');
+if(!migrationSource.includes('duplicateDocumentsArchived')||!migrationSource.includes("vehicle_document_case_archived"))fail('Safe migration no longer archives duplicate document dossiers.');
+
 const vehicleMaster=read('services/dmsVehicleService.ts');
 if(!vehicleMaster.includes('claimVehicleId(input.companyId,input.storeId,plate,preferredVehicleId)'))fail('Purchase flow no longer claims plate-index identity.');
 
