@@ -73,7 +73,13 @@ const CommissionModal: React.FC<CommissionModalProps> = ({
 
   // Filtra apenas vendas FECHADAS para o histórico de ganhos baseadas no mês selecionado
   const closedDeals = useMemo(() => {
-    const closed = history.filter(h => h.data.dealStatus === 'closed');
+    const closed = history.filter(h => {
+      if(h.data.dealStatus!=='closed')return false;
+      const plate=String(h.data.licensePlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      const saleValue=Number(h.data.invoiceValue)||0;
+      const totalPayment=Number(h.data.payments?.entry||0)+Number(h.data.payments?.financing||0)+Number(h.data.payments?.tradeIn||0);
+      return /^[A-Z0-9]{7}$/.test(plate)&&saleValue>0&&totalPayment>0&&Math.abs(totalPayment-saleValue)<=1&&Boolean(String(h.userId||'').trim())&&Boolean(String(h.userName||'').trim());
+    });
     if (selectedMonth === 'all') return closed;
     return closed.filter(h => h.timestamp.startsWith(selectedMonth));
   }, [history, selectedMonth]);
