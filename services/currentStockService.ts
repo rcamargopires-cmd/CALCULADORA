@@ -441,6 +441,24 @@ export const currentStockService={
     return next.filter(isActive);
   },
 
+  updateFipe:async(
+    companyId:string,
+    storeId:string,
+    plate:string,
+    fipe:number,
+    user?:User,
+  ):Promise<OperationalStockItem|null>=>{
+    const value=Math.max(0,Number(fipe)||0);
+    if(!value)return null;
+    const target=cleanPlate(plate);
+    const current=await currentStockService.getCurrent(companyId,storeId);
+    const existing=current.find(item=>cleanPlate(item.plate)===target);
+    if(!existing)return null;
+    if(Math.abs((Number(existing.fipe)||0)-value)<0.01)return existing;
+    const rows=await currentStockService.upsert({...existing,fipe:value},storeId,companyId,user);
+    return rows.find(item=>cleanPlate(item.plate)===target)||null;
+  },
+
   transfer:async(
     plate:string,
     fromStoreId:string,
