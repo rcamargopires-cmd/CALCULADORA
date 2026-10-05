@@ -115,9 +115,14 @@ const MarketIQMediaPanel: React.FC<Props> = ({ companyId, storeId }) => {
   };
 
   const addDamage = () => {
+    const targetPlate=currentPlate();
+    if(!targetPlate){setError('Informe a placa da avaliação antes de adicionar avarias.');return;}
     const value = Math.max(0, parseNumber(cost));
-    if (!description.trim() && value <= 0) return;
-    setDamages(prev => [...prev, { id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, description: description.trim() || 'Avaria sem descrição', cost: value, mediaId: damageMediaId || undefined }]);
+    if (!description.trim()){setError('Descreva a avaria antes de adicionar.');return;}
+    if(value<=0){setError('Informe um custo estimado maior que zero para a avaria.');return;}
+    setError('');
+    setPlate(targetPlate);
+    setDamages(prev => [...prev, { id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, description: description.trim(), cost: value, mediaId: damageMediaId || undefined }]);
     setDescription(''); setCost(''); setDamageMediaId('');
   };
 
