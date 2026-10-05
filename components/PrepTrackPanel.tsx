@@ -17,7 +17,7 @@ const SERVICE_LABELS:Record<PrepServiceStatus,string>={pending:'Aguardando aprov
 const money=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v||0);
 const dateValue=(v?:string)=>v?String(v).slice(0,10):'';
 const clean=(v:unknown)=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-const isEmptyLookup=(order:PrepOrder)=>!(order.services||[]).length&&!order.sold&&order.status==='triage'&&order.destination==='showroom';
+const isEmptyLookup=(order:PrepOrder)=>!(order.services||[]).length&&!order.sold&&order.status==='triage'&&order.destination==='showroom'&&!order.vehicleId&&!String(order.createdBy||'').trim();
 
 const PrepTrackPanel:React.FC<Props>=({currentUser,companyId,storeId,storeName})=>{
  const sharedStock=useCurrentStock();
