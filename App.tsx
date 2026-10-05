@@ -187,6 +187,15 @@ const App: React.FC = () => {
   const handleSave = async (status: 'open' | 'closed' = 'open', forceUpdateId?: string, skipDuplicateCheck: boolean = false) => {
     if (!user || isSaving) return;
     if (activeView === 'dashboard') setActiveView('calculator');
+    const plate = String(data.licensePlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(!/^[A-Z0-9]{7}$/.test(plate)){
+      setToast({message:'Informe uma placa válida antes de salvar a negociação.',type:'error'});return;
+    }
+    if(Number(data.invoiceValue)<=0){setToast({message:'Informe um valor de venda maior que zero.',type:'error'});return;}
+    if(Number(data.vehicleCost)<0){setToast({message:'O custo do veículo não pode ser negativo.',type:'error'});return;}
+    if(status==='closed'&&!String(user?.name||'').trim()){
+      setToast({message:'Não foi possível identificar o vendedor responsável.',type:'error'});return;
+    }
     if (!forceUpdateId && !skipDuplicateCheck && data.licensePlate && data.licensePlate.trim() !== '') {
       const existing = history.find(h => h.data.licensePlate && h.data.licensePlate.toUpperCase() === data.licensePlate.toUpperCase());
       if (existing) { setDuplicateDeal({ id: existing.id, status }); return; }
