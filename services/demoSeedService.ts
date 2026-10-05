@@ -576,6 +576,18 @@ const seedDocuments=async()=>{
   },{merge:true})));
 };
 
+
+const seedEvaluationQueue=async()=>{
+  const rows=[
+    {id:'demo_eval_requested',requesterEmail:'ana.costa@demo.motyq',requesterName:'Ana Costa',evaluatorEmail:'ricardo.nunes@demo.motyq',evaluatorName:'Ricardo Nunes',plate:'EVL1A23',renavam:'12345678901',vehicle:'VW T-Cross Comfortline 2021',brand:'Volkswagen',year:'2020/2021',km:'68500',fuel:'Flex',hasSpareKey:'yes',hasManual:'yes',notes:'Cliente está na loja aguardando avaliação.',identificationSource:'manual',status:'requested',createdAt:daysAgo(0,13),updatedAt:daysAgo(0,13)},
+    {id:'demo_eval_progress',requesterEmail:'bruno.lima@demo.motyq',requesterName:'Bruno Lima',evaluatorEmail:'ricardo.nunes@demo.motyq',evaluatorName:'Ricardo Nunes',plate:'EVL2B34',renavam:'10987654321',vehicle:'Chevrolet Tracker Premier 2020',brand:'Chevrolet',year:'2019/2020',km:'79300',fuel:'Flex',hasSpareKey:'no',hasManual:'yes',notes:'Avaliação em andamento. Cliente deseja usar como entrada.',identificationSource:'manual',status:'in_progress',createdAt:daysAgo(0,11),startedAt:daysAgo(0,11,20),updatedAt:daysAgo(0,11,20)},
+    {id:'demo_eval_completed',requesterEmail:'ana.costa@demo.motyq',requesterName:'Ana Costa',evaluatorEmail:'ricardo.nunes@demo.motyq',evaluatorName:'Ricardo Nunes',plate:'DEF4G56',renavam:'10223344556',vehicle:'Honda HR-V EXL 2020',brand:'Honda',year:'2019/2020',km:'81200',fuel:'Flex',hasSpareKey:'yes',hasManual:'yes',notes:'Avaliação concluída e vinculada ao MarketIQ.',identificationSource:'manual',status:'completed',recommendedBuy:88500,marketIqEvaluationId:'demo_miq_2',createdAt:daysAgo(1,14),startedAt:daysAgo(1,14,15),completedAt:daysAgo(1,15),updatedAt:daysAgo(1,15)},
+  ];
+  await Promise.all(rows.map(item=>setDoc(doc(db,'evaluation_requests',item.id),{
+    ...item,companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+  },{merge:true})));
+};
+
 const seedMarketIq=async()=>{
   const rows=[
     {id:'demo_miq_1',plate:'DMT1A01',vehicle:'VW Nivus Highline 2023',year:'2022/2023',km:'68400',fipe:'116500',recommendedBuy:101000,status:'approved',commercialClass:'C',commercialDestination:'OUTLET',notes:'Aging alto. Compra aprovada somente com margem de segurança.',damages:[{id:'dm1',description:'Risco para-choque traseiro',cost:650}],damageTotal:650,customerName:'André Oliveira',sellerName:'Ana Costa',sellerEmail:'ana.costa@demo.motyq'},
@@ -644,7 +656,7 @@ export const demoSeedService={
     await seedCompaniesStoresUsers();
     await Promise.all([seedStock(),seedPerformance(),seedSales()]);
     await Promise.all([seedQueueAndCrm(),seedDeals(),seedPrepTrack()]);
-    await Promise.all([seedMarketPresence(),seedTasks(currentUser),seedFormalDms(),seedFinance(),seedDocuments(),seedMarketIq(),seedAfterSales(),seedPurchasesAndSuppliers(),seedWorkshop()]);
+    await Promise.all([seedMarketPresence(),seedTasks(currentUser),seedFormalDms(),seedFinance(),seedDocuments(),seedMarketIq(),seedEvaluationQueue(),seedAfterSales(),seedPurchasesAndSuppliers(),seedWorkshop()]);
 
     companyScopeService.set(DEMO_COMPANY_ID);
     storeScopeService.set(DEMO_STORE_ID);
