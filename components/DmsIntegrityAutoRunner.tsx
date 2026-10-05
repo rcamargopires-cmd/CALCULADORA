@@ -3,6 +3,8 @@ import type { User } from '../types';
 import { dmsIntegrityService } from '../services/dmsIntegrityService';
 import { dealTenantService } from '../services/dealTenantService';
 import { financeAccountService } from '../services/financeAccountService';
+import { currentStockService } from '../services/currentStockService';
+import { prepTrackService } from '../services/prepTrackService';
 
 const dayKey=()=>new Date().toISOString().slice(0,10);
 
@@ -17,8 +19,19 @@ const DmsIntegrityAutoRunner:React.FC<{user:User;companyId:string;storeId:string
         ? Promise.all([
             dealTenantService.cleanupKnownQaRecords(user).catch(()=>0),
             financeAccountService.cleanupKnownQaAccounts(companyId,storeId,user).catch(()=>0),
+            (async()=>{
+              const plate='TST0Z01';
+              const stock=await currentStockService.getCurrent(companyId,storeId).catch(()=>[]);
+              if(stock.some(item=>String(item.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===plate)){
+                await currentStockService.markOut(plate,storeId,companyId,user).catch(()=>undefined);
+              }
+              const orders=await prepTrackService.getOrders(companyId,storeId).catch(()=>[]);
+              const qaOrders=orders.filter(order=>String(order.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===plate&&(order.services||[]).length===0&&!order.sold);
+              for(const order of qaOrders)await prepTrackService.deleteOrder(order.id).catch(()=>undefined);
+              return qaOrders.length;
+            })(),
           ])
-        : Promise.resolve([0,0]);
+        : Promise.resolve([0,0,0]);
       void prepare.then(()=>dmsIntegrityService.runAndStore(companyId,storeId,user))
         .then(report=>{
           if(cancelled)return;
