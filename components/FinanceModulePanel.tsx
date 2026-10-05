@@ -214,6 +214,8 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
           competenceDate:today(),
           plate:plate||undefined,
           vehicle:vehicle.trim()||undefined,
+          chartAccountId,
+          costCenterId,
           origin:'manual',
           companyId,
           storeId,
