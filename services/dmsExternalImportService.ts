@@ -137,6 +137,9 @@ export const dmsExternalImportService={
     if(kind==='stock'){
       const invalid=normalized.filter(row=>!/^[A-Z0-9]{7}$/.test(String(row.plate||''))||!String(row.vehicle||'').trim()).length;
       if(invalid)warnings.push(`${invalid} linha(s) de estoque sem placa/modelo válido serão ignoradas.`);
+      const validPlates=normalized.map(row=>String(row.plate||'')).filter(plate=>/^[A-Z0-9]{7}$/.test(plate));
+      const duplicateCount=validPlates.length-new Set(validPlates).size;
+      if(duplicateCount)warnings.push(`${duplicateCount} linha(s) repetida(s) por placa foram encontradas; a última ocorrência de cada placa será usada.`);
     }else if(kind==='customers'||kind==='suppliers'){
       const invalid=normalized.filter(row=>!String(row.name||'').trim()).length;
       if(invalid)warnings.push(`${invalid} linha(s) sem nome serão ignoradas.`);
@@ -154,8 +157,11 @@ export const dmsExternalImportService={
     let imported=0,ignored=0;
     if(preview.kind==='stock'){
       const valid=preview.normalized.filter(row=>/^[A-Z0-9]{7}$/.test(String(row.plate||''))&&String(row.vehicle||'').trim());
-      ignored=preview.normalized.length-valid.length;
-      const items:OperationalStockItem[]=valid.map((row,index)=>({
+      const uniqueByPlate=new Map<string,Record<string,unknown>>();
+      valid.forEach(row=>uniqueByPlate.set(String(row.plate),row));
+      const unique=Array.from(uniqueByPlate.values());
+      ignored=preview.normalized.length-unique.length;
+      const items:OperationalStockItem[]=unique.map((row,index)=>({
         id:`external_stock_${Date.now()}_${index}`,snapshotDate:new Date().toISOString().slice(0,10),
         plate:String(row.plate),vehicle:String(row.vehicle),model:String(row.vehicle),
         brand:String(row.brand||''),year:String(row.year||''),km:Number(row.km)||0,stockDays:0,
