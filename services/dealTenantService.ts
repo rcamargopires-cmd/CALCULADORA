@@ -114,7 +114,15 @@ export const dealTenantService = {
       const plate=String(data.data?.licensePlate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
       return qaTimestamps.has(String(data.timestamp||''))&&!plate&&Number(data.data?.invoiceValue||0)===0;
     });
-    await Promise.all(targets.map(item=>deleteDoc(doc(db,'deals',item.id))));
+    await Promise.all(targets.map(item=>setDoc(doc(db,'deals',item.id),{
+      kind:'deal_archived',
+      qaCleanup:true,
+      archiveReason:'Registro sintético do checklist final do Motyq',
+      archivedAt:new Date().toISOString(),
+      archivedBy:user.email,
+      archivedByName:user.name,
+      updatedAt:new Date().toISOString(),
+    },{merge:true})));
     return targets.length;
   },
 
