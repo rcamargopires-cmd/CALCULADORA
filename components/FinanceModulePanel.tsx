@@ -178,6 +178,8 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
     if(!party.trim())return setError(entryType==='payable'?'Informe o fornecedor/beneficiário.':'Informe o cliente/pagador.');
     if(value<=0)return setError('Informe um valor maior que zero.');
     if(!dueDate)return setError('Informe o primeiro vencimento do lançamento.');
+    if(!chartAccountId)return setError('Selecione o Plano de Contas do lançamento.');
+    if(!costCenterId)return setError('Selecione o Centro de Custo do lançamento.');
     setBusy('create');setError('');setMessage('');
     try{
       const count=Math.max(1,Math.min(120,Math.trunc(Number(installments)||1)));
@@ -195,6 +197,8 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
           vehicle:vehicle.trim()||undefined,
           chartAccountId:chartAccountId||undefined,
           costCenterId:costCenterId||undefined,
+          chartAccountId,
+          costCenterId,
           origin:'manual',
           companyId,
           storeId,
@@ -487,8 +491,8 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
           <label className="text-xs text-zinc-500">Valor total<input type="number" value={amount} onChange={e=>setAmount(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
           <label className="text-xs text-zinc-500">Primeiro vencimento<input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"/></label>
           <label className="text-xs text-zinc-500">Parcelas<input type="number" min="1" max="120" value={installments} onChange={e=>setInstallments(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/><span className="mt-1 block text-[10px] text-zinc-600">Acima de 1, o Motyq divide o valor total em vencimentos mensais.</span></label>
-          <label className="text-xs text-zinc-500">Plano de contas<select value={chartAccountId} onChange={e=>setChartAccountId(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"><option value="">Sem conta definida</option>{chartAccounts.map(item=><option key={item.chartAccountId} value={item.chartAccountId}>{item.code} · {item.name}</option>)}</select></label>
-          <label className="text-xs text-zinc-500">Centro de custo<select value={costCenterId} onChange={e=>setCostCenterId(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"><option value="">Sem centro definido</option>{costCenters.map(item=><option key={item.costCenterId} value={item.costCenterId}>{item.code} · {item.name}</option>)}</select></label>
+          <label className="text-xs text-zinc-500">Plano de contas<select value={chartAccountId} onChange={e=>setChartAccountId(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"><option value="">Selecione...</option>{chartAccounts.map(item=><option key={item.chartAccountId} value={item.chartAccountId}>{item.code} · {item.name}</option>)}</select></label>
+          <label className="text-xs text-zinc-500">Centro de custo<select value={costCenterId} onChange={e=>setCostCenterId(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"><option value="">Selecione...</option>{costCenters.map(item=><option key={item.costCenterId} value={item.costCenterId}>{item.code} · {item.name}</option>)}</select></label>
           <label className="text-xs text-zinc-500">Placa opcional<input value={plate} onChange={e=>setPlate(clean(e.target.value).slice(0,7))} placeholder="ABC1D23" className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 font-mono text-sm text-white outline-none"/></label>
           <label className="text-xs text-zinc-500 sm:col-span-2">Veículo / referência<input value={vehicle} onChange={e=>setVehicle(e.target.value)} placeholder="Opcional" className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none"/></label>
         </div>
