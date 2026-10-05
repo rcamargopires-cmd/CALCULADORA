@@ -70,7 +70,7 @@ for(const required of ["Informe uma placa válida antes de salvar a negociação
 }
 
 const financeGuard=read('services/financeService.ts');
-for(const required of ['withoutUndefined','Informe o primeiro vencimento do lançamento.']){
+for(const required of ['withoutUndefined','Informe o primeiro vencimento do lançamento.','Selecione o Plano de Contas do lançamento.','Selecione o Centro de Custo do lançamento.']){
   if(!financeGuard.includes(required))fail('Finance persistence guard missing: '+required);
 }
 
