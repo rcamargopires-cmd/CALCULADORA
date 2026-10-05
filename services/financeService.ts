@@ -8,6 +8,7 @@ const LEDGER='operational_meta';
 const safe=(value:string)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').replace(/-+/g,'-').slice(0,180);
 const cleanPlate=(value:unknown)=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
 const now=()=>new Date().toISOString();
+const withoutUndefined=<T extends Record<string,unknown>>(value:T)=>Object.fromEntries(Object.entries(value).filter(([,item])=>item!==undefined)) as T;
 
 const normalize=(entry:FinanceEntry):FinanceEntry=>({
   ...entry,
@@ -82,7 +83,7 @@ export const financeService={
       createdBy:input.actor.email,
       createdByName:input.actor.name,
     });
-    await setDoc(doc(db,LEDGER,id),entry,{merge:true});
+    await setDoc(doc(db,LEDGER,id),withoutUndefined(entry as unknown as Record<string,unknown>),{merge:true});
     await dmsAuditService.record({
       companyId:input.companyId,
       storeId:input.storeId,
@@ -162,7 +163,7 @@ export const financeService={
 
   update:async(entry:FinanceEntry,patch:Partial<FinanceEntry>)=>{
     const next=normalize({...entry,...patch,updatedAt:now()});
-    await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
+    await setDoc(doc(db,LEDGER,next.id),withoutUndefined(next as unknown as Record<string,unknown>),{merge:true});
     return next;
   },
 
