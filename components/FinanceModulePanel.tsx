@@ -177,6 +177,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
     if(!description.trim())return setError('Informe a descrição do lançamento.');
     if(!party.trim())return setError(entryType==='payable'?'Informe o fornecedor/beneficiário.':'Informe o cliente/pagador.');
     if(value<=0)return setError('Informe um valor maior que zero.');
+    if(!dueDate)return setError('Informe o primeiro vencimento do lançamento.');
     setBusy('create');setError('');setMessage('');
     try{
       const count=Math.max(1,Math.min(120,Math.trunc(Number(installments)||1)));
