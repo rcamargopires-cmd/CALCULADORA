@@ -94,6 +94,9 @@ if(!dashboard.includes('salesOrderService.subscribe'))fail('Dashboard is no long
 const integrityServiceSource=read('services/dmsIntegrityService.ts');
 for(const required of ['duplicate-document-','invalid-closed-deal-','manual-finance-structure-','fipe-mismatch-']){if(!integrityServiceSource.includes(required))fail('Expanded DMS integrity guard missing: '+required);}
 
+const importService=read('services/dmsExternalImportService.ts');
+for(const required of ['duplicateCount','uniqueByPlate','a última ocorrência de cada placa será usada']){if(!importService.includes(required))fail('Stock import duplicate guard missing: '+required);}
+
 const permissionEditor=read('components/DmsPermissionEditor.tsx');
 const permissionSource=read('services/dmsPermissions.ts');
 for(const required of ['stockWrite','prepApprove','financeCreate','financeSettle','documentsView','afterSalesView','reportsView']){if(!permissionEditor.includes(required)&&!permissionSource.includes(required))fail('Granular permission editor guard missing: '+required);}
