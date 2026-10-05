@@ -249,7 +249,13 @@ export default async function handler(req:any,res:any){
      return res.status(200).json({
        items:years
          .map(item=>({code:getCode(item),name:getName(item)}))
-         .filter(item=>item.code&&item.name)
+         .filter(item=>{
+           if(!item.code||!item.name)return false;
+           const match=item.name.match(/(?:19|20)\d{2}/)||item.code.match(/(?:19|20)\d{2}/);
+           const year=Number(match?.[0]||0);
+           const maxYear=new Date().getFullYear()+1;
+           return year>=1900&&year<=maxYear;
+         })
          .sort((a,b)=>{
            const ay=Number((a.name.match(/(?:19|20)\d{2}/)||[])[0]||0);
            const by=Number((b.name.match(/(?:19|20)\d{2}/)||[])[0]||0);
