@@ -50,6 +50,17 @@ export const financeAccountService={
     return account;
   },
 
+  deactivate:async(account:FinanceAccount,actor:Pick<User,'email'|'name'>)=>{
+    if(!account.active)return account;
+    const next:FinanceAccount={...account,active:false,updatedAt:now()};
+    await setDoc(doc(db,LEDGER,next.id),next,{merge:true});
+    await dmsAuditService.record({
+      companyId:next.companyId,storeId:next.storeId,entityType:'finance',entityId:next.id,
+      action:'finance_account_deactivated',label:'Conta financeira inativada',details:next.name,actor,
+    }).catch(()=>undefined);
+    return next;
+  },
+
   save:async(account:FinanceAccount,actor?:Pick<User,'email'|'name'>|null)=>{
     const next:FinanceAccount={...account,name:String(account.name||'').trim(),openingBalance:Number(account.openingBalance)||0,updatedAt:now()};
     if(!next.name)throw new Error('Informe o nome da conta.');
