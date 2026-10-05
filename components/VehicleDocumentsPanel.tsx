@@ -22,7 +22,25 @@ const VehicleDocumentsPanel:React.FC<Props>=({currentUser,companyId,storeId,stor
  const load=async()=>{
   try{
    const [m,c]=await Promise.all([dmsVehicleService.list(companyId,storeId),vehicleDocumentService.list(companyId,storeId)]);
-   setMasters(m.filter(item=>item.stage!=='exited'));
+   const active=m.filter(item=>item.stage!=='exited');
+   const unique=new Map<string,VehicleMaster>();
+   active
+    .sort((a,b)=>String(a.updatedAt||a.createdAt||'').localeCompare(String(b.updatedAt||b.createdAt||'')))
+    .forEach(item=>{
+      const plate=String(item.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      const key=String(item.vehicleId||plate);
+      if(!key)return;
+      const previous=unique.get(key);
+      if(!previous||String(previous.updatedAt||previous.createdAt||'')<=String(item.updatedAt||item.createdAt||''))unique.set(key,item);
+    });
+   const byPlate=new Map<string,VehicleMaster>();
+   Array.from(unique.values()).forEach(item=>{
+     const plate=String(item.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+     const key=plate||item.vehicleId;
+     const previous=byPlate.get(key);
+     if(!previous||String(previous.updatedAt||previous.createdAt||'')<=String(item.updatedAt||item.createdAt||''))byPlate.set(key,item);
+   });
+   setMasters(Array.from(byPlate.values()));
    setCases(c);
   }catch(e:any){setError(e?.message||'Falha ao carregar documentos.');}
  };
