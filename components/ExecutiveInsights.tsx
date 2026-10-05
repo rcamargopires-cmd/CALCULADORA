@@ -205,7 +205,7 @@ const ExecutiveInsights: React.FC = () => {
     else if (projection < performance.monthlyGoal || capture < performance.captureGoal || margin < performance.healthyMargin || critical90 > 0) { headline = 'Operação em atenção'; headlineTone = 'warning'; }
 
     const narrative = [
-      `DealMaster Executive Insights · ${PERIOD_LABELS[period]} · referência ${dayLabel(currentSnapshot.referenceDate)}`,
+      `MOTYQ Executive Insights · ${PERIOD_LABELS[period]} · referência ${dayLabel(currentSnapshot.referenceDate)}`,
       `Vendas: ${sales}/${performance.monthlyGoal} · Projeção: ${projection.toFixed(1)} · MC: ${margin.toFixed(1)}% · Captura: ${capture.toFixed(1)}% · Fechamento: ${closingRate.toFixed(1)}%.`,
       `Movimento do período: vendas ${salesDelta >= 0 ? '+' : ''}${salesDelta.toFixed(0)}, projeção ${projectionDelta >= 0 ? '+' : ''}${projectionDelta.toFixed(1)}, margem ${marginDelta >= 0 ? '+' : ''}${marginDelta.toFixed(1)} p.p., captura ${captureDelta >= 0 ? '+' : ''}${captureDelta.toFixed(1)} p.p.`,
       currentStock ? `Estoque: ${stockCount} carros · ${aged60} acima de 60 dias · ${critical90} acima de 90 dias · capital +90 ${formatCurrency(critical90Value)}.` : 'Estoque: sem fotografia histórica disponível.',
