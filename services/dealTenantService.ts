@@ -35,7 +35,7 @@ export const dealTenantService = {
       unsubscribeSnapshot = onSnapshot(q, snapshot => {
         const normalDeals = snapshot.docs
           .map(item => ({ id: item.id, ...item.data() } as DealDocument))
-          .filter(item => item.kind !== 'evaluation_request');
+          .filter(item => item.kind !== 'evaluation_request' && item.kind !== 'deal_archived');
         onData(sorted(normalDeals));
       }, error => onError?.(error));
     };
@@ -118,8 +118,17 @@ export const dealTenantService = {
     return targets.length;
   },
 
-  remove: async (user: User, dealId: string) => {
-    if (user.role !== 'admin') throw new Error('Apenas administradores podem excluir negociações.');
-    await deleteDoc(doc(db, 'deals', dealId));
+  remove: async (user: User, dealId: string, reason='Arquivada pelo administrador') => {
+    if (user.role !== 'admin') throw new Error('Apenas administradores podem arquivar negociações.');
+    const {companyId,storeId}=contextFor(user);
+    await setDoc(doc(db,'deals',dealId),{
+      kind:'deal_archived',
+      archivedAt:new Date().toISOString(),
+      archivedBy:user.email,
+      archivedByName:user.name,
+      archiveReason:String(reason||'Arquivada pelo administrador').trim(),
+      companyId,storeId,
+      updatedAt:new Date().toISOString(),
+    },{merge:true});
   },
 };
