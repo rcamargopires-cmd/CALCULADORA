@@ -105,6 +105,7 @@ const aiManager=read('components/AIManagerV2.tsx');
 if(!aiManager.includes('Dados pendentes'))fail('AI Manager data-pending guard missing.');
 
 const rulesText=read('firestore.rules');
+for(const required of ['function sameCompany(data)','function sameStore(data)','match /deals/{dealId}','match /operational_stock/{itemId}','match /prep_orders/{itemId}','match /showroom_passages/{passageId}','match /operational_meta/{itemId}','sameStore(request.resource.data)','sameStore(resource.data)']){if(!rulesText.includes(required))fail('Tenant isolation guard missing: '+required);}
 if(!rulesText.includes("['vehicle_master','vehicle_plate_index','stock_movement']"))fail('Stock write rules no longer authorize vehicle plate index.');
 
 const stockSource=read('services/currentStockService.ts');
