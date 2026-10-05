@@ -223,6 +223,17 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
     finally{setBusy('');}
   };
 
+  const deactivateAccount=async(account:FinanceAccount)=>{
+    if(!window.confirm(`Inativar ${account.name}? O histórico e os lançamentos vinculados serão preservados.`))return;
+    setBusy(`account-${account.accountId}`);setError('');setMessage('');
+    try{
+      await financeAccountService.deactivate(account,currentUser);
+      if(financeAccountId===account.accountId)setFinanceAccountId('');
+      setMessage('Conta financeira inativada com histórico preservado.');
+    }catch(cause:any){setError(cause?.message||'Não foi possível inativar a conta financeira.');}
+    finally{setBusy('');}
+  };
+
   const createAccount=async()=>{
     if(!canCreate)return setError('Seu perfil não pode criar contas financeiras.');
     if(!accountName.trim())return setError('Informe o nome da conta/caixa.');
@@ -445,7 +456,7 @@ const FinanceModulePanel:React.FC<Props>=({currentUser,companyId,storeId,storeNa
       <div className="mx-auto my-8 w-full max-w-2xl rounded-[26px] border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onClick={event=>event.stopPropagation()}>
         <div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.15em] text-sky-300">BANCOS E CAIXAS</p><h4 className="mt-1 text-xl font-semibold">Contas financeiras da unidade</h4></div><button onClick={()=>setAccountOpen(false)} className="grid h-9 w-9 place-items-center rounded-full bg-white/[.05] text-zinc-400"><X size={17}/></button></div>
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          {accountBalances.map(account=><div key={account.accountId} className="rounded-2xl border border-white/10 bg-white/[.025] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-zinc-300">{account.accountType==='cash'?'CAIXA':'BANCO'} · {account.name}</p><p className="mt-1 text-[10px] text-zinc-600">{account.bankName||account.pixKey||'Conta da unidade'}</p></div><strong className="text-sm">{money(account.currentBalance)}</strong></div></div>)}
+          {accountBalances.map(account=><div key={account.accountId} className="rounded-2xl border border-white/10 bg-white/[.025] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-zinc-300">{account.accountType==='cash'?'CAIXA':'BANCO'} · {account.name}</p><p className="mt-1 text-[10px] text-zinc-600">{account.bankName||account.pixKey||'Conta da unidade'}</p></div><div className="flex items-center gap-2"><strong className="text-sm">{money(account.currentBalance)}</strong><button disabled={busy===`account-${account.accountId}`} onClick={()=>void deactivateAccount(account)} title="Inativar conta" className="grid h-8 w-8 place-items-center rounded-lg border border-red-400/15 text-red-300 disabled:opacity-40"><X size={13}/></button></div></div></div>)}
           {!accountBalances.length&&<div className="sm:col-span-2 rounded-2xl border border-dashed border-white/10 p-5 text-center text-xs text-zinc-600">Nenhum banco ou caixa cadastrado.</div>}
         </div>
         <div className="mt-5 rounded-2xl border border-sky-400/10 bg-sky-400/[.035] p-4">
