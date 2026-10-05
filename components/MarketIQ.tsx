@@ -41,11 +41,11 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
  },[]);
 
  const calc=useMemo(()=>{
-   const m=num(market),f=num(fipe),low=num(marketLow),high=num(marketHigh),actualKm=num(km),expKm=Math.max(1,num(expectedKm));
+   const m=num(market),f=num(fipe),low=num(marketLow),high=num(marketHigh),actualKm=num(km),expectedKmValue=num(expectedKm),hasComparableKm=expectedKmValue>0,expKm=hasComparableKm?expectedKmValue:(actualKm||1);
    const prep=Object.values(costs).reduce((s,v)=>s+num(v),0);
    const weighted=((body*.23)+(interior*.14)+(tires*.16)+(mechanical*.27)+(history*.20))/5*100;
-   const kmRatio=actualKm?actualKm/expKm:1;
-   const kmScore=clamp(100-(Math.max(0,kmRatio-1)*48)+(Math.max(0,1-kmRatio)*18),35,100);
+   const kmRatio=actualKm&&hasComparableKm?actualKm/expKm:1;
+   const kmScore=actualKm&&hasComparableKm?clamp(100-(Math.max(0,kmRatio-1)*48)+(Math.max(0,1-kmRatio)*18),35,100):0;
    const conditionAdjustment=(weighted-78)/100*.055;
    const kmAdjustment=kmRatio>1?-Math.min(.09,(kmRatio-1)*.07):Math.min(.025,(1-kmRatio)*.025);
    const trendAdjustment=trend==='up'?.01:trend==='down'?-.025:0;
@@ -69,16 +69,17 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
    const trendScore=trend==='up'?88:trend==='stable'?72:45;
    const economicsScore=clamp((marginPct*100)*7+35,35,96);
    const score=Math.round(clamp(weighted*.27+kmScore*.18+liquidityScore*.22+trendScore*.13+economicsScore*.20,0,100));
-   return{prep,weighted,kmRatio,kmScore,sell,capitalCost,riskReserve,recommendedBuy,safeBuy,aggressiveBuy,limitBuy,marginAtRecommended,marginPctReal,score,base};
+   return{prep,weighted,kmRatio,kmScore,sell,capitalCost,riskReserve,recommendedBuy,safeBuy,aggressiveBuy,limitBuy,marginAtRecommended,marginPctReal,score,base,hasComparableKm};
  },[market,fipe,marketLow,marketHigh,km,expectedKm,targetMargin,expectedDays,capitalRate,liquidity,trend,body,interior,tires,mechanical,history,costs]);
 
+ const readyForDecision=plate.replace(/[^A-Z0-9]/gi,'').length===7&&Boolean(vehicle.trim())&&Boolean(year.trim())&&num(km)>0&&calc.base>0;
  const diagnosis=useMemo(()=>{
-   if(!calc.base)return 'Informe FIPE ou mercado observado para gerar a recomendação financeira.';
+   if(!readyForDecision)return 'Preencha placa, veículo, ano/modelo, quilometragem e FIPE ou mercado observado para liberar o diagnóstico e a recomendação de compra.';
    if(calc.score>=80)return `Boa oportunidade. Estado ${conditionLabel(calc.weighted)}, KM score ${Math.round(calc.kmScore)}/100 e preparação estimada em ${money(calc.prep)}. A compra recomendada preserva margem e risco dentro dos parâmetros informados.`;
-   if(calc.score>=65)return `Compra viável com disciplina. O ponto de equilíbrio está próximo de ${money(calc.recommendedBuy)}. Evite ultrapassar o limite de ${money(calc.limitBuy)} sem justificativa comercial.`;
+   if(calc.score>=65)return `Compra viável com disciplina. O ponto de equilíbrio está próximo de ${readyForDecision?money(calc.recommendedBuy):'—'}. Evite ultrapassar o limite de ${readyForDecision?money(calc.limitBuy):'—'} sem justificativa comercial.`;
    if(calc.score>=50)return `Atenção. Há fatores que pressionam margem, giro ou preparação. Negocie abaixo de ${money(calc.recommendedBuy)} para recuperar proteção.`;
    return 'Risco elevado. O conjunto de condição, giro e custos sugere compra defensiva ou direcionamento para repasse.';
- },[calc]);
+ },[calc,readyForDecision]);
 
  const inputCls='h-10 w-full rounded-xl border border-white/10 bg-black/25 px-3 text-sm text-white outline-none focus:border-cyan-300/40';
  const labelCls='mb-1 block text-[10px] font-bold uppercase tracking-[.11em] text-zinc-500';
@@ -110,13 +111,13 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
         <label><span className={labelCls}>KM atual</span><input value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" className={inputCls}/></label>
         <label><span className={labelCls}>FIPE</span><input value={fipe} onChange={e=>setFipe(e.target.value)} inputMode="decimal" className={inputCls}/></label>
        </div>
-       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{metric('Origem',plate?'Motyq / CRLV':'Aguardando','text-cyan-200')}{metric('Estado geral',`${Math.round(calc.weighted)}/100`,'text-emerald-300')}{metric('KM score',`${Math.round(calc.kmScore)}/100`)}{metric('Preparação',money(calc.prep),'text-amber-200')}</div>
+       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{metric('Origem',plate?'Motyq / CRLV':'Aguardando','text-cyan-200')}{metric('Estado geral',`${Math.round(calc.weighted)}/100`,'text-emerald-300')}{metric('KM score',calc.hasComparableKm&&num(km)>0?`${Math.round(calc.kmScore)}/100`:'—')}{metric('Preparação',money(calc.prep),'text-amber-200')}</div>
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-white/[.025] p-4">
        <div className="mb-4 flex items-center gap-2"><ShieldCheck size={16} className="text-emerald-300"/><h3 className="font-semibold">Estado do veículo</h3></div>
        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{level('Lataria/pintura',body,setBody)}{level('Interior',interior,setInterior)}{level('Pneus',tires,setTires)}{level('Mecânica',mechanical,setMechanical)}{level('Histórico/manutenção',history,setHistory)}</div>
-       <div className="mt-4 grid gap-3 sm:grid-cols-2">{metric('Estado geral',`${Math.round(calc.weighted)}/100 · ${conditionLabel(calc.weighted)}`,'text-emerald-300')}{metric('KM Score',`${Math.round(calc.kmScore)}/100${num(km)?` · ${Math.round((calc.kmRatio-1)*100)}% vs típico`:''}`)}</div>
+       <div className="mt-4 grid gap-3 sm:grid-cols-2">{metric('Estado geral',`${Math.round(calc.weighted)}/100 · ${conditionLabel(calc.weighted)}`,'text-emerald-300')}{metric('KM Score',calc.hasComparableKm&&num(km)>0?`${Math.round(calc.kmScore)}/100 · ${Math.round((calc.kmRatio-1)*100)}% vs típico`:'Referência de KM indisponível')}</div>
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-white/[.025] p-4">
@@ -155,12 +156,12 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
      </div>
 
      <aside className="space-y-4 xl:sticky xl:top-[110px] xl:self-start">
-      <section className="rounded-2xl border border-emerald-300/25 bg-emerald-300/[.045] p-5"><p className="text-[10px] font-black uppercase tracking-[.16em] text-zinc-400">MOTYQ BUY SCORE</p><div className="mt-2 flex items-end justify-between"><strong className="text-5xl font-semibold">{calc.score}</strong><span className="rounded-full border border-white/10 px-2 py-1 text-[9px] font-black text-emerald-300">{riskLabel(calc.score)}</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-black/30"><div className="h-full rounded-full bg-emerald-300" style={{width:`${calc.score}%`}}/></div></section>
+      <section className="rounded-2xl border border-emerald-300/25 bg-emerald-300/[.045] p-5"><p className="text-[10px] font-black uppercase tracking-[.16em] text-zinc-400">MOTYQ BUY SCORE</p><div className="mt-2 flex items-end justify-between"><strong className="text-5xl font-semibold">{readyForDecision?calc.score:'—'}</strong><span className="rounded-full border border-white/10 px-2 py-1 text-[9px] font-black text-emerald-300">{readyForDecision?riskLabel(calc.score):'AGUARDANDO DADOS'}</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-black/30"><div className="h-full rounded-full bg-emerald-300" style={{width:`${readyForDecision?calc.score:0}%`}}/></div></section>
 
       <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[.025] p-4">
-       <div className="rounded-xl border border-emerald-300/15 bg-emerald-300/[.035] p-3"><p className="text-[9px] uppercase text-zinc-500">Compra segura</p><p className="mt-1 text-2xl font-semibold text-emerald-300">{money(calc.safeBuy)}</p></div>
+       <div className="rounded-xl border border-emerald-300/15 bg-emerald-300/[.035] p-3"><p className="text-[9px] uppercase text-zinc-500">Compra segura</p><p className="mt-1 text-2xl font-semibold text-emerald-300">{readyForDecision?money(calc.safeBuy):'—'}</p></div>
        <div className="rounded-xl border border-cyan-300/25 bg-cyan-300/[.05] p-3"><p className="text-[9px] uppercase text-zinc-500">Compra recomendada</p><p className="mt-1 text-2xl font-semibold text-cyan-200">{money(calc.recommendedBuy)}</p></div>
-       <div className="rounded-xl border border-amber-300/20 bg-amber-300/[.04] p-3"><p className="text-[9px] uppercase text-zinc-500">Compra agressiva</p><p className="mt-1 text-2xl font-semibold text-amber-200">{money(calc.aggressiveBuy)}</p></div>
+       <div className="rounded-xl border border-amber-300/20 bg-amber-300/[.04] p-3"><p className="text-[9px] uppercase text-zinc-500">Compra agressiva</p><p className="mt-1 text-2xl font-semibold text-amber-200">{readyForDecision?money(calc.aggressiveBuy):'—'}</p></div>
        <div className="rounded-xl border border-red-300/20 bg-red-300/[.035] p-3"><p className="text-[9px] uppercase text-zinc-500">Limite de compra</p><p className="mt-1 text-2xl font-semibold text-red-200">{money(calc.limitBuy)}</p></div>
       </section>
 
@@ -168,7 +169,7 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
 
       <section className="grid gap-2">
        <button onClick={()=>window.dispatchEvent(new CustomEvent('motyq:marketiq-save-requested',{detail:{plate,vehicle,year,km,fipe,notes}}))} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-500 font-semibold text-black hover:bg-cyan-400"><Save size={16}/>SALVAR AVALIAÇÃO</button>
-       <div className="grid grid-cols-2 gap-2"><button onClick={()=>window.dispatchEvent(new CustomEvent('motyq:marketiq-approved',{detail:{plate,value:calc.recommendedBuy}}))} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/[.05] text-sm font-semibold text-emerald-300"><CheckCircle2 size={15}/>APROVAR</button><button onClick={()=>window.dispatchEvent(new CustomEvent('motyq:marketiq-rejected',{detail:{plate}}))} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-300/[.04] text-sm font-semibold text-red-300"><XCircle size={15}/>RECUSAR</button></div>
+       <div className="grid grid-cols-2 gap-2"><button disabled={!readyForDecision} onClick={()=>window.dispatchEvent(new CustomEvent('motyq:marketiq-approved',{detail:{plate,value:calc.recommendedBuy}}))} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/[.05] text-sm font-semibold text-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"><CheckCircle2 size={15}/>APROVAR</button><button onClick={()=>window.dispatchEvent(new CustomEvent('motyq:marketiq-rejected',{detail:{plate}}))} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-300/[.04] text-sm font-semibold text-red-300"><XCircle size={15}/>RECUSAR</button></div>
        <p className="px-1 text-[10px] leading-4 text-zinc-600">V2 visual pronta para integração com histórico e fluxo de aprovação. Os eventos já ficam separados para essa próxima etapa.</p>
       </section>
      </aside>
