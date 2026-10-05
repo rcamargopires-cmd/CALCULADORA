@@ -457,6 +457,72 @@ const seedFormalDms=async()=>{
   },{merge:true})));
 };
 
+
+const seedPurchasesAndSuppliers=async()=>{
+  const now=new Date().toISOString();
+  const suppliers=[
+    {id:'supplier_demo_carlos',supplierId:'supplier_demo_carlos',name:'Carlos Eduardo Ferreira',document:'12345678901',phone:'15911112222',email:'carlos.ferreira@exemplo.com',pixKey:'12345678901'},
+    {id:'supplier_demo_renata',supplierId:'supplier_demo_renata',name:'Renata Gomes',document:'98765432100',phone:'15922223333',email:'renata.gomes@exemplo.com',pixKey:'15922223333'},
+    {id:'supplier_demo_clean',supplierId:'supplier_demo_clean',name:'CleanCar Demo',document:'12345678000199',phone:'1530304040',email:'financeiro@cleancardemo.com.br',pixKey:'financeiro@cleancardemo.com.br'},
+    {id:'supplier_demo_parts',supplierId:'supplier_demo_parts',name:'AutoPeças Demo',document:'99887766000155',phone:'1530305050',email:'vendas@autopecasdemo.com.br',pixKey:'99887766000155'},
+  ];
+  await Promise.all(suppliers.map(item=>setDoc(doc(db,'operational_meta',item.id),{
+    ...item,kind:'supplier_master',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,active:true,createdAt:daysAgo(90),updatedAt:now,
+  },{merge:true})));
+
+  const pendingVehicle={plate:'CAP1A23',vehicle:'Jeep Renegade Longitude 2021',brand:'Jeep',year:'2020/2021',km:74500,vehicleId:vehicleIdForPlate('CAP1A23'),fipe:89500};
+  const docVehicle={plate:'TRD2B34',vehicle:'Hyundai HB20 Platinum 2022',brand:'Hyundai',year:'2021/2022',km:53800,vehicleId:vehicleIdForPlate('TRD2B34'),fipe:77800};
+  await Promise.all([pendingVehicle,docVehicle].map((item,index)=>Promise.all([
+    setDoc(doc(db,'operational_meta',safeId(`vehicle_master_${item.vehicleId}`)),{
+      id:safeId(`vehicle_master_${item.vehicleId}`),kind:'vehicle_master',vehicleId:item.vehicleId,companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+      plate:item.plate,brand:item.brand,model:item.vehicle,year:item.year,km:item.km,stage:index===0?'purchased':'documents',
+      purchaseCost:index===0?72000:63500,prepCost:0,currentCost:index===0?72000:63500,fipe:item.fipe,askingPrice:0,entryDate:'',source:index===0?'purchase':'trade_in',
+      createdAt:daysAgo(index===0?2:4),updatedAt:now,
+    },{merge:true}),
+    setDoc(doc(db,'operational_meta',safeId(`vehicle_plate_index_${DEMO_COMPANY_ID}_${DEMO_STORE_ID}_${item.plate}`)),{
+      id:safeId(`vehicle_plate_index_${DEMO_COMPANY_ID}_${DEMO_STORE_ID}_${item.plate}`),kind:'vehicle_plate_index',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+      plate:item.plate,vehicleId:item.vehicleId,updatedAt:now,
+    },{merge:true}),
+  ])));
+
+  const purchases=[
+    {id:'demo_purchase_pending',purchaseId:'CP-DEMO-1001',vehicleId:pendingVehicle.vehicleId,plate:pendingVehicle.plate,vehicle:pendingVehicle.vehicle,brand:pendingVehicle.brand,year:pendingVehicle.year,km:pendingVehicle.km,fipe:pendingVehicle.fipe,origin:'purchase',status:'payment_pending',ownerName:'Carlos Eduardo Ferreira',ownerDocument:'12345678901',ownerPhone:'15911112222',ownerEmail:'carlos.ferreira@exemplo.com',ownerPix:'12345678901',supplierId:'supplier_demo_carlos',purchasePrice:72000,payoffAmount:0,debtsAmount:480,acquisitionCosts:620,totalAcquisitionCost:73100,paymentMethod:'PIX',paymentDueDate:daysAhead(1).slice(0,10),payableIds:['demo_purchase_payable_1'],documents:{atpv:true,crlv:true,ownerDocument:true,debtsChecked:true,lienChecked:true,spareKey:true,manual:true},notes:'Compra aprovada. Aguardando liquidação financeira para avançar.'},
+    {id:'demo_purchase_docs',purchaseId:'CP-DEMO-1000',vehicleId:docVehicle.vehicleId,plate:docVehicle.plate,vehicle:docVehicle.vehicle,brand:docVehicle.brand,year:docVehicle.year,km:docVehicle.km,fipe:docVehicle.fipe,origin:'trade_in',status:'documents',ownerName:'Renata Gomes',ownerDocument:'98765432100',ownerPhone:'15922223333',ownerEmail:'renata.gomes@exemplo.com',ownerPix:'15922223333',supplierId:'supplier_demo_renata',purchasePrice:62500,payoffAmount:8500,debtsAmount:420,acquisitionCosts:580,totalAcquisitionCost:63500,paymentMethod:'PIX',paymentDueDate:localDaysAgo(1),payableIds:['demo_purchase_payable_2'],documents:{atpv:true,crlv:true,ownerDocument:true,debtsChecked:true,lienChecked:true,spareKey:false,manual:true},notes:'Veículo recebido na troca. Falta segunda chave antes da conclusão documental.'},
+    {id:'demo_purchase_entered',purchaseId:'CP-DEMO-0999',vehicleId:vehicleIdForPlate('DMT6R16'),plate:'DMT6R16',vehicle:'BYD Dolphin GS 2024',brand:'BYD',year:'2023/2024',km:18300,fipe:126000,origin:'purchase',status:'entered',ownerName:'Loja Parceira Demo',ownerDocument:'11222333000144',ownerPhone:'1530306060',ownerEmail:'compras@parceirademo.com.br',supplierId:'supplier_demo_clean',purchasePrice:111200,payoffAmount:0,debtsAmount:0,acquisitionCosts:800,totalAcquisitionCost:112000,paymentMethod:'TED',paymentDueDate:localDaysAgo(4),payableIds:['demo_purchase_payable_3'],documents:{atpv:true,crlv:true,ownerDocument:true,debtsChecked:true,lienChecked:true,spareKey:true,manual:true},notes:'Compra concluída. Veículo já entrou no estoque e está em preparação.',enteredAt:daysAgo(3)},
+  ];
+  await Promise.all(purchases.map((item:any)=>setDoc(doc(db,'operational_meta',item.id),{
+    ...item,kind:'vehicle_purchase',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+    approvedAt:item.status!=='draft'?daysAgo(3):undefined,approvedBy:'mariana.lopes@demo.motyq',approvedByName:'Mariana Lopes',
+    createdAt:daysAgo(5),updatedAt:now,createdBy:'ricardo.nunes@demo.motyq',createdByName:'Ricardo Nunes',
+  },{merge:true})));
+
+  const purchasePayables=[
+    {id:'demo_purchase_payable_1',party:'Carlos Eduardo Ferreira',amount:73100,dueDate:daysAhead(1).slice(0,10),status:'pending',plate:'CAP1A23',vehicle:pendingVehicle.vehicle,vehicleId:pendingVehicle.vehicleId,originId:'CP-DEMO-1001'},
+    {id:'demo_purchase_payable_2',party:'Renata Gomes',amount:55000,dueDate:localDaysAgo(1),status:'paid',settledAt:daysAgo(1,11),plate:'TRD2B34',vehicle:docVehicle.vehicle,vehicleId:docVehicle.vehicleId,originId:'CP-DEMO-1000'},
+    {id:'demo_purchase_payable_3',party:'Loja Parceira Demo',amount:112000,dueDate:localDaysAgo(4),status:'paid',settledAt:daysAgo(4,12),plate:'DMT6R16',vehicle:'BYD Dolphin GS 2024',vehicleId:vehicleIdForPlate('DMT6R16'),originId:'CP-DEMO-0999'},
+  ];
+  await Promise.all(purchasePayables.map((item:any)=>setDoc(doc(db,'operational_meta',item.id),{
+    ...item,kind:'finance_entry',entryType:'payable',category:'Compra de veículo',description:`Compra ${item.plate}`,financeAccountId:'demo_fin_bank',
+    chartAccountId:'demo_chart_admin',costCenterId:'demo_cc_stock',origin:'purchase',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+    createdAt:daysAgo(5),updatedAt:now,createdBy:'mariana.lopes@demo.motyq',createdByName:'Mariana Lopes',
+  },{merge:true})));
+};
+
+const seedWorkshop=async()=>{
+  const now=new Date().toISOString();
+  const orders=[
+    {id:'demo_os_prep',orderNumber:'OS-DEMO-2001',orderType:'preparation',status:'in_service',vehicleId:vehicleIdForPlate('DMT3N13'),plate:'DMT3N13',vehicle:'Fiat Fastback Audace 2024',prepOrderId:'demo_prep_2',complaint:'Substituição da lanterna traseira e conferência de acabamento.',diagnosis:'Lanterna com trinca e infiltração leve.',labor:[{id:'lab1',description:'Substituição da lanterna',technicianName:'Carlos Oficina',estimatedMinutes:60,actualMinutes:0,hourlyRate:120,cost:120}],parts:[{id:'part1',partId:'demo_part_lanterna',sku:'LAN-FB-24',description:'Lanterna traseira direita',quantity:1,unitCost:660,totalCost:660}],laborCost:120,partsCost:660,totalCost:780,openedAt:daysAgo(3),promisedAt:daysAhead(2),createdBy:'mariana.lopes@demo.motyq',createdByName:'Mariana Lopes',updatedAt:now},
+    {id:'demo_os_warranty',orderNumber:'OS-DEMO-2002',orderType:'warranty',status:'scheduled',vehicleId:vehicleIdForPlate('VDM0011'),plate:'VDM0011',vehicle:'VW T-Cross Comfortline 2023',customerId:'demo_customer_aline',customerName:'Aline Batista',afterSalesCaseId:'demo_after_1',complaint:'Ruído no acabamento da porta dianteira.',labor:[],parts:[],laborCost:0,partsCost:0,totalCost:0,openedAt:daysAgo(1),promisedAt:daysAhead(1,14),createdBy:'mariana.lopes@demo.motyq',createdByName:'Mariana Lopes',updatedAt:now},
+  ];
+  await Promise.all(orders.map((item:any)=>setDoc(doc(db,'operational_meta',item.id),{...item,kind:'workshop_order',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID},{merge:true})));
+  await setDoc(doc(db,'operational_meta','demo_appointment_1'),{
+    id:'demo_appointment_1',kind:'workshop_appointment',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,scheduledAt:daysAhead(1,14),
+    durationMinutes:60,vehicleId:vehicleIdForPlate('VDM0011'),plate:'VDM0011',vehicle:'VW T-Cross Comfortline 2023',
+    customerId:'demo_customer_aline',customerName:'Aline Batista',reason:'Retorno de garantia: ruído na porta',status:'scheduled',
+    createdAt:now,updatedAt:now,
+  },{merge:true});
+};
+
 const seedFinance=async()=>{
   const now=new Date().toISOString();
   const chart=[
@@ -578,7 +644,7 @@ export const demoSeedService={
     await seedCompaniesStoresUsers();
     await Promise.all([seedStock(),seedPerformance(),seedSales()]);
     await Promise.all([seedQueueAndCrm(),seedDeals(),seedPrepTrack()]);
-    await Promise.all([seedMarketPresence(),seedTasks(currentUser),seedFormalDms(),seedFinance(),seedDocuments(),seedMarketIq(),seedAfterSales()]);
+    await Promise.all([seedMarketPresence(),seedTasks(currentUser),seedFormalDms(),seedFinance(),seedDocuments(),seedMarketIq(),seedAfterSales(),seedPurchasesAndSuppliers(),seedWorkshop()]);
 
     companyScopeService.set(DEMO_COMPANY_ID);
     storeScopeService.set(DEMO_STORE_ID);
