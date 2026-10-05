@@ -203,6 +203,8 @@ const MarketIQPersistenceBridge: React.FC<Props> = ({ currentUser, companyId, st
           if(accepted)draft=latest;
         }
         if(!draft){
+          const vehicle=normalize(detail.vehicle),year=normalize(detail.year),km=normalize(detail.km),fipe=normalize(detail.fipe);
+          if(!vehicle||!year||!km||!fipe)throw new Error('Complete veículo, ano/modelo, KM e FIPE antes de concluir a avaliação.');
           const id=await marketIqEvaluationService.create({
             companyId,storeId,storeName,plate,
             vehicle:normalize(detail.vehicle),year:normalize(detail.year),km:normalize(detail.km),
