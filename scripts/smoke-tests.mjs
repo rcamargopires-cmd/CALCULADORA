@@ -114,6 +114,7 @@ const financeAccountSource=read('services/financeAccountService.ts');
 if(!financeAccountSource.includes('cleanupKnownQaAccounts')||!financeAccountSource.includes('QA TEMPORÁRIA - REMOVER'))fail('QA finance cleanup guard missing.');
 
 const autoHealth=read('components/DmsIntegrityAutoRunner.tsx');
+for(const required of ['TST0Z01','currentStockService.markOut','prepTrackService.deleteOrder']){if(!autoHealth.includes(required))fail('Synthetic QA vehicle cleanup guard missing: '+required);}
 if(!autoHealth.includes('cleanupKnownQaRecords'))fail('Automatic DMS health no longer cleans known QA deals before diagnosis.');
 
 const aiManager=read('components/AIManagerV2.tsx');
