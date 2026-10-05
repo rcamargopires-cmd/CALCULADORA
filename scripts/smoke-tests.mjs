@@ -108,6 +108,9 @@ for(const required of ['diffDays(entryDate,today)','snapshotDate:today','stockDa
   if(!stockSource.includes(required))fail('Canonical stock consistency guard missing: '+required);
 }
 
+const fipeApi=read('api/marketiq-fipe.ts');
+if(!fipeApi.includes('year>=1900&&year<=maxYear'))fail('Manual stock catalog can accept invalid FIPE year options.');
+
 const marketIqLookup=read('components/MarketIQLookupBridge.tsx');
 if(!marketIqLookup.includes('currentStockService.updateFipe'))fail('Resolved FIPE no longer synchronizes into canonical stock.');
 
