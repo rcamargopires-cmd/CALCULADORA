@@ -89,6 +89,9 @@ const marketIqBridge=read('components/MarketIQPersistenceBridge.tsx');
 if(!marketIqBridge.includes('Complete veículo, ano/modelo, KM e FIPE antes de concluir a avaliação.'))fail('MarketIQ incomplete-decision guard missing.');
 
 const prepTrackPanel=read('components/PrepTrackPanel.tsx');
+if(!prepTrackPanel.includes('Carregando ordens...')||!prepTrackPanel.includes("loading?'—'"))fail('PrepTrack loading-state guard missing.');
+const multiStorePanel=read('components/MultiStorePanel.tsx');
+if(!multiStorePanel.includes('Carregando unidades...'))fail('Units loading-state guard missing.');
 if(!prepTrackPanel.includes('stockByVehicleId'))fail('PrepTrack no longer resolves canonical stock by vehicleId.');
 
 const dashboard=read('components/ExecutiveDashboard.tsx');
