@@ -124,6 +124,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!user) return;
     const loadInitialConfig = async () => { const config = await configService.loadConfig(); setFieldConfig(config.visibility); setCommissionConfig(config.commission); setBankRates(config.bankRates); };
+    if(user.role==='admin')void dealTenantService.cleanupKnownQaRecords(user).catch(error=>console.warn('QA cleanup skipped',error));
     loadInitialConfig();
     const unsubscribeConfig = onSnapshot(doc(db, 'config/main'), (docSnap) => {
       if (docSnap.exists()) {
