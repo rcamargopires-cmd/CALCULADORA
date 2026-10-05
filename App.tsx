@@ -196,6 +196,13 @@ const App: React.FC = () => {
     if(status==='closed'&&!String(user?.name||'').trim()){
       setToast({message:'Não foi possível identificar o vendedor responsável.',type:'error'});return;
     }
+    if(status==='closed'){
+      if(results.totalPayment<=0){setToast({message:'Informe as formas de pagamento antes de fechar a venda.',type:'error'});return;}
+      if(Math.abs(results.totalPayment-Number(data.invoiceValue))>1){
+        setToast({message:'O total das formas de pagamento deve conferir com o valor da venda.',type:'error'});return;
+      }
+      if(!window.confirm(`Confirmar fechamento da venda ${plate} por ${formatCurrency(Number(data.invoiceValue))}?`))return;
+    }
     if (!forceUpdateId && !skipDuplicateCheck && data.licensePlate && data.licensePlate.trim() !== '') {
       const existing = history.find(h => h.data.licensePlate && h.data.licensePlate.toUpperCase() === data.licensePlate.toUpperCase());
       if (existing) { setDuplicateDeal({ id: existing.id, status }); return; }
