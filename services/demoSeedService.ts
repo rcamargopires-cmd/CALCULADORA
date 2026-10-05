@@ -150,7 +150,7 @@ export const demoStockRows=():OperationalStockItem[]=>{
     purchaseCost:Math.max(0,cost-(index%4)*450),prepCost:(index%4)*450,
     brand:stockTuples[index][9],year:stockTuples[index][6],km:stockTuples[index][7],entryDate:localDaysAgo(stockDays),source:'import',currentRecord:true,
     location:index<7?'Pátio A':index<13?'Pátio B':'Showroom',
-    status:index<3?'Disponível':index<6?'Em preparação':'Disponível',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
+    status:['DMT6R16','DMT3N13'].includes(plate)?'Em preparação':plate==='DMT8T18'?'Pronto':'Disponível',companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,
   }));
 };
 
@@ -368,10 +368,10 @@ const seedMarketPresence=async()=>{
 
 const seedPrepTrack=async()=>{
   const orders:PrepOrder[]=[
-    {id:'demo_prep_1',plate:'DMT6R16',vehicle:'BYD Dolphin GS 2024',openedAt:daysAgo(2),updatedAt:daysAgo(0,9),status:'preparing',sold:false,destination:'showroom',services:[{id:'srv_1',type:'Higienização',provider:'CleanCar Demo',status:'in_service',estimatedCost:420,finalCost:0,sentAt:daysAgo(1),dueAt:daysAhead(0,17),notes:'Finalizar antes das 17h.'}],notes:'Entrada recente, priorizar fotos após higienização.',createdBy:'mariana.lopes@demo.motyq',storeId:DEMO_STORE_ID,companyId:DEMO_COMPANY_ID},
-    {id:'demo_prep_2',plate:'DMT3N13',vehicle:'Fiat Fastback Audace 2024',openedAt:daysAgo(4),updatedAt:daysAgo(0,8),status:'waiting_part',sold:false,destination:'showroom',services:[{id:'srv_2',type:'Lanterna traseira',provider:'AutoPeças Demo',status:'waiting_part',estimatedCost:780,finalCost:0,sentAt:daysAgo(3),dueAt:daysAhead(2),notes:'Peça encomendada.'}],notes:'Aguardando peça.',createdBy:'mariana.lopes@demo.motyq',storeId:DEMO_STORE_ID,companyId:DEMO_COMPANY_ID},
-    {id:'demo_prep_3',plate:'DMT8T18',vehicle:'VW Virtus Highline 2024',openedAt:daysAgo(1),updatedAt:daysAgo(0,10),status:'ready',sold:false,destination:'showroom',services:[{id:'srv_3',type:'Polimento técnico',provider:'Estética Prime Demo',status:'done',estimatedCost:650,finalCost:620,sentAt:daysAgo(1),returnedAt:daysAgo(0,10),notes:'Concluído.'}],notes:'Pronto para showroom e fotos.',createdBy:'mariana.lopes@demo.motyq',storeId:DEMO_STORE_ID,companyId:DEMO_COMPANY_ID},
-    {id:'demo_prep_4',plate:'VDM0007',vehicle:'Hyundai Creta 2023',openedAt:daysAgo(3),updatedAt:daysAgo(0,11),status:'delivery',sold:true,destination:'delivery',services:[{id:'srv_4',type:'Revisão entrega',provider:'Oficina Demo',status:'done',estimatedCost:350,finalCost:340,sentAt:daysAgo(2),returnedAt:daysAgo(1),notes:'Checklist concluído.'}],notes:'Venda faturada. Agendada entrega amanhã.',createdBy:'mariana.lopes@demo.motyq',storeId:DEMO_STORE_ID,companyId:DEMO_COMPANY_ID},
+    {id:'demo_prep_1',vehicleId:vehicleIdForPlate('DMT6R16'),plate:'DMT6R16',vehicle:'BYD Dolphin GS 2024',openedAt:daysAgo(2),updatedAt:daysAgo(0,9),status:'preparing',sold:false,destination:'showroom',services:[{id:'srv_1',type:'Higienização',provider:'CleanCar Demo',status:'in_service',estimatedCost:420,finalCost:0,sentAt:daysAgo(1),dueAt:daysAhead(0,17),notes:'Finalizar antes das 17h.'}],notes:'Entrada recente, priorizar fotos após higienização.',createdBy:'mariana.lopes@demo.motyq',storeId:DEMO_STORE_ID,companyId:DEMO_COMPANY_ID},
+    {id:'demo_prep_2',vehicleId:vehicleIdForPlate('DMT3N13'),plate:'DMT3N13',vehicle:'Fiat Fastback Audace 2024',openedAt:daysAgo(4),updatedAt:daysAgo(0,8),status:'waiting_part',sold:false,destination:'showroom',services:[{id:'srv_2',type:'Lanterna traseira',provider:'AutoPeças Demo',status:'waiting_part',estimatedCost:780,finalCost:0,sentAt:daysAgo(3),dueAt:daysAhead(2),notes:'Peça encomendada.'}],notes:'Aguardando peça.',createdBy:'mariana.lopes@demo.motyq',storeId:DEMO_STORE_ID,companyId:DEMO_COMPANY_ID},
+    {id:'demo_prep_3',vehicleId:vehicleIdForPlate('DMT8T18'),plate:'DMT8T18',vehicle:'VW Virtus Highline 2024',openedAt:daysAgo(1),updatedAt:daysAgo(0,10),status:'ready',sold:false,destination:'showroom',services:[{id:'srv_3',type:'Polimento técnico',provider:'Estética Prime Demo',status:'done',estimatedCost:650,finalCost:620,sentAt:daysAgo(1),returnedAt:daysAgo(0,10),notes:'Concluído.'}],notes:'Pronto para showroom e fotos.',createdBy:'mariana.lopes@demo.motyq',storeId:DEMO_STORE_ID,companyId:DEMO_COMPANY_ID},
+    {id:'demo_prep_4',vehicleId:vehicleIdForPlate('VDM0003'),plate:'VDM0003',vehicle:'Hyundai Creta Limited 2023',openedAt:daysAgo(3),updatedAt:daysAgo(0,11),status:'delivery',sold:true,destination:'delivery',services:[{id:'srv_4',type:'Revisão entrega',provider:'Oficina Demo',status:'done',estimatedCost:350,finalCost:340,sentAt:daysAgo(2),returnedAt:daysAgo(1),notes:'Checklist concluído.'}],notes:'Venda faturada. Agendada entrega amanhã.',createdBy:'mariana.lopes@demo.motyq',storeId:DEMO_STORE_ID,companyId:DEMO_COMPANY_ID},
   ];
   await Promise.all(orders.map(order=>setDoc(doc(db,'prep_orders',order.id),order,{merge:false})));
 };
@@ -504,7 +504,7 @@ const seedDocuments=async()=>{
     atpvStatus:index===0?'submitted':index===1?'signed':'ready',
     crlvStatus:index===2?'pending':'ok',lienStatus:index===3?'blocked':'ok',debtsStatus:index===4?'pending':'ok',
     finesAmount:index===4?684.22:0,debtsAmount:index===4?1290.80:0,dispatcherName:index%4===0?'Despachante Demo Sorocaba':'',
-    dispatcherCost:index%4===0?280:0,transferDueDate:index<5?daysAhead(8+index).slice(0,10):undefined,
+    dispatcherCost:index%4===0?280:0,...(index<5?{transferDueDate:daysAhead(8+index).slice(0,10)}:{}),
     notes:index===3?'Baixa de gravame em acompanhamento.':index===4?'Pendência financeira identificada antes da transferência.':'Documentação em ordem.',
     createdAt:daysAgo(Math.min(item.stockDays,30)),updatedAt:new Date().toISOString(),updatedBy:'mariana.lopes@demo.motyq',updatedByName:'Mariana Lopes',
   },{merge:true})));
