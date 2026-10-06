@@ -162,10 +162,10 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
     setResponding(true);
     try{
       const token=await auth.currentUser?.getIdToken();
-      const response=await fetch('/api/motyq-tts',{
+      const response=await fetch('/api/motyq-voice',{
         method:'POST',
         headers:{'content-type':'application/json',...(token?{authorization:`Bearer ${token}`}:{})},
-        body:JSON.stringify({text}),
+        body:JSON.stringify({action:'tts',text}),
       });
       if(response.ok){
         const blob=await response.blob();
