@@ -186,6 +186,20 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
         if(!hot.length)return'Você não tem leads quentes no momento.';
         return`Seus destaques são: ${hot.map(item=>item.customerName+' em '+stageLabel(item.status)).join(', ')}.`;
       }
+      case'stock_count':{
+        const q=normalize(String(p.query||'')).replace(/\b(carros?|veiculos?|veículos?|modelos?)\b/g,'').trim();
+        if(!q)return'O que você quer que eu conte no estoque?';
+        const matches=stock.filter(item=>{
+          const hay=[item.model,item.brand,item.year,item.transmission,item.fuel].map(normalize).join(' ');
+          return hay.includes(q)||q.split(/\s+/).every(token=>token.length<2||hay.includes(token));
+        });
+        if(!matches.length)return 'Não encontrei '+String(p.query||'esse modelo')+' no estoque atual.';
+        const names=[...new Set(matches.map(item=>item.model))].slice(0,6);
+        const totalValue=matches.reduce((sum,item)=>sum+(Number(item.suggestedPrice)||0),0);
+        const modelsText=names.length?' Modelos: '+names.join(', ')+'.':'';
+        const valueText=matches.length>1?' Valor anunciado aproximado do grupo: '+money(totalValue)+'.':'';
+        return 'Temos '+matches.length+' '+String(p.query||'veículo')+(matches.length>1?'s':'')+' no estoque.'+modelsText+valueText;
+      }
       case'stock_search':{
         const category=normalize(String(p.category||''));
         const transmission=normalize(String(p.transmission||''));
@@ -208,10 +222,14 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
         return`Encontrei ${matches.length} opção${matches.length>1?'ões':''}: ${matches.map(item=>`${item.model}, ${item.year||'ano n/i'}, ${item.km.toLocaleString('pt-BR')} km, ${money(item.suggestedPrice)}`).join('; ')}.`;
       }
       case'stock_find_vehicle':{
-        const q=normalize(String(p.query||raw));
-        const item=stock.find(x=>normalize(x.plate)===q.replace(/\s/g,''))||stock.find(x=>normalize(x.model).includes(q)||q.includes(normalize(x.model)));
-        if(!item)return'Não encontrei esse veículo no estoque compartilhado.';
-        return`${item.model}, placa ${item.plate}: ${item.days} dias de estoque, ${item.km.toLocaleString('pt-BR')} km, preço sugerido ${money(item.suggestedPrice)} e localização ${item.location||'não informada'}.`;
+        const q=normalize(String(p.query||raw)).replace(/\b(no estoque|do estoque|estoque)\b/g,'').trim();
+        const plateQuery=q.replace(/\s/g,'').toUpperCase();
+        const exactPlate=stock.find(x=>String(x.plate||'').toUpperCase()===plateQuery);
+        if(exactPlate)return `${exactPlate.model}, placa ${exactPlate.plate}: ${exactPlate.days} dias de estoque, ${exactPlate.km.toLocaleString('pt-BR')} km, preço sugerido ${money(exactPlate.suggestedPrice)} e localização ${exactPlate.location||'não informada'}.`;
+        const matches=stock.filter(x=>normalize(x.model).includes(q)||normalize(x.brand).includes(q)||q.includes(normalize(x.model)));
+        if(!matches.length)return'Não encontrei esse veículo no estoque compartilhado.';
+        const top=matches.slice(0,5);
+        return `Encontrei ${matches.length} opção${matches.length>1?'ões':''}: ${top.map(item=>`${item.model}, ${item.year||'ano n/i'}, ${item.km.toLocaleString('pt-BR')} km, ${money(item.suggestedPrice)}`).join('; ')}.`;
       }
       case'stock_oldest':{
         if(!stock.length)return'Não há fotografia de estoque carregada.';
