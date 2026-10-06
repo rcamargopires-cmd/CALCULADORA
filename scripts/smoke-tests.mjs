@@ -198,3 +198,16 @@ console.log('MOTYQ smoke tests passed:',ids.length,'roadmap checks and core DMS 
 
 const marketScanBridge=read('components/MarketIQMarketScanBridge.tsx');
 for(const required of ['fieldValue','input, select, textarea','fieldValue(\'Modelo / versão\')','fieldValue(\'Ano/modelo\')']){if(!marketScanBridge.includes(required))fail('MarketScan select-value guard missing: '+required);}
+
+const evaluationQueueService=read('services/evaluationQueueService.ts');
+for(const required of ["'inspection'","'awaiting_pricing'","'pricing'","completeInspection","startPricing"]){if(!evaluationQueueService.includes(required))fail('Three-stage evaluation flow guard missing: '+required);}
+const pricingDesk=read('components/PricingDesk.tsx');
+for(const required of ['Mesa de Precificação','ETAPA 3 DE 3','awaiting_pricing','startPricing']){if(!pricingDesk.includes(required))fail('Pricing desk guard missing: '+required);}
+const evaluatorWorkspace=read('components/EvaluatorWorkspace.tsx');
+for(const required of ['ENVIAR PARA MESA DE PRECIFICAÇÃO','completeInspection','inspection']){if(!evaluatorWorkspace.includes(required))fail('Evaluator handoff guard missing: '+required);}
+const evaluationCenter=read('components/EvaluationCenter.tsx');
+for(const required of ['AGUARDANDO PREÇO','EM PRECIFICAÇÃO','ENVIAR PARA MESA']){if(!evaluationCenter.includes(required))fail('Evaluation center stage guard missing: '+required);}
+const roleAwareRoot=read('components/RoleAwareRoot.tsx');
+if(!roleAwareRoot.includes('<PricingDesk user={user}/>'))fail('Pricing desk is not mounted for manager/admin.');
+const marketIqShell=read('components/MarketIQShell.tsx');
+if(!marketIqShell.includes('{!evaluator&&<MarketIQMarketScanBridge'))fail('Evaluator still has MarketScan mounted.');
