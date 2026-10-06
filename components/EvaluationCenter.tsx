@@ -29,7 +29,9 @@ const dateLabel = (value: any) => {
 
 const statusLabel = (status: EvaluationQueueRequest['status']) => {
   if (status === 'requested') return 'AGUARDANDO';
-  if (status === 'in_progress') return 'EM AVALIAÇÃO';
+  if (status === 'in_progress' || status === 'inspection') return 'EM AVALIAÇÃO';
+  if (status === 'awaiting_pricing') return 'AGUARDANDO PREÇO';
+  if (status === 'pricing') return 'EM PRECIFICAÇÃO';
   if (status === 'completed') return 'CONCLUÍDA';
   if (status === 'rejected') return 'RECUSADA';
   return 'CANCELADA';
@@ -38,7 +40,9 @@ const statusLabel = (status: EvaluationQueueRequest['status']) => {
 const statusTone = (status: EvaluationQueueRequest['status']) => {
   if (status === 'completed') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
   if (status === 'rejected' || status === 'cancelled') return 'border-red-200 bg-red-50 text-red-700';
-  if (status === 'in_progress') return 'border-sky-200 bg-sky-50 text-sky-700';
+  if (status === 'in_progress' || status === 'inspection') return 'border-sky-200 bg-sky-50 text-sky-700';
+  if (status === 'awaiting_pricing') return 'border-amber-200 bg-amber-50 text-amber-700';
+  if (status === 'pricing') return 'border-violet-200 bg-violet-50 text-violet-700';
   return 'border-amber-200 bg-amber-50 text-amber-700';
 };
 
@@ -251,7 +255,7 @@ const EvaluationCenter: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [form.plate, form.renavam, user, isSeller, companyId, storeId, snapshot]);
 
-  const pending = useMemo(() => requests.filter(item => item.status === 'requested' || item.status === 'in_progress'), [requests]);
+  const pending = useMemo(() => requests.filter(item => ['requested','in_progress','inspection'].includes(item.status)), [requests]);
   const history = useMemo(() => requests.slice(0, 12), [requests]);
 
   const submit = async () => {
@@ -301,7 +305,7 @@ const EvaluationCenter: React.FC = () => {
     setError('');
     try {
       await evaluationQueueService.start(request.id, user);
-      const active = { ...request, status: 'in_progress' as const, evaluatorEmail: user.email, evaluatorName: user.name || user.email };
+      const active = { ...request, status: 'inspection' as const, evaluatorEmail: user.email, evaluatorName: user.name || user.email };
       window.sessionStorage.setItem(ACTIVE_EVALUATION_REQUEST_KEY, JSON.stringify(active));
       setOpen(false);
       window.dispatchEvent(new CustomEvent('motyq:marketiq-open-request-v2', { detail: active }));
@@ -378,7 +382,7 @@ const EvaluationCenter: React.FC = () => {
           </aside>
         </div> : <div className="p-5 md:p-7">
           <div className="mb-5 grid grid-cols-3 gap-3"><div className="rounded-2xl border border-amber-200 bg-amber-50 p-3"><p className="text-xs text-amber-700">Aguardando</p><strong className="text-2xl text-amber-800">{requests.filter(item => item.status === 'requested').length}</strong></div><div className="rounded-2xl border border-sky-200 bg-sky-50 p-3"><p className="text-xs text-sky-700">Em avaliação</p><strong className="text-2xl text-sky-800">{requests.filter(item => item.status === 'in_progress').length}</strong></div><div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3"><p className="text-xs text-emerald-700">Concluídas</p><strong className="text-2xl text-emerald-800">{requests.filter(item => item.status === 'completed').length}</strong></div></div>
-          <div className="space-y-3">{pending.length ? pending.map(item => <div key={item.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold">{item.plate}</p><span className={`rounded-full border px-2 py-1 text-[9px] font-black ${statusTone(item.status)}`}>{statusLabel(item.status)}</span></div><p className="mt-1 text-sm text-slate-600">{item.vehicle || 'Veículo a identificar'}{item.year ? ` · ${item.year}` : ''}{item.km ? ` · ${item.km} km` : ''}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500"><span>Vendedor: {item.requesterName}</span><span>RENAVAM: {item.renavam || '—'}</span><span>Chave reserva: {item.hasSpareKey === 'yes' ? 'Sim' : item.hasSpareKey === 'no' ? 'Não' : '—'}</span><span>Manual: {item.hasManual === 'yes' ? 'Sim' : item.hasManual === 'no' ? 'Não' : '—'}</span></div>{item.notes && <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">{item.notes}</p>}</div><button onClick={() => startEvaluation(item)} className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800"><Play size={16}/>{item.status === 'in_progress' ? 'CONTINUAR' : 'INICIAR AVALIAÇÃO'}</button></div></div>) : <div className="rounded-2xl border border-dashed border-slate-200 p-10 text-center text-slate-400"><Clock3 size={28} className="mx-auto mb-2"/><p>Nenhuma avaliação aguardando.</p></div>}</div>
+          <div className="space-y-3">{pending.length ? pending.map(item => <div key={item.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold">{item.plate}</p><span className={`rounded-full border px-2 py-1 text-[9px] font-black ${statusTone(item.status)}`}>{statusLabel(item.status)}</span></div><p className="mt-1 text-sm text-slate-600">{item.vehicle || 'Veículo a identificar'}{item.year ? ` · ${item.year}` : ''}{item.km ? ` · ${item.km} km` : ''}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500"><span>Vendedor: {item.requesterName}</span><span>RENAVAM: {item.renavam || '—'}</span><span>Chave reserva: {item.hasSpareKey === 'yes' ? 'Sim' : item.hasSpareKey === 'no' ? 'Não' : '—'}</span><span>Manual: {item.hasManual === 'yes' ? 'Sim' : item.hasManual === 'no' ? 'Não' : '—'}</span></div>{item.notes && <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">{item.notes}</p>}</div><div className="grid shrink-0 gap-2"><button onClick={() => startEvaluation(item)} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800"><Play size={16}/>{item.status === 'in_progress' || item.status === 'inspection' ? 'CONTINUAR INSPEÇÃO' : 'INICIAR AVALIAÇÃO'}</button>{(item.status === 'in_progress' || item.status === 'inspection')&&<button onClick={async()=>{if(!user)return;try{await evaluationQueueService.completeInspection(item.id,user);window.sessionStorage.removeItem(ACTIVE_EVALUATION_REQUEST_KEY);setToast(`Inspeção concluída · ${item.plate} enviado para precificação.`);}catch(e){console.error('Could not send inspection to pricing',e);setError('Não foi possível enviar para a mesa de precificação.');}}} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-700 hover:bg-emerald-100"><Send size={14}/>ENVIAR PARA MESA</button>}</div></div></div>) : <div className="rounded-2xl border border-dashed border-slate-200 p-10 text-center text-slate-400"><Clock3 size={28} className="mx-auto mb-2"/><p>Nenhuma avaliação aguardando.</p></div>}</div>
         </div>}
       </div>
     </div>}
