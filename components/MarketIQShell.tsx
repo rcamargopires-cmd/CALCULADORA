@@ -34,14 +34,14 @@ const MarketIQShell:React.FC=()=>{
  const evaluator=user.role==='evaluator';
  return <>
    <MarketIQ currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
-   <MarketIQCommercialClassification currentUser={user}/>
+   {!evaluator&&<MarketIQCommercialClassification currentUser={user}/>} 
    <MarketIQHistoryRiskBridge/>
    <MarketIQPersistenceBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>
    <MarketIQSaveNotice/>
    <MarketIQHistoryPanel currentUser={user} companyId={companyId} storeId={storeId}/>
    {!evaluator&&<MarketIQShowroomLinkBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>} 
    <MarketIQMediaPanel companyId={companyId} storeId={storeId}/>
-   <MarketIQMarketScanBridge storeName={activeStoreName}/>
+   {!evaluator&&<MarketIQMarketScanBridge storeName={activeStoreName}/>} 
  </>;
 };
 export default MarketIQShell;
