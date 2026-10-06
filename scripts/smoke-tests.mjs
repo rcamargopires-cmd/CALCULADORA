@@ -100,8 +100,8 @@ if(!marketIqBridge.includes('Selecione fabricante, modelo e ano/modelo para cont
 const marketIq=read('components/MarketIQ.tsx');
 for(const required of ["action=brands","action=models","action=years","action=detail","Fabricante","Selecione o fabricante","Escolha primeiro o fabricante","Escolha primeiro o modelo"]){if(!marketIq.includes(required))fail('MarketIQ catalog guard missing: '+required);}
 if(!marketIq.includes('plate,vehicle,year,km,fipe,notes,value:calc.recommendedBuy'))fail('MarketIQ approval no longer sends complete evaluation context.');
-const marketIqBridge=read('components/MarketIQPersistenceBridge.tsx');
-if(!marketIqBridge.includes('Complete veículo, ano/modelo, KM e FIPE antes de concluir a avaliação.'))fail('MarketIQ incomplete-decision guard missing.');
+const marketIqPersistenceBridge=read('components/MarketIQPersistenceBridge.tsx');
+if(!marketIqPersistenceBridge.includes('Complete veículo, ano/modelo, KM e FIPE antes de concluir a avaliação.'))fail('MarketIQ incomplete-decision guard missing.');
 
 const prepTrackPanel=read('components/PrepTrackPanel.tsx');
 if(!prepTrackPanel.includes('Carregando ordens...')||!prepTrackPanel.includes("loading?'—'"))fail('PrepTrack loading-state guard missing.');
