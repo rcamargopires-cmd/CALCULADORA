@@ -29,6 +29,7 @@ import ModuleErrorBoundary from './ModuleErrorBoundary';
 import EvaluationCenter from './EvaluationCenter';
 import EvaluationDecisionBridge from './EvaluationDecisionBridge';
 import EvaluatorWorkspace from './EvaluatorWorkspace';
+import PricingDesk from './PricingDesk';
 import MotyqCRM from './MotyqCRM';
 import MotyqVoiceAssistant from './MotyqVoiceAssistant';
 import MobileSellerQuickActions from './MobileSellerQuickActions';
@@ -83,6 +84,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => {
     {user && ['manager', 'admin'].includes(String(user.role)) &&
       <Safe name="ManagerShowroomHistory"><ManagerShowroomHistory user={user}/></Safe>}
     {permissions.evaluationsView&&<>
+      {user && ['manager','admin'].includes(String(user.role)) && <Safe name="PricingDesk"><PricingDesk user={user}/></Safe>}
       <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
       <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
       <Safe name="MarketIQShell"><MarketIQShell /></Safe>
@@ -97,7 +99,6 @@ const EvaluatorMotyq = ({ user }: { user: User }) => <>
   <ModuleErrorBoundary name="EvaluatorWorkspace" critical><EvaluatorWorkspace user={user}/></ModuleErrorBoundary>
   <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
   <Safe name="MarketIQShell"><MarketIQShell /></Safe>
-  <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>
   <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
   <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
 </>;
