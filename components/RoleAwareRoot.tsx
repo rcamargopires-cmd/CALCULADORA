@@ -30,6 +30,7 @@ import EvaluationCenter from './EvaluationCenter';
 import EvaluationDecisionBridge from './EvaluationDecisionBridge';
 import EvaluatorWorkspace from './EvaluatorWorkspace';
 import MotyqCRM from './MotyqCRM';
+import MotyqVoiceAssistant from './MotyqVoiceAssistant';
 import MobileSellerQuickActions from './MobileSellerQuickActions';
 import SellerMobileHome from './SellerMobileHome';
 import AdminControlCenter from './AdminControlCenter';
@@ -60,6 +61,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => {
     <ModuleErrorBoundary name="App" critical><App /></ModuleErrorBoundary>
     <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
     {user && permissions.crmView && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
+    {user && <Safe name="MotyqVoice"><MotyqVoiceAssistant user={user}/></Safe>}
     <Safe name="OperationalTools"><OperationalTools /></Safe>
     {permissions.evaluationsView&&<Safe name="TradeCheckShell"><TradeCheckShell /></Safe>}
     {permissions.stockView&&<Safe name="MarketPresenceCorrectionShell"><MarketPresenceCorrectionShell /></Safe>}
