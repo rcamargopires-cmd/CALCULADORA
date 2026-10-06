@@ -105,6 +105,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
   const [mode,setMode]=useState<'ai'|'basic'|''>('');
   const [lastCustomerName,setLastCustomerName]=useState('');
   const recognitionRef=useRef<any>(null);
+  const recognitionBufferRef=useRef('');
   const neuralAudioRef=useRef<HTMLAudioElement|null>(null);
   const neuralAudioUrlRef=useRef('');
 
@@ -371,16 +372,46 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
 
   const start=()=>{
     if(!supported){setOpen(true);setAnswer('Seu navegador não liberou reconhecimento de voz. Você pode digitar o comando abaixo.');return;}
+    if(listening)return;
     const Recognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
-    const r=new Recognition();recognitionRef.current=r;r.lang='pt-BR';r.interimResults=false;r.continuous=false;
-    r.onstart=()=>{setListening(true);setResponding(false);setProcessing(false);setOpen(true);setAnswer('Estou ouvindo...');};
-    r.onresult=(event:any)=>{const text=String(event.results?.[0]?.[0]?.transcript||'');void processText(text);};
-    r.onerror=()=>{setListening(false);setAnswer('Não consegui ouvir. Tente novamente mais perto do microfone.');};
-    r.onend=()=>setListening(false);
+    const r=new Recognition();
+    recognitionRef.current=r;
+    recognitionBufferRef.current='';
+    r.lang='pt-BR';
+    r.interimResults=true;
+    r.continuous=true;
+    r.onstart=()=>{setListening(true);setResponding(false);setProcessing(false);setOpen(true);setTranscript('');setAnswer('Estou ouvindo...');};
+    r.onresult=(event:any)=>{
+      const pieces:string[]=[];
+      for(let i=0;i<event.results.length;i++){
+        const piece=String(event.results[i]?.[0]?.transcript||'').trim();
+        if(piece)pieces.push(piece);
+      }
+      const text=pieces.join(' ').replace(/\s+/g,' ').trim();
+      recognitionBufferRef.current=text;
+      if(text)setTranscript(text);
+    };
+    r.onerror=(event:any)=>{
+      setListening(false);
+      const code=String(event?.error||'');
+      if(code!=='aborted'&&code!=='no-speech')setAnswer('Não consegui ouvir direito. Toque no microfone e tente novamente.');
+    };
+    r.onend=()=>{
+      setListening(false);
+      const captured=recognitionBufferRef.current.trim();
+      recognitionRef.current=null;
+      if(captured&&!processing)void processText(captured);
+    };
     r.start();
   };
 
-  const stop=()=>{try{recognitionRef.current?.stop();}catch{}setListening(false);};
+  const stop=()=>{
+    const r=recognitionRef.current;
+    if(!r){setListening(false);return;}
+    try{r.stop();}catch{}
+  };
+
+  const toggleListening=()=>listening?stop():start();
 
   const closeVoice=()=>{stop();stopVoicePlayback();setOpen(false);setResponding(false);setShowKeyboard(false);setShowVoiceSettings(false);};
   const phase=listening?'Ouvindo...':processing?'Entendendo...':responding?'Respondendo...':transcript?'Pronto':'Como posso ajudar?';
@@ -447,25 +478,22 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
             <button onClick={()=>setShowVoiceSettings(value=>!value)} className="grid h-12 w-12 place-items-center rounded-full border border-white/10 bg-white/[.05] text-zinc-400 transition hover:bg-white/10 hover:text-white" title="Escolher voz"><Settings2 size={18}/></button>
             <button onClick={()=>setShowKeyboard(value=>!value)} className="grid h-12 w-12 place-items-center rounded-full border border-white/10 bg-white/[.05] text-zinc-400 transition hover:bg-white/10 hover:text-white" title="Digitar comando"><Keyboard size={18}/></button>
             <button
-              onPointerDown={e=>{e.preventDefault();start();}}
-              onPointerUp={e=>{e.preventDefault();stop();}}
-              onPointerCancel={stop}
+              onClick={toggleListening}
               disabled={processing||responding}
               className={`grid h-16 w-16 place-items-center rounded-full border-2 text-white shadow-lg transition-all disabled:opacity-40 ${listening?'border-cyan-200/80 bg-cyan-500 shadow-[0_0_35px_rgba(34,211,238,.35)] scale-105':'border-violet-300/40 bg-violet-600 shadow-[0_0_30px_rgba(124,58,237,.3)] hover:scale-105'}`}
-              title="Segure para falar"
+              title={listening?'Toque para enviar':'Toque para falar'}
             >
               {listening?<MicOff size={24}/>:<Mic size={24}/>}
             </button>
             <button onClick={closeVoice} className="h-12 rounded-full border border-red-400/15 bg-red-400/[.06] px-5 text-xs font-bold text-red-300 transition hover:bg-red-400/10">Encerrar</button>
           </div>
-          <p className="mt-3 text-center text-[10px] text-zinc-600">Segure o microfone para falar · solte para enviar</p>
+          <p className="mt-3 text-center text-[10px] text-zinc-600">Toque para falar · toque novamente para enviar</p>
         </footer>
       </div>
     </div>}
 
     <button
       onClick={()=>setOpen(true)}
-      onPointerDown={e=>{if(e.pointerType!=='mouse'){e.preventDefault();start();}}}
       title="Abrir Motyq Voice"
       className="fixed bottom-24 right-4 z-[9998] flex h-14 items-center gap-2 rounded-full bg-gradient-to-r from-violet-700 to-indigo-700 px-4 font-bold text-white shadow-[0_12px_35px_rgba(76,29,149,.35)] transition hover:scale-105 md:bottom-6 md:right-6">
       <Mic size={20}/><span className="hidden sm:inline">Motyq Voice</span>
