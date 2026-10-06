@@ -11,13 +11,29 @@ import { userService } from '../services/userService';
 
 type VoiceIntent={
   intent:string;confidence:number;reply:string;needsConfirmation:boolean;mode?:'ai'|'basic';
-  params?:{customerName?:string|null;phone?:string|null;interestModel?:string|null;note?:string|null;followUpAt?:string|null;stage?:string|null;query?:string|null;sellerName?:string|null;raw?:string;followUpText?:string};
+  params?:{customerName?:string|null;phone?:string|null;interestModel?:string|null;note?:string|null;followUpAt?:string|null;stage?:string|null;query?:string|null;sellerName?:string|null;category?:string|null;maxPrice?:number|null;maxKm?:number|null;transmission?:string|null;raw?:string;followUpText?:string};
 };
 
 const normalize=(value:unknown)=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const cleanPhone=(value:unknown)=>String(value??'').replace(/\D/g,'').slice(0,20);
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(Number(value)||0);
 const stageLabel=(value:string)=>({waiting:'Novo lead',in_service:'Em atendimento',proposal:'Proposta',follow_up:'Follow-up'} as Record<string,string>)[value]||value;
+const levenshtein=(a:string,b:string)=>{
+  const x=normalize(a),y=normalize(b);const dp=Array.from({length:x.length+1},()=>Array(y.length+1).fill(0));
+  for(let i=0;i<=x.length;i++)dp[i][0]=i;for(let j=0;j<=y.length;j++)dp[0][j]=j;
+  for(let i=1;i<=x.length;i++)for(let j=1;j<=y.length;j++)dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+(x[i-1]===y[j-1]?0:1));
+  return dp[x.length][y.length];
+};
+const isSimilarName=(candidate:string,target:string)=>{
+  const c=normalize(candidate),t=normalize(target);if(!c||!t)return false;
+  if(c===t||c.includes(t)||t.includes(c))return true;
+  const cf=c.split(/\s+/)[0],tf=t.split(/\s+/)[0];
+  if(cf===tf||cf.startsWith(tf)||tf.startsWith(cf))return true;
+  return Math.min(levenshtein(cf,tf),levenshtein(c,t))<=1;
+};
+const SUV_TERMS=['nivus','t-cross','tcross','creta','tracker','kicks','hr-v','hrv','renegade','compass','pulse','fastback','territory','corolla cross','taos','tiggo','song','yuan','dolphin mini','captur','duster','ecosport','2008','3008','c4 cactus','aircross','rav4','santa fe','tucson','sportage','sorento','equinox','trailblazer','commander'];
+const looksLikeSuv=(item:GroupStockItem)=>SUV_TERMS.some(term=>normalize(item.model).includes(normalize(term)));
+
 
 const speak=(text:string,onStart?:()=>void,onEnd?:()=>void)=>{
   if(!text||typeof window==='undefined'||!('speechSynthesis' in window)){onEnd?.();return;}
@@ -85,8 +101,12 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
   const findLead=(name:string)=>{
     const target=normalize(name);
     if(!target)return null;
-    return leads.find(item=>normalize(item.customerName)===target)
-      ||leads.find(item=>normalize(item.customerName).includes(target)||target.includes(normalize(item.customerName)));
+    const exact=leads.find(item=>normalize(item.customerName)===target);
+    if(exact)return exact;
+    const contains=leads.find(item=>normalize(item.customerName).includes(target)||target.includes(normalize(item.customerName)));
+    if(contains)return contains;
+    const similar=leads.filter(item=>isSimilarName(String(item.customerName||''),target));
+    return similar.length===1?similar[0]:similar[0]||null;
   };
 
   const resolveSeller=async(name?:string|null)=>{
@@ -101,7 +121,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
     const p=result.params||{};
     switch(result.intent){
       case'help':
-        return'Você pode dizer: cadastre um lead, anote no cliente, agende um retorno, mova para proposta, mostre clientes quentes, consulte uma placa ou diga qual carro está há mais tempo no estoque.';
+        return'Você pode dizer: cadastre um lead, agende retorno para o Erick, mostre clientes quentes, me mostre SUVs automáticos até 100 mil, consulte uma placa ou diga qual carro está há mais tempo no estoque.';
       case'open_crm':
         window.dispatchEvent(new CustomEvent('motyq:open-crm',{detail:{action:'lead'}}));
         return'Abrindo o CRM.';
@@ -156,6 +176,27 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
         const hot=leads.filter(item=>['hot','warm'].includes(String(item.leadTemperature||''))).slice(0,5);
         if(!hot.length)return'Você não tem leads quentes no momento.';
         return`Seus destaques são: ${hot.map(item=>item.customerName+' em '+stageLabel(item.status)).join(', ')}.`;
+      }
+      case'stock_search':{
+        const category=normalize(String(p.category||''));
+        const transmission=normalize(String(p.transmission||''));
+        const maxPrice=Number(p.maxPrice)||0;
+        const maxKm=Number(p.maxKm)||0;
+        const query=normalize(String(p.query||''));
+        let matches=stock.filter(item=>{
+          if(category==='suv'&&!looksLikeSuv(item))return false;
+          if(transmission&&normalize(item.transmission).indexOf(transmission)<0)return false;
+          if(maxPrice&&Number(item.suggestedPrice)>maxPrice)return false;
+          if(maxKm&&Number(item.km)>maxKm)return false;
+          if(query&&!normalize(item.model).includes(query)&&!normalize(item.brand).includes(query))return false;
+          return true;
+        });
+        matches=[...matches].sort((a,b)=>{
+          const ap=Number(a.suggestedPrice)||999999999,bp=Number(b.suggestedPrice)||999999999;
+          return ap-bp||Number(a.days)-Number(b.days);
+        }).slice(0,5);
+        if(!matches.length)return'Não encontrei opções com esses filtros no estoque atual.';
+        return`Encontrei ${matches.length} opção${matches.length>1?'ões':''}: ${matches.map(item=>`${item.model}, ${item.year||'ano n/i'}, ${item.km.toLocaleString('pt-BR')} km, ${money(item.suggestedPrice)}`).join('; ')}.`;
       }
       case'stock_find_vehicle':{
         const q=normalize(String(p.query||raw));
