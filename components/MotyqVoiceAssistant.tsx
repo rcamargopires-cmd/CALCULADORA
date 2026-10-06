@@ -105,6 +105,8 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
   const [mode,setMode]=useState<'ai'|'basic'|''>('');
   const [lastCustomerName,setLastCustomerName]=useState('');
   const recognitionRef=useRef<any>(null);
+  const neuralAudioRef=useRef<HTMLAudioElement|null>(null);
+  const neuralAudioUrlRef=useRef('');
 
   useEffect(()=>{
     const sync=()=>setScope({companyId:companyScopeService.get(user),storeId:storeScopeService.get(user)});
@@ -146,6 +148,41 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
   },[]);
 
   const supported=useMemo(()=>typeof window!=='undefined'&&Boolean((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition),[]);
+
+  const stopVoicePlayback=()=>{
+    try{window.speechSynthesis?.cancel();}catch{}
+    try{neuralAudioRef.current?.pause();}catch{}
+    neuralAudioRef.current=null;
+    if(neuralAudioUrlRef.current){try{URL.revokeObjectURL(neuralAudioUrlRef.current);}catch{}neuralAudioUrlRef.current='';}
+  };
+
+  const speakResponse=async(text:string)=>{
+    if(!text)return;
+    stopVoicePlayback();
+    setResponding(true);
+    try{
+      const token=await auth.currentUser?.getIdToken();
+      const response=await fetch('/api/motyq-tts',{
+        method:'POST',
+        headers:{'content-type':'application/json',...(token?{authorization:`Bearer ${token}`}:{})},
+        body:JSON.stringify({text}),
+      });
+      if(response.ok){
+        const blob=await response.blob();
+        if(blob.size>0){
+          const url=URL.createObjectURL(blob);
+          neuralAudioUrlRef.current=url;
+          const audio=new Audio(url);
+          neuralAudioRef.current=audio;
+          audio.onended=()=>{setResponding(false);stopVoicePlayback();};
+          audio.onerror=()=>{setResponding(false);stopVoicePlayback();};
+          await audio.play();
+          return;
+        }
+      }
+    }catch{}
+    speak(text,selectedVoiceName,()=>setResponding(true),()=>setResponding(false));
+  };
 
   const findLeadLocal=(items:any[],name:string)=>{
     const target=normalize(name);
@@ -325,10 +362,10 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
       const result:VoiceIntent=await response.json();
       setMode(result.mode||'');
       const executed=await execute(result,text);
-      setAnswer(executed);setResponding(true);speak(executed,selectedVoiceName,()=>setResponding(true),()=>setResponding(false));
+      setAnswer(executed);void speakResponse(executed);
     }catch(error:any){
       const message=error?.message||'Não consegui executar esse comando.';
-      setAnswer(message);setResponding(true);speak(message,selectedVoiceName,()=>setResponding(true),()=>setResponding(false));
+      setAnswer(message);void speakResponse(message);
     }finally{setProcessing(false);}
   };
 
@@ -345,7 +382,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
 
   const stop=()=>{try{recognitionRef.current?.stop();}catch{}setListening(false);};
 
-  const closeVoice=()=>{stop();setOpen(false);setResponding(false);setShowKeyboard(false);setShowVoiceSettings(false);try{window.speechSynthesis?.cancel();}catch{}};
+  const closeVoice=()=>{stop();stopVoicePlayback();setOpen(false);setResponding(false);setShowKeyboard(false);setShowVoiceSettings(false);};
   const phase=listening?'Ouvindo...':processing?'Entendendo...':responding?'Respondendo...':transcript?'Pronto':'Como posso ajudar?';
   const phaseHint=listening?'Fale naturalmente. Solte quando terminar.':processing?'Estou interpretando seu comando com segurança.':responding?'Executando e preparando a resposta.':'CRM, estoque e ações seguras por voz.';
 
@@ -362,7 +399,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
             <div className="grid h-9 w-9 place-items-center rounded-xl border border-violet-400/20 bg-violet-400/10 text-violet-300"><Sparkles size={17}/></div>
             <div>
               <p className="text-xs font-black uppercase tracking-[.18em] text-violet-200">MOTYQ VOICE</p>
-              <p className="mt-0.5 text-[10px] text-zinc-500">{mode==='ai'?'IA ativa':mode==='basic'?'Modo básico':'Assistente de operação'}</p>
+              <p className="mt-0.5 text-[10px] text-zinc-500">{mode==='ai'?'IA ativa · voz neural':mode==='basic'?'Modo básico · voz neural se disponível':'Assistente de operação'}</p>
             </div>
           </div>
           <button onClick={closeVoice} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[.05] text-zinc-300 transition hover:bg-white/10 hover:text-white"><X size={17}/></button>
