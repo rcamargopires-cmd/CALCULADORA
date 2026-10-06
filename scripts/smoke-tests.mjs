@@ -81,7 +81,7 @@ for(const required of ['voiceOptions','selectedVoiceName','voiceschanged','TESTA
 for(const required of ['chooseNaturalPtBrVoice','francisca','luciana','u.rate=.96','u.pitch=1.04']){if(!voiceUi.includes(required))fail('Natural female pt-BR voice guard missing: '+required);}
 for(const required of ["case'stock_count'","Modelos:","Encontrei ${matches.length} opção"]){if(!voiceUi.includes(required))fail('Voice model result guard missing: '+required);}
 for(const required of ['isSimilarName','levenshtein','stock_search','SUV_TERMS','listStorePassages']){if(!voiceUi.includes(required)&&!read('services/showroomFlowService.ts').includes(required))fail('Voice fuzzy CRM guard missing: '+required);}
-for(const required of ['InfinityIcon','Ouvindo...','Entendendo...','Respondendo...','Segure o microfone para falar','Encerrar','backdrop-blur-xl']){if(!voiceUi.includes(required))fail('Immersive Voice UI guard missing: '+required);}
+for(const required of ['InfinityIcon','Ouvindo...','Entendendo...','Respondendo...','Toque para falar · toque novamente para enviar','Encerrar','backdrop-blur-xl']){if(!voiceUi.includes(required))fail('Immersive Voice UI guard missing: '+required);}
 for(const required of ['crm_contact_note_followup','contextCustomerName','tentei falar']){if(!voiceApi.includes(required))fail('Conversational Voice context guard missing: '+required);}
 for(const required of ['stock_count','quantos Creta','Vou contar esse modelo no estoque']){if(!voiceApi.includes(required))fail('Voice model-count guard missing: '+required);}
 for(const required of ['stock_search','category','maxPrice','maxKm','transmission','suv']){if(!voiceApi.includes(required))fail('Voice stock-profile intent guard missing: '+required);}
