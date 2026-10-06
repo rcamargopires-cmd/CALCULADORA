@@ -12,7 +12,7 @@ const verifyFirebaseToken=async(idToken:string)=>{
   return data?.users?.[0]||null;
 };
 
-const fallbackIntent=(transcript:string)=>{
+const fallbackIntent=(transcript:string,contextCustomerName='')=>{
   const raw=clean(transcript);
   const t=normalize(raw).replace(/[?!.,;:]+/g,' ').replace(/\s+/g,' ').trim();
   const base={intent:'unknown',confidence:0.45,reply:'Não entendi o comando. Você pode pedir para consultar o estoque, abrir o CRM, cadastrar um lead, anotar um contato ou agendar um retorno.',params:{} as any,needsConfirmation:false};
@@ -112,7 +112,8 @@ export default async function handler(req:any,res:any){
 
   const transcript=clean(req.body?.transcript,600);
   if(!transcript)return res.status(400).json({error:'empty_transcript'});
-  const fallback=fallbackIntent(transcript);
+  const contextCustomerName=clean(req.body?.contextCustomerName,120);
+  const fallback=fallbackIntent(transcript,contextCustomerName);
   const gatewayKey=String(process.env.AI_GATEWAY_API_KEY||'').trim();
   const openaiKey=String(process.env.OPENAI_API_KEY||'').trim();
   const apiKey=gatewayKey||openaiKey;
