@@ -6,6 +6,7 @@ type Props = { currentUser: User; companyId: string; storeId: string; storeName:
 type Level = 1 | 2 | 3 | 4 | 5;
 type Liquidity = 'high' | 'medium' | 'low';
 type Trend = 'up' | 'stable' | 'down';
+type CatalogItem={code:string;name:string};
 
 const money=(value:number)=>value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const num=(value:string)=>Number(String(value||'').replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
@@ -15,7 +16,8 @@ const riskLabel=(score:number)=>score>=80?'COMPRA FORTE':score>=65?'COMPRA RECOM
 
 const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
  const[open,setOpen]=useState(false);
- const[plate,setPlate]=useState('');const[vehicle,setVehicle]=useState('');const[year,setYear]=useState('');
+ const[plate,setPlate]=useState('');const[brand,setBrand]=useState('');const[brandCode,setBrandCode]=useState('');const[vehicle,setVehicle]=useState('');const[modelCode,setModelCode]=useState('');const[year,setYear]=useState('');const[yearCode,setYearCode]=useState('');
+ const[brands,setBrands]=useState<CatalogItem[]>([]);const[models,setModels]=useState<CatalogItem[]>([]);const[years,setYears]=useState<CatalogItem[]>([]);const[catalogBusy,setCatalogBusy]=useState(false);const[fipeBusy,setFipeBusy]=useState(false);
  const[km,setKm]=useState('');const[expectedKm,setExpectedKm]=useState('60000');
  const[fipe,setFipe]=useState('');const[market,setMarket]=useState('');const[marketLow,setMarketLow]=useState('');const[marketHigh,setMarketHigh]=useState('');
  const[targetMargin,setTargetMargin]=useState('8');const[expectedDays,setExpectedDays]=useState('30');const[capitalRate,setCapitalRate]=useState('18');
@@ -31,8 +33,9 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
      const nextPlate=String(detail.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
      if(!nextPlate)return;
      setPlate(nextPlate);
-     setVehicle(String(detail.vehicle||'')==='Veículo a identificar'?'':String(detail.vehicle||''));
-     setYear(String(detail.year||''));
+     setBrand(String(detail.brand||''));setBrandCode('');
+     setVehicle(String(detail.vehicle||'')==='Veículo a identificar'?'':String(detail.vehicle||''));setModelCode('');
+     setYear(String(detail.year||''));setYearCode('');
      setKm(String(detail.km||''));
      setNotes(String(detail.notes||''));
      setOpen(true);
@@ -40,6 +43,81 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
    window.addEventListener('motyq:marketiq-open-request-v2',openEvaluation as EventListener);
    return()=>window.removeEventListener('motyq:marketiq-open-request-v2',openEvaluation as EventListener);
  },[]);
+
+ useEffect(()=>{
+   if(!open||brands.length)return;
+   let active=true;setCatalogBusy(true);
+   fetch('/api/marketiq-fipe?action=brands',{cache:'no-store'})
+    .then(async response=>({ok:response.ok,payload:await response.json().catch(()=>({}))}))
+    .then(({ok,payload})=>{if(!ok||!Array.isArray(payload?.items))throw new Error('brands_failed');if(active)setBrands(payload.items);})
+    .catch(()=>{if(active)setValidation('Não foi possível carregar a lista de fabricantes da FIPE.');})
+    .finally(()=>{if(active)setCatalogBusy(false);});
+   return()=>{active=false;};
+ },[open,brands.length]);
+
+ useEffect(()=>{
+   if(!open||!brandCode){setModels([]);return;}
+   let active=true;setCatalogBusy(true);
+   fetch(`/api/marketiq-fipe?action=models&brandCode=${encodeURIComponent(brandCode)}`,{cache:'no-store'})
+    .then(async response=>({ok:response.ok,payload:await response.json().catch(()=>({}))}))
+    .then(({ok,payload})=>{if(!ok||!Array.isArray(payload?.items))throw new Error('models_failed');if(active)setModels(payload.items);})
+    .catch(()=>{if(active)setValidation('Não foi possível carregar os modelos desse fabricante.');})
+    .finally(()=>{if(active)setCatalogBusy(false);});
+   return()=>{active=false;};
+ },[open,brandCode]);
+
+ useEffect(()=>{
+   if(!open||!brandCode||!modelCode){setYears([]);return;}
+   let active=true;setCatalogBusy(true);
+   fetch(`/api/marketiq-fipe?action=years&brandCode=${encodeURIComponent(brandCode)}&modelCode=${encodeURIComponent(modelCode)}`,{cache:'no-store'})
+    .then(async response=>({ok:response.ok,payload:await response.json().catch(()=>({}))}))
+    .then(({ok,payload})=>{if(!ok||!Array.isArray(payload?.items))throw new Error('years_failed');if(active)setYears(payload.items);})
+    .catch(()=>{if(active)setValidation('Não foi possível carregar os anos/modelos desse veículo.');})
+    .finally(()=>{if(active)setCatalogBusy(false);});
+   return()=>{active=false;};
+ },[open,brandCode,modelCode]);
+
+ useEffect(()=>{
+   if(!open||!brandCode||!modelCode||!yearCode)return;
+   let active=true;setFipeBusy(true);
+   fetch(`/api/marketiq-fipe?action=detail&brandCode=${encodeURIComponent(brandCode)}&modelCode=${encodeURIComponent(modelCode)}&yearCode=${encodeURIComponent(yearCode)}`,{cache:'no-store'})
+    .then(async response=>({ok:response.ok,payload:await response.json().catch(()=>({}))}))
+    .then(({ok,payload})=>{
+      if(!ok)throw new Error('detail_failed');if(!active)return;
+      const selectedYear=years.find(item=>item.code===yearCode)?.name||String(payload.year||'');
+      setBrand(String(payload.brand||brand));setVehicle(String(payload.model||vehicle));setYear(selectedYear||String(payload.year||year));
+      if(Number(payload.value)>0)setFipe(String(Math.round(Number(payload.value))));
+      setValidation('');
+    })
+    .catch(()=>{if(active)setValidation('Não foi possível consultar a FIPE desse ano/modelo.');})
+    .finally(()=>{if(active)setFipeBusy(false);});
+   return()=>{active=false;};
+ },[open,brandCode,modelCode,yearCode,years]);
+
+ useEffect(()=>{
+   if(!open||brandCode||!brands.length)return;
+   const source=String(brand||vehicle.split(/\s+/)[0]||'').toLowerCase().trim();
+   if(!source)return;
+   const exact=brands.find(item=>item.name.toLowerCase().trim()===source);
+   const loose=exact||brands.find(item=>source.includes(item.name.toLowerCase())||item.name.toLowerCase().includes(source));
+   if(loose){setBrand(loose.name);setBrandCode(loose.code);}
+ },[open,brands,brand,brandCode,vehicle]);
+
+ useEffect(()=>{
+   if(!open||!vehicle||modelCode||!models.length)return;
+   const wanted=vehicle.toLowerCase().trim();
+   const exact=models.find(item=>item.name.toLowerCase().trim()===wanted);
+   const loose=exact||models.find(item=>item.name.toLowerCase().includes(wanted)||wanted.includes(item.name.toLowerCase()));
+   if(loose){setVehicle(loose.name);setModelCode(loose.code);}
+ },[open,models,vehicle,modelCode]);
+
+ useEffect(()=>{
+   if(!open||!year||yearCode||!years.length)return;
+   const wantedYears=String(year).match(/(?:19|20)\d{2}/g)||[];
+   const target=wantedYears.at(-1)||wantedYears[0]||'';
+   const match=years.find(item=>target&&item.name.includes(target));
+   if(match){setYear(match.name);setYearCode(match.code);}
+ },[open,years,year,yearCode]);
 
  const calc=useMemo(()=>{
    const m=num(market),f=num(fipe),low=num(marketLow),high=num(marketHigh),actualKm=num(km),expectedKmValue=num(expectedKm),hasComparableKm=expectedKmValue>0,expKm=hasComparableKm?expectedKmValue:(actualKm||1);
@@ -87,6 +165,7 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
  const costField=(key:keyof typeof costs,label:string)=><label className="block"><span className={labelCls}>{label}</span><input value={costs[key]} onChange={e=>setCosts(v=>({...v,[key]:e.target.value}))} inputMode="decimal" className={inputCls}/></label>;
  const level=(label:string,value:Level,set:(v:Level)=>void)=><label className="block"><span className={labelCls}>{label}</span><select value={value} onChange={e=>set(Number(e.target.value) as Level)} className="h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white"><option value={5}>Excelente</option><option value={4}>Bom</option><option value={3}>Regular</option><option value={2}>Ruim</option><option value={1}>Crítico</option></select></label>;
  const metric=(label:string,value:string,tone='text-white')=><div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] font-bold uppercase tracking-[.13em] text-zinc-500">{label}</p><p className={`mt-1 text-lg font-semibold ${tone}`}>{value}</p></div>;
+ const catalogSelect=(label:string,value:string,onChange:(value:string)=>void,options:CatalogItem[],placeholder:string,disabled=false,wide=false)=><label className={wide?'lg:col-span-2':''}><span className={labelCls}>{label}</span><select value={value} disabled={disabled} onChange={e=>onChange(e.target.value)} className="h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none focus:border-cyan-300/40 disabled:cursor-not-allowed disabled:opacity-50"><option value="">{placeholder}</option>{options.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</select></label>;
 
  return <>
   <button title="MarketIQ · avaliação e precificação" onClick={()=>setOpen(true)} className="fixed bottom-[154px] right-4 z-[153] flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-[#11191b]/95 px-4 py-3 text-left text-white shadow-2xl shadow-black/45 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#142025] active:scale-[.98]">
@@ -107,10 +186,11 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
        <div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><CarFront size={16} className="text-cyan-300"/><h3 className="font-semibold">Identificação do veículo</h3></div><span className="rounded-full border border-cyan-300/15 bg-cyan-300/[.05] px-2.5 py-1 text-[9px] font-bold uppercase text-cyan-300">Automação preservada</span></div>
        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <label><span className={labelCls}>Placa</span><input value={plate} onChange={e=>setPlate(e.target.value.toUpperCase())} className={inputCls}/></label>
-        <label className="lg:col-span-2"><span className={labelCls}>Modelo / versão</span><input value={vehicle} onChange={e=>setVehicle(e.target.value)} className={inputCls}/></label>
-        <label><span className={labelCls}>Ano/modelo</span><input value={year} onChange={e=>setYear(e.target.value)} className={inputCls}/></label>
+        {catalogSelect('Fabricante',brandCode,code=>{const selected=brands.find(item=>item.code===code);setBrandCode(code);setBrand(selected?.name||'');setVehicle('');setModelCode('');setYear('');setYearCode('');setFipe('');},brands,catalogBusy&&!brands.length?'Carregando fabricantes...':'Selecione o fabricante')}
+        {catalogSelect('Modelo / versão',modelCode,code=>{const selected=models.find(item=>item.code===code);setModelCode(code);setVehicle(selected?.name||'');setYear('');setYearCode('');setFipe('');},models,!brandCode?'Escolha primeiro o fabricante':catalogBusy&&!models.length?'Carregando modelos...':'Selecione o modelo',!brandCode,true)}
+        {catalogSelect('Ano/modelo',yearCode,code=>{const selected=years.find(item=>item.code===code);setYearCode(code);setYear(selected?.name||'');setFipe('');},years,!modelCode?'Escolha primeiro o modelo':catalogBusy&&!years.length?'Carregando anos...':'Selecione o ano/modelo',!modelCode)}
         <label><span className={labelCls}>KM atual</span><input value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" className={inputCls}/></label>
-        <label><span className={labelCls}>FIPE</span><input value={fipe} onChange={e=>setFipe(e.target.value)} inputMode="decimal" className={inputCls}/></label>
+        <label><span className={labelCls}>FIPE {fipeBusy&&<span className="ml-1 text-[9px] text-cyan-300">consultando...</span>}</span><input value={fipe} onChange={e=>setFipe(e.target.value)} inputMode="decimal" placeholder="Preenchida automaticamente" className={inputCls}/></label>
        </div>
        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{metric('Origem',plate?'Motyq / CRLV':'Aguardando','text-cyan-200')}{metric('Estado geral',`${Math.round(calc.weighted)}/100`,'text-emerald-300')}{metric('KM score',calc.hasComparableKm&&num(km)>0?`${Math.round(calc.kmScore)}/100`:'—')}{metric('Preparação',money(calc.prep),'text-amber-200')}</div>
       </section>
