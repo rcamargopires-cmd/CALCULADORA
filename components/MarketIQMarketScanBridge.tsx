@@ -68,6 +68,21 @@ const field = (label: string) => {
   return found?.querySelector('input') as HTMLInputElement | null;
 };
 
+const fieldValue = (label: string) => {
+  const root = marketRoot();
+  if (!root) return '';
+  const wanted = label.toLowerCase();
+  const labels = Array.from(root.querySelectorAll('label'));
+  const found = labels.find(el => String(el.textContent || '').toLowerCase().includes(wanted));
+  const control = found?.querySelector('input, select, textarea') as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
+  if (!control) return '';
+  if (control instanceof HTMLSelectElement) {
+    const selected = control.options[control.selectedIndex];
+    return String(selected?.text || control.value || '').trim();
+  }
+  return String(control.value || '').trim();
+};
+
 const setInput = (input: HTMLInputElement | null, value: string) => {
   if (!input) return;
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
@@ -123,10 +138,10 @@ const MarketIQMarketScanBridge: React.FC<Props> = ({ storeName }) => {
   }, [knownKms]);
 
   const scan = async () => {
-    const model = String(field('Modelo / versão')?.value || '').trim();
-    const year = String(field('Ano/modelo')?.value || '').trim();
-    const km = String(field('KM atual')?.value || '').trim();
-    const fipe = String(field('FIPE')?.value || '').trim();
+    const model = fieldValue('Modelo / versão');
+    const year = fieldValue('Ano/modelo');
+    const km = fieldValue('KM atual');
+    const fipe = fieldValue('FIPE');
 
     setVehicleLabel(`${model || 'Veículo'}${year ? ` · ${year}` : ''}`);
     setOpen(true);
