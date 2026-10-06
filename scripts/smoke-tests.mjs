@@ -71,6 +71,7 @@ const appShell=read('App.tsx');
 if(!appShell.includes('currentStockService.getCurrent(companyIdForUser(user),storeIdForUser(user))'))fail('Negotiation stock autofill guard missing.');
 
 const voiceUi=read('components/MotyqVoiceAssistant.tsx');
+for(const required of ['extractCustomerNameFromSpeech','Encontrei o nome ${inferredName} na sua fala','Tentei falar com William']){if(!voiceUi.includes(required)&&required!=='Tentei falar com William')fail('Speech customer-name fallback guard missing: '+required);}
 for(const required of ['r.continuous=true','r.interimResults=true','toggleListening','Toque para falar · toque novamente para enviar']){if(!voiceUi.includes(required))fail('Tap-to-talk Voice guard missing: '+required);}
 const voiceApi=read('api/motyq-voice.ts');
 for(const required of ['GEMINI_INTENT_MODEL','gemini-2.5-flash','provider:\'gemini\'','responseMimeType:\'application/json\'']){if(!voiceApi.includes(required))fail('Gemini intent-engine guard missing: '+required);}
