@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
-import { Mic,MicOff,Send,Volume2,X,Sparkles } from 'lucide-react';
+import { Infinity as InfinityIcon, Keyboard, Mic, MicOff, Send, Sparkles, X } from 'lucide-react';
 import type { User } from '../types';
 import { auth } from '../firebase';
 import { dmsPermissions } from '../services/dmsPermissions';
@@ -19,11 +19,14 @@ const cleanPhone=(value:unknown)=>String(value??'').replace(/\D/g,'').slice(0,20
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(Number(value)||0);
 const stageLabel=(value:string)=>({waiting:'Novo lead',in_service:'Em atendimento',proposal:'Proposta',follow_up:'Follow-up'} as Record<string,string>)[value]||value;
 
-const speak=(text:string)=>{
-  if(!text||typeof window==='undefined'||!('speechSynthesis' in window))return;
+const speak=(text:string,onStart?:()=>void,onEnd?:()=>void)=>{
+  if(!text||typeof window==='undefined'||!('speechSynthesis' in window)){onEnd?.();return;}
   window.speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(text);
   u.lang='pt-BR';u.rate=1.03;u.pitch=1;
+  u.onstart=()=>onStart?.();
+  u.onend=()=>onEnd?.();
+  u.onerror=()=>onEnd?.();
   window.speechSynthesis.speak(u);
 };
 
@@ -54,6 +57,8 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
   const [open,setOpen]=useState(false);
   const [listening,setListening]=useState(false);
   const [processing,setProcessing]=useState(false);
+  const [responding,setResponding]=useState(false);
+  const [showKeyboard,setShowKeyboard]=useState(false);
   const [transcript,setTranscript]=useState('');
   const [answer,setAnswer]=useState('Toque no microfone e fale naturalmente.');
   const [mode,setMode]=useState<'ai'|'basic'|''>('');
@@ -187,10 +192,10 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
       const result:VoiceIntent=await response.json();
       setMode(result.mode||'');
       const executed=await execute(result,text);
-      setAnswer(executed);speak(executed);
+      setAnswer(executed);setResponding(true);speak(executed,()=>setResponding(true),()=>setResponding(false));
     }catch(error:any){
       const message=error?.message||'Não consegui executar esse comando.';
-      setAnswer(message);speak(message);
+      setAnswer(message);setResponding(true);speak(message,()=>setResponding(true),()=>setResponding(false));
     }finally{setProcessing(false);}
   };
 
@@ -198,7 +203,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
     if(!supported){setOpen(true);setAnswer('Seu navegador não liberou reconhecimento de voz. Você pode digitar o comando abaixo.');return;}
     const Recognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
     const r=new Recognition();recognitionRef.current=r;r.lang='pt-BR';r.interimResults=false;r.continuous=false;
-    r.onstart=()=>{setListening(true);setOpen(true);setAnswer('Estou ouvindo...');};
+    r.onstart=()=>{setListening(true);setResponding(false);setProcessing(false);setOpen(true);setAnswer('Estou ouvindo...');};
     r.onresult=(event:any)=>{const text=String(event.results?.[0]?.[0]?.transcript||'');void processText(text);};
     r.onerror=()=>{setListening(false);setAnswer('Não consegui ouvir. Tente novamente mais perto do microfone.');};
     r.onend=()=>setListening(false);
@@ -207,33 +212,84 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
 
   const stop=()=>{try{recognitionRef.current?.stop();}catch{}setListening(false);};
 
+  const closeVoice=()=>{stop();setOpen(false);setResponding(false);setShowKeyboard(false);try{window.speechSynthesis?.cancel();}catch{}};
+  const phase=listening?'Ouvindo...':processing?'Entendendo...':responding?'Respondendo...':transcript?'Pronto':'Como posso ajudar?';
+  const phaseHint=listening?'Fale naturalmente. Solte quando terminar.':processing?'Estou interpretando seu comando com segurança.':responding?'Executando e preparando a resposta.':'CRM, estoque e ações seguras por voz.';
+
   if(!permissions.crmView&&!permissions.stockView&&user.role!=='seller'&&user.role!=='user')return null;
 
-  return <div className="fixed bottom-24 right-4 z-[9998] md:bottom-6 md:right-6">
-    {open&&<div className="mb-3 w-[min(92vw,360px)] overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-2xl">
-      <div className="flex items-center justify-between bg-gradient-to-r from-violet-700 to-indigo-700 px-4 py-3 text-white">
-        <div className="flex items-center gap-2"><Sparkles size={17}/><div><p className="text-xs font-black uppercase tracking-[.14em]">MOTYQ VOICE</p><p className="text-[10px] text-violet-100">{mode==='ai'?'IA ativa':mode==='basic'?'modo básico':''}</p></div></div>
-        <button onClick={()=>setOpen(false)} className="grid h-8 w-8 place-items-center rounded-full bg-white/10"><X size={16}/></button>
-      </div>
-      <div className="space-y-3 p-4">
-        {transcript&&<div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-500"><b>Você:</b> {transcript}</div>}
-        <div className="rounded-2xl bg-violet-50 p-3 text-sm leading-5 text-violet-950"><b>Motyq:</b> {answer}</div>
-        <form onSubmit={e=>{e.preventDefault();const form=e.currentTarget;const input=form.elements.namedItem('voiceText') as HTMLInputElement;void processText(input.value);input.value='';}} className="flex gap-2">
-          <input name="voiceText" placeholder="Ou digite um comando..." className="h-10 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-violet-400"/>
-          <button disabled={processing} className="grid h-10 w-10 place-items-center rounded-xl bg-slate-900 text-white disabled:opacity-50"><Send size={16}/></button>
-        </form>
-        <div className="flex items-center justify-between text-[10px] text-slate-400"><span>CRM e estoque · ações seguras</span><Volume2 size={13}/></div>
+  return <>
+    {open&&<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#07070d]/78 p-3 backdrop-blur-xl sm:p-6">
+      <div className="relative flex min-h-[560px] w-full max-w-[520px] flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_50%_18%,rgba(99,102,241,.18),transparent_34%),linear-gradient(180deg,#11111b_0%,#09090f_100%)] text-white shadow-[0_30px_100px_rgba(0,0,0,.55)]">
+        <div className="pointer-events-none absolute -left-24 top-36 h-60 w-60 rounded-full bg-violet-600/10 blur-3xl"/>
+        <div className="pointer-events-none absolute -right-24 top-20 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl"/>
+
+        <header className="relative flex items-center justify-between border-b border-white/[.07] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="grid h-9 w-9 place-items-center rounded-xl border border-violet-400/20 bg-violet-400/10 text-violet-300"><Sparkles size={17}/></div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.18em] text-violet-200">MOTYQ VOICE</p>
+              <p className="mt-0.5 text-[10px] text-zinc-500">{mode==='ai'?'IA ativa':mode==='basic'?'Modo básico':'Assistente de operação'}</p>
+            </div>
+          </div>
+          <button onClick={closeVoice} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[.05] text-zinc-300 transition hover:bg-white/10 hover:text-white"><X size={17}/></button>
+        </header>
+
+        <main className="relative flex flex-1 flex-col items-center justify-center px-6 py-8 text-center">
+          <div className="relative mb-7 grid h-44 w-44 place-items-center">
+            <div className={`absolute inset-5 rounded-full blur-2xl transition-all duration-500 ${listening?'bg-cyan-400/35 scale-110':processing?'bg-violet-500/30 animate-pulse':responding?'bg-indigo-400/35 animate-pulse':'bg-violet-600/20'}`}/>
+            <div className={`absolute inset-9 rounded-full border transition-all duration-500 ${listening?'border-cyan-300/50 shadow-[0_0_55px_rgba(34,211,238,.3)] animate-ping':processing?'border-violet-300/30 shadow-[0_0_50px_rgba(139,92,246,.25)]':responding?'border-indigo-300/40 shadow-[0_0_55px_rgba(129,140,248,.3)]':'border-violet-300/20'}`}/>
+            <div className={`relative grid h-28 w-28 place-items-center rounded-full border border-white/10 bg-black/25 shadow-inner transition-transform duration-500 ${listening?'scale-110':processing||responding?'scale-105':''}`}>
+              <InfinityIcon size={78} strokeWidth={1.35} className={`drop-shadow-[0_0_15px_rgba(167,139,250,.85)] transition-colors duration-300 ${listening?'text-cyan-200':processing?'text-violet-200':responding?'text-indigo-200':'text-violet-300'}`}/>
+            </div>
+          </div>
+
+          <h2 className="text-xl font-semibold tracking-tight text-white">{phase}</h2>
+          <p className="mt-2 max-w-[330px] text-xs leading-5 text-zinc-500">{phaseHint}</p>
+
+          {transcript&&<div className="mt-6 max-w-[390px] rounded-2xl border border-white/[.07] bg-white/[.035] px-4 py-3 text-sm text-zinc-300">
+            <span className="mr-1 text-[10px] font-black uppercase tracking-[.12em] text-zinc-600">Você</span>
+            {transcript}
+          </div>}
+
+          {!listening&&!processing&&answer&&answer!=='Estou ouvindo...'&&<div className="mt-3 max-w-[390px] text-sm leading-6 text-zinc-200">
+            {answer}
+          </div>}
+        </main>
+
+        <footer className="relative border-t border-white/[.07] bg-black/20 px-5 py-5">
+          {showKeyboard&&<form onSubmit={e=>{e.preventDefault();const form=e.currentTarget;const input=form.elements.namedItem('voiceText') as HTMLInputElement;void processText(input.value);input.value='';}} className="mb-4 flex gap-2">
+            <input name="voiceText" autoFocus placeholder="Digite um comando..." className="h-11 min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/[.06] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-violet-400/40"/>
+            <button disabled={processing} className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-500 text-white transition hover:bg-violet-400 disabled:opacity-40"><Send size={17}/></button>
+          </form>}
+
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={()=>setShowKeyboard(value=>!value)} className="grid h-12 w-12 place-items-center rounded-full border border-white/10 bg-white/[.05] text-zinc-400 transition hover:bg-white/10 hover:text-white" title="Digitar comando"><Keyboard size={18}/></button>
+            <button
+              onPointerDown={e=>{e.preventDefault();start();}}
+              onPointerUp={e=>{e.preventDefault();stop();}}
+              onPointerCancel={stop}
+              disabled={processing||responding}
+              className={`grid h-16 w-16 place-items-center rounded-full border-2 text-white shadow-lg transition-all disabled:opacity-40 ${listening?'border-cyan-200/80 bg-cyan-500 shadow-[0_0_35px_rgba(34,211,238,.35)] scale-105':'border-violet-300/40 bg-violet-600 shadow-[0_0_30px_rgba(124,58,237,.3)] hover:scale-105'}`}
+              title="Segure para falar"
+            >
+              {listening?<MicOff size={24}/>:<Mic size={24}/>}
+            </button>
+            <button onClick={closeVoice} className="h-12 rounded-full border border-red-400/15 bg-red-400/[.06] px-5 text-xs font-bold text-red-300 transition hover:bg-red-400/10">Encerrar</button>
+          </div>
+          <p className="mt-3 text-center text-[10px] text-zinc-600">Segure o microfone para falar · solte para enviar</p>
+        </footer>
       </div>
     </div>}
+
     <button
-      onPointerDown={e=>{e.preventDefault();start();}}
-      onPointerUp={e=>{e.preventDefault();stop();}}
-      onPointerCancel={stop}
-      title="Segure para falar com o Motyq"
-      className={`group flex h-14 items-center gap-2 rounded-full px-4 font-bold text-white shadow-xl transition ${listening?'bg-red-500 scale-105':'bg-gradient-to-r from-violet-700 to-indigo-700 hover:scale-105'}`}>
-      {listening?<MicOff size={20}/>:<Mic size={20}/>}<span className="hidden sm:inline">{listening?'Ouvindo...':'Motyq Voice'}</span>
+      onClick={()=>setOpen(true)}
+      onPointerDown={e=>{if(e.pointerType!=='mouse'){e.preventDefault();start();}}}
+      title="Abrir Motyq Voice"
+      className="fixed bottom-24 right-4 z-[9998] flex h-14 items-center gap-2 rounded-full bg-gradient-to-r from-violet-700 to-indigo-700 px-4 font-bold text-white shadow-[0_12px_35px_rgba(76,29,149,.35)] transition hover:scale-105 md:bottom-6 md:right-6">
+      <Mic size={20}/><span className="hidden sm:inline">Motyq Voice</span>
     </button>
-  </div>;
+  </>
 };
 
 export default MotyqVoiceAssistant;
