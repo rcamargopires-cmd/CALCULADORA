@@ -14,27 +14,62 @@ const verifyFirebaseToken=async(idToken:string)=>{
 
 const fallbackIntent=(transcript:string)=>{
   const raw=clean(transcript);
-  const t=normalize(raw);
-  const base={intent:'unknown',confidence:0.45,reply:'Não entendi o comando. Tente pedir para cadastrar um lead, anotar um contato, agendar follow-up ou consultar estoque.',params:{} as any,needsConfirmation:false};
+  const t=normalize(raw).replace(/[?!.,;:]+/g,' ').replace(/\s+/g,' ').trim();
+  const base={intent:'unknown',confidence:0.45,reply:'Não entendi o comando. Você pode pedir para consultar o estoque, abrir o CRM, cadastrar um lead, anotar um contato ou agendar um retorno.',params:{} as any,needsConfirmation:false};
 
-  if(/^(ajuda|o que voce faz|o que você faz|comandos)/.test(t))return{...base,intent:'help',confidence:1,reply:'Posso cadastrar lead, adicionar observação, agendar follow-up, mover etapas seguras do CRM e consultar estoque.'};
-  if(t.includes('abr')&&t.includes('crm'))return{...base,intent:'open_crm',confidence:.95,reply:'Abrindo o CRM.'};
-  if((t.includes('mais antigo')||t.includes('mais tempo'))&&t.includes('estoque'))return{...base,intent:'stock_oldest',confidence:.9,reply:'Vou localizar o veículo mais antigo do estoque.'};
-  if((t.includes('quantos')||t.includes('resumo'))&&t.includes('estoque'))return{...base,intent:'stock_summary',confidence:.85,reply:'Vou resumir o estoque atual.'};
+  if(/^(ajuda|me ajuda|o que voce faz|o que você faz|quais comandos|comandos|como funciona)/.test(t))
+    return{...base,intent:'help',confidence:1,reply:'Posso consultar estoque, localizar veículos, mostrar o carro mais antigo, cadastrar lead, anotar contato, agendar follow-up, localizar cliente e abrir o CRM.'};
+
+  if((t.includes('abr')||t.includes('entra')||t.includes('ir para'))&&t.includes('crm'))
+    return{...base,intent:'open_crm',confidence:.97,reply:'Abrindo o CRM.'};
+
+  if(t.includes('clientes quentes')||t.includes('cliente quente')||t.includes('leads quentes')||t.includes('lead quente'))
+    return{...base,intent:'crm_hot_leads',confidence:.95,reply:'Vou listar seus leads mais quentes.'};
+
+  const customerLookup=t.match(/(?:procura|procure|buscar|busca|localiza|localize|encontra|encontre|consulta|consultar)\s+(?:o cliente|a cliente|cliente|lead)\s+(.+)/i);
+  if(customerLookup)
+    return{...base,intent:'crm_find_customer',confidence:.86,reply:'Vou procurar esse cliente no CRM.',params:{customerName:customerLookup[1].trim()}};
+
+  if((t.includes('mais antigo')||t.includes('mais tempo')||t.includes('mais parado')||t.includes('maior aging')||t.includes('maior giro parado'))&&(t.includes('estoque')||t.includes('carro')||t.includes('veiculo')))
+    return{...base,intent:'stock_oldest',confidence:.96,reply:'Vou localizar o veículo mais antigo do estoque.'};
+
+  const summaryPhrases=[
+    'consultar estoque','consulta estoque','consultar o estoque','consulta o estoque','ver estoque','ver o estoque',
+    'mostrar estoque','mostra estoque','mostra o estoque','me mostra o estoque','me mostre o estoque',
+    'resumo do estoque','resumo estoque','como esta o estoque','como está o estoque','quantos carros','quantos veiculos','quantos veículos'
+  ];
+  if(summaryPhrases.some(phrase=>t.includes(normalize(phrase))) || (t==='estoque') || (t.includes('estoque')&&/(consult|mostr|resum|quant|ver|como esta)/.test(t)))
+    return{...base,intent:'stock_summary',confidence:.94,reply:'Vou resumir o estoque atual.'};
 
   const plate=(raw.match(/\b[A-Z]{3}[0-9A-Z][0-9A-Z][0-9]{2}\b/i)||[])[0];
-  if((t.includes('estoque')||t.includes('fipe')||t.includes('dias'))&&plate)return{...base,intent:'stock_find_vehicle',confidence:.9,reply:'Vou consultar esse veículo no estoque.',params:{query:plate.toUpperCase()}};
+  if(plate&&(t.includes('estoque')||t.includes('fipe')||t.includes('dias')||t.includes('carro')||t.includes('veiculo')||t.includes('placa')))
+    return{...base,intent:'stock_find_vehicle',confidence:.95,reply:'Vou consultar esse veículo no estoque.',params:{query:plate.toUpperCase()}};
 
-  const note=t.match(/(?:anota|anote|observacao|observação)(?: no atendimento| para| que)?\s+(?:do|da)?\s*([^,]+?)(?:\s+que\s+|,\s*)(.+)$/i);
-  if(note)return{...base,intent:'crm_add_note',confidence:.82,reply:'Vou adicionar essa observação ao CRM.',params:{customerName:note[1].trim(),note:note[2].trim()}};
+  const stockModel=t.match(/(?:consulta|consultar|procura|procurar|buscar|busca|localiza|localizar|encontra|encontrar|ver|mostrar|mostra)\s+(?:no estoque\s+|o carro\s+|o veiculo\s+|o veículo\s+|a placa\s+)?(.+)/i);
+  if(stockModel&&!stockModel[1].includes('cliente')&&!stockModel[1].includes('lead')&&!stockModel[1].includes('crm')){
+    const query=stockModel[1].replace(/^(do|da|de|o|a)\s+/,'').trim();
+    if(query&&query!=='estoque'&&query.length>1)
+      return{...base,intent:'stock_find_vehicle',confidence:.78,reply:'Vou procurar esse veículo no estoque.',params:{query}};
+  }
 
-  const follow=t.match(/(?:agenda|agende|marque|programa|programe)(?: um)?\s+(?:retorno|follow[- ]?up)(?: com| para)?\s+([^,]+?)(?:\s+(amanha|amanhã|hoje|dia|as|às)\b|,|$)/i);
-  if(follow)return{...base,intent:'crm_schedule_followup',confidence:.7,reply:'Vou preparar esse follow-up.',params:{customerName:follow[1].trim(),followUpText:raw}};
+  const note=t.match(/(?:anota|anote|registrar|registre|observacao|observação)(?: no atendimento| no crm| para| que)?\s+(?:do|da)?\s*([^,]+?)(?:\s+que\s+|,\s*)(.+)$/i);
+  if(note)
+    return{...base,intent:'crm_add_note',confidence:.88,reply:'Vou adicionar essa observação ao CRM.',params:{customerName:note[1].trim(),note:note[2].trim()}};
 
-  const create=t.match(/(?:cadastre|cadastra|crie|criar)(?: um)?\s+(?:cliente|lead)\s+(?:chamado|chamada|nome)?\s*([^,]+)(?:,|$)/i);
-  if(create)return{...base,intent:'crm_create_lead',confidence:.72,reply:'Vou cadastrar esse lead.',params:{customerName:create[1].trim(),raw}};
+  const follow=t.match(/(?:agenda|agende|marque|programa|programe)(?: um)?\s+(?:retorno|follow[- ]?up|ligacao|ligação)(?: com| para)?\s+([^,]+?)(?:\s+(amanha|amanhã|hoje|dia|as|às)\b|,|$)/i);
+  if(follow)
+    return{...base,intent:'crm_schedule_followup',confidence:.84,reply:'Vou preparar esse follow-up.',params:{customerName:follow[1].trim(),followUpText:raw}};
 
-  if(t.includes('clientes quentes')||t.includes('leads quentes'))return{...base,intent:'crm_hot_leads',confidence:.9,reply:'Vou listar seus leads mais quentes.'};
+  const create=t.match(/(?:cadastre|cadastra|crie|criar|novo|nova)(?: um| uma)?\s+(?:cliente|lead)\s+(?:chamado|chamada|nome)?\s*([^,]+)(?:,|$)/i);
+  if(create)
+    return{...base,intent:'crm_create_lead',confidence:.82,reply:'Vou cadastrar esse lead.',params:{customerName:create[1].trim(),raw}};
+
+  const move=t.match(/(?:mova|move|coloca|coloque|passa|passe)\s+(?:o cliente|a cliente|cliente)?\s*([^,]+?)\s+(?:para|pra)\s+(proposta|follow[- ]?up|atendimento|novo lead)/i);
+  if(move){
+    const stageRaw=move[2];
+    const stage=stageRaw.includes('proposta')?'proposal':stageRaw.includes('follow')?'follow_up':stageRaw.includes('atendimento')?'in_service':'waiting';
+    return{...base,intent:'crm_move_stage',confidence:.86,reply:'Vou atualizar a etapa desse cliente.',params:{customerName:move[1].trim(),stage}};
+  }
 
   return base;
 };
