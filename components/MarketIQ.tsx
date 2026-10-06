@@ -15,6 +15,7 @@ const conditionLabel=(score:number)=>score>=90?'A · Excelente':score>=78?'B · 
 const riskLabel=(score:number)=>score>=80?'COMPRA FORTE':score>=65?'COMPRA RECOMENDADA':score>=50?'ATENÇÃO':'RISCO ELEVADO';
 
 const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
+ const inspectionOnly=currentUser.role==='evaluator';
  const[open,setOpen]=useState(false);
  const[plate,setPlate]=useState('');const[brand,setBrand]=useState('');const[brandCode,setBrandCode]=useState('');const[vehicle,setVehicle]=useState('');const[modelCode,setModelCode]=useState('');const[year,setYear]=useState('');const[yearCode,setYearCode]=useState('');
  const[brands,setBrands]=useState<CatalogItem[]>([]);const[models,setModels]=useState<CatalogItem[]>([]);const[years,setYears]=useState<CatalogItem[]>([]);const[catalogBusy,setCatalogBusy]=useState(false);const[fipeBusy,setFipeBusy]=useState(false);
@@ -176,11 +177,11 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
   {open&&<div className="fixed inset-0 z-[590] overflow-y-auto bg-black/80 p-3 backdrop-blur-md md:p-5">
    <div className="mx-auto max-w-[1500px] rounded-[28px] border border-white/10 bg-[#101315] text-white shadow-2xl" onClick={e=>e.stopPropagation()}>
     <header className="sticky top-0 z-20 flex items-start justify-between rounded-t-[28px] border-b border-white/10 bg-[#101315]/95 p-5 backdrop-blur md:px-6 md:py-5">
-     <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-cyan-300">MOTYQ MARKETIQ · V2</p><h2 className="mt-1 text-2xl font-semibold">Avaliação & Precificação Inteligente</h2><p className="mt-1 text-sm text-zinc-500">{storeName} · veículo + mercado + condição + preparação + decisão</p></div>
+     <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-cyan-300">MOTYQ MARKETIQ · V2</p><h2 className="mt-1 text-2xl font-semibold">{inspectionOnly?'Inspeção do veículo':'Avaliação & Precificação Inteligente'}</h2><p className="mt-1 text-sm text-zinc-500">{inspectionOnly?`${storeName} · identificação + condição + preparação + fotos e avarias`:`${storeName} · veículo + mercado + condição + preparação + decisão`}</p></div>
      <button onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 text-zinc-400 hover:text-white"><X size={18}/></button>
     </header>
 
-    <div className="grid gap-5 p-4 md:p-6 xl:grid-cols-[1.25fr_.8fr_.72fr]">
+    <div className={`grid gap-5 p-4 md:p-6 ${inspectionOnly?'xl:grid-cols-1':'xl:grid-cols-[1.25fr_.8fr_.72fr]'}`}>
      <div className="space-y-5">
       <section className="rounded-2xl border border-white/10 bg-white/[.025] p-4">
        <div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><CarFront size={16} className="text-cyan-300"/><h3 className="font-semibold">Identificação do veículo</h3></div><span className="rounded-full border border-cyan-300/15 bg-cyan-300/[.05] px-2.5 py-1 text-[9px] font-bold uppercase text-cyan-300">Automação preservada</span></div>
@@ -211,9 +212,11 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
        <div className="mb-3 flex items-center gap-2"><FileText size={16} className="text-violet-300"/><h3 className="font-semibold">Observações do avaliador</h3></div>
        <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={4} placeholder="Ex.: veículo bem conservado, retoque leve no para-choque, pneus meia vida..." className="w-full rounded-xl border border-white/10 bg-black/25 p-3 text-sm text-white outline-none focus:border-violet-300/35"/>
       </section>
+      {inspectionOnly&&<button onClick={()=>{if(!readyForDecision){setValidation('Preencha os dados obrigatórios antes de salvar a inspeção.');return;}setValidation('');window.dispatchEvent(new CustomEvent('motyq:marketiq-save-requested',{detail:{plate,vehicle,year,km,fipe,notes}}));}} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 font-semibold text-black hover:bg-cyan-400"><Save size={16}/>SALVAR INSPEÇÃO</button>}
+      {inspectionOnly&&validation&&<p className="rounded-xl border border-red-300/15 bg-red-300/[.04] px-3 py-2 text-xs text-red-200">{validation}</p>}
      </div>
 
-     <div className="space-y-5">
+     {!inspectionOnly&&<div className="space-y-5">
       <section className="rounded-2xl border border-white/10 bg-white/[.025] p-4">
        <div className="mb-4 flex items-center gap-2"><Activity size={16} className="text-cyan-300"/><h3 className="font-semibold">Mercado & referências</h3></div>
        <div className="space-y-3">
@@ -234,9 +237,9 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
        <div className="mb-3 flex items-center gap-2"><AlertTriangle size={16} className="text-cyan-300"/><h3 className="font-semibold">Diagnóstico Motyq</h3></div>
        <p className="text-sm leading-6 text-zinc-300">{diagnosis}</p>
       </section>
-     </div>
+     </div>}
 
-     <aside className="space-y-4 xl:sticky xl:top-[110px] xl:self-start">
+     {!inspectionOnly&&<aside className="space-y-4 xl:sticky xl:top-[110px] xl:self-start">
       <section className="rounded-2xl border border-emerald-300/25 bg-emerald-300/[.045] p-5"><p className="text-[10px] font-black uppercase tracking-[.16em] text-zinc-400">MOTYQ BUY SCORE</p><div className="mt-2 flex items-end justify-between"><strong className="text-5xl font-semibold">{readyForDecision?calc.score:'—'}</strong><span className="rounded-full border border-white/10 px-2 py-1 text-[9px] font-black text-emerald-300">{readyForDecision?riskLabel(calc.score):'AGUARDANDO DADOS'}</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-black/30"><div className="h-full rounded-full bg-emerald-300" style={{width:`${readyForDecision?calc.score:0}%`}}/></div></section>
 
       <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[.025] p-4">
@@ -253,7 +256,7 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
        {currentUser.role!=='evaluator'?<div className="grid grid-cols-2 gap-2"><button disabled={!readyForDecision} onClick={()=>{if(!readyForDecision){setValidation('Complete os dados obrigatórios antes de aprovar a compra.');return;}setValidation('');window.dispatchEvent(new CustomEvent('motyq:marketiq-approved',{detail:{plate,vehicle,year,km,fipe,notes,value:calc.recommendedBuy}}));}} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/[.05] text-sm font-semibold text-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"><CheckCircle2 size={15}/>APROVAR</button><button onClick={()=>window.dispatchEvent(new CustomEvent('motyq:marketiq-rejected',{detail:{plate,vehicle,year,km,fipe,notes}}))} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-300/[.04] text-sm font-semibold text-red-300"><XCircle size={15}/>RECUSAR</button></div>:<div className="rounded-xl border border-sky-300/20 bg-sky-300/[.05] px-3 py-2 text-center text-xs font-semibold text-sky-200">INSPEÇÃO · decisão comercial reservada à Mesa de Precificação</div>}
        {validation&&<p className="rounded-xl border border-red-300/15 bg-red-300/[.04] px-3 py-2 text-xs text-red-200">{validation}</p>}<p className="px-1 text-[10px] leading-4 text-zinc-600">V2 visual pronta para integração com histórico e fluxo de aprovação. Os eventos já ficam separados para essa próxima etapa.</p>
       </section>
-     </aside>
+     </aside>}
     </div>
    </div>
   </div>}
