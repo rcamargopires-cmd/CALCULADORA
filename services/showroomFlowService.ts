@@ -85,6 +85,12 @@ export const showroomFlowService={
     return onSnapshot(doc(db,'showroom_queue',queueId(companyId,storeId)),snap=>onData(snap.exists()?normalizeQueue(snap.data(),companyId,storeId):null),onError);
   },
 
+  listStorePassages:async(companyId:string,storeId:string)=>{
+    const q=query(collection(db,'showroom_passages'),where('companyId','==',companyId),where('storeId','==',storeId));
+    const snap=await getDocs(q);
+    return snap.docs.map(item=>normalizePassage(item.data())).filter(isVisiblePassage).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  },
+
   subscribeStorePassages:(companyId:string,storeId:string,onData:(items:ShowroomPassage[])=>void,onError?:(error:any)=>void)=>{
     const q=query(collection(db,'showroom_passages'),where('companyId','==',companyId),where('storeId','==',storeId));
     return onSnapshot(q,snap=>onData(snap.docs.map(item=>normalizePassage(item.data())).filter(isVisiblePassage).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))),onError);
