@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
-import { Infinity as InfinityIcon, Keyboard, Mic, MicOff, Send, Sparkles, X } from 'lucide-react';
+import { Infinity as InfinityIcon, Keyboard, Mic, MicOff, Send, Settings2, Sparkles, X } from 'lucide-react';
 import type { User } from '../types';
 import { auth } from '../firebase';
 import { dmsPermissions } from '../services/dmsPermissions';
@@ -35,11 +35,12 @@ const SUV_TERMS=['nivus','t-cross','tcross','creta','tracker','kicks','hr-v','hr
 const looksLikeSuv=(item:GroupStockItem)=>SUV_TERMS.some(term=>normalize(item.model).includes(normalize(term)));
 
 
-const chooseNaturalPtBrVoice=()=>{
+const chooseNaturalPtBrVoice=(preferredName?:string)=>{
   if(typeof window==='undefined'||!('speechSynthesis' in window))return null;
   const voices=window.speechSynthesis.getVoices();
   const pt=voices.filter(voice=>String(voice.lang||'').toLowerCase().startsWith('pt'));
   if(!pt.length)return null;
+  if(preferredName){const picked=pt.find(voice=>voice.name===preferredName);if(picked)return picked;}
   const preferred=[
     /francisca/i,/luciana/i,/maria/i,/fernanda/i,/camila/i,/giovanna/i,/leticia/i,
     /google.*portugu/i,/portugu[eê]s.*brasil/i,/brazil.*female/i,/female/i,
@@ -51,11 +52,11 @@ const chooseNaturalPtBrVoice=()=>{
   return pt.find(voice=>String(voice.lang||'').toLowerCase()==='pt-br')||pt[0]||null;
 };
 
-const speak=(text:string,onStart?:()=>void,onEnd?:()=>void)=>{
+const speak=(text:string,voiceName?:string,onStart?:()=>void,onEnd?:()=>void)=>{
   if(!text||typeof window==='undefined'||!('speechSynthesis' in window)){onEnd?.();return;}
   window.speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(text);
-  const voice=chooseNaturalPtBrVoice();
+  const voice=chooseNaturalPtBrVoice(voiceName);
   if(voice)u.voice=voice;
   u.lang=voice?.lang||'pt-BR';
   u.rate=.96;
@@ -96,6 +97,9 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
   const [processing,setProcessing]=useState(false);
   const [responding,setResponding]=useState(false);
   const [showKeyboard,setShowKeyboard]=useState(false);
+  const [showVoiceSettings,setShowVoiceSettings]=useState(false);
+  const [voiceOptions,setVoiceOptions]=useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceName,setSelectedVoiceName]=useState(()=>typeof window!=='undefined'?localStorage.getItem('motyq.voice.name')||'':'');
   const [transcript,setTranscript]=useState('');
   const [answer,setAnswer]=useState('Toque no microfone e fale naturalmente.');
   const [mode,setMode]=useState<'ai'|'basic'|''>('');
@@ -116,6 +120,29 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
   },[permissions.crmView,scope.companyId,scope.storeId,user.email,user.role]);
 
   useEffect(()=>groupStockService.subscribe(scope.companyId,s=>setStock(s?.items||[]),()=>setStock([])),[scope.companyId]);
+
+  useEffect(()=>{
+    if(typeof window==='undefined'||!('speechSynthesis' in window))return;
+    const loadVoices=()=>{
+      const pt=window.speechSynthesis.getVoices()
+        .filter(voice=>String(voice.lang||'').toLowerCase().startsWith('pt'))
+        .sort((a,b)=>{
+          const aBr=String(a.lang||'').toLowerCase()==='pt-br'?0:1;
+          const bBr=String(b.lang||'').toLowerCase()==='pt-br'?0:1;
+          return aBr-bBr||String(a.name).localeCompare(String(b.name));
+        });
+      setVoiceOptions(pt);
+      if(!selectedVoiceName&&pt.length){
+        const suggested=chooseNaturalPtBrVoice();
+        const name=suggested?.name||pt[0].name;
+        setSelectedVoiceName(name);
+        localStorage.setItem('motyq.voice.name',name);
+      }
+    };
+    loadVoices();
+    window.speechSynthesis.addEventListener?.('voiceschanged',loadVoices);
+    return()=>window.speechSynthesis.removeEventListener?.('voiceschanged',loadVoices);
+  },[]);
 
   const supported=useMemo(()=>typeof window!=='undefined'&&Boolean((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition),[]);
 
@@ -281,10 +308,10 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
       const result:VoiceIntent=await response.json();
       setMode(result.mode||'');
       const executed=await execute(result,text);
-      setAnswer(executed);setResponding(true);speak(executed,()=>setResponding(true),()=>setResponding(false));
+      setAnswer(executed);setResponding(true);speak(executed,selectedVoiceName,()=>setResponding(true),()=>setResponding(false));
     }catch(error:any){
       const message=error?.message||'Não consegui executar esse comando.';
-      setAnswer(message);setResponding(true);speak(message,()=>setResponding(true),()=>setResponding(false));
+      setAnswer(message);setResponding(true);speak(message,selectedVoiceName,()=>setResponding(true),()=>setResponding(false));
     }finally{setProcessing(false);}
   };
 
@@ -301,7 +328,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
 
   const stop=()=>{try{recognitionRef.current?.stop();}catch{}setListening(false);};
 
-  const closeVoice=()=>{stop();setOpen(false);setResponding(false);setShowKeyboard(false);try{window.speechSynthesis?.cancel();}catch{}};
+  const closeVoice=()=>{stop();setOpen(false);setResponding(false);setShowKeyboard(false);setShowVoiceSettings(false);try{window.speechSynthesis?.cancel();}catch{}};
   const phase=listening?'Ouvindo...':processing?'Entendendo...':responding?'Respondendo...':transcript?'Pronto':'Como posso ajudar?';
   const phaseHint=listening?'Fale naturalmente. Solte quando terminar.':processing?'Estou interpretando seu comando com segurança.':responding?'Executando e preparando a resposta.':'CRM, estoque e ações seguras por voz.';
 
@@ -347,12 +374,23 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
         </main>
 
         <footer className="relative border-t border-white/[.07] bg-black/20 px-5 py-5">
+          {showVoiceSettings&&<div className="mb-4 rounded-2xl border border-white/10 bg-white/[.04] p-3 text-left">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-[.12em] text-zinc-500">Voz da assistente</span>
+              <span className="text-[10px] text-zinc-600">{voiceOptions.length} voz(es) pt</span>
+            </div>
+            {voiceOptions.length?<select value={selectedVoiceName} onChange={e=>{setSelectedVoiceName(e.target.value);localStorage.setItem('motyq.voice.name',e.target.value);}} className="h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-xs text-white outline-none">
+              {voiceOptions.map(voice=><option key={voice.name+'-'+voice.lang} value={voice.name}>{voice.name} · {voice.lang}</option>)}
+            </select>:<div className="rounded-xl border border-amber-400/15 bg-amber-400/[.05] px-3 py-2 text-xs text-amber-200">Seu navegador está expondo apenas a voz padrão. Nesse caso, para mudar de verdade a voz precisamos usar voz neural por API.</div>}
+            <button type="button" onClick={()=>speak('Olá. Eu sou a assistente do Motyq. Esta é a voz selecionada para responder aos seus comandos.',selectedVoiceName)} className="mt-2 h-9 w-full rounded-xl border border-violet-400/20 bg-violet-400/10 text-xs font-bold text-violet-200">TESTAR ESTA VOZ</button>
+          </div>}
           {showKeyboard&&<form onSubmit={e=>{e.preventDefault();const form=e.currentTarget;const input=form.elements.namedItem('voiceText') as HTMLInputElement;void processText(input.value);input.value='';}} className="mb-4 flex gap-2">
             <input name="voiceText" autoFocus placeholder="Digite um comando..." className="h-11 min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/[.06] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-violet-400/40"/>
             <button disabled={processing} className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-500 text-white transition hover:bg-violet-400 disabled:opacity-40"><Send size={17}/></button>
           </form>}
 
           <div className="flex items-center justify-center gap-3">
+            <button onClick={()=>setShowVoiceSettings(value=>!value)} className="grid h-12 w-12 place-items-center rounded-full border border-white/10 bg-white/[.05] text-zinc-400 transition hover:bg-white/10 hover:text-white" title="Escolher voz"><Settings2 size={18}/></button>
             <button onClick={()=>setShowKeyboard(value=>!value)} className="grid h-12 w-12 place-items-center rounded-full border border-white/10 bg-white/[.05] text-zinc-400 transition hover:bg-white/10 hover:text-white" title="Digitar comando"><Keyboard size={18}/></button>
             <button
               onPointerDown={e=>{e.preventDefault();start();}}
