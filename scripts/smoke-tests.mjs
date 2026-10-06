@@ -92,6 +92,10 @@ for(const required of ['withoutUndefined','Informe o primeiro vencimento do lan√
   if(!financeGuard.includes(required))fail('Finance persistence guard missing: '+required);
 }
 
+const marketIqBridge=read('components/MarketIQLookupBridge.tsx');
+if(marketIqBridge.includes('VALIDAR CRLV-E')||marketIqBridge.includes('ENVIAR CRLV-E'))fail('CRLV fallback UX guard missing: mandatory upload UI returned.');
+if(!marketIqBridge.includes('Selecione fabricante, modelo e ano/modelo para continuar.'))fail('MarketIQ manual catalog fallback message missing.');
+
 const marketIq=read('components/MarketIQ.tsx');
 for(const required of ["action=brands","action=models","action=years","action=detail","Fabricante","Selecione o fabricante","Escolha primeiro o fabricante","Escolha primeiro o modelo"]){if(!marketIq.includes(required))fail('MarketIQ catalog guard missing: '+required);}
 if(!marketIq.includes('plate,vehicle,year,km,fipe,notes,value:calc.recommendedBuy'))fail('MarketIQ approval no longer sends complete evaluation context.');
