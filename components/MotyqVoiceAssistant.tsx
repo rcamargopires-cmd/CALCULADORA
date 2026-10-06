@@ -98,15 +98,24 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
 
   const supported=useMemo(()=>typeof window!=='undefined'&&Boolean((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition),[]);
 
-  const findLead=(name:string)=>{
+  const findLeadLocal=(items:any[],name:string)=>{
     const target=normalize(name);
     if(!target)return null;
-    const exact=leads.find(item=>normalize(item.customerName)===target);
+    const exact=items.find(item=>normalize(item.customerName)===target);
     if(exact)return exact;
-    const contains=leads.find(item=>normalize(item.customerName).includes(target)||target.includes(normalize(item.customerName)));
+    const contains=items.find(item=>normalize(item.customerName).includes(target)||target.includes(normalize(item.customerName)));
     if(contains)return contains;
-    const similar=leads.filter(item=>isSimilarName(String(item.customerName||''),target));
-    return similar.length===1?similar[0]:similar[0]||null;
+    const similar=items.filter(item=>isSimilarName(String(item.customerName||''),target));
+    return similar.length?similar[0]:null;
+  };
+  const findLead=async(name:string)=>{
+    const local=findLeadLocal(leads,name);
+    if(local)return local;
+    const scoped=await showroomFlowService.listStorePassages(scope.companyId,scope.storeId).catch(()=>[]);
+    const visible=(user.role==='seller'||user.role==='user')
+      ? scoped.filter(item=>normalize(item.assignedSellerEmail)===normalize(user.email))
+      : scoped;
+    return findLeadLocal(visible,name);
   };
 
   const resolveSeller=async(name?:string|null)=>{
@@ -140,7 +149,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
       }
       case'crm_add_note':{
         if(!permissions.crmView)throw new Error('Seu perfil não tem acesso ao CRM.');
-        const lead=findLead(String(p.customerName||''));
+        const lead=await findLead(String(p.customerName||''));
         if(!lead)throw new Error('Não encontrei esse cliente no seu CRM.');
         const note=String(p.note||'').trim();
         if(!note)throw new Error('Não consegui identificar a observação.');
@@ -150,7 +159,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
       }
       case'crm_schedule_followup':{
         if(!permissions.crmView)throw new Error('Seu perfil não tem acesso ao CRM.');
-        const lead=findLead(String(p.customerName||''));
+        const lead=await findLead(String(p.customerName||''));
         if(!lead)throw new Error('Não encontrei esse cliente no seu CRM.');
         const due=String(p.followUpAt||'').trim()||parseRelativeDate(String(p.followUpText||raw));
         if(Number.isNaN(new Date(due).getTime()))throw new Error('Não consegui entender a data do retorno.');
@@ -160,7 +169,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
       }
       case'crm_move_stage':{
         if(!permissions.crmView)throw new Error('Seu perfil não tem acesso ao CRM.');
-        const lead=findLead(String(p.customerName||''));
+        const lead=await findLead(String(p.customerName||''));
         if(!lead)throw new Error('Não encontrei esse cliente no seu CRM.');
         const stage=String(p.stage||'');
         if(!['waiting','in_service','proposal','follow_up'].includes(stage))throw new Error('Essa etapa exige operação manual ou confirmação.');
@@ -168,7 +177,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
         return`${lead.customerName} foi movido para ${stageLabel(stage)}.`;
       }
       case'crm_find_customer':{
-        const lead=findLead(String(p.customerName||''));
+        const lead=await findLead(String(p.customerName||''));
         if(!lead)return'Não encontrei esse cliente no CRM.';
         return`${lead.customerName}: ${stageLabel(lead.status)}, interesse em ${lead.interestModel||lead.desiredVehicle||'veículo não informado'}${lead.nextFollowUpAt?', com follow-up agendado':''}.`;
       }
