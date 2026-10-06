@@ -71,7 +71,9 @@ const appShell=read('App.tsx');
 if(!appShell.includes('currentStockService.getCurrent(companyIdForUser(user),storeIdForUser(user))'))fail('Negotiation stock autofill guard missing.');
 
 const voiceUi=read('components/MotyqVoiceAssistant.tsx');
+for(const required of ['r.continuous=true','r.interimResults=true','toggleListening','Toque para falar · toque novamente para enviar']){if(!voiceUi.includes(required))fail('Tap-to-talk Voice guard missing: '+required);}
 const voiceApi=read('api/motyq-voice.ts');
+for(const required of ['GEMINI_INTENT_MODEL','gemini-2.5-flash','provider:\'gemini\'','responseMimeType:\'application/json\'']){if(!voiceApi.includes(required))fail('Gemini intent-engine guard missing: '+required);}
 for(const required of ['GEMINI_API_KEY','gemini-3.8-flash-tts','responseModalities','pt-BR','action===\'tts\'']){if(!voiceApi.includes(required))fail('Gemini neural TTS guard missing: '+required);}
 for(const required of ['/api/motyq-voice','speakResponse']){if(!voiceUi.includes(required))fail('Neural voice playback guard missing: '+required);}
 for(const required of ['lastCustomerName','crm_contact_note_followup','Tentativa de contato sem sucesso']){if(!voiceUi.includes(required))fail('Voice short-memory guard missing: '+required);}
