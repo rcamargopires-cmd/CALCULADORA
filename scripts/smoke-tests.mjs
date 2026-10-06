@@ -70,6 +70,12 @@ if(dealsBlock.includes("opKind(resource.data) != 'audit_event'"))fail('Audit gua
 const appShell=read('App.tsx');
 if(!appShell.includes('currentStockService.getCurrent(companyIdForUser(user),storeIdForUser(user))'))fail('Negotiation stock autofill guard missing.');
 
+const voiceUi=read('components/MotyqVoiceAssistant.tsx');
+const voiceApi=read('api/motyq-voice.ts');
+for(const required of ['Motyq Voice','SpeechRecognition','crm_create_lead','crm_add_note','crm_schedule_followup','stock_oldest','stock_summary']){if(!voiceUi.includes(required)&&!voiceApi.includes(required))fail('Motyq Voice guard missing: '+required);}
+for(const forbidden of ["intent:'finance_settle'","intent:'sale_close'","intent:'delete'"]){if(voiceApi.includes(forbidden))fail('Unsafe Motyq Voice intent exposed: '+forbidden);}
+if(!voiceApi.includes('verifyFirebaseToken')||!voiceApi.includes("model=gatewayKey?'openai/gpt-6-luna':'gpt-6-luna'"))fail('Motyq Voice authenticated AI parser guard missing.');
+
 const demoSeed=read('services/demoSeedService.ts');
 for(const required of ['seedFormalDms','seedFinance','seedDocuments','seedMarketIq','seedAfterSales','PV-DEMO-0997','demo_fin_bank','vehicle_document_case','marketiq_evaluation','after_sales_case']){if(!demoSeed.includes(required))fail('Demo showcase guard missing: '+required);}
 
