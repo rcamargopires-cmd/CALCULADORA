@@ -79,9 +79,13 @@ const fallbackIntent=(transcript:string,contextCustomerName='')=>{
     return{...base,intent:'crm_add_note',confidence:.88,reply:'Vou adicionar essa observação ao CRM.',params:{customerName:note[1].trim(),note:note[2].trim()}};
 
   const contactAndFollow=/(tentei falar|tentei ligar|liguei|chamei|mandei mensagem|nao consegui falar|não consegui falar|sem sucesso)/i.test(t)
-    && /(agenda|agende|agendar|retorno|follow[- ]?up|amanha|amanhã|depois)/i.test(t);
+    && /(agenda|agende|agendar|reagenda|reagende|reagente|retorno|follow[- ]?up|amanha|amanhã|depois)/i.test(t);
   if(contactAndFollow){
-    return{...base,intent:'crm_contact_note_followup',confidence:.91,reply:'Vou registrar a tentativa de contato e agendar o próximo retorno.',params:{customerName:contextCustomerName||'',note:raw,followUpText:raw}};
+    const explicitCustomer=
+      t.match(/(?:cliente|com|para|pro|pra)\s+([a-záàâãéèêíïóôõöúç]+)(?=\s+(?:e|mas|nao|não|amanha|amanhã|hoje|agenda|agende|agendar|reagenda|reagende|reagente|retorno)|,|$)/i)?.[1]
+      || t.match(/(?:falar|ligar|liguei|chamei)\s+(?:com|para)?\s*([a-záàâãéèêíïóôõöúç]+)(?=\s+(?:e|mas|nao|não|amanha|amanhã|hoje|agenda|agende|agendar|reagenda|reagende|reagente|retorno)|,|$)/i)?.[1]
+      || '';
+    return{...base,intent:'crm_contact_note_followup',confidence:.95,reply:'Vou registrar a tentativa de contato e agendar o próximo retorno.',params:{customerName:explicitCustomer||contextCustomerName||'',note:raw,followUpText:raw}};
   }
   const follow=t.match(/(?:agenda|agende|marque|programa|programe)(?: um)?\s+(?:retorno|follow[- ]?up|ligacao|ligação)(?: com| para)?\s+([^,]+?)(?:\s+(amanha|amanhã|hoje|dia|as|às)\b|,|$)/i);
   if(follow)
