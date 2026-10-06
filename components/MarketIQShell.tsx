@@ -13,6 +13,7 @@ import MarketIQHistoryPanel from './MarketIQHistoryPanel';
 import MarketIQShowroomLinkBridge from './MarketIQShowroomLinkBridge';
 import MarketIQMediaPanel from './MarketIQMediaPanel';
 import MarketIQMarketScanBridge from './MarketIQMarketScanBridge';
+import MarketIQVisualAI from './MarketIQVisualAI';
 import MarketIQSaveNotice from './MarketIQSaveNotice';
 import MarketIQCommercialClassification from './MarketIQCommercialClassification';
 import MarketIQHistoryRiskBridge from './MarketIQHistoryRiskBridge';
@@ -41,7 +42,7 @@ const MarketIQShell:React.FC=()=>{
    <MarketIQHistoryPanel currentUser={user} companyId={companyId} storeId={storeId}/>
    {!evaluator&&<MarketIQShowroomLinkBridge currentUser={user} companyId={companyId} storeId={storeId} storeName={activeStoreName}/>} 
    <MarketIQMediaPanel companyId={companyId} storeId={storeId}/>
-   {!evaluator&&<MarketIQMarketScanBridge storeName={activeStoreName}/>} 
+   {!evaluator&&<><MarketIQMarketScanBridge storeName={activeStoreName}/><MarketIQVisualAI currentUser={user} companyId={companyId} storeId={storeId}/></>} 
  </>;
 };
 export default MarketIQShell;
