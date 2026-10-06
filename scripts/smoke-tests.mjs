@@ -218,3 +218,6 @@ const marketScanApi=read('api/marketiq-market-scan.ts');
 for(const required of ["action === 'visual_analysis'","GEMINI_VISION_MODEL","responseMimeType: 'application/json'","não substitui inspeção presencial"]){if(!marketScanApi.includes(required))fail('Visual AI backend guard missing: '+required);}
 if(!marketIqShell.includes('<MarketIQVisualAI currentUser={user} companyId={companyId} storeId={storeId}/>'))fail('Visual AI not mounted in MarketIQ pricing workflow.');
 if(!marketIqShell.includes('{!evaluator&&<>'))fail('Visual AI pricing-only guard missing.');
+
+const motyqShell=read('components/MotyqShell.tsx');
+for(const required of ["launcher('Solicitar avaliação')",'<span>Avaliações</span>',"title==='Solicitar avaliação'"]){if(!motyqShell.includes(required))fail('Seller evaluation sidebar guard missing: '+required);}
