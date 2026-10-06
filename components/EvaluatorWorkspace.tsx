@@ -32,7 +32,7 @@ const EvaluatorWorkspace: React.FC<{ user: User }> = ({ user }) => {
     const email = user.email.toLowerCase();
     return requests.filter(item =>
       item.status === 'requested' ||
-      (item.status === 'in_progress' && (!item.evaluatorEmail || item.evaluatorEmail.toLowerCase() === email))
+      ((item.status === 'in_progress' || item.status === 'inspection') && (!item.evaluatorEmail || item.evaluatorEmail.toLowerCase() === email))
     );
   }, [requests, user.email]);
 
@@ -64,7 +64,7 @@ const EvaluatorWorkspace: React.FC<{ user: User }> = ({ user }) => {
       if (request.status === 'requested') await evaluationQueueService.start(request.id, user);
       const active: EvaluationQueueRequest = {
         ...request,
-        status: 'in_progress',
+        status: 'inspection',
         evaluatorEmail: user.email.toLowerCase(),
         evaluatorName: user.name || user.email,
       };
@@ -101,7 +101,7 @@ const EvaluatorWorkspace: React.FC<{ user: User }> = ({ user }) => {
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.16em] text-cyan-700">FILA MARKETIQ</p>
             <h2 className="mt-1 text-2xl font-semibold">Avaliações da unidade</h2>
-            <p className="mt-1 text-sm text-slate-500">Este perfil tem acesso somente ao MarketIQ e às solicitações de avaliação.</p>
+            <p className="mt-1 text-sm text-slate-500">Etapa 2 de 3 · inspeção física, fotos e avarias antes da mesa de precificação.</p>
           </div>
           <button onClick={openMarketIq} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800">
             <Gauge size={17}/> ABRIR MARKETIQ
@@ -120,7 +120,7 @@ const EvaluatorWorkspace: React.FC<{ user: User }> = ({ user }) => {
             <div><RefreshCw size={24} className="mx-auto text-slate-400"/><p className="mt-3 font-semibold">Fila vazia</p><p className="mt-1 text-sm text-slate-500">Novas solicitações aparecem aqui automaticamente.</p></div>
           </div> : <div className="grid gap-3 md:grid-cols-2">
             {queue.map(item => {
-              const mine = item.status === 'in_progress';
+              const mine = item.status === 'in_progress' || item.status === 'inspection';
               return <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -136,9 +136,14 @@ const EvaluatorWorkspace: React.FC<{ user: User }> = ({ user }) => {
                 </div>
                 {item.notes && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">{item.notes}</p>}
                 {typeof item.recommendedBuy === 'number' && <p className="mt-3 text-sm text-emerald-700">Compra recomendada: <strong>{money(item.recommendedBuy)}</strong></p>}
-                <button disabled={busyId === item.id} onClick={() => void start(item)} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
-                  <Play size={15}/>{busyId === item.id ? 'ABRINDO...' : mine ? 'CONTINUAR NO MARKETIQ' : 'INICIAR NO MARKETIQ'}
-                </button>
+                <div className="mt-4 grid gap-2">
+                  <button disabled={busyId === item.id} onClick={() => void start(item)} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
+                    <Play size={15}/>{busyId === item.id ? 'ABRINDO...' : mine ? 'CONTINUAR INSPEÇÃO' : 'INICIAR INSPEÇÃO'}
+                  </button>
+                  {mine && <button disabled={busyId === item.id} onClick={async()=>{if(busyId)return;setBusyId(item.id);setError('');try{await evaluationQueueService.completeInspection(item.id,user);window.sessionStorage.removeItem(ACTIVE_EVALUATION_REQUEST_KEY);}catch(e){console.error('Evaluator could not send request to pricing',e);setError('Não foi possível enviar para a mesa de precificação.');}finally{setBusyId('');}}} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-sm font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
+                    <ClipboardCheck size={15}/> ENVIAR PARA MESA DE PRECIFICAÇÃO
+                  </button>}
+                </div>
               </article>;
             })}
           </div>}
