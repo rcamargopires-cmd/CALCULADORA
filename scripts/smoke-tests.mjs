@@ -71,8 +71,10 @@ const appShell=read('App.tsx');
 if(!appShell.includes('currentStockService.getCurrent(companyIdForUser(user),storeIdForUser(user))'))fail('Negotiation stock autofill guard missing.');
 
 const voiceUi=read('components/MotyqVoiceAssistant.tsx');
+for(const required of ['isSimilarName','levenshtein','stock_search','SUV_TERMS','listStorePassages']){if(!voiceUi.includes(required)&&!read('services/showroomFlowService.ts').includes(required))fail('Voice fuzzy CRM guard missing: '+required);}
 for(const required of ['InfinityIcon','Ouvindo...','Entendendo...','Respondendo...','Segure o microfone para falar','Encerrar','backdrop-blur-xl']){if(!voiceUi.includes(required))fail('Immersive Voice UI guard missing: '+required);}
 const voiceApi=read('api/motyq-voice.ts');
+for(const required of ['stock_search','category','maxPrice','maxKm','transmission','suv']){if(!voiceApi.includes(required))fail('Voice stock-profile intent guard missing: '+required);}
 for(const required of ['consultar estoque','me mostra o estoque','quantos carros','stock_summary','stock_find_vehicle']){if(!voiceApi.includes(required))fail('Voice basic-language guard missing: '+required);}
 for(const required of ['Motyq Voice','SpeechRecognition','crm_create_lead','crm_add_note','crm_schedule_followup','stock_oldest','stock_summary']){if(!voiceUi.includes(required)&&!voiceApi.includes(required))fail('Motyq Voice guard missing: '+required);}
 for(const forbidden of ["intent:'finance_settle'","intent:'sale_close'","intent:'delete'"]){if(voiceApi.includes(forbidden))fail('Unsafe Motyq Voice intent exposed: '+forbidden);}
