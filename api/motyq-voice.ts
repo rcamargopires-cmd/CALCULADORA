@@ -56,7 +56,11 @@ export default async function handler(req:any,res:any){
   const transcript=clean(req.body?.transcript,600);
   if(!transcript)return res.status(400).json({error:'empty_transcript'});
   const fallback=fallbackIntent(transcript);
-  const apiKey=String(process.env.OPENAI_API_KEY||'').trim();
+  const gatewayKey=String(process.env.AI_GATEWAY_API_KEY||'').trim();
+  const openaiKey=String(process.env.OPENAI_API_KEY||'').trim();
+  const apiKey=gatewayKey||openaiKey;
+  const baseUrl=gatewayKey?'https://ai-gateway.vercel.sh/v1':'https://api.openai.com/v1';
+  const model=gatewayKey?'openai/gpt-6-luna':'gpt-6-luna';
   if(!apiKey)return res.status(200).json({...fallback,mode:'basic'});
 
   const now=clean(req.body?.now,80)||new Date().toISOString();
@@ -88,11 +92,11 @@ Comandos destrutivos, venda concluída, perda definitiva, preço, aprovação, f
 Datas relativas devem ser convertidas para ISO usando como referência ${now}.
 crm_move_stage só pode usar waiting, in_service, proposal ou follow_up.
 Responda curto em português no campo reply.`;
-    const response=await fetch('https://api.openai.com/v1/responses',{
+    const response=await fetch(`${baseUrl}/responses`,{
       method:'POST',
       headers:{'authorization':`Bearer ${apiKey}`,'content-type':'application/json'},
       body:JSON.stringify({
-        model:'gpt-6-luna',
+        model,
         reasoning:{effort:'none'},
         input:[{role:'system',content:prompt},{role:'user',content:transcript}],
         text:{format:{type:'json_schema',name:'motyq_voice_intent',strict:true,schema}},
