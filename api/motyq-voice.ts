@@ -33,10 +33,18 @@ const fallbackIntent=(transcript:string)=>{
   if((t.includes('mais antigo')||t.includes('mais tempo')||t.includes('mais parado')||t.includes('maior aging')||t.includes('maior giro parado'))&&(t.includes('estoque')||t.includes('carro')||t.includes('veiculo')))
     return{...base,intent:'stock_oldest',confidence:.96,reply:'Vou localizar o veículo mais antigo do estoque.'};
 
+  const countModel=t.match(/(?:quantos?|quantas?)\s+(.+?)\s+(?:tem|temos|ha|há|existem)(?:\s+(?:no|na)\s+estoque)?$/i)
+    || t.match(/(?:quantos?|quantas?)\s+(.+?)(?:\s+(?:no|na)\s+estoque)$/i);
+  if(countModel){
+    const query=countModel[1].replace(/\b(carros?|veiculos?|veículos?|modelos?)\b/gi,'').trim();
+    if(query && !['carro','carros','veiculo','veiculos','veículo','veículos','estoque'].includes(query))
+      return{...base,intent:'stock_count',confidence:.97,reply:'Vou contar esse modelo no estoque.',params:{query}};
+  }
+
   const summaryPhrases=[
     'consultar estoque','consulta estoque','consultar o estoque','consulta o estoque','ver estoque','ver o estoque',
     'mostrar estoque','mostra estoque','mostra o estoque','me mostra o estoque','me mostre o estoque',
-    'resumo do estoque','resumo estoque','como esta o estoque','como está o estoque','quantos carros','quantos veiculos','quantos veículos'
+    'resumo do estoque','resumo estoque','como esta o estoque','como está o estoque','quantos carros no estoque','quantos veiculos no estoque','quantos veículos no estoque'
   ];
   if(summaryPhrases.some(phrase=>t.includes(normalize(phrase))) || (t==='estoque') || (t.includes('estoque')&&/(consult|mostr|resum|quant|ver|como esta)/.test(t)))
     return{...base,intent:'stock_summary',confidence:.94,reply:'Vou resumir o estoque atual.'};
@@ -118,7 +126,7 @@ export default async function handler(req:any,res:any){
     additionalProperties:false,
     required:['intent','confidence','reply','needsConfirmation','params'],
     properties:{
-      intent:{type:'string',enum:['crm_create_lead','crm_add_note','crm_schedule_followup','crm_move_stage','crm_find_customer','crm_hot_leads','stock_find_vehicle','stock_search','stock_oldest','stock_summary','open_crm','help','unknown']},
+      intent:{type:'string',enum:['crm_create_lead','crm_add_note','crm_schedule_followup','crm_move_stage','crm_find_customer','crm_hot_leads','stock_find_vehicle','stock_count','stock_search','stock_oldest','stock_summary','open_crm','help','unknown']},
       confidence:{type:'number'},
       reply:{type:'string'},
       needsConfirmation:{type:'boolean'},
@@ -140,7 +148,7 @@ Apenas escolha uma intenção permitida. Nunca invente cliente, placa, telefone,
 Comandos destrutivos, venda concluída, perda definitiva, preço, aprovação, financeiro ou exclusão devem retornar unknown.
 Datas relativas devem ser convertidas para ISO usando como referência ${now}.
 crm_move_stage só pode usar waiting, in_service, proposal ou follow_up.
-Para pedidos como SUV, automático, até determinado preço/KM ou opções de veículos, use stock_search e preencha category, maxPrice, maxKm, transmission e query quando houver.
+Para perguntas como 'quantos Creta tem no estoque' ou 'quantos Corolla temos', use stock_count e coloque o modelo/marca em query. Para pedidos como SUV, automático, até determinado preço/KM ou opções de veículos, use stock_search e preencha category, maxPrice, maxKm, transmission e query quando houver.
 Responda curto em português no campo reply.`;
     const response=await fetch(`${baseUrl}/responses`,{
       method:'POST',
