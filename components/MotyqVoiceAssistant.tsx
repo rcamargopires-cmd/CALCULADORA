@@ -103,6 +103,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
   const [transcript,setTranscript]=useState('');
   const [answer,setAnswer]=useState('Toque no microfone e fale naturalmente.');
   const [mode,setMode]=useState<'ai'|'basic'|''>('');
+  const [lastCustomerName,setLastCustomerName]=useState('');
   const recognitionRef=useRef<any>(null);
 
   useEffect(()=>{
@@ -157,13 +158,16 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
     return similar.length?similar[0]:null;
   };
   const findLead=async(name:string)=>{
-    const local=findLeadLocal(leads,name);
-    if(local)return local;
+    const target=String(name||lastCustomerName||'').trim();
+    const local=findLeadLocal(leads,target);
+    if(local){setLastCustomerName(String(local.customerName||target));return local;}
     const scoped=await showroomFlowService.listStorePassages(scope.companyId,scope.storeId).catch(()=>[]);
     const visible=(user.role==='seller'||user.role==='user')
       ? scoped.filter(item=>normalize(item.assignedSellerEmail)===normalize(user.email))
       : scoped;
-    return findLeadLocal(visible,name);
+    const found=findLeadLocal(visible,target);
+    if(found)setLastCustomerName(String(found.customerName||target));
+    return found;
   };
 
   const resolveSeller=async(name?:string|null)=>{
@@ -214,6 +218,19 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
         await showroomFlowService.updateCrmLead(lead.id,{status:'follow_up',nextFollowUpAt:due},{email:user.email,name:user.name});
         const label=new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(due));
         return`Follow-up de ${lead.customerName} agendado para ${label}.`;
+      }
+      case'crm_contact_note_followup':{
+        if(!permissions.crmView)throw new Error('Seu perfil não tem acesso ao CRM.');
+        const lead=await findLead(String(p.customerName||lastCustomerName||''));
+        if(!lead)throw new Error('Não consegui identificar de qual cliente você está falando. Diga o nome dele uma vez e depois eu mantenho o contexto.');
+        const due=String(p.followUpAt||'').trim()||parseRelativeDate(String(p.followUpText||raw));
+        if(Number.isNaN(new Date(due).getTime()))throw new Error('Não consegui entender a data do retorno.');
+        const previous=String(lead.notes||'').trim();
+        const note='Tentativa de contato sem sucesso registrada pelo Motyq Voice.';
+        await showroomFlowService.updateCrmLead(lead.id,{status:'follow_up',nextFollowUpAt:due,notes:[previous,note].filter(Boolean).join('\n')},{email:user.email,name:user.name});
+        const label=new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(due));
+        setLastCustomerName(String(lead.customerName||''));
+        return`Registrei que você tentou falar com ${lead.customerName} sem sucesso e agendei o retorno para ${label}.`;
       }
       case'crm_move_stage':{
         if(!permissions.crmView)throw new Error('Seu perfil não tem acesso ao CRM.');
@@ -302,7 +319,7 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
       const token=await auth.currentUser?.getIdToken();
       const response=await fetch('/api/motyq-voice',{
         method:'POST',headers:{'content-type':'application/json',...(token?{authorization:`Bearer ${token}`}:{})},
-        body:JSON.stringify({transcript:text,now:new Date().toISOString()}),
+        body:JSON.stringify({transcript:text,now:new Date().toISOString(),contextCustomerName:lastCustomerName}),
       });
       if(!response.ok)throw new Error('Não consegui interpretar o comando agora.');
       const result:VoiceIntent=await response.json();
