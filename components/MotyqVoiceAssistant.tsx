@@ -185,6 +185,21 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
     speak(text,selectedVoiceName,()=>setResponding(true),()=>setResponding(false));
   };
 
+  const extractCustomerNameFromSpeech=(raw:string)=>{
+    const text=String(raw||'').trim();
+    const patterns=[
+      /(?:cliente|com|para|pro|pra)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'-]{1,40})(?=\s+(?:e|mas|não|nao|amanhã|amanha|hoje|reagend|agend|retorno|follow|porque|que)|,|$)/i,
+      /(?:falar|ligar|liguei|chamei|contato)\s+(?:com|para)?\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'-]{1,40})(?=\s+(?:e|mas|não|nao|amanhã|amanha|hoje|reagend|agend|retorno|follow)|,|$)/i,
+      /(?:reagenda|reagende|agenda|agende|retorno|follow[- ]?up)(?:\s+(?:do|da|com|para|pro|pra))?\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'-]{1,40})(?=\s+(?:para|pra|amanhã|amanha|hoje|às|as|dia)|,|$)/i,
+      /(?:procura|procure|buscar|busca|localiza|localize|encontra|encontre)\s+(?:o cliente|a cliente|cliente|lead)?\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'-]{1,40})(?=\s|,|$)/i,
+    ];
+    for(const pattern of patterns){
+      const match=text.match(pattern);
+      if(match?.[1])return match[1].trim();
+    }
+    return '';
+  };
+
   const findLeadLocal=(items:any[],name:string)=>{
     const target=normalize(name);
     if(!target)return null;
@@ -249,8 +264,9 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
       }
       case'crm_schedule_followup':{
         if(!permissions.crmView)throw new Error('Seu perfil não tem acesso ao CRM.');
-        const lead=await findLead(String(p.customerName||''));
-        if(!lead)throw new Error('Não encontrei esse cliente no seu CRM.');
+        const inferredName=String(p.customerName||extractCustomerNameFromSpeech(raw)||lastCustomerName||'');
+        const lead=await findLead(inferredName);
+        if(!lead)throw new Error(inferredName?`Não encontrei ${inferredName} no CRM desta unidade.`:'Não consegui identificar o nome do cliente.');
         const due=String(p.followUpAt||'').trim()||parseRelativeDate(String(p.followUpText||raw));
         if(Number.isNaN(new Date(due).getTime()))throw new Error('Não consegui entender a data do retorno.');
         await showroomFlowService.updateCrmLead(lead.id,{status:'follow_up',nextFollowUpAt:due},{email:user.email,name:user.name});
@@ -259,8 +275,9 @@ const MotyqVoiceAssistant:React.FC<{user:User}>=({user})=>{
       }
       case'crm_contact_note_followup':{
         if(!permissions.crmView)throw new Error('Seu perfil não tem acesso ao CRM.');
-        const lead=await findLead(String(p.customerName||lastCustomerName||''));
-        if(!lead)throw new Error('Não consegui identificar de qual cliente você está falando. Diga o nome dele uma vez e depois eu mantenho o contexto.');
+        const inferredName=String(p.customerName||extractCustomerNameFromSpeech(raw)||lastCustomerName||'');
+        const lead=await findLead(inferredName);
+        if(!lead)throw new Error(inferredName?`Encontrei o nome ${inferredName} na sua fala, mas ele não está no CRM desta unidade.`:'Não consegui identificar de qual cliente você está falando. Diga o nome dele uma vez e depois eu mantenho o contexto.');
         const due=String(p.followUpAt||'').trim()||parseRelativeDate(String(p.followUpText||raw));
         if(Number.isNaN(new Date(due).getTime()))throw new Error('Não consegui entender a data do retorno.');
         const previous=String(lead.notes||'').trim();
