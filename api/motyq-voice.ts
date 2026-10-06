@@ -168,7 +168,7 @@ export default async function handler(req:any,res:any){
   const apiKey=gatewayKey||openaiKey;
   const baseUrl=gatewayKey?'https://ai-gateway.vercel.sh/v1':'https://api.openai.com/v1';
   const model=gatewayKey?'openai/gpt-6-luna':'gpt-6-luna';
-  if(!apiKey)return res.status(200).json({...fallback,mode:'basic'});
+  const geminiKey=String(process.env.GEMINI_API_KEY||process.env.GOOGLE_GENAI_API_KEY||'').trim();
 
   const now=clean(req.body?.now,80)||new Date().toISOString();
   const schema={
@@ -192,6 +192,13 @@ export default async function handler(req:any,res:any){
     }
   };
 
+  const parseGeminiJson=(payload:any)=>{
+    const text=String(payload?.candidates?.[0]?.content?.parts?.map((part:any)=>part?.text||'').join('')||'').trim();
+    if(!text)return null;
+    const cleanJson=text.replace(/^\`\`\`(?:json)?/i,'').replace(/\`\`\`$/,'').trim();
+    try{return JSON.parse(cleanJson);}catch{return null;}
+  };
+
   try{
     const prompt=`Você interpreta comandos de voz em português do Brasil para um DMS/CRM de concessionária chamado MOTYQ.
 Apenas escolha uma intenção permitida. Nunca invente cliente, placa, telefone, data ou veículo.
@@ -200,6 +207,25 @@ Datas relativas devem ser convertidas para ISO usando como referência ${now}.\n
 crm_move_stage só pode usar waiting, in_service, proposal ou follow_up.\nSe o usuário disser que tentou contato e na mesma frase pedir agendamento de retorno, use crm_contact_note_followup.
 Para perguntas como 'quantos Creta tem no estoque' ou 'quantos Corolla temos', use stock_count e coloque o modelo/marca em query. Para pedidos como SUV, automático, até determinado preço/KM ou opções de veículos, use stock_search e preencha category, maxPrice, maxKm, transmission e query quando houver.
 Responda curto em português no campo reply.`;
+    if(!apiKey&&geminiKey){
+      const geminiModel=String(process.env.GEMINI_INTENT_MODEL||'gemini-2.5-flash').trim();
+      const geminiResponse=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent`,{
+        method:'POST',
+        headers:{'x-goog-api-key':geminiKey,'content-type':'application/json'},
+        body:JSON.stringify({
+          contents:[{role:'user',parts:[{text:prompt+'\n\nComando do vendedor: '+transcript+'\nResponda SOMENTE JSON válido com intent, confidence, reply, needsConfirmation e params.'}]}],
+          generationConfig:{temperature:0.1,responseMimeType:'application/json'}
+        })
+      });
+      const geminiPayload:any=await geminiResponse.json().catch(()=>({}));
+      if(geminiResponse.ok){
+        const parsed=parseGeminiJson(geminiPayload);
+        if(parsed&&parsed.intent)return res.status(200).json({...fallback,...parsed,mode:'ai',provider:'gemini'});
+      }
+      return res.status(200).json({...fallback,mode:'basic'});
+    }
+    if(!apiKey)return res.status(200).json({...fallback,mode:'basic'});
+
     const response=await fetch(`${baseUrl}/responses`,{
       method:'POST',
       headers:{'authorization':`Bearer ${apiKey}`,'content-type':'application/json'},
