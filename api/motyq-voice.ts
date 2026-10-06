@@ -41,6 +41,20 @@ const fallbackIntent=(transcript:string)=>{
   if(summaryPhrases.some(phrase=>t.includes(normalize(phrase))) || (t==='estoque') || (t.includes('estoque')&&/(consult|mostr|resum|quant|ver|como esta)/.test(t)))
     return{...base,intent:'stock_summary',confidence:.94,reply:'Vou resumir o estoque atual.'};
 
+  const priceMatch=t.match(/(?:ate|até|no maximo|no máximo)\s*(?:r\$\s*)?([0-9]+(?:[.,][0-9]+)?)\s*(mil|k)?/i);
+  const kmMatch=t.match(/(?:ate|até|no maximo|no máximo|menos de)\s*([0-9]+(?:[.,][0-9]+)?)\s*(mil|k)?\s*km/i);
+  const toNumber=(match:any)=>{
+    if(!match)return null;
+    const base=Number(String(match[1]||'').replace('.','').replace(',','.'))||0;
+    return match[2]?Math.round(base*1000):Math.round(base);
+  };
+  const wantsVehicleOptions=/(suv|utilitario|utilitário|automatic|automático|automatica|automática|opcoes|opções|carros?\s+ate|veiculos?\s+ate|veículos?\s+ate|menos de .*km)/i.test(t);
+  if(wantsVehicleOptions){
+    const category=/\bsuv\b|utilitari/.test(t)?'suv':null;
+    const transmission=/automatic/.test(t)?'automatico':/manual/.test(t)?'manual':null;
+    return{...base,intent:'stock_search',confidence:.91,reply:'Vou procurar as melhores opções no estoque.',params:{category,maxPrice:toNumber(priceMatch),maxKm:toNumber(kmMatch),transmission,query:null}};
+  }
+
   const plate=(raw.match(/\b[A-Z]{3}[0-9A-Z][0-9A-Z][0-9]{2}\b/i)||[])[0];
   if(plate&&(t.includes('estoque')||t.includes('fipe')||t.includes('dias')||t.includes('carro')||t.includes('veiculo')||t.includes('placa')))
     return{...base,intent:'stock_find_vehicle',confidence:.95,reply:'Vou consultar esse veículo no estoque.',params:{query:plate.toUpperCase()}};
@@ -104,17 +118,17 @@ export default async function handler(req:any,res:any){
     additionalProperties:false,
     required:['intent','confidence','reply','needsConfirmation','params'],
     properties:{
-      intent:{type:'string',enum:['crm_create_lead','crm_add_note','crm_schedule_followup','crm_move_stage','crm_find_customer','crm_hot_leads','stock_find_vehicle','stock_oldest','stock_summary','open_crm','help','unknown']},
+      intent:{type:'string',enum:['crm_create_lead','crm_add_note','crm_schedule_followup','crm_move_stage','crm_find_customer','crm_hot_leads','stock_find_vehicle','stock_search','stock_oldest','stock_summary','open_crm','help','unknown']},
       confidence:{type:'number'},
       reply:{type:'string'},
       needsConfirmation:{type:'boolean'},
       params:{
         type:'object',additionalProperties:false,
-        required:['customerName','phone','interestModel','note','followUpAt','stage','query','sellerName'],
+        required:['customerName','phone','interestModel','note','followUpAt','stage','query','sellerName','category','maxPrice','maxKm','transmission'],
         properties:{
           customerName:{type:['string','null']},phone:{type:['string','null']},interestModel:{type:['string','null']},note:{type:['string','null']},
           followUpAt:{type:['string','null']},stage:{type:['string','null'],enum:['waiting','in_service','proposal','follow_up',null]},
-          query:{type:['string','null']},sellerName:{type:['string','null']},
+          query:{type:['string','null']},sellerName:{type:['string','null']},category:{type:['string','null']},maxPrice:{type:['number','null']},maxKm:{type:['number','null']},transmission:{type:['string','null']},
         }
       }
     }
@@ -126,6 +140,7 @@ Apenas escolha uma intenção permitida. Nunca invente cliente, placa, telefone,
 Comandos destrutivos, venda concluída, perda definitiva, preço, aprovação, financeiro ou exclusão devem retornar unknown.
 Datas relativas devem ser convertidas para ISO usando como referência ${now}.
 crm_move_stage só pode usar waiting, in_service, proposal ou follow_up.
+Para pedidos como SUV, automático, até determinado preço/KM ou opções de veículos, use stock_search e preencha category, maxPrice, maxKm, transmission e query quando houver.
 Responda curto em português no campo reply.`;
     const response=await fetch(`${baseUrl}/responses`,{
       method:'POST',
