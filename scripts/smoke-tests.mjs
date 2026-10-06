@@ -210,7 +210,7 @@ for(const required of ['AGUARDANDO PREÇO','EM PRECIFICAÇÃO','ENVIAR PARA MESA
 const roleAwareRoot=read('components/RoleAwareRoot.tsx');
 if(!roleAwareRoot.includes('<PricingDesk user={user}/>'))fail('Pricing desk is not mounted for manager/admin.');
 const marketIqShell=read('components/MarketIQShell.tsx');
-if(!marketIqShell.includes('{!evaluator&&<MarketIQMarketScanBridge'))fail('Evaluator still has MarketScan mounted.');
+if(!marketIqShell.includes('{!evaluator&&<><MarketIQMarketScanBridge'))fail('Evaluator still has MarketScan mounted.');
 
 const visualAi=read('components/MarketIQVisualAI.tsx');
 for(const required of ['ANÁLISE IA','visual_analysis','SCORE VISUAL','PREPARAÇÃO VISUAL','IMPACTO SUGERIDO','safetyNote']){if(!visualAi.includes(required))fail('Visual AI pricing guard missing: '+required);}
