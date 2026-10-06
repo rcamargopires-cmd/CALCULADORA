@@ -195,3 +195,6 @@ const apiTree=fs.readdirSync(new URL('../api',import.meta.url)).filter(name=>/\.
 if(apiTree.length>12)fail('Too many Vercel API functions: '+apiTree.length+'. Consolidate routes before deploying.');
 
 console.log('MOTYQ smoke tests passed:',ids.length,'roadmap checks and core DMS guards.');
+
+const marketScanBridge=read('components/MarketIQMarketScanBridge.tsx');
+for(const required of ['fieldValue','input, select, textarea','fieldValue(\'Modelo / versão\')','fieldValue(\'Ano/modelo\')']){if(!marketScanBridge.includes(required))fail('MarketScan select-value guard missing: '+required);}
