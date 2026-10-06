@@ -72,6 +72,7 @@ if(!appShell.includes('currentStockService.getCurrent(companyIdForUser(user),sto
 
 const voiceUi=read('components/MotyqVoiceAssistant.tsx');
 const voiceApi=read('api/motyq-voice.ts');
+for(const required of ['consultar estoque','me mostra o estoque','quantos carros','stock_summary','stock_find_vehicle']){if(!voiceApi.includes(required))fail('Voice basic-language guard missing: '+required);}
 for(const required of ['Motyq Voice','SpeechRecognition','crm_create_lead','crm_add_note','crm_schedule_followup','stock_oldest','stock_summary']){if(!voiceUi.includes(required)&&!voiceApi.includes(required))fail('Motyq Voice guard missing: '+required);}
 for(const forbidden of ["intent:'finance_settle'","intent:'sale_close'","intent:'delete'"]){if(voiceApi.includes(forbidden))fail('Unsafe Motyq Voice intent exposed: '+forbidden);}
 if(!voiceApi.includes('verifyFirebaseToken')||!voiceApi.includes("model=gatewayKey?'openai/gpt-6-luna':'gpt-6-luna'"))fail('Motyq Voice authenticated AI parser guard missing.');
