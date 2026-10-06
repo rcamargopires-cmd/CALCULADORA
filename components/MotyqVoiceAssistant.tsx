@@ -35,11 +35,32 @@ const SUV_TERMS=['nivus','t-cross','tcross','creta','tracker','kicks','hr-v','hr
 const looksLikeSuv=(item:GroupStockItem)=>SUV_TERMS.some(term=>normalize(item.model).includes(normalize(term)));
 
 
+const chooseNaturalPtBrVoice=()=>{
+  if(typeof window==='undefined'||!('speechSynthesis' in window))return null;
+  const voices=window.speechSynthesis.getVoices();
+  const pt=voices.filter(voice=>String(voice.lang||'').toLowerCase().startsWith('pt'));
+  if(!pt.length)return null;
+  const preferred=[
+    /francisca/i,/luciana/i,/maria/i,/fernanda/i,/camila/i,/giovanna/i,/leticia/i,
+    /google.*portugu/i,/portugu[eê]s.*brasil/i,/brazil.*female/i,/female/i,
+  ];
+  for(const pattern of preferred){
+    const found=pt.find(voice=>pattern.test(String(voice.name||'')));
+    if(found)return found;
+  }
+  return pt.find(voice=>String(voice.lang||'').toLowerCase()==='pt-br')||pt[0]||null;
+};
+
 const speak=(text:string,onStart?:()=>void,onEnd?:()=>void)=>{
   if(!text||typeof window==='undefined'||!('speechSynthesis' in window)){onEnd?.();return;}
   window.speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(text);
-  u.lang='pt-BR';u.rate=1.03;u.pitch=1;
+  const voice=chooseNaturalPtBrVoice();
+  if(voice)u.voice=voice;
+  u.lang=voice?.lang||'pt-BR';
+  u.rate=.96;
+  u.pitch=1.04;
+  u.volume=1;
   u.onstart=()=>onStart?.();
   u.onend=()=>onEnd?.();
   u.onerror=()=>onEnd?.();
