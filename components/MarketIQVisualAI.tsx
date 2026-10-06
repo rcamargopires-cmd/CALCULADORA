@@ -1,4 +1,5 @@
 import React,{useEffect,useMemo,useState} from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, BrainCircuit, Camera, CheckCircle2, RefreshCw, Sparkles, X } from 'lucide-react';
 import { auth } from '../firebase';
 import { User } from '../types';
@@ -99,7 +100,7 @@ const MarketIQVisualAI:React.FC<Props>=({currentUser,companyId,storeId})=>{
   </button>;
 
   return <>
-    {portalHost&&React.createPortal(trigger,portalHost)}
+    {portalHost&&createPortal(trigger,portalHost)}
     {open&&<div className="fixed inset-0 z-[725] overflow-y-auto bg-slate-950/40 p-3 backdrop-blur-sm md:p-6" onClick={()=>!loading&&setOpen(false)}>
       <div className="mx-auto my-3 w-full max-w-4xl overflow-hidden rounded-[26px] border border-slate-200 bg-white text-slate-900 shadow-2xl" onClick={e=>e.stopPropagation()}>
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 md:px-6">
