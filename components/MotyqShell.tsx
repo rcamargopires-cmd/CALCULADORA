@@ -46,6 +46,7 @@ const integratedSellerLauncher=(button:HTMLButtonElement)=>{
   return title==='Minha Agenda Motyq'
     || title==='Histórico de Fechamentos'
     || title==='AssetGuard'
+    || title==='Solicitar avaliação'
     || text.includes('Smart Alerts')
     || text==='TradeCheck';
 };
@@ -97,6 +98,7 @@ const MotyqShell:React.FC<Props>=({
           <button className="mq-nav-item" onClick={()=>launcher('Minha Agenda Motyq')}><ListTodo size={18}/><span>Ações do dia</span></button>
           <button className="mq-nav-item" onClick={()=>launcher('Histórico de Fechamentos')}><Archive size={18}/><span>Resultados</span></button>
           <button className="mq-nav-item" onClick={()=>launcherText('TradeCheck')}><Search size={18}/><span>TradeCheck</span></button>
+          <button className="mq-nav-item" onClick={()=>launcher('Solicitar avaliação')}><ClipboardCheck size={18}/><span>Avaliações</span></button>
           <button className="mq-nav-item" onClick={()=>launcherText('Smart Alerts')}><BellRing size={18}/><span>Alertas</span></button>
           <button className="mq-nav-item" onClick={()=>launcher('AssetGuard')}><KeyRound size={18}/><span>AssetGuard</span></button>
         </>}
