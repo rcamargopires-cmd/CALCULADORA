@@ -71,6 +71,7 @@ const appShell=read('App.tsx');
 if(!appShell.includes('currentStockService.getCurrent(companyIdForUser(user),storeIdForUser(user))'))fail('Negotiation stock autofill guard missing.');
 
 const voiceUi=read('components/MotyqVoiceAssistant.tsx');
+for(const required of ['voiceOptions','selectedVoiceName','voiceschanged','TESTAR ESTA VOZ','motyq.voice.name']){if(!voiceUi.includes(required))fail('Voice selector guard missing: '+required);}
 for(const required of ['chooseNaturalPtBrVoice','francisca','luciana','u.rate=.96','u.pitch=1.04']){if(!voiceUi.includes(required))fail('Natural female pt-BR voice guard missing: '+required);}
 for(const required of ["case'stock_count'","Modelos:","Encontrei ${matches.length} opção"]){if(!voiceUi.includes(required))fail('Voice model result guard missing: '+required);}
 for(const required of ['isSimilarName','levenshtein','stock_search','SUV_TERMS','listStorePassages']){if(!voiceUi.includes(required)&&!read('services/showroomFlowService.ts').includes(required))fail('Voice fuzzy CRM guard missing: '+required);}
