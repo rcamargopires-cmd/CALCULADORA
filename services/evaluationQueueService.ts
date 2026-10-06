@@ -2,7 +2,7 @@ import { collection, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc,
 import { db } from '../firebase';
 import { User } from '../types';
 
-export type EvaluationQueueStatus = 'requested' | 'in_progress' | 'completed' | 'rejected' | 'cancelled';
+export type EvaluationQueueStatus = 'requested' | 'in_progress' | 'inspection' | 'awaiting_pricing' | 'pricing' | 'completed' | 'rejected' | 'cancelled';
 
 export interface EvaluationQueueRequest {
   id: string;
@@ -29,6 +29,10 @@ export interface EvaluationQueueRequest {
   createdAt?: any;
   updatedAt?: any;
   startedAt?: any;
+  inspectionCompletedAt?: any;
+  pricingStartedAt?: any;
+  pricingEmail?: string;
+  pricingName?: string;
   completedAt?: any;
 }
 
@@ -105,10 +109,30 @@ export const evaluationQueueService = {
 
   start: async (id: string, evaluator: User) => {
     await updateDoc(doc(db, COLLECTION, id), {
-      status: 'in_progress',
+      status: 'inspection',
       evaluatorEmail: evaluator.email.toLowerCase(),
       evaluatorName: evaluator.name || evaluator.email,
       startedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  completeInspection: async (id: string, evaluator: User) => {
+    await updateDoc(doc(db, COLLECTION, id), {
+      status: 'awaiting_pricing',
+      evaluatorEmail: evaluator.email.toLowerCase(),
+      evaluatorName: evaluator.name || evaluator.email,
+      inspectionCompletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  startPricing: async (id: string, actor: User) => {
+    await updateDoc(doc(db, COLLECTION, id), {
+      status: 'pricing',
+      pricingEmail: actor.email.toLowerCase(),
+      pricingName: actor.name || actor.email,
+      pricingStartedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
   },
