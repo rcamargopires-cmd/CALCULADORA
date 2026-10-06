@@ -183,8 +183,8 @@ const MarketIQLookupBridge: React.FC = () => {
     return () => window.clearInterval(timer);
   }, []);
 
-  const showExternal = (plate: string, text = 'Não consegui identificar esta placa automaticamente. Envie o CRLV-e para continuar a avaliação.') => {
-    setExternal({ plate });
+  const showExternal = (_plate: string, text = 'Não consegui identificar esta placa automaticamente. Selecione fabricante, modelo e ano/modelo para continuar.') => {
+    setExternal(null);
     setNotice({ kind: 'warn', text });
   };
 
@@ -318,7 +318,7 @@ const MarketIQLookupBridge: React.FC = () => {
 
         if (cached?.source === 'crlv') {
           if (Number(cached.parserVersion || 0) < CRLV_PARSER_VERSION) {
-            showExternal(plate, 'Esta placa tem uma leitura antiga de CRLV. Envie o CRLV-e uma vez para revalidar o ano/modelo.');
+            showExternal(plate, 'A identificação automática desta placa precisa ser refeita. Selecione fabricante, modelo e ano/modelo para continuar.');
             return;
           }
 
@@ -532,22 +532,6 @@ const MarketIQLookupBridge: React.FC = () => {
           </button>
         ))}
       </div>
-    </div>}
-    {external && <div className="rounded-2xl border border-white/10 bg-[#11191b]/95 p-4 text-white shadow-2xl backdrop-blur-xl">
-      <div className="mb-3">
-        <p className="text-[9px] font-black uppercase tracking-[.16em] text-cyan-300">VALIDAR CRLV-E</p>
-        <p className="mt-1 text-sm font-semibold">{external.plate} · confirmação de ano/modelo</p>
-        <p className="mt-1 text-[11px] leading-4 text-zinc-500">A consulta automática por placa não concluiu a identificação. Envie uma foto ou PDF do CRLV-e para continuar.</p>
-      </div>
-      <label className={`flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[.08] text-xs font-black uppercase tracking-[.12em] text-cyan-200 transition hover:bg-cyan-300/[.13] ${readingCrlv ? 'pointer-events-none opacity-50' : ''}`}>
-        {readingCrlv ? 'LENDO CRLV-E...' : 'ENVIAR CRLV-E'}
-        <input type="file" accept="image/*,application/pdf" className="hidden" disabled={readingCrlv} onChange={e => {
-          const file = e.target.files?.[0];
-          if (file) void readCrlv(file);
-          e.currentTarget.value = '';
-        }} />
-      </label>
-      <p className="mt-2 text-center text-[10px] text-zinc-600">Foto, print ou PDF · até 12 MB</p>
     </div>}
   </div>;
 };
