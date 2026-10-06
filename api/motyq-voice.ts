@@ -78,6 +78,11 @@ const fallbackIntent=(transcript:string,contextCustomerName='')=>{
   if(note)
     return{...base,intent:'crm_add_note',confidence:.88,reply:'Vou adicionar essa observação ao CRM.',params:{customerName:note[1].trim(),note:note[2].trim()}};
 
+  const contactAndFollow=/(tentei falar|tentei ligar|liguei|chamei|mandei mensagem|nao consegui falar|não consegui falar|sem sucesso)/i.test(t)
+    && /(agenda|agende|agendar|retorno|follow[- ]?up|amanha|amanhã|depois)/i.test(t);
+  if(contactAndFollow){
+    return{...base,intent:'crm_contact_note_followup',confidence:.91,reply:'Vou registrar a tentativa de contato e agendar o próximo retorno.',params:{customerName:contextCustomerName||'',note:raw,followUpText:raw}};
+  }
   const follow=t.match(/(?:agenda|agende|marque|programa|programe)(?: um)?\s+(?:retorno|follow[- ]?up|ligacao|ligação)(?: com| para)?\s+([^,]+?)(?:\s+(amanha|amanhã|hoje|dia|as|às)\b|,|$)/i);
   if(follow)
     return{...base,intent:'crm_schedule_followup',confidence:.84,reply:'Vou preparar esse follow-up.',params:{customerName:follow[1].trim(),followUpText:raw}};
@@ -127,7 +132,7 @@ export default async function handler(req:any,res:any){
     additionalProperties:false,
     required:['intent','confidence','reply','needsConfirmation','params'],
     properties:{
-      intent:{type:'string',enum:['crm_create_lead','crm_add_note','crm_schedule_followup','crm_move_stage','crm_find_customer','crm_hot_leads','stock_find_vehicle','stock_count','stock_search','stock_oldest','stock_summary','open_crm','help','unknown']},
+      intent:{type:'string',enum:['crm_create_lead','crm_add_note','crm_schedule_followup','crm_contact_note_followup','crm_move_stage','crm_find_customer','crm_hot_leads','stock_find_vehicle','stock_count','stock_search','stock_oldest','stock_summary','open_crm','help','unknown']},
       confidence:{type:'number'},
       reply:{type:'string'},
       needsConfirmation:{type:'boolean'},
@@ -147,8 +152,8 @@ export default async function handler(req:any,res:any){
     const prompt=`Você interpreta comandos de voz em português do Brasil para um DMS/CRM de concessionária chamado MOTYQ.
 Apenas escolha uma intenção permitida. Nunca invente cliente, placa, telefone, data ou veículo.
 Comandos destrutivos, venda concluída, perda definitiva, preço, aprovação, financeiro ou exclusão devem retornar unknown.
-Datas relativas devem ser convertidas para ISO usando como referência ${now}.
-crm_move_stage só pode usar waiting, in_service, proposal ou follow_up.
+Datas relativas devem ser convertidas para ISO usando como referência ${now}.\nCliente em contexto recente: ${contextCustomerName||'nenhum'}. Se o usuário disser ele, ela ou esse cliente sem repetir o nome, use esse contexto somente quando existir.
+crm_move_stage só pode usar waiting, in_service, proposal ou follow_up.\nSe o usuário disser que tentou contato e na mesma frase pedir agendamento de retorno, use crm_contact_note_followup.
 Para perguntas como 'quantos Creta tem no estoque' ou 'quantos Corolla temos', use stock_count e coloque o modelo/marca em query. Para pedidos como SUV, automático, até determinado preço/KM ou opções de veículos, use stock_search e preencha category, maxPrice, maxKm, transmission e query quando houver.
 Responda curto em português no campo reply.`;
     const response=await fetch(`${baseUrl}/responses`,{
