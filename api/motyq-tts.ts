@@ -59,7 +59,6 @@ export default async function handler(req:any,res:any){
         }],
         generationConfig:{
           responseModalities:['AUDIO'],
-          responseFormat:{audio:{mimeType:'AUDIO_WAV',sampleRate:24000}},
           speechConfig:{
             languageCode:'pt-BR',
             voiceConfig:{voice}
