@@ -175,7 +175,119 @@ export default async function handler(req: any, res: any) {
     if (!firebaseUser?.email) return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(503).json({ error: 'MarketScan ainda não está configurado no servidor.' });
+    if (!apiKey) return res.status(503).json({ error: 'Gemini ainda não está configurado no servidor.' });
+
+    if (req.body?.action === 'visual_analysis') {
+      const photos = Array.isArray(req.body?.photos) ? req.body.photos.slice(0, 10) : [];
+      const imageParts = photos
+        .map((item:any) => {
+          const url = String(item?.dataUrl || item?.url || '');
+          const match = url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+          if (!match) return null;
+          return { inlineData: { mimeType: match[1], data: match[2] } };
+        })
+        .filter(Boolean);
+
+      if (!imageParts.length) return res.status(400).json({ error: 'Adicione fotos da avaliação antes de usar a análise visual por IA.' });
+
+      const vehicle = String(req.body?.vehicle || '').trim();
+      const plate = String(req.body?.plate || '').trim();
+      const yearLabel = String(req.body?.year || '').trim();
+      const kmLabel = String(req.body?.km || '').trim();
+      const fipeValue = toNumber(req.body?.fipe);
+      const evaluatorDamageTotal = toNumber(req.body?.damageTotal);
+      const categories = photos.map((item:any) => String(item?.category || '')).filter(Boolean);
+
+      const visualPrompt = `
+Você é o assistente visual da Mesa de Precificação do MOTYQ, um DMS de veículos seminovos no Brasil.
+Analise SOMENTE o que é visualmente sustentado pelas fotos anexadas. Não invente defeitos.
+
+VEÍCULO
+- Placa: ${plate || 'não informada'}
+- Modelo: ${vehicle || 'não informado'}
+- Ano/modelo: ${yearLabel || 'não informado'}
+- KM: ${kmLabel || 'não informado'}
+- FIPE: ${fipeValue ? 'R$ ' + fipeValue.toLocaleString('pt-BR') : 'não informada'}
+- Avarias já registradas pelo avaliador: R$ ${evaluatorDamageTotal.toLocaleString('pt-BR')}
+- Categorias de fotos recebidas: ${categories.join(', ') || 'não classificadas'}
+
+OBJETIVO
+Ajude a Mesa de Precificação a revisar a inspeção visual antes da decisão de compra.
+
+PODE AVALIAR VISUALMENTE
+- riscos, amassados e danos aparentes de lataria/para-choque
+- possível diferença de tonalidade ou retoque, sempre como "possível" quando não for conclusivo
+- condição aparente de faróis, vidros e acabamentos
+- desgaste aparente de pneus quando visível
+- desgaste de bancos, volante e acabamento interno
+- luzes/alertas visíveis no painel
+- falta de cobertura fotográfica importante
+
+NÃO PODE AFIRMAR
+- dano estrutural/chassi
+- problema mecânico interno
+- quilometragem adulterada
+- histórico de colisão
+- sinistro, leilão ou enchente
+sem evidência documental específica. Nesses casos use "merece inspeção presencial".
+
+CUSTO
+Estime apenas uma faixa aproximada de preparação VISUAL com base nas fotos. Seja conservador.
+O impacto sugerido na compra deve ser um valor NEGATIVO ou ZERO e representar uma reserva adicional prudente, nunca uma decisão automática.
+Se as fotos forem insuficientes, reduza a confiança e não invente custo.
+
+RETORNE SOMENTE JSON válido:
+{
+  "visualScore": 0,
+  "overallConfidence": "high|medium|low",
+  "summary": "resumo curto",
+  "findings": [
+    {
+      "area": "Lataria",
+      "finding": "descrição objetiva",
+      "confidence": "high|medium|low",
+      "severity": "low|medium|high",
+      "action": "ação sugerida"
+    }
+  ],
+  "missingViews": ["traseira"],
+  "photoCoverage": 0,
+  "estimatedPrepLow": 0,
+  "estimatedPrepHigh": 0,
+  "impactSuggested": 0,
+  "pricingNote": "como isso deve ser considerado pela mesa",
+  "safetyNote": "A análise visual é apoio e não substitui inspeção presencial."
+}
+`;
+
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: String(process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash'),
+        contents: [{ role: 'user', parts: [{ text: visualPrompt }, ...imageParts] }],
+        config: { responseMimeType: 'application/json', temperature: 0.15 },
+      });
+      const parsed = parseJson(response.text || '');
+      if (!parsed) return res.status(502).json({ error: 'A IA não conseguiu estruturar a análise visual nesta tentativa.' });
+
+      const low = Math.max(0, Math.round(toNumber(parsed.estimatedPrepLow) / 50) * 50);
+      const high = Math.max(low, Math.round(toNumber(parsed.estimatedPrepHigh) / 50) * 50);
+      const impact = Math.min(0, -Math.abs(Math.round(toNumber(parsed.impactSuggested) / 50) * 50));
+
+      return res.status(200).json({
+        visualScore: clamp(Math.round(toNumber(parsed.visualScore)), 0, 100),
+        overallConfidence: ['high','medium','low'].includes(String(parsed.overallConfidence)) ? parsed.overallConfidence : 'low',
+        summary: String(parsed.summary || '').slice(0, 700),
+        findings: Array.isArray(parsed.findings) ? parsed.findings.slice(0, 12) : [],
+        missingViews: Array.isArray(parsed.missingViews) ? parsed.missingViews.slice(0, 12) : [],
+        photoCoverage: clamp(Math.round(toNumber(parsed.photoCoverage)), 0, 100),
+        estimatedPrepLow: low,
+        estimatedPrepHigh: high,
+        impactSuggested: impact,
+        pricingNote: String(parsed.pricingNote || '').slice(0, 800),
+        safetyNote: 'Análise visual por IA é apoio à Mesa de Precificação e não substitui inspeção presencial, laudo ou diagnóstico mecânico.',
+        model: String(process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash'),
+      });
+    }
 
     const model = String(req.body?.model || '').trim();
     const year = toModelYear(req.body?.yearLabel || req.body?.year);
