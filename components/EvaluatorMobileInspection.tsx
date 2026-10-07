@@ -139,6 +139,34 @@ const EvaluatorMobileInspection:React.FC<{user:User}>=({user})=>{
   const requiredDone=requiredPhotos.filter(req=>photos.some(photo=>photo.category===req.category)).length;
   const missing=requiredPhotos.filter(req=>!photos.some(photo=>photo.category===req.category));
 
+  const resumeDraft=async(evaluation:MarketIQEvaluation)=>{
+    if(busy)return;
+    setBusy('resume');setError('');
+    try{
+      const plate=cleanPlate(evaluation.plate);
+      const candidates=requests.filter(item=>cleanPlate(item.plate)===plate);
+      let request=candidates.find(item=>(item.status==='in_progress'||item.status==='inspection')&&item.evaluatorEmail.toLowerCase()===email)
+        ||candidates.find(item=>item.status==='requested')
+        ||null;
+      if(!request){
+        throw new Error('Não encontrei a solicitação ativa desta avaliação. Ela continua preservada no histórico.');
+      }
+      if(request.status==='requested'){
+        await evaluationQueueService.start(request.id,user);
+        request={...request,status:'in_progress',evaluatorEmail:email,evaluatorName:user.name||user.email};
+      }
+      setActive(request);
+      setDraft(evaluation);
+      setPhotos(evaluation.photos||[]);
+      setDamages(evaluation.damages||[]);
+      setKm(evaluation.km||request.km||'');
+      setNotes(evaluation.notes||request.notes||'');
+      setStep(0);
+    }catch(e:any){
+      setError(e?.message||'Não foi possível reabrir este rascunho.');
+    }finally{setBusy('');}
+  };
+
   const finishInspection=async()=>{
     if(!active||!draft||busy)return;
     if(missing.length){setStep(1);setError('Faltam fotos obrigatórias: '+missing.map(item=>item.label).join(', ')+'.');return;}
@@ -213,7 +241,7 @@ const EvaluatorMobileInspection:React.FC<{user:User}>=({user})=>{
       {error&&<div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       <div className="mb-4 grid grid-cols-2 rounded-2xl border bg-white p-1"><button onClick={()=>setTab('new')} className={'h-11 rounded-xl text-sm font-bold '+(tab==='new'?'bg-slate-950 text-white':'text-slate-500')}>Novas · {newItems.length}</button><button onClick={()=>setTab('mine')} className={'h-11 rounded-xl text-sm font-bold '+(tab==='mine'?'bg-slate-950 text-white':'text-slate-500')}>Em andamento · {mine.length}</button></div>
       {!list.length?<div className="grid min-h-56 place-items-center rounded-[24px] border border-dashed bg-white p-8 text-center"><div><RefreshCw size={26} className="mx-auto text-slate-300"/><p className="mt-3 font-semibold">{tab==='new'?'Nenhuma avaliação nova':'Nenhuma inspeção em andamento'}</p><p className="mt-1 text-sm text-slate-500">A fila atualiza automaticamente.</p></div></div>:<div className="space-y-3">{list.map(item=><article key={item.id} className="rounded-[24px] border bg-white p-4 shadow-sm"><div className="flex items-start justify-between"><div><p className="font-mono text-xl font-black">{item.plate}</p><p className="mt-1 text-sm font-semibold">{item.vehicle||'Veículo a identificar'}{item.year?' · '+item.year:''}</p><p className="mt-1 text-xs text-slate-500">Vendedor: {item.requesterName||item.requesterEmail}</p></div><span className={'rounded-full border px-2 py-1 text-[9px] font-black '+(item.status==='requested'?'border-amber-200 bg-amber-50 text-amber-700':'border-sky-200 bg-sky-50 text-sky-700')}>{item.status==='requested'?'NOVA':'EM INSPEÇÃO'}</span></div><button disabled={!!busy} onClick={()=>void openInspection(item)} className={'mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-black text-white '+(item.status==='requested'?'bg-cyan-600':'bg-slate-950')}><ClipboardCheck size={16}/>{busy===item.id?'ABRINDO...':item.status==='requested'?'ACEITAR AVALIAÇÃO':'CONTINUAR INSPEÇÃO'}</button></article>)}</div>}
-      <div className="mt-6"><EvaluatorHistory companyId={companyId} storeId={storeId}/></div>
+      <div className="mt-6"><EvaluatorHistory companyId={companyId} storeId={storeId} onResumeDraft={item=>void resumeDraft(item)}/></div>
     </main>
   </div>;
 };
