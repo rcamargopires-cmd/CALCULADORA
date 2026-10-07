@@ -28,7 +28,6 @@ import MarketIQFinalDecisionBridge from './MarketIQFinalDecisionBridge';
 import ModuleErrorBoundary from './ModuleErrorBoundary';
 import EvaluationCenter from './EvaluationCenter';
 import EvaluationDecisionBridge from './EvaluationDecisionBridge';
-import EvaluatorWorkspace from './EvaluatorWorkspace';
 import EvaluatorMobileInspection from './EvaluatorMobileInspection';
 import PricingDesk from './PricingDesk';
 import MotyqCRM from './MotyqCRM';
