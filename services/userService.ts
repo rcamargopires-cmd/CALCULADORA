@@ -87,13 +87,8 @@ export const userService = {
 
   getUser: async (email: string): Promise<User | null> => {
     const normalized = String(email || '').trim().toLowerCase();
-    try {
-      const docRef = doc(db, USERS_COLLECTION, normalized);
-      const docSnap = await getDoc(docRef);
-      return docSnap.exists() ? docSnap.data() as User : null;
-    } catch (directError) {
-      const currentUser = auth.currentUser;
-      if (!currentUser) throw directError;
+    const currentUser = auth.currentUser;
+    if (currentUser?.email && currentUser.email.toLowerCase() === normalized) {
       try {
         const token = await currentUser.getIdToken();
         const response = await fetch('/api/analyze-deal?action=current-user', {
@@ -103,11 +98,13 @@ export const userService = {
         });
         const payload = await response.json().catch(() => ({}));
         if (response.ok && payload?.user) return payload.user as User;
-      } catch (fallbackError) {
-        console.error('Current-user fallback failed', fallbackError);
+      } catch (serverError) {
+        console.error('Secure current-user lookup failed', serverError);
       }
-      throw directError;
     }
+    const docRef = doc(db, USERS_COLLECTION, normalized);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? docSnap.data() as User : null;
   },
 
   getManagementContext: async (actor: User, companyId?: string): Promise<{ users: User[]; stores: Store[]; companyId: string }> => {
