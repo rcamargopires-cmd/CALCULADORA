@@ -29,6 +29,7 @@ import ModuleErrorBoundary from './ModuleErrorBoundary';
 import EvaluationCenter from './EvaluationCenter';
 import EvaluationDecisionBridge from './EvaluationDecisionBridge';
 import EvaluatorWorkspace from './EvaluatorWorkspace';
+import EvaluatorMobileInspection from './EvaluatorMobileInspection';
 import PricingDesk from './PricingDesk';
 import MotyqCRM from './MotyqCRM';
 import MotyqVoiceAssistant from './MotyqVoiceAssistant';
@@ -96,11 +97,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => {
 };
 
 const EvaluatorMotyq = ({ user }: { user: User }) => <>
-  <ModuleErrorBoundary name="EvaluatorWorkspace" critical><EvaluatorWorkspace user={user}/></ModuleErrorBoundary>
-  <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
-  <Safe name="MarketIQShell"><MarketIQShell /></Safe>
-  <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
-  <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
+  <ModuleErrorBoundary name="EvaluatorMobileInspection" critical><EvaluatorMobileInspection user={user}/></ModuleErrorBoundary>
 </>;
 
 const RoleAwareRoot: React.FC = () => {
