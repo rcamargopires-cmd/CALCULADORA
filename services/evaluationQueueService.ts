@@ -1,8 +1,10 @@
-import { collection, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { arrayUnion, collection, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { User } from '../types';
 
 export type EvaluationQueueStatus = 'requested' | 'in_progress' | 'inspection' | 'awaiting_pricing' | 'pricing' | 'completed' | 'rejected' | 'cancelled';
+export type EvaluationAuditType = 'requested' | 'accepted' | 'inspection_saved' | 'sent_to_pricing' | 'pricing_started' | 'approved' | 'rejected' | 'cancelled';
+export type EvaluationAuditEvent = { type: EvaluationAuditType; at: string; byEmail: string; byName: string; note?: string };
 
 export interface EvaluationQueueRequest {
   id: string;
@@ -33,6 +35,11 @@ export interface EvaluationQueueRequest {
   pricingStartedAt?: any;
   pricingEmail?: string;
   pricingName?: string;
+  decisionReason?: string;
+  inspectionPhotoCount?: number;
+  inspectionDamageCount?: number;
+  inspectionDamageTotal?: number;
+  auditTrail?: EvaluationAuditEvent[];
   completedAt?: any;
 }
 
@@ -65,6 +72,12 @@ export const evaluationQueueService = {
       requesterEmail: safe(input.requesterEmail).toLowerCase(),
       evaluatorEmail: safe(input.evaluatorEmail).toLowerCase(),
       status: 'requested',
+      auditTrail: [{
+        type: 'requested',
+        at: new Date().toISOString(),
+        byEmail: safe(input.requesterEmail).toLowerCase(),
+        byName: safe(input.requesterName) || safe(input.requesterEmail),
+      }],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -113,16 +126,51 @@ export const evaluationQueueService = {
       evaluatorEmail: evaluator.email.toLowerCase(),
       evaluatorName: evaluator.name || evaluator.email,
       startedAt: serverTimestamp(),
+      auditTrail: arrayUnion({
+        type: 'accepted',
+        at: new Date().toISOString(),
+        byEmail: evaluator.email.toLowerCase(),
+        byName: evaluator.name || evaluator.email,
+      }),
       updatedAt: serverTimestamp(),
     });
   },
 
-  completeInspection: async (id: string, evaluator: User) => {
+  linkInspectionDraft: async (id: string, marketIqEvaluationId: string, evaluator: User) => {
+    await updateDoc(doc(db, COLLECTION, id), {
+      marketIqEvaluationId,
+      auditTrail: arrayUnion({
+        type: 'inspection_saved',
+        at: new Date().toISOString(),
+        byEmail: evaluator.email.toLowerCase(),
+        byName: evaluator.name || evaluator.email,
+        note: 'Rascunho de inspeção vinculado.',
+      }),
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  completeInspection: async (
+    id: string,
+    evaluator: User,
+    summary?: { marketIqEvaluationId?: string; photoCount?: number; damageCount?: number; damageTotal?: number },
+  ) => {
     await updateDoc(doc(db, COLLECTION, id), {
       status: 'awaiting_pricing',
       evaluatorEmail: evaluator.email.toLowerCase(),
       evaluatorName: evaluator.name || evaluator.email,
+      ...(summary?.marketIqEvaluationId ? { marketIqEvaluationId: summary.marketIqEvaluationId } : {}),
+      inspectionPhotoCount: Math.max(0, Number(summary?.photoCount || 0)),
+      inspectionDamageCount: Math.max(0, Number(summary?.damageCount || 0)),
+      inspectionDamageTotal: Math.max(0, Number(summary?.damageTotal || 0)),
       inspectionCompletedAt: serverTimestamp(),
+      auditTrail: arrayUnion({
+        type: 'sent_to_pricing',
+        at: new Date().toISOString(),
+        byEmail: evaluator.email.toLowerCase(),
+        byName: evaluator.name || evaluator.email,
+        note: `${Math.max(0, Number(summary?.photoCount || 0))} foto(s) · ${Math.max(0, Number(summary?.damageCount || 0))} avaria(s)`,
+      }),
       updatedAt: serverTimestamp(),
     });
   },
@@ -133,15 +181,36 @@ export const evaluationQueueService = {
       pricingEmail: actor.email.toLowerCase(),
       pricingName: actor.name || actor.email,
       pricingStartedAt: serverTimestamp(),
+      auditTrail: arrayUnion({
+        type: 'pricing_started',
+        at: new Date().toISOString(),
+        byEmail: actor.email.toLowerCase(),
+        byName: actor.name || actor.email,
+      }),
       updatedAt: serverTimestamp(),
     });
   },
 
-  finish: async (id: string, status: 'completed' | 'rejected', recommendedBuy?: number, marketIqEvaluationId?: string) => {
+  finish: async (
+    id: string,
+    status: 'completed' | 'rejected',
+    recommendedBuy?: number,
+    marketIqEvaluationId?: string,
+    decisionReason?: string,
+    actor?: { email?: string; name?: string },
+  ) => {
     await updateDoc(doc(db, COLLECTION, id), {
       status,
       ...(typeof recommendedBuy === 'number' ? { recommendedBuy } : {}),
       ...(marketIqEvaluationId ? { marketIqEvaluationId } : {}),
+      ...(safe(decisionReason) ? { decisionReason: safe(decisionReason) } : {}),
+      auditTrail: arrayUnion({
+        type: status === 'completed' ? 'approved' : 'rejected',
+        at: new Date().toISOString(),
+        byEmail: safe(actor?.email).toLowerCase(),
+        byName: safe(actor?.name || actor?.email),
+        ...(safe(decisionReason) ? { note: safe(decisionReason) } : {}),
+      }),
       completedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
