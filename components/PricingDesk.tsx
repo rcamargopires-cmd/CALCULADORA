@@ -23,15 +23,15 @@ const PricingDesk:React.FC<{user:User}>=({user})=>{
     return evaluationQueueService.subscribe(user,companyId,storeId,setRequests,()=>setError('Não foi possível carregar a mesa de precificação.'));
   },[user,companyId,storeId]);
 
-  const queue=useMemo(()=>requests.filter(item=>item.status==='awaiting_pricing'||item.status==='pricing'),[requests]);
-  const waiting=queue.filter(item=>item.status==='awaiting_pricing').length;
+  const queue=useMemo(()=>requests.filter(item=>item.status==='awaiting_pricing'||item.status==='pricing'||(item.status==='completed'&&!!item.marketIqEvaluationId&&typeof item.recommendedBuy!=='number')),[requests]);
+  const waiting=queue.filter(item=>item.status==='awaiting_pricing'||item.status==='completed').length;
   const active=queue.filter(item=>item.status==='pricing').length;
 
   const startPricing=async(request:EvaluationQueueRequest)=>{
     if(busyId)return;
     setBusyId(request.id);setError('');
     try{
-      if(request.status==='awaiting_pricing')await evaluationQueueService.startPricing(request.id,user);
+      if(request.status==='awaiting_pricing'||request.status==='completed')await evaluationQueueService.startPricing(request.id,user);
       const activeRequest:EvaluationQueueRequest={...request,status:'pricing',pricingEmail:user.email.toLowerCase(),pricingName:user.name||user.email};
       window.sessionStorage.setItem(ACTIVE_EVALUATION_REQUEST_KEY,JSON.stringify(activeRequest));
       setOpen(false);
