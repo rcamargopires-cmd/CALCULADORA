@@ -89,7 +89,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => {
       <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
       <Safe name="EvaluationCenter"><EvaluationCenter /></Safe>
       <Safe name="MarketIQShell"><MarketIQShell /></Safe>
-      {user && <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>}
+      {user && ['manager','admin'].includes(String(user.role)) && <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>}
       <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
       <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
     </>}
