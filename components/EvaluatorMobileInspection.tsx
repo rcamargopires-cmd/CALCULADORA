@@ -147,13 +147,14 @@ const EvaluatorMobileInspection:React.FC<{user:User}>=({user})=>{
       const candidates=requests.filter(item=>cleanPlate(item.plate)===plate);
       let request=candidates.find(item=>(item.status==='in_progress'||item.status==='inspection')&&item.evaluatorEmail.toLowerCase()===email)
         ||candidates.find(item=>item.status==='requested')
+        ||candidates.find(item=>item.status==='completed'&&typeof item.recommendedBuy!=='number')
         ||null;
       if(!request){
-        throw new Error('Não encontrei a solicitação ativa desta avaliação. Ela continua preservada no histórico.');
+        throw new Error('Não encontrei uma solicitação editável para este rascunho. Se a Mesa já iniciou a precificação, a inspeção fica bloqueada para preservar a auditoria.');
       }
-      if(request.status==='requested'){
+      if(request.status==='requested'||(request.status==='completed'&&typeof request.recommendedBuy!=='number')){
         await evaluationQueueService.start(request.id,user);
-        request={...request,status:'in_progress',evaluatorEmail:email,evaluatorName:user.name||user.email};
+        request={...request,status:'in_progress',evaluatorEmail:email,evaluatorName:user.name||user.email,completedAt:undefined};
       }
       setActive(request);
       setDraft(evaluation);
