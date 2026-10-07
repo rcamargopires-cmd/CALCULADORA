@@ -37,28 +37,35 @@ const cleanDmsPermissionOverrides=(raw:any)=>{
 const emailOf=(value:any)=>String(value||'').trim().toLowerCase();
 const companyOf=(value:any)=>String(value?.companyId||'abrao-reze').trim()||'abrao-reze';
 const roleOf=(value:any)=>String(value?.role||'').trim();
-const cleanManagedUser=(raw:any)=>({
-  id:emailOf(raw?.email||raw?.id),
-  email:emailOf(raw?.email||raw?.id),
-  name:String(raw?.name||'').trim(),
-  role:String(raw?.role||'seller').trim(),
-  status:raw?.status==='inactive'?'inactive':'active',
-  createdAt:String(raw?.createdAt||new Date().toISOString()),
-  companyId:String(raw?.companyId||'abrao-reze').trim()||'abrao-reze',
-  storeId:String(raw?.storeId||'').trim(),
-  storeIds:Array.from(new Set([
-    ...(Array.isArray(raw?.storeIds)?raw.storeIds:[]),
-    raw?.storeId,
-  ].map((value:any)=>String(value||'').trim()).filter(Boolean))),
-  ...(raw?.role==='manager'&&DMS_ACCESS_PROFILES.has(String(raw?.dmsAccessProfile||''))?{dmsAccessProfile:String(raw.dmsAccessProfile)}:{}),
-  ...(raw?.dmsPermissionOverrides&&Object.keys(cleanDmsPermissionOverrides(raw.dmsPermissionOverrides)).length?{dmsPermissionOverrides:cleanDmsPermissionOverrides(raw.dmsPermissionOverrides)}:{}),
-  ...(raw?.goals?{goals:raw.goals}:{}),
-  ...(raw?.companyPlan?{companyPlan:raw.companyPlan}:{}),
-  ...(raw?.companyStatus?{companyStatus:raw.companyStatus}:{}),
-  ...(raw?.companyBilling?{companyBilling:raw.companyBilling}:{}),
-  ...(raw?.companyFiscal?{companyFiscal:raw.companyFiscal}:{}),
-  ...(raw?.companyModuleOverrides?{companyModuleOverrides:raw.companyModuleOverrides}:{}),
-});
+const cleanManagedUser=(raw:any)=>{
+  const requestedRole=String(raw?.role||'seller').trim();
+  const pricingDeskOnly=requestedRole==='pricing'||raw?.pricingDeskOnly===true;
+  const role=pricingDeskOnly?'manager':requestedRole;
+  const overrides=pricingDeskOnly?{}:cleanDmsPermissionOverrides(raw?.dmsPermissionOverrides);
+  return {
+    id:emailOf(raw?.email||raw?.id),
+    email:emailOf(raw?.email||raw?.id),
+    name:String(raw?.name||'').trim(),
+    role,
+    status:raw?.status==='inactive'?'inactive':'active',
+    createdAt:String(raw?.createdAt||new Date().toISOString()),
+    companyId:String(raw?.companyId||'abrao-reze').trim()||'abrao-reze',
+    storeId:String(raw?.storeId||'').trim(),
+    storeIds:Array.from(new Set([
+      ...(Array.isArray(raw?.storeIds)?raw.storeIds:[]),
+      raw?.storeId,
+    ].map((value:any)=>String(value||'').trim()).filter(Boolean))),
+    ...(role==='manager'&&DMS_ACCESS_PROFILES.has(String(raw?.dmsAccessProfile||''))?{dmsAccessProfile:String(raw.dmsAccessProfile)}:{}),
+    ...(pricingDeskOnly?{pricingDeskOnly:true}:{}),
+    ...(!pricingDeskOnly&&Object.keys(overrides).length?{dmsPermissionOverrides:overrides}:{}),
+    ...(raw?.goals?{goals:raw.goals}:{}),
+    ...(raw?.companyPlan?{companyPlan:raw.companyPlan}:{}),
+    ...(raw?.companyStatus?{companyStatus:raw.companyStatus}:{}),
+    ...(raw?.companyBilling?{companyBilling:raw.companyBilling}:{}),
+    ...(raw?.companyFiscal?{companyFiscal:raw.companyFiscal}:{}),
+    ...(raw?.companyModuleOverrides?{companyModuleOverrides:raw.companyModuleOverrides}:{}),
+  };
+};
 
 const managementActor=async(req:any)=>{
   const authHeader=String(req.headers?.authorization||'');
@@ -86,6 +93,7 @@ const safeDocId=(value:any)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').re
 const managerPermission=(actor:any,key:string,managementDefault:boolean)=>{
   if(roleOf(actor)==='admin')return true;
   if(roleOf(actor)!=='manager')return false;
+  if(actor?.pricingDeskOnly===true)return false;
   const overrides=actor?.dmsPermissionOverrides&&typeof actor.dmsPermissionOverrides==='object'?actor.dmsPermissionOverrides:{};
   if(typeof overrides?.[key]==='boolean')return overrides[key]===true;
   const profile=String(actor?.dmsAccessProfile||'');
