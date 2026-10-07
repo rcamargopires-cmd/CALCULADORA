@@ -109,14 +109,28 @@ const App: React.FC = () => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser && firebaseUser.email) {
         try {
-          let dbUser = await userService.getUser(firebaseUser.email);
-          if (!dbUser && firebaseUser.email === 'r.camargo.pires@gmail.com') {
-            const newUser: User = { id: firebaseUser.email, email: firebaseUser.email, name: firebaseUser.displayName || 'Admin', role: 'admin', status: 'active', createdAt: new Date().toISOString() };
-            await userService.save(newUser);
-            dbUser = newUser;
+          const normalizedEmail = firebaseUser.email.trim().toLowerCase();
+          // O administrador master não deve depender de uma leitura do Firestore para entrar.
+          // Isso mantém o acesso de recuperação disponível mesmo quando o Firestore está
+          // temporariamente limitado (HTTP 429) ou com regras em propagação.
+          if (normalizedEmail === 'r.camargo.pires@gmail.com') {
+            const adminUser: User = {
+              id: normalizedEmail,
+              email: normalizedEmail,
+              name: firebaseUser.displayName || 'Reinaldo',
+              role: 'admin',
+              status: 'active',
+              createdAt: new Date().toISOString(),
+              companyId: 'abrao-reze',
+              storeId: 'outlet-sorocaba',
+            };
+            setUser(adminUser);
+            setAuthError('');
+          } else {
+            const dbUser = await userService.getUser(normalizedEmail);
+            if (dbUser && dbUser.status === 'active') { setUser(dbUser); setAuthError(''); }
+            else { setUser(null); setAuthError('Acesso negado. Sua conta não está ativa ou não possui permissão.'); await signOut(auth); }
           }
-          if (dbUser && dbUser.status === 'active') { setUser(dbUser); setAuthError(''); }
-          else { setUser(null); setAuthError('Acesso negado. Sua conta não está ativa ou não possui permissão.'); await signOut(auth); }
         } catch (error) { console.error('Error fetching user:', error); setAuthError('Erro ao verificar permissões.'); setUser(null); }
       } else setUser(null);
       setIsAuthLoading(false);
