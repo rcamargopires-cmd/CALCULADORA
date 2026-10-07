@@ -125,14 +125,30 @@ const authHeaders = async () => ({
 
 const docIdFromName = (name = '') => decodeURIComponent(name.split('/').pop() || '');
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const fetchWithRetry = async (url: string, init: RequestInit = {}, label = 'firestore') => {
+  let last: Response | null = null;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const response = await fetch(url, init);
+    last = response;
+    if (response.status !== 429 && response.status !== 503) return response;
+    const retryAfter = Number(response.headers.get('retry-after') || 0);
+    const delay = retryAfter > 0 ? retryAfter * 1000 : 250 * Math.pow(2, attempt);
+    console.warn(`${label} retry ${attempt + 1}/4 after HTTP ${response.status} in ${delay}ms`);
+    await sleep(delay);
+  }
+  return last as Response;
+};
+
 export const motyqFirestore = {
   configured: () => Boolean(String(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '').trim()),
 
   get: async (collection: string, id: string) => {
     const { docsBase } = ctx();
-    const response = await fetch(`${docsBase}/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, {
+    const response = await fetchWithRetry(`${docsBase}/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, {
       headers: await authHeaders(),
-    });
+    }, 'firestore_get');
     if (response.status === 404) return null;
     const data: any = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(`firestore_get_${response.status}`);
@@ -144,13 +160,13 @@ export const motyqFirestore = {
     const params = new URLSearchParams();
     Object.keys(data).forEach(key => params.append('updateMask.fieldPaths', key));
     const url = `${docsBase}/${encodeURIComponent(collection)}/${encodeURIComponent(id)}?${params.toString()}`;
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'PATCH',
       headers: await authHeaders(),
       body: JSON.stringify({
         fields: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, toValue(value)])),
       }),
-    });
+    }, 'firestore_patch');
     const body: any = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(`firestore_patch_${response.status}_${body?.error?.message || ''}`);
     return { id: docIdFromName(body.name), ...fieldsToObject(body.fields || {}) };
@@ -158,10 +174,10 @@ export const motyqFirestore = {
 
   delete: async (collection: string, id: string) => {
     const { docsBase } = ctx();
-    const response = await fetch(`${docsBase}/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, {
+    const response = await fetchWithRetry(`${docsBase}/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, {
       method: 'DELETE',
       headers: await authHeaders(),
-    });
+    }, 'firestore_delete');
     if (response.status === 404) return false;
     if (!response.ok) throw new Error(`firestore_delete_${response.status}`);
     return true;
@@ -184,7 +200,7 @@ export const motyqFirestore = {
       ? fieldFilters[0]
       : { compositeFilter: { op: 'AND', filters: fieldFilters } };
 
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(databaseId)}/documents:runQuery`,
       {
         method: 'POST',
@@ -197,6 +213,7 @@ export const motyqFirestore = {
           },
         }),
       },
+      'firestore_query',
     );
     const rows: any[] = await response.json().catch(() => []);
     if (!response.ok) throw new Error(`firestore_query_${response.status}`);
