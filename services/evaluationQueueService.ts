@@ -107,7 +107,7 @@ export const evaluationQueueService = {
 
     return onSnapshot(q, snapshot => {
       const items = newest(snapshot.docs.map(item => ({ id: item.id, ...item.data() } as EvaluationQueueRequest)));
-      if (currentUser.role === 'manager') {
+      if (currentUser.role === 'manager' && !currentUser.pricingDeskOnly) {
         const email = currentUser.email.toLowerCase();
         callback(items.filter(item => !item.evaluatorEmail || item.evaluatorEmail === email));
         return;
@@ -141,11 +141,20 @@ export const evaluationQueueService = {
     summary?: { marketIqEvaluationId?: string; photoCount?: number; damageCount?: number; damageTotal?: number },
   ) => {
     await updateDoc(doc(db, COLLECTION, id), {
-      status: 'completed',
+      status: 'awaiting_pricing',
       evaluatorEmail: evaluator.email.toLowerCase(),
       evaluatorName: evaluator.name || evaluator.email,
       ...(summary?.marketIqEvaluationId ? { marketIqEvaluationId: summary.marketIqEvaluationId } : {}),
-      completedAt: serverTimestamp(),
+      ...(typeof summary?.photoCount === 'number' ? { inspectionPhotoCount: summary.photoCount } : {}),
+      ...(typeof summary?.damageCount === 'number' ? { inspectionDamageCount: summary.damageCount } : {}),
+      ...(typeof summary?.damageTotal === 'number' ? { inspectionDamageTotal: summary.damageTotal } : {}),
+      inspectionCompletedAt: serverTimestamp(),
+      auditTrail: arrayUnion({
+        type: 'sent_to_pricing',
+        at: new Date().toISOString(),
+        byEmail: evaluator.email.toLowerCase(),
+        byName: evaluator.name || evaluator.email,
+      }),
       updatedAt: serverTimestamp(),
     });
   },
