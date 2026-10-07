@@ -146,8 +146,8 @@ const financeAccountSource=read('services/financeAccountService.ts');
 if(!financeAccountSource.includes('cleanupKnownQaAccounts')||!financeAccountSource.includes('QA TEMPORÁRIA - REMOVER')||!financeAccountSource.includes('CAIXA TESTE MOTYQ CHECKLIST — TEMPORÁRIO'))fail('QA finance cleanup guard missing.');
 
 const autoHealth=read('components/DmsIntegrityAutoRunner.tsx');
-for(const required of ['TST0Z01','currentStockService.markOut','prepTrackService.deleteOrder']){if(!autoHealth.includes(required))fail('Synthetic QA vehicle cleanup guard missing: '+required);}
-if(!autoHealth.includes('cleanupKnownQaRecords'))fail('Automatic DMS health no longer cleans known QA deals before diagnosis.');
+for(const forbidden of ['currentStockService.markOut','prepTrackService.deleteOrder','cleanupKnownQaRecords']){if(autoHealth.includes(forbidden))fail('Heavy QA cleanup must not run automatically in production: '+forbidden);}
+if(!autoHealth.includes('not executed on page load'))fail('Production integrity runner must remain disabled on page load.');
 
 for(const filePath of ['components/SmartAlerts.tsx','components/ExecutiveInsights.tsx','components/AssetGuardPanel.tsx']){const source=read(filePath);if(source.includes('DealMaster'))fail('Legacy DealMaster label guard missing in '+filePath);}
 
