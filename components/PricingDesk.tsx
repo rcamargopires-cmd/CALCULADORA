@@ -10,11 +10,11 @@ import { EvaluationQueueRequest,evaluationQueueService } from '../services/evalu
 const ACTIVE_EVALUATION_REQUEST_KEY='motyq:active-evaluation-request-v2';
 const money=(value?:number)=>typeof value==='number'&&Number.isFinite(value)?value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'—';
 
-const PricingDesk:React.FC<{user:User}>=({user})=>{
+const PricingDesk:React.FC<{user:User;defaultOpen?:boolean}>=({user,defaultOpen=false})=>{
   const companyId=user.role==='admin'?companyScopeService.get(user):companyIdForUser(user);
   const storeId=user.role==='admin'?storeScopeService.get(user):storeIdForUser(user);
   const[requests,setRequests]=useState<EvaluationQueueRequest[]>([]);
-  const[open,setOpen]=useState(false);
+  const[open,setOpen]=useState(defaultOpen);
   const[busyId,setBusyId]=useState('');
   const[error,setError]=useState('');
 
