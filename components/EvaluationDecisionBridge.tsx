@@ -24,6 +24,9 @@ const EvaluationDecisionBridge: React.FC = () => {
         plate: cleanPlate(detail.plate),
         status: 'approved',
         value: typeof detail.value === 'number' ? detail.value : undefined,
+        justification: String(detail.justification || '').trim(),
+        actorEmail: String(detail.approvedByEmail || '').trim(),
+        actorName: String(detail.approvedByName || '').trim(),
       }));
     };
 
@@ -32,6 +35,9 @@ const EvaluationDecisionBridge: React.FC = () => {
       window.sessionStorage.setItem(DECISION_KEY, JSON.stringify({
         plate: cleanPlate(detail.plate),
         status: 'rejected',
+        justification: String(detail.justification || detail.reason || '').trim(),
+        actorEmail: String(detail.rejectedByEmail || '').trim(),
+        actorName: String(detail.rejectedByName || '').trim(),
       }));
     };
 
@@ -41,6 +47,10 @@ const EvaluationDecisionBridge: React.FC = () => {
 
       const request = readActiveRequest();
       if (!request) return;
+      if (request.status !== 'pricing') {
+        console.warn('Ignoring evaluation decision outside pricing stage', request.status);
+        return;
+      }
       if (cleanPlate(request.plate) !== cleanPlate(detail.plate)) return;
 
       let decision: any = {};
@@ -58,6 +68,8 @@ const EvaluationDecisionBridge: React.FC = () => {
         detail.status === 'approved' ? 'completed' : 'rejected',
         recommendedBuy,
         detail.id || undefined,
+        String(decision.justification || '').trim(),
+        { email: decision.actorEmail || request.pricingEmail, name: decision.actorName || request.pricingName },
       ).then(() => {
         window.sessionStorage.removeItem(ACTIVE_EVALUATION_REQUEST_KEY);
         window.sessionStorage.removeItem(DECISION_KEY);
@@ -67,6 +79,7 @@ const EvaluationDecisionBridge: React.FC = () => {
             plate: request.plate,
             status: detail.status,
             recommendedBuy,
+            decisionReason: String(decision.justification || '').trim(),
           },
         }));
       }).catch(error => {
