@@ -236,3 +236,12 @@ for(const required of ['resumeDraft','setDraft(evaluation)','onResumeDraft={item
 
 const evaluatorMobileDraft=read('components/EvaluatorMobileInspection.tsx');
 for(const required of ["item.status==='completed'&&typeof item.recommendedBuy!=='number'","request.status==='completed'&&typeof request.recommendedBuy!=='number'","a Mesa já iniciou a precificação"]){if(!evaluatorMobileDraft.includes(required))fail('Draft reopen before pricing guard missing: '+required);}
+
+const adminControl=read('components/AdminControlCenter.tsx');
+for(const required of ['<option value="pricing">Mesa de Precificação</option>','pricingDeskOnly:userForm.role===\'pricing\'?true:undefined']){if(!adminControl.includes(required))fail('Pricing desk profile guard missing: '+required);}
+const hierarchy=read('components/HierarchyPanel.tsx');
+for(const required of ["{ value: 'pricing', label: 'Mesa de Precificação' }","pricingDeskOnly:form.role==='pricing'?true:undefined"]){if(!hierarchy.includes(required))fail('Pricing desk company editor guard missing: '+required);}
+const roleRoot=read('components/RoleAwareRoot.tsx');
+for(const required of ['profile.pricingDeskOnly','<PricingDesk user={user} defaultOpen/>','PricingMotyq']){if(!roleRoot.includes(required))fail('Pricing desk route guard missing: '+required);}
+const userApi=read('api/analyze-deal.ts');
+for(const required of ["requestedRole==='pricing'","pricingDeskOnly?'manager':requestedRole","actor?.pricingDeskOnly===true"]){if(!userApi.includes(required))fail('Pricing desk backend restriction guard missing: '+required);}
