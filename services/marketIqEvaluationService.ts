@@ -129,6 +129,34 @@ export const marketIqEvaluationService = {
     return id;
   },
 
+  updateDraft: async (
+    id: string,
+    patch: Partial<Pick<MarketIQEvaluation, 'vehicle' | 'year' | 'km' | 'fipe' | 'notes' | 'photos' | 'damages' | 'damageTotal'>>,
+    actor?: { email?: string; name?: string },
+  ): Promise<void> => {
+    const current=await marketIqEvaluationService.getById(id);
+    if(!current)throw new Error('Avaliação não encontrada.');
+    if(current.status!=='draft')throw new Error('A avaliação já foi concluída e não pode ser alterada.');
+    const next={...patch};
+    await updateDoc(doc(db,'operational_meta',id),{
+      ...next,
+      revisionHistory:arrayUnion({
+        id:'draft_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+        at:new Date().toISOString(),type:'draft_updated',status:'draft',
+        byEmail:String(actor?.email||current.createdByEmail||'').toLowerCase(),
+        byName:String(actor?.name||current.createdByName||actor?.email||''),
+        vehicle:String(patch.vehicle??current.vehicle??''),
+        year:String(patch.year??current.year??''),
+        km:String(patch.km??current.km??''),
+        fipe:String(patch.fipe??current.fipe??''),
+        notes:String(patch.notes??current.notes??''),
+        recommendedBuy:Number(current.recommendedBuy||0),
+      }),
+      updatedAt:serverTimestamp(),
+    });
+    window.dispatchEvent(new CustomEvent('motyq:marketiq-history-updated',{detail:{plate:current.plate}}));
+  },
+
   getById:async(id:string):Promise<MarketIQEvaluation|null>=>{
     if(!id)return null;
     const snap=await getDoc(doc(db,'operational_meta',id));
