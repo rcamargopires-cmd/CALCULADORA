@@ -228,3 +228,8 @@ const evaluationDecisionBridge=read('components/EvaluationDecisionBridge.tsx');
 for(const required of ["request.status !== 'pricing'","decisionReason","pricingEmail"]){if(!evaluationDecisionBridge.includes(required))fail('Pricing-only decision guard missing: '+required);}
 if(!roleAwareRoot.includes('<EvaluatorMobileInspection user={user}/>'))fail('Evaluator role is not routed to mobile inspection.');
 if(roleAwareRoot.includes('<ModuleErrorBoundary name="EvaluatorWorkspace" critical><EvaluatorWorkspace user={user}/></ModuleErrorBoundary>'))fail('Legacy evaluator workspace is still mounted for evaluator role.');
+
+const evaluatorHistory=read('components/EvaluatorHistory.tsx');
+for(const required of ['onResumeDraft','CONTINUAR AVALIAÇÃO']){if(!evaluatorHistory.includes(required))fail('Evaluator draft resume guard missing: '+required);}
+const evaluatorMobileResume=read('components/EvaluatorMobileInspection.tsx');
+for(const required of ['resumeDraft','setDraft(evaluation)','onResumeDraft={item=>void resumeDraft(item)}']){if(!evaluatorMobileResume.includes(required))fail('Evaluator draft reopen guard missing: '+required);}
