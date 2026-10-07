@@ -356,6 +356,16 @@ const handleUserManagement=async(req:any,res:any)=>{
 };
 
 export default async function handler(req: any, res: any) {
+  if (String(req.query?.action || '') === 'current-user') {
+    try {
+      const actor = await managementActor(req);
+      if (!actor) return res.status(401).json({ error: 'not_authenticated' });
+      return res.status(200).json({ user: actor });
+    } catch (error:any) {
+      return res.status(401).json({ error: String(error?.message || 'not_authenticated') });
+    }
+  }
+
   if (String(req.query?.action || '') === 'user-management-health') {
     if (!motyqFirestore.configured()) return res.status(503).json({ configured: false, firestore: 'not_configured' });
     try {
