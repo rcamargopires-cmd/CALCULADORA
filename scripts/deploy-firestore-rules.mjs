@@ -86,12 +86,15 @@ const releaseUrl =
   'https://firebaserules.googleapis.com/v1/' +
   releaseName.split('/').map(encodeURIComponent).join('/').replace(/%2F/g, '/');
 
-const releaseResponse = await fetch(releaseUrl + '?updateMask=rulesetName', {
+const releaseResponse = await fetch(releaseUrl, {
   method: 'PATCH',
   headers: auth,
   body: JSON.stringify({
-    name: releaseName,
-    rulesetName: rulesetBody.name,
+    release: {
+      name: releaseName,
+      rulesetName: rulesetBody.name,
+    },
+    updateMask: 'ruleset_name',
   }),
 });
 const releaseBody = await releaseResponse.json().catch(() => ({}));
