@@ -14,6 +14,33 @@ const verifyFirebaseToken = async (idToken: string) => {
   return data?.users?.[0] || null;
 };
 
+const firestoreFieldsToObject=(fields:any):any=>{
+  const fromValue=(value:any):any=>{
+    if(!value||typeof value!=='object')return null;
+    if('nullValue' in value)return null;
+    if('stringValue' in value)return String(value.stringValue);
+    if('booleanValue' in value)return Boolean(value.booleanValue);
+    if('integerValue' in value)return Number(value.integerValue);
+    if('doubleValue' in value)return Number(value.doubleValue);
+    if('timestampValue' in value)return String(value.timestampValue);
+    if('arrayValue' in value)return (value.arrayValue?.values||[]).map(fromValue);
+    if('mapValue' in value)return firestoreFieldsToObject(value.mapValue?.fields||{});
+    return null;
+  };
+  return Object.fromEntries(Object.entries(fields||{}).map(([key,value])=>[key,fromValue(value)]));
+};
+
+const currentUserProfileWithIdToken=async(idToken:string,email:string)=>{
+  const projectId='gen-lang-client-0531247430';
+  const databaseId='ai-studio-447676b4-da38-4e69-b22f-6aa10f85367b';
+  const url=`https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/users/${encodeURIComponent(email)}`;
+  const response=await fetch(url,{headers:{authorization:`Bearer ${idToken}`}});
+  if(response.status===404)return null;
+  const body:any=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(`current_user_firestore_${response.status}`);
+  return {id:email,...firestoreFieldsToObject(body?.fields||{})};
+};
+
 const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 const pct = (value: number) => `${(Number(value) || 0).toFixed(2).replace('.', ',')}%`;
 
@@ -358,10 +385,21 @@ const handleUserManagement=async(req:any,res:any)=>{
 export default async function handler(req: any, res: any) {
   if (String(req.query?.action || '') === 'current-user') {
     try {
-      const actor = await managementActor(req);
-      if (!actor) return res.status(401).json({ error: 'not_authenticated' });
-      return res.status(200).json({ user: actor });
+      const authHeader=String(req.headers?.authorization||'');
+      const token=authHeader.startsWith('Bearer ')?authHeader.slice(7):'';
+      if(!token)return res.status(401).json({error:'not_authenticated'});
+      const firebaseUser=await verifyFirebaseToken(token);
+      const email=emailOf(firebaseUser?.email);
+      if(!email)return res.status(401).json({error:'not_authenticated'});
+      if(email===OWNER_ADMIN){
+        const profile=await currentUserProfileWithIdToken(token,email).catch(()=>null);
+        return res.status(200).json({user:profile?{...profile,email,role:'admin',status:'active'}:{email,id:email,name:'Admin',role:'admin',status:'active',companyId:'abrao-reze',storeId:'outlet-sorocaba'}});
+      }
+      const profile:any=await currentUserProfileWithIdToken(token,email);
+      if(!profile||profile.status!=='active')return res.status(403).json({error:'inactive_or_missing_user'});
+      return res.status(200).json({user:{...profile,email}});
     } catch (error:any) {
+      console.error('Current-user lookup failed',error?.message||error);
       return res.status(401).json({ error: String(error?.message || 'not_authenticated') });
     }
   }
