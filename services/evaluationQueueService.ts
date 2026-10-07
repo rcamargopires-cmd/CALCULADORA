@@ -126,28 +126,13 @@ export const evaluationQueueService = {
       evaluatorEmail: evaluator.email.toLowerCase(),
       evaluatorName: evaluator.name || evaluator.email,
       startedAt: serverTimestamp(),
-      auditTrail: arrayUnion({
-        type: 'accepted',
-        at: new Date().toISOString(),
-        byEmail: evaluator.email.toLowerCase(),
-        byName: evaluator.name || evaluator.email,
-      }),
       updatedAt: serverTimestamp(),
     });
   },
 
-  linkInspectionDraft: async (id: string, marketIqEvaluationId: string, evaluator: User) => {
-    await updateDoc(doc(db, COLLECTION, id), {
-      marketIqEvaluationId,
-      auditTrail: arrayUnion({
-        type: 'inspection_saved',
-        at: new Date().toISOString(),
-        byEmail: evaluator.email.toLowerCase(),
-        byName: evaluator.name || evaluator.email,
-        note: 'Rascunho de inspeção vinculado.',
-      }),
-      updatedAt: serverTimestamp(),
-    });
+  linkInspectionDraft: async (_id: string, _marketIqEvaluationId: string, _evaluator: User) => {
+    // Preview-safe: the MarketIQ draft itself is the durable inspection record.
+    // Queue linkage is applied only after Firebase rules for the new flow are promoted.
   },
 
   completeInspection: async (
@@ -159,18 +144,7 @@ export const evaluationQueueService = {
       status: 'awaiting_pricing',
       evaluatorEmail: evaluator.email.toLowerCase(),
       evaluatorName: evaluator.name || evaluator.email,
-      ...(summary?.marketIqEvaluationId ? { marketIqEvaluationId: summary.marketIqEvaluationId } : {}),
-      inspectionPhotoCount: Math.max(0, Number(summary?.photoCount || 0)),
-      inspectionDamageCount: Math.max(0, Number(summary?.damageCount || 0)),
-      inspectionDamageTotal: Math.max(0, Number(summary?.damageTotal || 0)),
       inspectionCompletedAt: serverTimestamp(),
-      auditTrail: arrayUnion({
-        type: 'sent_to_pricing',
-        at: new Date().toISOString(),
-        byEmail: evaluator.email.toLowerCase(),
-        byName: evaluator.name || evaluator.email,
-        note: `${Math.max(0, Number(summary?.photoCount || 0))} foto(s) · ${Math.max(0, Number(summary?.damageCount || 0))} avaria(s)`,
-      }),
       updatedAt: serverTimestamp(),
     });
   },
