@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, History, RefreshCw, Search } from 'lucide-react';
 import { MarketIQEvaluation, marketIqEvaluationService } from '../services/marketIqEvaluationService';
 
-type Props={companyId:string;storeId:string};
+type Props={companyId:string;storeId:string;onResumeDraft?:(item:MarketIQEvaluation)=>void};
 const money=(value?:number)=>typeof value==='number'&&Number.isFinite(value)
   ? value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Não informado';
 const when=(value:any)=>{
@@ -11,7 +11,7 @@ const when=(value:any)=>{
 };
 const status=(value:MarketIQEvaluation['status'])=>value==='approved'?'Aprovada':value==='rejected'?'Recusada':'Rascunho';
 
-const EvaluatorHistory:React.FC<Props>=({companyId,storeId})=>{
+const EvaluatorHistory:React.FC<Props>=({companyId,storeId,onResumeDraft})=>{
   const[items,setItems]=useState<MarketIQEvaluation[]>([]);
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState('');
@@ -79,6 +79,7 @@ const EvaluatorHistory:React.FC<Props>=({companyId,storeId})=>{
           <span>Compra recomendada: <strong className="text-slate-800">{money(item.recommendedBuy)}</strong></span>
           <span>Avaliador: {item.createdByName||'Não informado'}</span>
         </div>
+        {item.status==='draft'&&onResumeDraft&&<button type="button" onClick={()=>onResumeDraft(item)} className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white hover:bg-slate-800"><ClipboardList size={15}/>CONTINUAR AVALIAÇÃO</button>}
         {expanded===item.id&&<div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-200 pt-3 text-xs text-slate-600">
           <span>Quilometragem: <strong>{item.km||'—'}</strong></span>
           <span>FIPE: <strong>{item.fipe||'—'}</strong></span>
