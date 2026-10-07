@@ -1,5 +1,5 @@
 export type BankType = 'volks' | 'others';
-export type UserRole = 'admin' | 'manager' | 'director' | 'seller' | 'user' | 'reception' | 'evaluator';
+export type UserRole = 'admin' | 'manager' | 'director' | 'seller' | 'user' | 'reception' | 'evaluator' | 'pricing';
 export type DmsAccessProfile = 'management' | 'preparation' | 'finance';
 export type DmsPermissionKey =
   | 'crmView'
@@ -57,7 +57,7 @@ export type DealMasterModule =
 export interface Company { id:string; slug:string; name:string; plan:CompanyPlan; status:CompanyStatus; environment?:'production'|'demo'; createdAt?:string; trialEndsAt?:string; billing?:CompanyBilling; fiscal?:{enabled:boolean;provider:FiscalProvider;environment:'homologacao'|'producao';updatedAt?:string}; moduleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 export interface Store { id:string; code:string; name:string; active:boolean; companyId?:string; environment?:'production'|'demo'; }
 export interface SellerGoals { monthly:number; firstHalf:number; capture:number; margin:number; }
-export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; createdAt?:string; goals?:SellerGoals; storeId?:string; storeIds?:string[]; companyId?:string; companyName?:string; dmsAccessProfile?:DmsAccessProfile; dmsPermissionOverrides?:Partial<Record<DmsPermissionKey,boolean>>; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyFiscal?:Company['fiscal']; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
+export interface User { id:string; email:string; role:UserRole; name:string; status:UserStatus; pricingDeskOnly?:boolean; createdAt?:string; goals?:SellerGoals; storeId?:string; storeIds?:string[]; companyId?:string; companyName?:string; dmsAccessProfile?:DmsAccessProfile; dmsPermissionOverrides?:Partial<Record<DmsPermissionKey,boolean>>; companyPlan?:CompanyPlan; companyStatus?:CompanyStatus; companyBilling?:CompanyBilling; companyFiscal?:Company['fiscal']; companyModuleOverrides?:Partial<Record<DealMasterModule,boolean>>; }
 
 export type CustomerConsentStatus='unknown'|'granted'|'revoked';
 export interface DmsDataRetentionPolicy {
