@@ -278,34 +278,43 @@ const reconcileCanonicalV4=async(companyId:string,storeId:string)=>{
   announce();
 };
 
+const currentStockInflight=new Map<string,Promise<OperationalStockItem[]>>();
+
 export const currentStockService={
   collectionName:COLLECTION,
 
   getCurrent:async(companyId:string,storeId:string):Promise<OperationalStockItem[]>=>{
-    await reconcileCanonicalV4(companyId,storeId);
-    let rows=await readCanonical(companyId,storeId);
-    if(!rows.length){
-      const migrated=await deriveLegacy(companyId,storeId);
-      if(migrated.length){
-        await seedCanonical(migrated,companyId,storeId);
-        rows=migrated;
-        announce();
+    const key=`${companyId}:${storeId}`;
+    const pending=currentStockInflight.get(key);
+    if(pending)return pending;
+    const task=(async()=>{
+      await reconcileCanonicalV4(companyId,storeId);
+      let rows=await readCanonical(companyId,storeId);
+      if(!rows.length){
+        const migrated=await deriveLegacy(companyId,storeId);
+        if(migrated.length){
+          await seedCanonical(migrated,companyId,storeId);
+          rows=migrated;
+          announce();
+        }
       }
-    }
-    if(rows.some(item=>!item.vehicleId)){
-      const enriched=await dmsVehicleService.ensureManyFromStock(rows,companyId,storeId);
-      for(const item of enriched){
-        const next=normalizeItem(item,companyId,storeId);
-        await setDoc(doc(db,COLLECTION,next.id),next,{merge:true});
+      if(rows.some(item=>!item.vehicleId)){
+        const enriched=await dmsVehicleService.ensureManyFromStock(rows,companyId,storeId);
+        for(const item of enriched){
+          const next=normalizeItem(item,companyId,storeId);
+          await setDoc(doc(db,COLLECTION,next.id),next,{merge:true});
+        }
+        rows=enriched;
       }
-      rows=enriched;
-    }
-    const unique=new Map<string,OperationalStockItem>();
-    rows.filter(isActive).sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b))).forEach(item=>{
-      const plate=cleanPlate(item.plate);
-      if(plate)unique.set(plate,normalizeItem(item,companyId,storeId));
-    });
-    return Array.from(unique.values());
+      const unique=new Map<string,OperationalStockItem>();
+      rows.filter(isActive).sort((a,b)=>rowMoment(a).localeCompare(rowMoment(b))).forEach(item=>{
+        const plate=cleanPlate(item.plate);
+        if(plate)unique.set(plate,normalizeItem(item,companyId,storeId));
+      });
+      return Array.from(unique.values());
+    })();
+    currentStockInflight.set(key,task);
+    try{return await task;}finally{currentStockInflight.delete(key);}
   },
 
   subscribe:(
