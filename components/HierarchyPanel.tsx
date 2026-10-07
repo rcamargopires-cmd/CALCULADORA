@@ -99,7 +99,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     setForm({
       name: user.name || '',
       email: user.email || '',
-      role: user.role === 'user' ? 'seller' : user.role,
+      role: user.pricingDeskOnly ? 'pricing' : user.role === 'user' ? 'seller' : user.role,
       dmsAccessProfile: user.dmsAccessProfile || 'management',
       dmsPermissionOverrides: user.dmsPermissionOverrides || {},
       status: user.status,
@@ -150,7 +150,8 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         email,
         name,
         role: form.role,
-        dmsAccessProfile:form.role==='manager'?form.dmsAccessProfile:undefined,
+        pricingDeskOnly:form.role==='pricing'?true:undefined,
+        dmsAccessProfile:form.role==='manager'?form.dmsAccessProfile:form.role==='pricing'?'management':undefined,
         dmsPermissionOverrides:form.role==='manager'?form.dmsPermissionOverrides:undefined,
         status: form.status,
         companyId,
@@ -217,6 +218,7 @@ const HierarchyPanel: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     { value: 'seller', label: 'Vendedor' },
     { value: 'reception', label: 'Recepção' },
     { value: 'evaluator', label: 'Avaliador MarketIQ' },
+    { value: 'pricing', label: 'Mesa de Precificação' },
     { value: 'manager', label: 'Gestor' },
     ...(isAdmin ? [
       { value: 'director' as UserRole, label: 'Diretoria' },
