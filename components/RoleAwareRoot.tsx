@@ -99,6 +99,23 @@ const EvaluatorMotyq = ({ user }: { user: User }) => <>
   <ModuleErrorBoundary name="EvaluatorMobileInspection" critical><EvaluatorMobileInspection user={user}/></ModuleErrorBoundary>
 </>;
 
+const PricingMotyq = ({ user }: { user: User }) => <CurrentStockProvider user={user}>
+  <div className="min-h-screen bg-[#f4f7fb]">
+    <div className="mx-auto max-w-6xl p-5 md:p-8">
+      <p className="text-[10px] font-black uppercase tracking-[.16em] text-violet-600">MOTYQ IQ · ETAPA 3 DE 3</p>
+      <h1 className="mt-1 text-2xl font-semibold text-slate-900">Mesa de Precificação</h1>
+      <p className="mt-1 text-sm text-slate-500">Avaliações concluídas pela vistoria chegam aqui para análise e decisão.</p>
+    </div>
+  </div>
+  <Safe name="PricingDesk"><PricingDesk user={user} defaultOpen/></Safe>
+  <Safe name="EvaluationDecisionBridge"><EvaluationDecisionBridge /></Safe>
+  <Safe name="MarketIQShell"><MarketIQShell /></Safe>
+  <Safe name="MarketIQLookupBridge"><MarketIQLookupBridge /></Safe>
+  <Safe name="MarketIQSessionReset"><MarketIQSessionReset /></Safe>
+  <Safe name="MarketIQFinalDecisionBridge"><MarketIQFinalDecisionBridge currentUser={user}/></Safe>
+  <Safe name="EnvironmentHeaderBadge"><EnvironmentHeaderBadge /></Safe>
+</CurrentStockProvider>;
+
 const RoleAwareRoot: React.FC = () => {
   const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -149,6 +166,7 @@ const RoleAwareRoot: React.FC = () => {
 
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#f6f8fb] text-sm font-semibold text-slate-500">Carregando MOTYQ...</div>;
   if (profile?.role === 'evaluator') return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><EvaluatorMotyq user={profile}/></BillingGate></>;
+  if (profile?.role === 'manager' && profile.pricingDeskOnly) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><PricingMotyq user={profile}/></BillingGate></>;
   if (profile?.role === 'admin' && adminScope === ADMIN_HOME_SCOPE) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><AdminControlCenter currentUser={profile}/></>;
   if (profile) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><StandardMotyq user={profile}/></BillingGate></>;
   return <StandardMotyq user={null}/>;
