@@ -203,8 +203,9 @@ const evaluationQueueService=read('services/evaluationQueueService.ts');
 for(const required of ["'inspection'","'awaiting_pricing'","'pricing'","completeInspection","startPricing"]){if(!evaluationQueueService.includes(required))fail('Three-stage evaluation flow guard missing: '+required);}
 const pricingDesk=read('components/PricingDesk.tsx');
 for(const required of ['Mesa de Precificação','ETAPA 3 DE 3','awaiting_pricing','startPricing']){if(!pricingDesk.includes(required))fail('Pricing desk guard missing: '+required);}
-const evaluatorWorkspace=read('components/EvaluatorWorkspace.tsx');
-for(const required of ['ENVIAR PARA MESA DE PRECIFICAÇÃO','completeInspection','inspection']){if(!evaluatorWorkspace.includes(required))fail('Evaluator handoff guard missing: '+required);}
+const evaluatorMobile=read('components/EvaluatorMobileInspection.tsx');
+for(const required of ['Minhas avaliações','ACEITAR AVALIAÇÃO','FOTOS GUIADAS','capture="environment"','ENVIAR PARA MESA DE PRECIFICAÇÃO','completeInspection']){if(!evaluatorMobile.includes(required))fail('Mobile evaluator flow guard missing: '+required);}
+if(evaluatorMobile.includes('MarketIQMarketScanBridge')||evaluatorMobile.includes('APROVAR COMPRA'))fail('Evaluator mobile flow must not expose pricing or purchase approval.');
 const evaluationCenter=read('components/EvaluationCenter.tsx');
 for(const required of ['AGUARDANDO PREÇO','EM PRECIFICAÇÃO','ENVIAR PARA MESA']){if(!evaluationCenter.includes(required))fail('Evaluation center stage guard missing: '+required);}
 const roleAwareRoot=read('components/RoleAwareRoot.tsx');
@@ -221,3 +222,9 @@ if(!marketIqShell.includes('{!evaluator&&<>'))fail('Visual AI pricing-only guard
 
 const motyqShell=read('components/MotyqShell.tsx');
 for(const required of ["launcher('Solicitar avaliação')",'<span>Avaliações</span>',"title==='Solicitar avaliação'"]){if(!motyqShell.includes(required))fail('Seller evaluation sidebar guard missing: '+required);}
+
+for(const required of ['auditTrail','linkInspectionDraft','sent_to_pricing','pricing_started']){if(!evaluationQueueService.includes(required))fail('Evaluation audit lifecycle guard missing: '+required);}
+const evaluationDecisionBridge=read('components/EvaluationDecisionBridge.tsx');
+for(const required of ["request.status !== 'pricing'","decisionReason","pricingEmail"]){if(!evaluationDecisionBridge.includes(required))fail('Pricing-only decision guard missing: '+required);}
+if(!roleAwareRoot.includes('<EvaluatorMobileInspection user={user}/>'))fail('Evaluator role is not routed to mobile inspection.');
+if(roleAwareRoot.includes('<ModuleErrorBoundary name="EvaluatorWorkspace" critical><EvaluatorWorkspace user={user}/></ModuleErrorBoundary>'))fail('Legacy evaluator workspace is still mounted for evaluator role.');
