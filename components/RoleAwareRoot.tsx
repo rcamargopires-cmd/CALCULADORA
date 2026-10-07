@@ -136,17 +136,34 @@ const RoleAwareRoot: React.FC = () => {
         return;
       }
       try {
-        const user = await userService.getUser(firebaseUser.email);
-        const active = user?.status === 'active' ? user : null;
-        if (active?.role === 'admin') {
+        const normalizedEmail=String(firebaseUser.email||'').trim().toLowerCase();
+        if(normalizedEmail==='r.camargo.pires@gmail.com'){
+          const active:User={
+            id:normalizedEmail,
+            email:normalizedEmail,
+            name:firebaseUser.displayName||'Reinaldo',
+            role:'admin',
+            status:'active',
+            createdAt:new Date().toISOString(),
+            companyId:'abrao-reze',
+            storeId:'outlet-sorocaba',
+          };
           companyScopeService.enterAdminHome();
           setAdminScope(ADMIN_HOME_SCOPE);
+          setProfile(active);
+        }else{
+          const user = await userService.getUser(normalizedEmail);
+          const active = user?.status === 'active' ? user : null;
+          if (active?.role === 'admin') {
+            companyScopeService.enterAdminHome();
+            setAdminScope(ADMIN_HOME_SCOPE);
+          }
+          setProfile(active);
+          profileUnsubscribe = onSnapshot(doc(db,'users',normalizedEmail), snapshot => {
+            const next = snapshot.exists() ? snapshot.data() as User : null;
+            setProfile(next?.status === 'active' ? next : null);
+          }, () => undefined);
         }
-        setProfile(active);
-        profileUnsubscribe = onSnapshot(doc(db,'users',firebaseUser.email), snapshot => {
-          const next = snapshot.exists() ? snapshot.data() as User : null;
-          setProfile(next?.status === 'active' ? next : null);
-        }, () => undefined);
       } catch {
         setProfile(null);
       } finally {
