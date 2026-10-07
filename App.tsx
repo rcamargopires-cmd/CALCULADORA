@@ -141,7 +141,9 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!user) return;
     const loadInitialConfig = async () => { const config = await configService.loadConfig(); setFieldConfig(config.visibility); setCommissionConfig(config.commission); setBankRates(config.bankRates); };
-    if(user.role==='admin')void dealTenantService.cleanupKnownQaRecords(user).catch(error=>console.warn('QA cleanup skipped',error));
+    // QA cleanup must never run on every production login. It scans the
+    // tenant deals collection and was useful only during the final checklist.
+    // Keep production startup read-light; diagnostics/cleanup are explicit.
     loadInitialConfig();
     const unsubscribeConfig = onSnapshot(doc(db, 'config/main'), (docSnap) => {
       if (docSnap.exists()) {
