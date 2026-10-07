@@ -463,3 +463,5 @@ service cloud.firestore {
     }
   }
 }
+
+// evaluation-mobile-flow-v2 rollout trigger 2026-10-07
