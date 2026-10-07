@@ -53,6 +53,10 @@ const EvaluatorMobileInspection:React.FC<{user:User}>=({user})=>{
   const ensureDraft=async(request:EvaluationQueueRequest)=>{
     let evaluation=request.marketiqEvaluationId?await marketIqEvaluationService.getById(request.marketiqEvaluationId).catch(()=>null):null;
     if(!evaluation){
+      const samePlate=await marketIqEvaluationService.listByPlate(companyId,storeId,request.plate).catch(()=>[]);
+      evaluation=samePlate.find(item=>item.status==='draft'&&String(item.createdByEmail||'').toLowerCase()===email)||null;
+    }
+    if(!evaluation){
       const id=await marketIqEvaluationService.create({
         companyId:companyId,storeId:storeId,storeName:storeId,plate:cleanPlate(request.plate),
         vehicle:request.vehicle||'Veículo a identificar',year:request.year||'',km:request.km||'',fipe:'',
@@ -74,7 +78,10 @@ const EvaluatorMobileInspection:React.FC<{user:User}>=({user})=>{
       const evaluation=await ensureDraft(next);
       setActive(next);setDraft(evaluation);setPhotos(evaluation.photos||[]);setDamages(evaluation.damages||[]);
       setKm(evaluation.km||request.km||'');setNotes(evaluation.notes||request.notes||'');setStep(0);
-    }catch(e:any){setError(e?.message||'Não foi possível abrir esta avaliação.');}
+    }catch(e:any){
+      const message=String(e?.message||'');
+      setError(message.includes('permission')?'Seu perfil de avaliador não recebeu permissão para iniciar esta avaliação no ambiente de teste.':message||'Não foi possível abrir esta avaliação.');
+    }
     finally{setBusy('');}
   };
 
