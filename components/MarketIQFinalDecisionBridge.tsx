@@ -146,8 +146,8 @@ const MarketIQFinalDecisionBridge: React.FC<Props> = ({ currentUser }) => {
       setError('Informe o valor final que será pago no veículo.');
       return;
     }
-    if (overLimit && !justification.trim()) {
-      setError('Valor acima do limite. Informe a justificativa para continuar.');
+    if (!justification.trim()) {
+      setError('Informe uma justificativa curta da Mesa para o vendedor.');
       return;
     }
 
@@ -204,10 +204,12 @@ const MarketIQFinalDecisionBridge: React.FC<Props> = ({ currentUser }) => {
 
       {delta !== 0 && <p className={`mt-2 text-[10px] font-semibold ${delta > 0 ? 'text-amber-200' : 'text-emerald-300'}`}>{delta > 0 ? '+' : ''}{money(delta)} em relação à recomendação do MarketIQ.</p>}
 
-      {overLimit && <div className="mt-3 rounded-xl border border-red-300/20 bg-red-300/[.045] p-3">
-        <div className="flex gap-2 text-red-200"><AlertTriangle size={16} className="mt-0.5 shrink-0"/><div><p className="text-xs font-black">VALOR ACIMA DO LIMITE RECOMENDADO</p><p className="mt-1 text-[11px] leading-5 text-red-100/80">Esta compra reduz a margem de segurança. Registre a justificativa para aprovar.</p></div></div>
-        <textarea value={justification} onChange={event => { setJustification(event.target.value); setError(''); }} rows={3} placeholder="Justificativa da compra acima do limite..." className="mt-3 w-full rounded-xl border border-red-300/20 bg-black/25 p-3 text-xs text-white outline-none focus:border-red-300/45"/>
-      </div>}
+      {overLimit && <div className="mt-3 rounded-xl border border-red-300/20 bg-red-300/[.045] p-3"><div className="flex gap-2 text-red-200"><AlertTriangle size={16} className="mt-0.5 shrink-0"/><div><p className="text-xs font-black">VALOR ACIMA DO LIMITE RECOMENDADO</p><p className="mt-1 text-[11px] leading-5 text-red-100/80">Esta compra reduz a margem de segurança e exige atenção adicional.</p></div></div></div>}
+
+      <label className="mt-3 block">
+        <span className="mb-1 block text-[10px] font-bold uppercase tracking-[.11em] text-zinc-400">Justificativa da Mesa</span>
+        <textarea value={justification} onChange={event => { setJustification(event.target.value); setError(''); }} rows={3} placeholder="Ex.: aprovado conforme condição do veículo, mercado e custo de preparação." className="w-full rounded-xl border border-white/15 bg-black/25 p-3 text-xs text-white outline-none focus:border-cyan-300/45"/>
+      </label>
 
       {!!error && <p className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[.05] px-3 py-2 text-xs font-semibold text-amber-100">{error}</p>}
 
