@@ -132,7 +132,11 @@ const fetchWithRetry = async (url: string, init: RequestInit = {}, label = 'fire
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const response = await fetch(url, init);
     last = response;
-    if (response.status !== 429 && response.status !== 503) return response;
+    // 429 on Firestore free-tier daily quota is not transient. Retrying it
+    // multiplies reads and Vercel invocations while the quota is exhausted.
+    // Fail fast on 429 and only retry temporary service-unavailable responses.
+    if (response.status === 429) return response;
+    if (response.status !== 503) return response;
     const retryAfter = Number(response.headers.get('retry-after') || 0);
     const delay = retryAfter > 0 ? retryAfter * 1000 : 250 * Math.pow(2, attempt);
     console.warn(`${label} retry ${attempt + 1}/4 after HTTP ${response.status} in ${delay}ms`);
