@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { LogOut } from 'lucide-react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { User } from '../types';
@@ -101,10 +102,13 @@ const EvaluatorMotyq = ({ user }: { user: User }) => <>
 
 const PricingMotyq = ({ user }: { user: User }) => <CurrentStockProvider user={user}>
   <div className="min-h-screen bg-[#f4f7fb]">
-    <div className="mx-auto max-w-6xl p-5 md:p-8">
-      <p className="text-[10px] font-black uppercase tracking-[.16em] text-violet-600">MOTYQ IQ · ETAPA 3 DE 3</p>
-      <h1 className="mt-1 text-2xl font-semibold text-slate-900">Mesa de Precificação</h1>
-      <p className="mt-1 text-sm text-slate-500">Avaliações concluídas pela vistoria chegam aqui para análise e decisão.</p>
+    <div className="mx-auto flex max-w-6xl items-start justify-between gap-4 p-5 md:p-8">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[.16em] text-violet-600">MOTYQ IQ · ETAPA 3 DE 3</p>
+        <h1 className="mt-1 text-2xl font-semibold text-slate-900">Mesa de Precificação</h1>
+        <p className="mt-1 text-sm text-slate-500">Avaliações concluídas pela vistoria chegam aqui para análise e decisão.</p>
+      </div>
+      <button onClick={()=>void signOut(auth)} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50"><LogOut size={15}/>SAIR</button>
     </div>
   </div>
   <Safe name="PricingDesk"><PricingDesk user={user} defaultOpen/></Safe>
