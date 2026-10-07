@@ -122,7 +122,7 @@ export const evaluationQueueService = {
 
   start: async (id: string, evaluator: User) => {
     await updateDoc(doc(db, COLLECTION, id), {
-      status: 'inspection',
+      status: 'in_progress',
       evaluatorEmail: evaluator.email.toLowerCase(),
       evaluatorName: evaluator.name || evaluator.email,
       startedAt: serverTimestamp(),
@@ -141,10 +141,11 @@ export const evaluationQueueService = {
     summary?: { marketIqEvaluationId?: string; photoCount?: number; damageCount?: number; damageTotal?: number },
   ) => {
     await updateDoc(doc(db, COLLECTION, id), {
-      status: 'awaiting_pricing',
+      status: 'completed',
       evaluatorEmail: evaluator.email.toLowerCase(),
       evaluatorName: evaluator.name || evaluator.email,
-      inspectionCompletedAt: serverTimestamp(),
+      ...(summary?.marketIqEvaluationId ? { marketIqEvaluationId: summary.marketIqEvaluationId } : {}),
+      completedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
   },
