@@ -265,7 +265,9 @@ service cloud.firestore {
           request.resource.data.evaluatorEmail == request.auth.token.email &&
           request.resource.data.status in ['in_progress', 'inspection', 'awaiting_pricing'] &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status', 'evaluatorEmail', 'evaluatorName', 'startedAt', 'inspectionCompletedAt', 'updatedAt'
+            'status', 'evaluatorEmail', 'evaluatorName', 'startedAt', 'inspectionCompletedAt',
+            'marketIqEvaluationId', 'inspectionPhotoCount', 'inspectionDamageCount',
+            'inspectionDamageTotal', 'auditTrail', 'updatedAt'
           ])
         );
       allow delete: if isAdmin();
