@@ -100,6 +100,7 @@ export const dmsAccessLabel=(user?:Partial<User>|null)=>{
   if(user.role==='seller'||user.role==='user')return'Vendas';
   if(user.role==='reception')return'Recepção';
   if(user.role==='evaluator')return'Avaliador MarketIQ';
+  if(user.pricingDeskOnly)return'Mesa de Precificação';
   if(user.role==='manager'){
     if(user.dmsAccessProfile==='preparation')return'Preparação';
     if(user.dmsAccessProfile==='finance')return'Financeiro / Caixa';
@@ -127,6 +128,15 @@ export const dmsPermissions=(user?:Partial<User>|null):DmsPermissions=>{
     },user);
   }
   if(role==='manager'){
+    if(user?.pricingDeskOnly)return applyOverrides({
+      profile:'legacy_manager',management:false,
+      crmView:false,evaluationsView:true,proposalsView:false,purchasesView:false,salesView:false,
+      stockView:false,stockWrite:false,
+      prepView:false,prepRequest:false,prepApprove:false,
+      financeView:false,financeCreate:false,financeSettle:false,
+      documentsView:false,afterSalesView:false,workshopView:false,assetsView:false,reportsView:false,
+      diagnostics:false,usersManage:false,
+    },user);
     const profile=user?.dmsAccessProfile;
     if(profile==='management'||profile==='preparation'||profile==='finance')return applyOverrides(baseForProfile(profile),user);
     return applyOverrides({...fullManagement('legacy_manager'),financeCreate:true,financeSettle:true},user);
