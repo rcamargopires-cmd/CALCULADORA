@@ -177,7 +177,7 @@ const MarketIQFinalDecisionBridge: React.FC<Props> = ({ currentUser }) => {
     <section className={`mb-4 rounded-2xl border p-4 ${overLimit ? 'border-red-300/30 bg-red-300/[.045]' : 'border-cyan-300/25 bg-cyan-300/[.04]'}`}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[.14em] text-cyan-300">DECISÃO DO AVALIADOR</p>
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-cyan-300">DECISÃO DA MESA</p>
           <h3 className="mt-1 font-semibold text-white">Valor final da compra</h3>
         </div>
         {overLimit && <span className="rounded-full border border-red-300/25 bg-red-300/[.07] px-2 py-1 text-[9px] font-black text-red-200">ACIMA DO LIMITE</span>}
@@ -214,7 +214,7 @@ const MarketIQFinalDecisionBridge: React.FC<Props> = ({ currentUser }) => {
       <button onClick={approve} className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-sm font-black text-black transition hover:bg-emerald-400">
         <CheckCircle2 size={16}/>APROVAR COMPRA
       </button>
-      <p className="mt-2 text-[10px] leading-4 text-zinc-600">A decisão registra o valor recomendado pelo MarketIQ, o valor aprovado, o avaliador e a data/hora.</p>
+      <p className="mt-2 text-[10px] leading-4 text-zinc-600">A decisão registra o valor recomendado pelo MarketIQ, o valor aprovado, o responsável pela Mesa e a data/hora.</p>
     </section>,
     host,
   );
