@@ -233,3 +233,6 @@ const evaluatorHistory=read('components/EvaluatorHistory.tsx');
 for(const required of ['onResumeDraft','CONTINUAR AVALIAÇÃO']){if(!evaluatorHistory.includes(required))fail('Evaluator draft resume guard missing: '+required);}
 const evaluatorMobileResume=read('components/EvaluatorMobileInspection.tsx');
 for(const required of ['resumeDraft','setDraft(evaluation)','onResumeDraft={item=>void resumeDraft(item)}']){if(!evaluatorMobileResume.includes(required))fail('Evaluator draft reopen guard missing: '+required);}
+
+const evaluatorMobileDraft=read('components/EvaluatorMobileInspection.tsx');
+for(const required of ["item.status==='completed'&&typeof item.recommendedBuy!=='number'","request.status==='completed'&&typeof request.recommendedBuy!=='number'","a Mesa já iniciou a precificação"]){if(!evaluatorMobileDraft.includes(required))fail('Draft reopen before pricing guard missing: '+required);}
