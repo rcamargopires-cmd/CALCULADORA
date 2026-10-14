@@ -196,7 +196,7 @@ service cloud.firestore {
 
     match /users/{email} {
       allow read: if isAuthenticated() && (
-        request.auth.token.email == email ||
+        ((request.auth.token.email == email) && profileExists() && profile().status == 'active') ||
         isAdmin() ||
         (canUsersManage() && sameCompany(resource.data)) ||
         ((role() == 'seller' || role() == 'user') && sameStore(resource.data))
@@ -212,6 +212,7 @@ service cloud.firestore {
 
       allow update: if isAdmin() || (
         canUsersManage() &&
+        request.auth.token.email != email &&
         sameCompany(resource.data) &&
         sameCompany(request.resource.data) &&
         resource.data.companyId == request.resource.data.companyId &&
