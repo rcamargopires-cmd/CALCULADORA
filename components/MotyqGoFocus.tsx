@@ -15,10 +15,11 @@ type Props = {
   loading: boolean;
   error: boolean;
   name: string;
+  onStartNewService?: () => void;
 };
 
 /** Read-only GO entry point. Completion stays exclusively in the source CRM. */
-const MotyqGoFocus: React.FC<Props> = ({ tasks, loading, error, name }) => {
+const MotyqGoFocus: React.FC<Props> = ({ tasks, loading, error, name, onStartNewService }) => {
   const [agendaOpen, setAgendaOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const active = tasks.find(task => task.id === selectedId) || tasks[0];
@@ -45,6 +46,7 @@ const MotyqGoFocus: React.FC<Props> = ({ tasks, loading, error, name }) => {
           <p className="mt-2 text-xs text-slate-500">A tarefa só será concluída quando a ação for registrada no CRM.</p>
         </div>
       : <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-5 text-sm text-emerald-900"><CheckCircle2 size={22}/> Nenhuma pendência identificada no CRM neste momento.</div>}
+    {!loading && !error && !tasks.length && onStartNewService && <button type="button" onClick={onStartNewService} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800">Abrir CRM para novo atendimento <ArrowRight size={16}/></button>}
     <button type="button" aria-expanded={agendaOpen} onClick={() => setAgendaOpen(value => !value)}
       className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold hover:bg-slate-50">
       {agendaOpen ? <ListTodo size={17}/> : <CalendarDays size={17}/>} {agendaOpen ? 'Ocultar agenda' : 'Ver agenda completa'}
