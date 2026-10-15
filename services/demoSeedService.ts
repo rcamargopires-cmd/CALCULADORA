@@ -647,8 +647,9 @@ const clearDemoData=async()=>{
 export const demoSeedService={
   resetAndSeed:async(currentUser:User)=>{
     if(currentUser.role!=='admin')throw new Error('Somente o administrador pode reiniciar o ambiente demo.');
-    await clearDemoData();
-    await demoSeedService.seed(currentUser);
+    // Fail closed: deleting first can leave a partially restored dealership if any seed fails.
+    // Re-enable only after a server-authorized, backed-up, validated restore is available.
+    throw new Error('Restauração temporariamente indisponível: aguardando backup, validação de consistência e autorização no servidor.');
   },
 
   seed:async(currentUser:User)=>{
