@@ -16,10 +16,12 @@ type Props = {
   error: boolean;
   name: string;
   onStartNewService?: () => void;
+  context?: 'crm' | 'pricing';
+  onOpenLabel?: string;
 };
 
 /** Read-only GO entry point. Completion stays exclusively in the source CRM. */
-const MotyqGoFocus: React.FC<Props> = ({ tasks, loading, error, name, onStartNewService }) => {
+const MotyqGoFocus: React.FC<Props> = ({ tasks, loading, error, name, onStartNewService, context = 'crm', onOpenLabel = 'Abrir cliente no CRM' }) => {
   const [agendaOpen, setAgendaOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const active = tasks.find(task => task.id === selectedId) || tasks[0];
@@ -32,8 +34,8 @@ const MotyqGoFocus: React.FC<Props> = ({ tasks, loading, error, name, onStartNew
       </div>
       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{tasks.length} pendência(s)</span>
     </div>
-    {loading ? <p role="status" className="rounded-xl bg-slate-50 p-5 text-sm">Carregando suas tarefas do CRM...</p>
-      : error ? <p role="alert" className="rounded-xl bg-rose-50 p-5 text-sm text-rose-800">Não foi possível carregar o CRM. Nenhuma tarefa foi marcada como concluída.</p>
+    {loading ? <p role="status" className="rounded-xl bg-slate-50 p-5 text-sm">Carregando suas tarefas...</p>
+      : error ? <p role="alert" className="rounded-xl bg-rose-50 p-5 text-sm text-rose-800">Não foi possível carregar as tarefas. Nenhuma tarefa foi marcada como concluída.</p>
       : active ? <div className="rounded-2xl border border-emerald-100 bg-[#f4faf8] p-4 md:p-5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 text-xs font-black text-emerald-800"><Zap size={16}/> FAÇA AGORA</span>
@@ -42,10 +44,10 @@ const MotyqGoFocus: React.FC<Props> = ({ tasks, loading, error, name, onStartNew
           <h3 className="text-xl font-bold">{active.title}</h3>
           <p className="mt-2 text-sm text-slate-700">{active.reason}</p>
           <p className="mt-3 flex items-center gap-2 text-xs text-slate-600"><Clock3 size={15}/>{active.dueLabel}</p>
-          <button type="button" onClick={active.onOpen} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800">Abrir cliente no CRM <ArrowRight size={16}/></button>
-          <p className="mt-2 text-xs text-slate-500">A tarefa só será concluída quando a ação for registrada no CRM.</p>
+          <button type="button" onClick={active.onOpen} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800">{onOpenLabel} <ArrowRight size={16}/></button>
+          <p className="mt-2 text-xs text-slate-500">A tarefa só desaparecerá quando a etapa for registrada no sistema.</p>
         </div>
-      : <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-5 text-sm text-emerald-900"><CheckCircle2 size={22}/> Nenhuma pendência identificada no CRM neste momento.</div>}
+      : <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-5 text-sm text-emerald-900"><CheckCircle2 size={22}/> {context === 'pricing' ? 'Nenhuma avaliação aguardando decisão na sua fila neste momento.' : 'Nenhuma pendência identificada no CRM neste momento.'}</div>}
     {!loading && !error && !tasks.length && onStartNewService && <button type="button" onClick={onStartNewService} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800">Abrir CRM para novo atendimento <ArrowRight size={16}/></button>}
     <button type="button" aria-expanded={agendaOpen} onClick={() => setAgendaOpen(value => !value)}
       className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold hover:bg-slate-50">
