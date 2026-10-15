@@ -154,6 +154,29 @@ export const demoStockRows=():OperationalStockItem[]=>{
   }));
 };
 
+// Validate the fixed demo inventory before any Firestore writes.
+// These checks catch accidental ID collisions, missing tenant scope and noncanonical records.
+export const validateDemoStockSeed=()=>{
+  const rows=demoStockRows();
+  const plates=new Set<string>();
+  const ids=new Set<string>();
+  const errors:string[]=[];
+  if(rows.length!==18)errors.push(`Esperados 18 veículos, encontrados ${rows.length}.`);
+  for(const item of rows){
+    if(!/^[A-Z0-9]{7}$/.test(item.plate))errors.push(`Placa inválida: ${item.plate}`);
+    if(plates.has(item.plate))errors.push(`Placa duplicada: ${item.plate}`);
+    plates.add(item.plate);
+    if(ids.has(item.id))errors.push(`ID duplicado: ${item.id}`);
+    ids.add(item.id);
+    const expectedId=`stock_${safeId(DEMO_COMPANY_ID)}_${safeId(DEMO_STORE_ID)}_${safeId(item.plate)}`;
+    if(item.id!==expectedId)errors.push(`ID não canônico: ${item.plate}`);
+    if(item.companyId!==DEMO_COMPANY_ID||item.storeId!==DEMO_STORE_ID)errors.push(`Escopo incorreto: ${item.plate}`);
+    if(item.currentRecord!==true)errors.push(`Registro não atual: ${item.plate}`);
+    if(!Number.isFinite(item.cost)||item.cost<=0)errors.push(`Custo inválido: ${item.plate}`);
+  }
+  return {valid:errors.length===0,count:rows.length,errors};
+};
+
 const seedCompaniesStoresUsers=async()=>{
   const companies=await companyService.getAll();
   await companyService.saveAll([...companies.filter(item=>item.id!==DEMO_COMPANY_ID),DEMO_COMPANY]);
@@ -654,6 +677,8 @@ export const demoSeedService={
 
   seed:async(currentUser:User)=>{
     if(currentUser.role!=='admin')throw new Error('Somente o administrador pode preparar o ambiente demo.');
+    const preflight=validateDemoStockSeed();
+    if(!preflight.valid)throw new Error(`Estoque demo inválido: ${preflight.errors.join('; ')}`);
     await seedCompaniesStoresUsers();
     await Promise.all([seedStock(),seedPerformance(),seedSales()]);
     await Promise.all([seedQueueAndCrm(),seedDeals(),seedPrepTrack()]);
