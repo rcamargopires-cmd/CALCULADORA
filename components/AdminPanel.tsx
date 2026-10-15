@@ -18,7 +18,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, onConfigUpdate, setToast }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'form' | 'commissions' | 'banks'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'form' | 'commissions' | 'banks' | 'demo'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -293,6 +293,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
           </button>
         </div>
 
+        {currentUser.role === 'admin' && (
+          <div className="border-b border-zinc-700 bg-zinc-950 px-4 py-2">
+            <button onClick={() => setActiveTab('demo')} className={`flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold ${activeTab === 'demo' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}>
+              <RotateCcw size={16} /> Restaurar demonstração
+            </button>
+          </div>
+        )}
+
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1">
           
@@ -325,6 +333,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'demo' && currentUser.role === 'admin' && (
+            <section className="space-y-4 rounded-xl border border-zinc-700 bg-zinc-900 p-5">
+              <h4 className="text-lg font-bold text-white">Restaurar Motyq Demo Motors</h4>
+              <p className="text-sm text-zinc-300">A restauração retornará estoque, clientes, passagens, negociações, pedidos e indicadores ao cenário original. Nenhuma empresa real poderá ser afetada.</p>
+              <p className="text-sm text-amber-400">Indisponível até a validação do backup, da autorização no servidor e da consistência entre módulos.</p>
+              <button type="button" disabled className="flex items-center gap-2 rounded-lg bg-zinc-700 px-4 py-3 text-sm font-bold text-zinc-400 cursor-not-allowed" title="Aguardando validação de segurança">
+                <RotateCcw size={16} /> Restaurar dados originais
+              </button>
+            </section>
           )}
 
           {/* TAB: USERS */}
