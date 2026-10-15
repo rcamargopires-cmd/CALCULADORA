@@ -477,14 +477,13 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
       dueLabel: 'Fila de avaliações',
       urgent: item.status === 'awaiting_pricing',
       onOpen: () => {
-        const button = document.querySelector<HTMLButtonElement>('button[title="Avaliações Motyq"]');
-        button?.click();
+        setFocus('evaluations');
       },
     }));
   const openCrm = () => window.dispatchEvent(new CustomEvent('motyq:open-crm', { detail: {} }));
   return (
     <main className="motyq-exec">
-      {(currentUser.role === "manager" || currentUser.role === "admin" || currentUser.role === "director") && <MotyqGoFocus tasks={goManagerTasks} loading={false} error={false} name={String(currentUser.name || "gestor").split(" ")[0]} />}
+      {(currentUser.role === "manager" || currentUser.role === "admin" || currentUser.role === "director") && <MotyqGoFocus tasks={goManagerTasks} loading={false} error={false} name={String(currentUser.name || "gestor").split(" ")[0]} context="pricing" onOpenLabel="Abrir fila de avaliações" />}
       <div className="motyq-exec__glow motyq-exec__glow--one" />
       <div className="motyq-exec__glow motyq-exec__glow--two" />
 
