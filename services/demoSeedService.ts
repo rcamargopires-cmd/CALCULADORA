@@ -145,7 +145,7 @@ const stockTuples:DemoStockTuple[]=[
 export const demoStockRows=():OperationalStockItem[]=>{
   const snapshotDate=localDate();
   return stockTuples.map(([plate,vehicle,stockDays,cost,fipe,askingPrice],index)=>({
-    id:safeId(`${DEMO_COMPANY_ID}_${DEMO_STORE_ID}_${snapshotDate}_${plate}`),
+    id:`stock_${safeId(DEMO_COMPANY_ID)}_${safeId(DEMO_STORE_ID)}_${safeId(plate)}`,
     vehicleId:vehicleIdForPlate(plate),snapshotDate,plate,vehicle,stockDays,cost,fipe,askingPrice,
     purchaseCost:Math.max(0,cost-(index%4)*450),prepCost:(index%4)*450,
     brand:stockTuples[index][9],year:stockTuples[index][6],km:stockTuples[index][7],entryDate:localDaysAgo(stockDays),source:'import',currentRecord:true,
@@ -196,7 +196,7 @@ const seedStock=async()=>{
     {merge:true},
   )));
   await setDoc(doc(db,'operational_meta',`current_${safeId(DEMO_STORE_ID)}`),{
-    companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,latestStockDate:snapshotDate,latestStockBatchId:batchId,stockRows:stock.length,updatedAt:serverTimestamp(),
+    companyId:DEMO_COMPANY_ID,storeId:DEMO_STORE_ID,latestStockDate:snapshotDate,latestStockBatchId:batchId,stockRows:stock.length,canonicalStockVersion:4,updatedAt:serverTimestamp(),
   },{merge:true});
 
   await Promise.all(stock.map(item=>Promise.all([
