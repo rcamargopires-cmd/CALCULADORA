@@ -13,7 +13,7 @@ import {
 import { normalize } from '../services/operationalDataService';
 import { storeScopedOperationalService } from '../services/storeScopedOperationalService';
 import { useCurrentStock } from '../contexts/CurrentStockContext';
-import { DEMO_COMPANY_ID, demoStockRows, demoPerformanceSnapshots } from '../services/demoSeedService';
+import { DEMO_COMPANY_ID, demoPerformanceSnapshots } from '../services/demoSeedService';
 import { evaluationQueueService, EvaluationQueueRequest } from '../services/evaluationQueueService';
 import { showroomFlowService } from '../services/showroomFlowService';
 import { companyScopeService, COMPANY_SCOPE_EVENT } from '../services/companyScopeService';
@@ -203,13 +203,11 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
     void reloadOperational(nextScope.companyId, nextScope.storeId);
   }, [currentUser, sharedStock.companyId, sharedStock.storeId]);
 
+  // The dashboard must reflect the same canonical stock shown in inventory screens.
+  // Do not mask a failed or empty demo seed with hard-coded vehicles.
   useEffect(() => {
-    if (scope.companyId === DEMO_COMPANY_ID && !sharedStock.rows.length) {
-      setStock(demoStockRows());
-      return;
-    }
     setStock(sharedStock.rows);
-  }, [sharedStock.rows, scope.companyId]);
+  }, [sharedStock.rows]);
 
   useEffect(() => {
     if (!scope.companyId || !scope.storeId) return;
