@@ -135,6 +135,7 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [focus, setFocus] = useState<FocusPanel>(null);
+  const [goDetailsOpen, setGoDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (!focus) return;
@@ -487,6 +488,10 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
       <div className="motyq-exec__glow motyq-exec__glow--one" />
       <div className="motyq-exec__glow motyq-exec__glow--two" />
 
+      <button type="button" aria-expanded={goDetailsOpen} onClick={() => setGoDetailsOpen(open => !open)} className="mb-5 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-800 shadow-sm">
+        {goDetailsOpen ? 'Ocultar indicadores e inteligência operacional' : 'Ver indicadores e inteligência operacional'}
+      </button>
+      {goDetailsOpen && <>
       <header className="mx-topbar">
         <div className="mx-brand-wrap">
           <div className="mx-brand-identity" aria-label="MOTYQ">
@@ -667,6 +672,8 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
         <span>{stock.length ? `${stock.length} veículos lidos` : 'Estoque aguardando importação'}</span>
         <span>{history.length} negociação(ões) registradas</span>
       </footer>
+
+      </>}
 
       {focus && createPortal(
         <div className="mx-drawer-backdrop" onClick={() => setFocus(null)} role="presentation">
