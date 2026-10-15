@@ -43,6 +43,7 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
   const [referenceDate, setReferenceDate] = useState('');
   const [goal, setGoal] = useState(user.goals?.monthly ?? 15);
   const [now, setNow] = useState(() => Date.now());
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const companyId = companyScopeService.get(user);
   const storeId = storeScopeService.get(user);
@@ -163,7 +164,9 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
   })) : [];
 
   return <section aria-label="Central do Dia do vendedor" className="motyq-day-center mb-6 overflow-hidden rounded-[30px] border border-slate-200 bg-[#f7f9fc] p-4 text-slate-900 shadow-sm md:p-7">
-    <MotyqGoFocus tasks={goTasks} loading={!leadsReady} error={leadsError} name={firstName(user.name)}/>
+    <MotyqGoFocus tasks={goTasks} loading={!leadsReady} error={leadsError} name={firstName(user.name)} onStartNewService={() => openCrm({tab:"agenda"})}/>
+    <button type="button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen(value => !value)} className="mb-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-800">{detailsOpen ? "Ocultar indicadores e ferramentas" : "Ver indicadores, oportunidades e ferramentas"}</button>
+    {detailsOpen && <>
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="text-[10px] font-black uppercase tracking-[.17em] text-emerald-700">MOTYQ · CENTRAL DO DIA</p>
@@ -238,6 +241,7 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
         </div>
       </div>
     </div>
+    </>}
   </section>;
 };
 export default SellerDayCenter;
