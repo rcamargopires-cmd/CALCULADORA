@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import MotyqGoFocus, { type GoFocusTask } from './MotyqGoFocus';
 import { createPortal } from 'react-dom';
 import {
   Activity, AlertTriangle, ArrowRight, BarChart3, BellRing, CarFront, ChevronRight,
@@ -466,9 +467,24 @@ const ExecutiveDashboard: React.FC<Props> = ({ history, users, currentUser, onSt
   const closedSales = actualSales;
   const proposals = leads.filter(item => item.status === 'proposal').length;
 
+  const goManagerTasks: GoFocusTask[] = evaluations
+    .filter(item => item.status === 'awaiting_pricing' || item.status === 'pricing')
+    .filter(item => !item.pricingEmail || item.pricingEmail.toLowerCase() === currentUser.email.toLowerCase())
+    .map(item => ({
+      id: item.id,
+      title: 'Decidir avaliação: ' + (item.vehicle || item.plate || 'veículo'),
+      reason: item.status === 'awaiting_pricing' ? 'Laudo aguardando decisão da mesa.' : 'Precificação iniciada e ainda pendente.',
+      dueLabel: 'Fila de avaliações',
+      urgent: item.status === 'awaiting_pricing',
+      onOpen: () => {
+        const button = document.querySelector<HTMLButtonElement>('button[title="Avaliações Motyq"]');
+        button?.click();
+      },
+    }));
   const openCrm = () => window.dispatchEvent(new CustomEvent('motyq:open-crm', { detail: {} }));
   return (
     <main className="motyq-exec">
+      {(currentUser.role === "manager" || currentUser.role === "admin" || currentUser.role === "director") && <MotyqGoFocus tasks={goManagerTasks} loading={false} error={false} name={String(currentUser.name || "gestor").split(" ")[0]} />}
       <div className="motyq-exec__glow motyq-exec__glow--one" />
       <div className="motyq-exec__glow motyq-exec__glow--two" />
 
