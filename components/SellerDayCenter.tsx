@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import MotyqGoFocus, { type GoFocusTask } from './MotyqGoFocus';
 import { ArrowRight, CalendarClock, CarFront, ChartNoAxesCombined, ChevronRight, ClipboardList, Clock3, FileText, MessageCircle, UsersRound, WalletCards } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -150,7 +151,19 @@ const SellerDayCenter: React.FC<Props> = ({user, onStartNewCalculation}) => {
     {label:'Minhas vendas no mês',number:sales ?? '—',hint:sales===null?'Sem mapa do mês': 'Meta: '+goal+' · Mapa '+referenceDate.split('-').reverse().join('/'),color:'bg-slate-100 text-slate-900',icon:<ChartNoAxesCombined size={18}/>},
   ];
 
+  // Motyq GO uses the exact CRM priorities already calculated above.
+  // No local completion state: changes must be saved in the source CRM.
+  const goTasks: GoFocusTask[] = leadsReady && !leadsError ? priorities.map(({lead,label,tone},index) => ({
+    id: String(lead.id || index) + ':' + label,
+    title: 'Retornar para ' + String(lead.customerName || 'cliente'),
+    reason: label,
+    dueLabel: label,
+    urgent: tone === 'red',
+    onOpen: () => openCrm({action:'lead',leadId:String(lead.id || ''),tab:'agenda'}),
+  })) : [];
+
   return <section aria-label="Central do Dia do vendedor" className="motyq-day-center mb-6 overflow-hidden rounded-[30px] border border-slate-200 bg-[#f7f9fc] p-4 text-slate-900 shadow-sm md:p-7">
+    <MotyqGoFocus tasks={goTasks} loading={!leadsReady} error={leadsError} name={firstName(user.name)}/>
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="text-[10px] font-black uppercase tracking-[.17em] text-emerald-700">MOTYQ · CENTRAL DO DIA</p>
