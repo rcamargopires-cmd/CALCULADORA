@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+const storage = read('storage.rules');
+const firestore = read('firestore.rules');
+const marketIq = storage.match(/match \/marketiq\/\{companyId\}\/\{storeId\}\/\{plate\}\/\{fileName\} \{([\s\S]*?)\n    \}/)?.[1];
+assert.ok(marketIq, 'MarketIQ Storage rule must exist');
+assert.match(marketIq, /allow read: if allowedStore\(companyId, storeId\)/, 'MarketIQ reads must be tenant-scoped');
+assert.match(marketIq, /allow write: if allowedStore\(companyId, storeId\)/, 'MarketIQ writes must be tenant-scoped');
+assert.doesNotMatch(marketIq, /allow (?:read|write): if request\.auth != null\s*;/, 'Authentication alone is insufficient');
+const users = firestore.match(/match \/users\/\{email\} \{([\s\S]*?)\n    \}/)?.[1];
+assert.ok(users, 'User rule must exist');
+const update = users.match(/allow update: if isAdmin\(\) \|\| \(([\s\S]*?)\n      \);/)?.[1];
+assert.ok(update, 'Manager user-update clause must exist');
+assert.match(update, /request\.auth\.token\.email != email/, 'Managers must not edit their own user document');
+assert.match(storage, /match \/\{allPaths=\*\*\} \{\s*allow read, write: if false;/, 'Storage default must deny');
+assert.match(firestore, /match \/\{document=\*\*\} \{\s*allow read, write: if false;/, 'Firestore default must deny');
+console.log('Security static regression guards passed.');
