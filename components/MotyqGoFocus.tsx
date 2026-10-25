@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowRight, CalendarDays, CheckCircle2, Clock3, ListTodo, Zap } from 'lucide-react';
+import { ArrowRight, CalendarDays, CheckCircle2, Clock3, ListTodo, MessageCircle, Send, Zap } from 'lucide-react';
+import { getGoGuidance } from '../services/goCopilotReadOnly';
 
 export type GoFocusTask = {
   id: string;
@@ -24,7 +25,11 @@ type Props = {
 const MotyqGoFocus: React.FC<Props> = ({ tasks, loading, error, name, onStartNewService, context = 'crm', onOpenLabel = 'Abrir cliente no CRM' }) => {
   const [agendaOpen, setAgendaOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [questionDraft, setQuestionDraft] = useState('');
+  const [askedQuestion, setAskedQuestion] = useState('');
   const active = tasks.find(task => task.id === selectedId) || tasks[0];
+  const reply = askedQuestion && !loading && !error ? getGoGuidance(askedQuestion, tasks, active, context) : '';
   return <section aria-label="Motyq GO" className="mb-5 rounded-[28px] border border-slate-200 bg-white p-4 text-slate-900 shadow-sm md:p-6">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -59,6 +64,31 @@ const MotyqGoFocus: React.FC<Props> = ({ tasks, loading, error, name, onStartNew
         <span><strong className="block text-sm">{task.title}</strong><small className="text-slate-500">{task.dueLabel}</small></span><ArrowRight size={16} className="shrink-0"/>
       </button>)}
       {!tasks.length && <p className="p-3 text-sm text-slate-500">Não há tarefas para mostrar.</p>}
+    </div>}
+
+    <button type="button" aria-expanded={copilotOpen} onClick={() => setCopilotOpen(value => !value)}
+      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900 hover:bg-emerald-100">
+      <MessageCircle size={17}/> {copilotOpen ? 'Fechar orientação GO' : 'Pergunte ao GO'}
+    </button>
+    {copilotOpen && <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4" aria-label="Assistente GO somente leitura">
+      <p className="text-sm font-semibold text-slate-800">Seu assistente de prioridades</p>
+      <p className="mt-1 text-xs leading-5 text-slate-600">Versão inicial: respostas somente sobre as pendências disponíveis nesta tela. Ainda não consulta Syonet, AutoAvaliar ou DealerNet nem executa ações por você.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {['O que faço agora?', 'Resuma minhas pendências', 'Por que esta prioridade?'].map(prompt =>
+          <button key={prompt} type="button" disabled={loading || error} onClick={() => setAskedQuestion(prompt)}
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-emerald-300 disabled:opacity-50">{prompt}</button>)}
+      </div>
+      <form className="mt-3 flex gap-2" onSubmit={event => { event.preventDefault(); if (questionDraft.trim()) { setAskedQuestion(questionDraft.trim()); setQuestionDraft(''); } }}>
+        <input value={questionDraft} onChange={event => setQuestionDraft(event.target.value)} disabled={loading || error}
+          maxLength={240} aria-label="Sua pergunta para o GO" placeholder="Pergunte sobre sua agenda..."
+          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none focus:border-emerald-500 disabled:opacity-50"/>
+        <button type="submit" disabled={loading || error || !questionDraft.trim()} aria-label="Enviar pergunta ao GO"
+          className="flex min-w-11 items-center justify-center rounded-xl bg-emerald-700 px-3 text-white hover:bg-emerald-800 disabled:opacity-50"><Send size={17}/></button>
+      </form>
+      {askedQuestion && <div role="status" aria-live="polite" className="mt-3 rounded-xl border border-emerald-100 bg-white p-3">
+        <p className="text-xs font-semibold text-emerald-800">{askedQuestion}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-700">{error ? 'Não foi possível consultar a agenda agora.' : loading ? 'Carregando as informações da agenda...' : reply}</p>
+      </div>}
     </div>}
   </section>;
 };
