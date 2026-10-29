@@ -588,7 +588,7 @@ const portal = (raw: string): Source | null => {
     const u = new URL(raw);
     if (u.protocol !== 'https:') return null;
     const host = u.hostname.toLowerCase(), path = u.pathname.toLowerCase();
-    if ((host === 'webmotors.com.br' || host.endsWith('.webmotors.com.br')) && path.startsWith('/comprar/')) return 'webmotors';
+    if ((host === 'webmotors.com.br' || host.endsWith('.webmotors.com.br')) && (path.startsWith('/comprar/') || path.includes('/estoque/') || path.startsWith('/carros/'))) return 'webmotors';
     if ((host === 'olx.com.br' || host.endsWith('.olx.com.br')) && /autos-e-pecas|carros-vans-e-utilitarios|-id-\d{7,}/.test(path)) return 'olx';
     return null;
   } catch { return null; }
@@ -604,7 +604,7 @@ const kmOf = (text: string) => {
   const thousands = text.match(/\b(\d{1,3})(?:[,.](\d))?\s*mil\s*(?:km|quil[oô]metros)\b/i);
   return thousands ? Number(thousands[1]) * 1000 + Number(thousands[2] || 0) * 100 : 0;
 };
-const riskWords = /leil[aã]o|sinistr|recuperad|batid|salvado|sucata|cons[oó]rcio|parcela|entrada/i;
+const riskWords = /leil[aã]o|sinistr|recuperad|batid|salvado|sucata|cons[oó]rcio/i;
 const search = async (query: string, domain: string) => {
   const response = await fetch('https://api.tavily.com/search', {
     method: 'POST',
@@ -615,7 +615,7 @@ const search = async (query: string, domain: string) => {
       'X-Client-Source': 'tavily-mcp-keyless',
       'X-Session-Id': 'motyq-iq-market-preview',
     },
-    body: JSON.stringify({ query, search_depth: 'basic', topic: 'general', max_results: 10, include_domains: [domain], include_raw_content: false }),
+    body: JSON.stringify({ query, search_depth: 'basic', topic: 'general', max_results: 8, include_domains: [domain], include_raw_content: 'markdown' }),
     signal: AbortSignal.timeout(16000),
   });
   if (response.status === 401 || response.status === 402 || response.status === 429) {
@@ -624,6 +624,52 @@ const search = async (query: string, domain: string) => {
   if (!response.ok) throw new Error('Pesquisa web falhou (HTTP ' + response.status + ').');
   const data = await response.json() as any;
   return Array.isArray(data?.results) ? data.results : [];
+};
+
+
+const listingPageCandidates = (pages: any[], brand: string, model: string, year: number, km: number) => {
+  const core = normalize(model).split(/[^a-z0-9]+/).filter(Boolean)[0] || '';
+  const tokens = normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
+  const variant = tokens.slice(1).find(t => t.length >= 4 &&
+    !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor','hibrido','eletrico'].includes(t)) || '';
+  const powertrain = tokens.find(t => /^[a-z]\d{2,4}$/.test(t)) || '';
+  const expression = new RegExp('\\b' + brand.replace(/[^a-z0-9 ]/gi, '') +
+    '\\s+' + core.replace(/[^a-z0-9]/gi, '') + '\\b', 'gi');
+  const seen = new Set<string>();
+  const results: any[] = [];
+  for (const page of pages) {
+    const url = string(page.url);
+    const source = portal(url);
+    if (!source || !/\/estoque\/|\/carros\/|\/autos-e-pecas\//i.test(new URL(url).pathname)) continue;
+    const content = string(page.raw_content).slice(0, 100000).replace(/\u00a0/g, ' ');
+    if (!content) continue;
+    const hits = [...content.matchAll(expression)].slice(0, 70);
+    for (let i = 0; i < hits.length; i++) {
+      const start = hits[i].index || 0;
+      const following = i + 1 < hits.length ? hits[i + 1].index || content.length : content.length;
+      const block = content.slice(start, Math.min(following, start + 520));
+      const clean = normalize(block);
+      if (variant && !clean.includes(variant)) continue;
+      if (powertrain && !clean.includes(powertrain)) continue;
+      const yearMatch = block.match(/\b(?:19|20)\d{2}\s*\/\s*((?:19|20)\d{2})\b/);
+      const candidateYear = yearMatch ? Number(yearMatch[1]) : clean.includes(String(year)) ? year : 0;
+      if (candidateYear !== year) continue;
+      const price = priceOf(block), adKm = kmOf(block);
+      if (!price || !adKm || Math.abs(adKm - km) > 60000) continue;
+      if (riskWords.test(block.slice(0, 150))) continue;
+      const id = [source, price, adKm, year].join('|');
+      if (seen.has(id)) continue;
+      seen.add(id);
+      results.push({
+        source, price, km: adKm, year,
+        title: brand + ' ' + model + ' ' + year + ' · ' + adKm.toLocaleString('pt-BR') + ' km',
+        url: url.split('?')[0],
+        evidence: 'Preço, ano e KM localizados no mesmo bloco de página de resultados. Link individual não confirmado.',
+        catalog: true, confidence: 'catalog_page',
+      });
+    }
+  }
+  return results.sort((a, b) => a.price - b.price).slice(0, 20);
 };
 
 async function marketIqDeskSearchServer(req: any, res: any) {
@@ -635,10 +681,12 @@ async function marketIqDeskSearchServer(req: any, res: any) {
   const km = Number(req.body?.km);
   if (!brand || !model || !Number.isInteger(year) || year < 1990 || year > 2100 || !Number.isFinite(km) || km <= 0)
     return res.status(400).json({ error: 'Selecione marca, versão, ano e quilometragem antes da pesquisa.' });
-  const queryBase = brand + ' ' + model + ' ' + year + ' preço R$ km carro usado';
+  const tokens = normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
+  const variant = tokens.slice(1).find(t => t.length >= 4 && !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor'].includes(t)) || '';
+  const queryBase = [brand,tokens[0],variant,year].filter(Boolean).join(' ');
   const lookups = await Promise.allSettled([
-    search(queryBase + ' site:webmotors.com.br/comprar', 'webmotors.com.br'),
-    search(queryBase + ' site:olx.com.br', 'olx.com.br'),
+    search(queryBase + ' site:webmotors.com.br carro usado preço quilometragem', 'webmotors.com.br'),
+    search(queryBase + ' site:olx.com.br carro usado preço quilometragem', 'olx.com.br'),
   ]);
   const complete = lookups.flatMap(result => result.status === 'fulfilled' ? result.value : []);
   const failed = lookups.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
@@ -651,27 +699,40 @@ async function marketIqDeskSearchServer(req: any, res: any) {
   const trimToken = modelTokens.slice(1).find(token =>
     token.length >= 4 && !['flex','auto','automatico','manual','turbo','diesel','gasolina','hibrido','eletrico','motor','sedan','hatch'].includes(token));
   const seen = new Set<string>();
-  const ads = complete.map((item: any) => {
+  const individualAds = complete.map((item: any) => {
     const url = string(item?.url);
     const source = portal(url);
     const title = string(item?.title).slice(0, 180);
     const snippet = string(item?.content).slice(0, 2200);
-    const text = title + ' ' + snippet;
+    const text = title + ' ' + snippet + ' ' + string(item?.raw_content).slice(0, 5000);
     const normalizedText = normalize(text + ' ' + url);
     const price = priceOf(text), adKm = kmOf(text);
     if (!source || !coreModel || !normalizedText.includes(coreModel)) return null;
     if (trimToken && !normalizedText.includes(trimToken)) return null;
     if (!normalizedText.includes(String(year))) return null;
-    if (!price || !adKm || Math.abs(adKm - km) > 50000 || riskWords.test(title + ' ' + snippet)) return null;
+    if (!price || !adKm || Math.abs(adKm - km) > 60000 || riskWords.test(title + ' ' + snippet.slice(0, 250))) return null;
     const cleanUrl = url.split('?')[0];
-    if (seen.has(cleanUrl)) return null;
+    if (seen.has(cleanUrl) || /\/estoque\/|\/carros\//.test(new URL(url).pathname) && !/\/comprar\//.test(new URL(url).pathname)) return null;
     seen.add(cleanUrl);
     return { source, title, url: cleanUrl, price, km: adKm, year,
       evidence: snippet.slice(0, 220), confidence: 'candidate' };
   }).filter(Boolean).sort((a: any, b: any) => a.price - b.price).slice(0, 20);
+  const listingAds = listingPageCandidates(complete, brand, model, year, km);
+  const ads = [...individualAds, ...listingAds].sort((a: any, b: any) => a.price - b.price).slice(0, 20);
+  console.info('Desk MarketScan counts', {
+    pages: complete.length,
+    pagesWithFullContent: complete.filter((p:any) => Boolean(p.raw_content)).length,
+    individualAds: individualAds.length, listingAds: listingAds.length, failedSources: failed.length,
+  });
   return res.status(200).json({
     ads, searchedAt: new Date().toISOString(), provider: 'Tavily Keyless · busca web gratuita',
     warning: 'Dados extraídos de trechos indexados, não diretamente da página do anunciante. Conferência do anúncio necessária antes de aprovar compra.',
-    sourcesChecked: lookups.map((result, i) => ({ source: i === 0 ? 'Webmotors' : 'OLX', available: result.status === 'fulfilled' })),
+    pagesFound: complete.length,
+    sourcePagesWithFullContent: complete.filter((p:any) => Boolean(p.raw_content)).length,
+    sourcesChecked: lookups.map((result, i) => ({
+      source: i === 0 ? 'Webmotors' : 'OLX', available: result.status === 'fulfilled',
+      pageCount: result.status === 'fulfilled' ? result.value.length : 0,
+      error: result.status === 'rejected' ? String(result.reason?.message || 'Fonte indisponível').slice(0,180) : '',
+    })),
   });
 }
