@@ -635,7 +635,7 @@ const listingPageCandidates = (pages: any[], brand: string, model: string, year:
     !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor','hibrido','eletrico'].includes(t)) || '';
   const powertrain = tokens.find(t => /^[a-z]\d{2,4}$/.test(t)) || '';
   const expression = new RegExp('\\b' + brand.replace(/[^a-z0-9 ]/gi, '') +
-    '\\s+' + core.replace(/[^a-z0-9]/gi, '') + '\\b', 'gi');
+    '(?:\\s|[#*_\\-])+' + core.replace(/[^a-z0-9]/gi, '') + '\\b', 'gi');
   const seen = new Set<string>();
   const results: any[] = [];
   for (const page of pages) {
@@ -686,8 +686,10 @@ async function marketIqDeskSearchServer(req: any, res: any) {
   const variant = tokens.slice(1).find(t => t.length >= 4 && !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor'].includes(t)) || '';
   const queryBase = [brand,tokens[0],variant,year].filter(Boolean).join(' ');
   const lookups = await Promise.allSettled([
-    search(queryBase + ' site:webmotors.com.br carro usado preço quilometragem', 'webmotors.com.br'),
+    search(queryBase + ' ' + year + '/' + year + ' site:webmotors.com.br/carros-usados preço km', 'webmotors.com.br'),
+    search(queryBase + ' site:webmotors.com.br/comprar/ preço km', 'webmotors.com.br'),
     search(queryBase + ' site:olx.com.br carro usado preço quilometragem', 'olx.com.br'),
+    search(queryBase + ' site:napista.com.br/busca/ preço km', 'napista.com.br'),
   ]);
   const complete = lookups.flatMap(result => result.status === 'fulfilled' ? result.value : []);
   const failed = lookups.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
@@ -719,7 +721,7 @@ async function marketIqDeskSearchServer(req: any, res: any) {
       evidence: snippet.slice(0, 220), confidence: 'candidate' };
   }).filter(Boolean).sort((a: any, b: any) => a.price - b.price).slice(0, 20);
   const listingAds = listingPageCandidates(complete, brand, model, year, km);
-  const ads = [...individualAds, ...listingAds].sort((a: any, b: any) => a.price - b.price).slice(0, 20);
+  const ads = [...individualAds, ...listingAds].filter((item:any,index:number,items:any[])=>items.findIndex((other:any)=>other.source===item.source&&other.price===item.price&&other.km===item.km&&other.year===item.year)===index).sort((a:any,b:any)=>a.price-b.price).slice(0,24);
   const searchEvidence = complete.map((p:any) => {
     const source=portal(string(p.url));
     const text=string(p.title)+' '+string(p.content);
