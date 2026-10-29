@@ -6,7 +6,7 @@ const FIREBASE_API_KEY = 'AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
 const normalize = (value: unknown) => String(value ?? '').trim();
 const n = (value: unknown) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  const raw = normalize(value).replace(/R\\$/gi, '').replace(/\\s/g, '').replace(/\\.(?=\\d{3}(\\D|$))/g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
+  const raw = normalize(value).replace(/R\$/gi, '').replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
   return Number(raw) || 0;
 };
 const json = (text: string): any => {
@@ -23,7 +23,7 @@ const portal = (raw: string): 'webmotors' | 'olx' | null => {
     if (url.protocol !== 'https:') return null;
     if ((host === 'webmotors.com.br' || host.endsWith('.webmotors.com.br')) && url.pathname.toLowerCase().startsWith('/comprar/')) return 'webmotors';
     if ((host === 'olx.com.br' || host.endsWith('.olx.com.br')) &&
-        /(?:autos-e-pecas|carros-vans-e-utilitarios|\\bid-\\d{7,})/i.test(url.pathname)) return 'olx';
+        /(?:autos-e-pecas|carros-vans-e-utilitarios|\bid-\d{7,})/i.test(url.pathname)) return 'olx';
     return null;
   } catch { return null; }
 };
@@ -59,7 +59,7 @@ export default async function handler(req: any, res: any) {
       'Retorne no máximo 20 anúncios ordenados por preço, somente JSON no formato:',
       '{"ads":[{"title":"Hyundai Creta Attitude 1.6 AT 2020","url":"https://www.webmotors.com.br/comprar/...","price":85000,"km":47000,"year":2020,"evidence":"texto curto visto no resultado indexado"}]}',
       'Se não conseguir uma URL direta, preço, ano e KM de uma oferta real, omita esse anúncio e retorne lista vazia. Não inclua valores de exemplo.'
-    ].join('\\n');
+    ].join('\n');
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const reply = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -71,7 +71,7 @@ export default async function handler(req: any, res: any) {
     const parsed = json(normalize(reply.text));
     // Sem evidência de pesquisa de fato executada, não retornar valores gerados pelo modelo.
     const raw: any[] = queries.length && Array.isArray(parsed?.ads) ? parsed.ads : [];
-    const targetModel = model.split(/\\s+/)[0]?.toLowerCase() || '';
+    const targetModel = model.split(/\s+/)[0]?.toLowerCase() || '';
     const dedupe = new Set<string>();
     const ads = raw.map((item: any) => {
       const url = normalize(item?.url);
