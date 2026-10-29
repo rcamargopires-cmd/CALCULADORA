@@ -594,12 +594,23 @@ const portal = (raw: string): Source | null => {
     return null;
   } catch { return null; }
 };
+// Lists and search pages are never treated as verified, individual advertisements.
+const isIndividualAdUrl = (source: Source, raw: string) => {
+  try {
+    const path = new URL(raw).pathname.toLowerCase();
+    if (source === 'webmotors') return /^\/comprar\/[^/]+\/[^/]+\/.+\/\d{7,}\/?$/.test(path);
+    if (source === 'olx') return /(?:-id-|\/item\/|\/d\/)[a-z0-9-]*\d{7,}\/?$/.test(path);
+    return false;
+  } catch {return false;}
+};
 const priceOf = (text: string) => {
   const found = text.match(/R\$\s*((?:\d{1,3}\.){1,2}\d{3})(?:,\d{2})?/i);
   const value = found ? Number(found[1].replace(/\./g, '')) : 0;
   return value >= 15000 && value <= 2000000 ? value : 0;
 };
 const kmOf = (text: string) => {
+  const backwards = text.match(/\bKM\s*[:\n\r-]*\s*(\d{1,3}(?:\.\d{3})+|\d{4,6})\b/i);
+  if (backwards) return Number(backwards[1].replace(/\./g,''));
   const compact = text.match(/\b(\d{1,3}(?:\.\d{3})+|\d{4,6})\s*(?:km|quil[oô]metros)\b/i);
   if (compact) return Number(compact[1].replace(/\./g, ''));
   const thousands = text.match(/\b(\d{1,3})(?:[,.](\d))?\s*mil\s*(?:km|quil[oô]metros)\b/i);
@@ -710,7 +721,7 @@ async function marketIqDeskSearchServer(req: any, res: any) {
     const text = title + ' ' + snippet + ' ' + string(item?.raw_content).slice(0, 5000);
     const normalizedText = normalize(text + ' ' + url);
     const price = priceOf(text), adKm = kmOf(text);
-    if (!source || !coreModel || !normalizedText.includes(coreModel)) return null;
+    if (!source || !isIndividualAdUrl(source,url) || !coreModel || !normalizedText.includes(coreModel)) return null;
     if (trimToken && !normalizedText.includes(trimToken)) return null;
     if (!normalizedText.includes(String(year))) return null;
     if (!price || !adKm || Math.abs(adKm - km) > 60000 || riskWords.test(title + ' ' + snippet.slice(0, 250))) return null;
@@ -727,7 +738,7 @@ async function marketIqDeskSearchServer(req: any, res: any) {
     const text=string(p.title)+' '+string(p.content);
     const raw=string(p.raw_content);
     return {
-      source:source||'other', pageType:/\/comprar\/|\/item\/|-id-\d{7,}/.test(string(p.url))?'individual':'listing',
+      source:source||'other', pageType:source&&isIndividualAdUrl(source,string(p.url))?'individual':'listing',
       hasPrice:Boolean(priceOf(text)), hasKm:Boolean(kmOf(text)), mentionsYear:normalize(text).includes(String(year)),
       mentionsModel:normalize(text).includes(coreModel), mentionsVersion:!trimToken||normalize(text).includes(trimToken),
       hasFullText:Boolean(raw), fullTextLength:raw.length, hrefPath:(()=>{try{return new URL(string(p.url)).pathname.slice(0,160)}catch{return ''}})(),
