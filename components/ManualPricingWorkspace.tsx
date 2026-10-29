@@ -40,9 +40,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      const currentUser=auth.currentUser;
      if(!currentUser)throw new Error('Faça login novamente para pesquisar o mercado.');
      const token=await currentUser.getIdToken();
-     const response=await fetch('/api/marketiq-desk-search',{
+     const response=await fetch('/api/marketiq-market-scan',{
        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-       body:JSON.stringify({brand,model,year:fipe.year,km:number(km)}),
+       body:JSON.stringify({action:'desk_market_search',brand,model,year:fipe.year,km:number(km)}),
        signal:AbortSignal.timeout(55000)
      });
      const payload=await response.json().catch(()=>({}));
