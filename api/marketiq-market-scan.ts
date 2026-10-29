@@ -582,7 +582,7 @@ RETORNE APENAS JSON:
 
 const string = (value: unknown) => String(value ?? '').trim();
 const normalize = (value: string) => value.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-type Source = 'webmotors' | 'olx';
+type Source = 'webmotors' | 'olx' | 'napista';
 const portal = (raw: string): Source | null => {
   try {
     const u = new URL(raw);
@@ -590,6 +590,7 @@ const portal = (raw: string): Source | null => {
     const host = u.hostname.toLowerCase(), path = u.pathname.toLowerCase();
     if ((host === 'webmotors.com.br' || host.endsWith('.webmotors.com.br')) && (path.startsWith('/comprar/') || path.startsWith('/carros-usados/') || path.startsWith('/carros-novos/') || path.includes('/estoque/') || path.startsWith('/carros/'))) return 'webmotors';
     if ((host === 'olx.com.br' || host.endsWith('.olx.com.br')) && /autos-e-pecas|carros-vans-e-utilitarios|-id-\d{7,}|\/d\/|\/item\//.test(path)) return 'olx';
+    if ((host === 'napista.com.br' || host.endsWith('.napista.com.br')) && path.startsWith('/busca/')) return 'napista';
     return null;
   } catch { return null; }
 };
@@ -640,14 +641,14 @@ const listingPageCandidates = (pages: any[], brand: string, model: string, year:
   for (const page of pages) {
     const url = string(page.url);
     const source = portal(url);
-    if (!source || !/\/estoque\/|\/carros\/|\/carros-usados\/|\/autos-e-pecas\//i.test(new URL(url).pathname)) continue;
-    const content = string(page.raw_content).slice(0, 100000).replace(/\u00a0/g, ' ');
+    if (!source || !/\/estoque\/|\/carros\/|\/carros-usados\/|\/autos-e-pecas\/|\/busca\//i.test(new URL(url).pathname)) continue;
+    const content = string(page.raw_content || page.content).slice(0, 100000).replace(/\u00a0/g, ' ');
     if (!content) continue;
     const hits = [...content.matchAll(expression)].slice(0, 70);
     for (let i = 0; i < hits.length; i++) {
       const start = hits[i].index || 0;
       const following = i + 1 < hits.length ? hits[i + 1].index || content.length : content.length;
-      const block = content.slice(start, Math.min(following, start + 520));
+      const block = content.slice(start, Math.min(following, start + 720));
       const clean = normalize(block);
       if (variant && !clean.includes(variant)) continue;
       if (powertrain && !clean.includes(powertrain)) continue;
@@ -690,7 +691,7 @@ async function marketIqDeskSearchServer(req: any, res: any) {
   ]);
   const complete = lookups.flatMap(result => result.status === 'fulfilled' ? result.value : []);
   const failed = lookups.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
-  if (!complete.length && failed.length === 2) {
+  if (!complete.length && failed.length === lookups.length) {
     const detail = failed.map(x => String(x.reason?.message || '')).filter(Boolean).join(' / ');
     return res.status(503).json({ error: 'A pesquisa gratuita está indisponível. ' + detail.slice(0, 240) });
   }
@@ -744,11 +745,11 @@ async function marketIqDeskSearchServer(req: any, res: any) {
       individualPages:searchEvidence.filter((p:any)=>p.pageType==='individual').length,
       listingsPages:searchEvidence.filter((p:any)=>p.pageType==='listing').length,
       snippetPriceAndKm:searchEvidence.filter((p:any)=>p.hasPrice&&p.hasKm&&p.mentionsYear&&p.mentionsModel).length,
-      fullContentByPortal:{webmotors:searchEvidence.filter((p:any)=>p.source==='webmotors'&&p.hasFullText).length,olx:searchEvidence.filter((p:any)=>p.source==='olx'&&p.hasFullText).length},
+      fullContentByPortal:{webmotors:searchEvidence.filter((p:any)=>p.source==='webmotors'&&p.hasFullText).length,olx:searchEvidence.filter((p:any)=>p.source==='olx'&&p.hasFullText).length,napista:searchEvidence.filter((p:any)=>p.source==='napista'&&p.hasFullText).length},
     },
     sourcePagesWithFullContent: complete.filter((p:any) => Boolean(p.raw_content)).length,
     sourcesChecked: lookups.map((result, i) => ({
-      source: i === 0 ? 'Webmotors' : 'OLX', available: result.status === 'fulfilled',
+      source: i < 2 ? 'Webmotors' : i === 2 ? 'OLX' : 'NaPista', available: result.status === 'fulfilled',
       pageCount: result.status === 'fulfilled' ? result.value.length : 0,
       error: result.status === 'rejected' ? String(result.reason?.message || 'Fonte indisponível').slice(0,180) : '',
     })),
