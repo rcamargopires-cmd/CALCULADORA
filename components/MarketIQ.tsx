@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, AlertTriangle, Calculator, CarFront, CheckCircle2, ClipboardList, FileText, Gauge, Save, ShieldCheck, X, XCircle } from 'lucide-react';
 import { User } from '../types';
 
-type Props = { currentUser: User; companyId: string; storeId: string; storeName: string };
+type Props = { currentUser: User; companyId: string; storeId: string; storeName: string; deskMode?: boolean };
 type Level = 1 | 2 | 3 | 4 | 5;
 type Liquidity = 'high' | 'medium' | 'low';
 type Trend = 'up' | 'stable' | 'down';
@@ -14,9 +14,9 @@ const clamp=(v:number,min:number,max:number)=>Math.min(max,Math.max(min,v));
 const conditionLabel=(score:number)=>score>=90?'A · Excelente':score>=78?'B · Bom':score>=64?'C · Regular':score>=48?'D · Alto investimento':'E · Repasse / alto risco';
 const riskLabel=(score:number)=>score>=80?'COMPRA FORTE':score>=65?'COMPRA RECOMENDADA':score>=50?'ATENÇÃO':'RISCO ELEVADO';
 
-const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
+const MarketIQ:React.FC<Props>=({currentUser,storeName,deskMode=false})=>{
  const inspectionOnly=currentUser.role==='evaluator';
- const[open,setOpen]=useState(false);
+ const[open,setOpen]=useState(deskMode);
  const[plate,setPlate]=useState('');const[brand,setBrand]=useState('');const[brandCode,setBrandCode]=useState('');const[vehicle,setVehicle]=useState('');const[modelCode,setModelCode]=useState('');const[year,setYear]=useState('');const[yearCode,setYearCode]=useState('');
  const[brands,setBrands]=useState<CatalogItem[]>([]);const[models,setModels]=useState<CatalogItem[]>([]);const[years,setYears]=useState<CatalogItem[]>([]);const[catalogBusy,setCatalogBusy]=useState(false);const[fipeBusy,setFipeBusy]=useState(false);
  const[km,setKm]=useState('');const[expectedKm,setExpectedKm]=useState('60000');
@@ -169,16 +169,16 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
  const catalogSelect=(label:string,value:string,onChange:(value:string)=>void,options:CatalogItem[],placeholder:string,disabled=false,wide=false)=><label className={wide?'lg:col-span-2':''}><span className={labelCls}>{label}</span><select value={value} disabled={disabled} onChange={e=>onChange(e.target.value)} className="h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none focus:border-cyan-300/40 disabled:cursor-not-allowed disabled:opacity-50"><option value="">{placeholder}</option>{options.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</select></label>;
 
  return <>
-  <button title="MarketIQ · avaliação e precificação" onClick={()=>setOpen(true)} className="fixed bottom-[154px] right-4 z-[153] flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-[#11191b]/95 px-4 py-3 text-left text-white shadow-2xl shadow-black/45 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#142025] active:scale-[.98]">
+  <button style={deskMode?{display:"none"}:undefined} title="MarketIQ · avaliação e precificação" onClick={()=>setOpen(true)} className="fixed bottom-[154px] right-4 z-[153] flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-[#11191b]/95 px-4 py-3 text-left text-white shadow-2xl shadow-black/45 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#142025] active:scale-[.98]">
    <span className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/15 bg-cyan-300/[.07] text-cyan-300"><Gauge size={20}/></span>
    <span className="hidden sm:block"><span className="block text-[9px] font-black uppercase tracking-[.17em] text-cyan-300">MERCADO</span><span className="mt-0.5 block text-sm font-semibold">MarketIQ</span></span>
   </button>
 
-  {open&&<div className="fixed inset-0 z-[590] overflow-y-auto bg-black/80 p-3 backdrop-blur-md md:p-5">
+  {open&&<div className={deskMode?"relative mx-auto max-w-[1600px] p-3 md:p-5":"fixed inset-0 z-[590] overflow-y-auto bg-black/80 p-3 backdrop-blur-md md:p-5"}>
    <div className="mx-auto max-w-[1500px] rounded-[28px] border border-white/10 bg-[#101315] text-white shadow-2xl" onClick={e=>e.stopPropagation()}>
     <header className="sticky top-0 z-20 flex items-start justify-between rounded-t-[28px] border-b border-white/10 bg-[#101315]/95 p-5 backdrop-blur md:px-6 md:py-5">
      <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-cyan-300">MOTYQ MARKETIQ · V2</p><h2 className="mt-1 text-2xl font-semibold">{inspectionOnly?'Inspeção do veículo':'Avaliação & Precificação Inteligente'}</h2><p className="mt-1 text-sm text-zinc-500">{inspectionOnly?`${storeName} · identificação + condição + preparação + fotos e avarias`:`${storeName} · veículo + mercado + condição + preparação + decisão`}</p></div>
-     <button onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 text-zinc-400 hover:text-white"><X size={18}/></button>
+     <button style={deskMode?{display:"none"}:undefined} onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 text-zinc-400 hover:text-white"><X size={18}/></button>
     </header>
 
     <div className={`grid gap-5 p-4 md:p-6 ${inspectionOnly?'xl:grid-cols-1':'xl:grid-cols-[1.25fr_.8fr_.72fr]'}`}>
