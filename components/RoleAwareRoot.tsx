@@ -186,6 +186,11 @@ const RoleAwareRoot: React.FC = () => {
   }, []);
 
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#f6f8fb] text-sm font-semibold text-slate-500">Carregando MOTYQ...</div>;
+  // Standalone preview: do not mount seller docks, voice or operational overlays.
+  // Preserve the signed-in seller's actual role and permissions.
+  const isolatedDeskPreview = profile?.email?.toLowerCase()==='reinaldo.ribas@abraoreze.com.br'
+    && new URLSearchParams(window.location.search).get('mesa')==='teste';
+  if (isolatedDeskPreview && profile) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><ModuleErrorBoundary name="Mesa de Precificação" critical><App /></ModuleErrorBoundary></BillingGate></>;
   if (profile?.role === 'evaluator') return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><EvaluatorMotyq user={profile}/></BillingGate></>;
   if (profile?.role === 'manager' && profile.pricingDeskOnly) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><PricingMotyq user={profile}/></BillingGate></>;
   if (profile?.role === 'admin' && adminScope === ADMIN_HOME_SCOPE) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><AdminControlCenter currentUser={profile}/></>;
