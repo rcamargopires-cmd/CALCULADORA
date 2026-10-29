@@ -60,7 +60,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      const pages=Number(payload.pagesFound||0),full=Number(payload.sourcePagesWithFullContent||0);
      const parts=(Array.isArray(payload.sourcesChecked)?payload.sourcesChecked:[]).map((source:any)=>
        String(source.source)+': '+(source.available?String(source.pageCount||0)+' página(s)':'indisponível'));
-     setSearchDiagnostics('Páginas localizadas: '+pages+' · texto disponível: '+full+' · '+parts.join(' · '));
+     const evidence=payload.evidenceSummary||{};
+     const fullByPortal=evidence.fullContentByPortal||{};
+     setSearchDiagnostics('Páginas localizadas: '+pages+' · texto disponível: '+full+
+       ' (Webmotors: '+Number(fullByPortal.webmotors||0)+' / OLX: '+Number(fullByPortal.olx||0)+')'+
+       ' · páginas individuais: '+Number(evidence.individualPages||0)+
+       ' · trechos com preço + KM + ano + modelo: '+Number(evidence.snippetPriceAndKm||0)+
+       ' · '+parts.join(' · '));
      setAutoSearchedAt(String(payload.searchedAt||new Date().toISOString()));
      setAds(existing=>[...found,...existing.filter(a=>!a.auto&&(a.price||a.km||a.url||a.note)),blank()]);
      if(!found.length)setAutoError('A busca foi realizada, mas não trouxe preços com KM e ano associados ao mesmo anúncio ou bloco público. Veja as fontes pesquisadas abaixo. Nenhum preço foi inventado.');
