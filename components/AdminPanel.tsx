@@ -453,6 +453,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, currentUser, o
                               onChange={e => setFormData({...formData, role: e.target.value as UserRole})}
                             >
                               <option value="user">Vendedor</option>
+                               <option value="pricing">Mesa de Precificação (MarketIQ)</option>
                               <option value="admin">Administrador</option>
                             </select>
                           </div>
