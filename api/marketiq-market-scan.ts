@@ -588,8 +588,8 @@ const portal = (raw: string): Source | null => {
     const u = new URL(raw);
     if (u.protocol !== 'https:') return null;
     const host = u.hostname.toLowerCase(), path = u.pathname.toLowerCase();
-    if ((host === 'webmotors.com.br' || host.endsWith('.webmotors.com.br')) && (path.startsWith('/comprar/') || path.includes('/estoque/') || path.startsWith('/carros/'))) return 'webmotors';
-    if ((host === 'olx.com.br' || host.endsWith('.olx.com.br')) && /autos-e-pecas|carros-vans-e-utilitarios|-id-\d{7,}/.test(path)) return 'olx';
+    if ((host === 'webmotors.com.br' || host.endsWith('.webmotors.com.br')) && (path.startsWith('/comprar/') || path.startsWith('/carros-usados/') || path.startsWith('/carros-novos/') || path.includes('/estoque/') || path.startsWith('/carros/'))) return 'webmotors';
+    if ((host === 'olx.com.br' || host.endsWith('.olx.com.br')) && /autos-e-pecas|carros-vans-e-utilitarios|-id-\d{7,}|\/d\/|\/item\//.test(path)) return 'olx';
     return null;
   } catch { return null; }
 };
@@ -640,7 +640,7 @@ const listingPageCandidates = (pages: any[], brand: string, model: string, year:
   for (const page of pages) {
     const url = string(page.url);
     const source = portal(url);
-    if (!source || !/\/estoque\/|\/carros\/|\/autos-e-pecas\//i.test(new URL(url).pathname)) continue;
+    if (!source || !/\/estoque\/|\/carros\/|\/carros-usados\/|\/autos-e-pecas\//i.test(new URL(url).pathname)) continue;
     const content = string(page.raw_content).slice(0, 100000).replace(/\u00a0/g, ' ');
     if (!content) continue;
     const hits = [...content.matchAll(expression)].slice(0, 70);
@@ -712,22 +712,40 @@ async function marketIqDeskSearchServer(req: any, res: any) {
     if (!normalizedText.includes(String(year))) return null;
     if (!price || !adKm || Math.abs(adKm - km) > 60000 || riskWords.test(title + ' ' + snippet.slice(0, 250))) return null;
     const cleanUrl = url.split('?')[0];
-    if (seen.has(cleanUrl) || /\/estoque\/|\/carros\//.test(new URL(url).pathname) && !/\/comprar\//.test(new URL(url).pathname)) return null;
+    if (seen.has(cleanUrl) || /\/estoque\/|\/carros\/|\/carros-usados\//.test(new URL(url).pathname) && !/\/comprar\//.test(new URL(url).pathname)) return null;
     seen.add(cleanUrl);
     return { source, title, url: cleanUrl, price, km: adKm, year,
       evidence: snippet.slice(0, 220), confidence: 'candidate' };
   }).filter(Boolean).sort((a: any, b: any) => a.price - b.price).slice(0, 20);
   const listingAds = listingPageCandidates(complete, brand, model, year, km);
   const ads = [...individualAds, ...listingAds].sort((a: any, b: any) => a.price - b.price).slice(0, 20);
-  console.info('Desk MarketScan counts', {
-    pages: complete.length,
-    pagesWithFullContent: complete.filter((p:any) => Boolean(p.raw_content)).length,
-    individualAds: individualAds.length, listingAds: listingAds.length, failedSources: failed.length,
+  const searchEvidence = complete.map((p:any) => {
+    const source=portal(string(p.url));
+    const text=string(p.title)+' '+string(p.content);
+    const raw=string(p.raw_content);
+    return {
+      source:source||'other', pageType:/\/comprar\/|\/item\/|-id-\d{7,}/.test(string(p.url))?'individual':'listing',
+      hasPrice:Boolean(priceOf(text)), hasKm:Boolean(kmOf(text)), mentionsYear:normalize(text).includes(String(year)),
+      mentionsModel:normalize(text).includes(coreModel), mentionsVersion:!trimToken||normalize(text).includes(trimToken),
+      hasFullText:Boolean(raw), fullTextLength:raw.length, hrefPath:(()=>{try{return new URL(string(p.url)).pathname.slice(0,160)}catch{return ''}})(),
+    };
   });
+  console.info('Desk MarketScan counts', JSON.stringify({
+    pages: complete.length,
+    pagesWithFullContent: complete.filter((p:any)=>Boolean(p.raw_content)).length,
+    individualAds: individualAds.length, listingAds: listingAds.length, failedSources: failed.length,
+    evidence:searchEvidence,
+  }));
   return res.status(200).json({
     ads, searchedAt: new Date().toISOString(), provider: 'Tavily Keyless · busca web gratuita',
     warning: 'Dados extraídos de trechos indexados, não diretamente da página do anunciante. Conferência do anúncio necessária antes de aprovar compra.',
     pagesFound: complete.length,
+    evidenceSummary: {
+      individualPages:searchEvidence.filter((p:any)=>p.pageType==='individual').length,
+      listingsPages:searchEvidence.filter((p:any)=>p.pageType==='listing').length,
+      snippetPriceAndKm:searchEvidence.filter((p:any)=>p.hasPrice&&p.hasKm&&p.mentionsYear&&p.mentionsModel).length,
+      fullContentByPortal:{webmotors:searchEvidence.filter((p:any)=>p.source==='webmotors'&&p.hasFullText).length,olx:searchEvidence.filter((p:any)=>p.source==='olx'&&p.hasFullText).length},
+    },
     sourcePagesWithFullContent: complete.filter((p:any) => Boolean(p.raw_content)).length,
     sourcesChecked: lookups.map((result, i) => ({
       source: i === 0 ? 'Webmotors' : 'OLX', available: result.status === 'fulfilled',
