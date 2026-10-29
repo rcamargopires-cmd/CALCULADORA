@@ -3,14 +3,22 @@ type Item={code:string;name:string};
 type FipeDetail={value:number;brand:string;model:string;year:number;fuel:string;referenceMonth:string;fipeCode:string};
 import {User} from '../types';
 import {auth} from '../firebase';
-type Ad={source?:'webmotors'|'olx';price:string;km:string;url:string;status:'pending'|'valid'|'excluded';note:string;auto?:boolean;title?:string;catalog?:boolean};
+type Ad={source?:'webmotors'|'olx'|'napista';price:string;km:string;url:string;status:'pending'|'valid'|'excluded';note:string;auto?:boolean;title?:string;catalog?:boolean};
 type Saved={id:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
 const number=(v:string)=>Number(v.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
 const money=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const blank=(source:'webmotors'|'olx'='webmotors'):Ad=>({source,price:'',km:'',url:'',status:'pending',note:''});
 const isWebmotors=(s:string)=>{try{const u=new URL(s);return u.protocol==='https:'&&(u.hostname==='webmotors.com.br'||u.hostname.endsWith('.webmotors.com.br'));}catch{return false;}};
 const isOlx=(s:string)=>{try{const u=new URL(s);return u.protocol==='https:'&&(u.hostname==='olx.com.br'||u.hostname.endsWith('.olx.com.br'));}catch{return false;}};
-const validSource=(a:Ad)=>a.source==='olx'?isOlx(a.url):isWebmotors(a.url);
+const isNapista=(s:string)=>{try{const u=new URL(s);return u.protocol==='https:'&&(u.hostname==='napista.com.br'||u.hostname.endsWith('.napista.com.br'));}catch{return false;}};
+const portalLink=(a:Ad)=>a.source==='olx'?isOlx(a.url):a.source==='napista'?isNapista(a.url):isWebmotors(a.url);
+const validSource=(a:Ad)=>{try{
+ const u=new URL(a.url);
+ if(!portalLink(a))return false;
+ if(a.source==='webmotors')return /^\/comprar\/[^/]+\/[^/]+\/.+\/\d{7,}\/?$/.test(u.pathname);
+ if(a.source==='olx')return /(?:-id-|\/item\/|\/d\/)[a-z0-9-]*\d{7,}\/?$/i.test(u.pathname);
+ return false;
+}catch{return false;}};
 export default function ManualPricingWorkspace({user}:{user:User}){
  const key='motyq-iq-local-test-'+user.email.toLowerCase();
  const [plate,setPlate]=useState('');const [retryCatalog,setRetryCatalog]=useState(0);
@@ -49,11 +57,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      const payload=await response.json().catch(()=>({}));
      if(!response.ok)throw new Error(payload.error||'Pesquisa automática indisponível.');
      const found:Ad[]=(Array.isArray(payload.ads)?payload.ads:[]).filter((item:any)=>
-       item&&((item.source==='webmotors'&&isWebmotors(item.url))||(item.source==='olx'&&isOlx(item.url)))&&
+       item&&((item.source==='webmotors'&&isWebmotors(item.url))||(item.source==='olx'&&isOlx(item.url))||(item.source==='napista'&&isNapista(item.url)))&&
        Number(item.price)>0&&Number(item.km)>0&&Number(item.year)===Number(fipe.year)
      ).map((item:any)=>({
        source:item.source,price:String(item.price),km:String(item.km),url:String(item.url),
-       status:'pending' as const,auto:true,catalog:Boolean(item.catalog),title:String(item.title||''),
+       status:'pending' as const,auto:true,catalog:Boolean(item.catalog)||item.source==='napista'||item.source==='olx'&&!/\d{7,}/.test(String(item.url||'')),title:String(item.title||''),
        note:'Pesquisa automática (Tavily): '+String(item.evidence||'Dados indexados, ainda não conferidos na página.').slice(0,220)
      }));
      setAutoSearchKey(vehicleKey);
@@ -63,7 +71,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      const evidence=payload.evidenceSummary||{};
      const fullByPortal=evidence.fullContentByPortal||{};
      setSearchDiagnostics('Páginas localizadas: '+pages+' · texto disponível: '+full+
-       ' (Webmotors: '+Number(fullByPortal.webmotors||0)+' / OLX: '+Number(fullByPortal.olx||0)+')'+
+       ' (Webmotors: '+Number(fullByPortal.webmotors||0)+' / OLX: '+Number(fullByPortal.olx||0)+' / NaPista: '+Number(fullByPortal.napista||0)+')'+
        ' · páginas individuais: '+Number(evidence.individualPages||0)+
        ' · trechos com preço + KM + ano + modelo: '+Number(evidence.snippetPriceAndKm||0)+
        ' · '+parts.join(' · '));
@@ -74,16 +82,24 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      setAutoError(error?.name==='TimeoutError'?'A pesquisa demorou demais. Tente novamente.':error?.message||'Pesquisa automática indisponível.');
    }finally{setAutoLoading(false);}
  };
- const valid=useMemo(()=>ads.filter(a=>a.status==='valid'&&number(a.price)>0&&number(a.km)>0&&!a.catalog&&validSource(a)),[ads]);
+ const valid=useMemo(()=>ads.filter(a=>!a.auto&&a.status==='valid'&&number(a.price)>0&&number(a.km)>0&&!a.catalog&&validSource(a)),[ads]);
  const sortedValid=useMemo(()=>[...valid].sort((a,b)=>number(a.price)-number(b.price)),[valid]);
  const primary=sortedValid.filter(a=>a.source!=='olx');
  const secondary=sortedValid.filter(a=>a.source==='olx');
- const indexed=autoResultsVisible?ads.filter(a=>a.auto&&a.status==='pending'&&validSource(a)&&number(a.price)>0&&number(a.km)>0):[];
+ const indexed=autoResultsVisible?ads.filter(a=>a.auto&&a.status!=='excluded'&&portalLink(a)&&number(a.price)>0&&number(a.km)>0):[];
  const indexedWebmotors=indexed.filter(a=>a.source==='webmotors'&&Math.abs(number(a.km)-number(km))<=30000);
  const indexedOlx=indexed.filter(a=>a.source==='olx'&&Math.abs(number(a.km)-number(km))<=30000);
+ const indexedNapista=indexed.filter(a=>a.source==='napista'&&Math.abs(number(a.km)-number(km))<=30000);
+ const referencePool=indexedWebmotors.length?indexedWebmotors:indexedNapista.length?indexedNapista:indexedOlx;
+ const referenceName=indexedWebmotors.length?'Webmotors (indexado)':indexedNapista.length?'NaPista (apoio)':indexedOlx.length?'OLX (apoio)':'';
+ const referenceLowest=[...referencePool].sort((a,b)=>number(a.price)-number(b.price)).slice(0,5);
+ const referenceAvg=referenceLowest.length?referenceLowest.reduce((sum,a)=>sum+number(a.price),0)/referenceLowest.length:0;
+ const referenceCeiling=Math.max(0,referenceAvg*.86*(repasse?.95:1)-number(cost));
+ const confidenceNote=referenceLowest.length>=3?'amostra preliminar':referenceLowest.length===2?'amostra pequena':'amostra mínima de um anúncio';
  const lowestIndexedWebmotors=[...indexedWebmotors].sort((a,b)=>number(a.price)-number(b.price)).slice(0,5);
  const indexedAvg=lowestIndexedWebmotors.length?lowestIndexedWebmotors.reduce((sum,a)=>sum+number(a.price),0)/lowestIndexedWebmotors.length:0;
  const indexedOlxAvg=indexedOlx.length?indexedOlx.reduce((sum,a)=>sum+number(a.price),0)/indexedOlx.length:0;
+ const indexedNapistaAvg=indexedNapista.length?indexedNapista.reduce((sum,a)=>sum+number(a.price),0)/indexedNapista.length:0;
  const avg=primary.length?primary.reduce((s,a)=>s+number(a.price),0)/primary.length:0;
  const olxAvg=secondary.length?secondary.reduce((s,a)=>s+number(a.price),0)/secondary.length:0;
  const kmTolerance=30000;
