@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import marketIqDeskSearchServer from '../services/marketIqDeskSearchServer';
 
 const FIREBASE_API_KEY = 'AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
 
@@ -173,6 +174,7 @@ export default async function handler(req: any, res: any) {
 
     const firebaseUser = await verifyFirebaseToken(token);
     if (!firebaseUser?.email) return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
+    if (req.body?.action === 'desk_market_search') return marketIqDeskSearchServer(req, res);
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(503).json({ error: 'Gemini ainda não está configurado no servidor.' });
