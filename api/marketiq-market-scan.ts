@@ -639,49 +639,64 @@ const search = async (query: string, domain: string) => {
 };
 
 
-const listingPageCandidates = (pages: any[], brand: string, model: string, year: number, km: number) => {
-  const core = normalize(model).split(/[^a-z0-9]+/).filter(Boolean)[0] || '';
-  const tokens = normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
-  const variant = tokens.slice(1).find(t => t.length >= 4 &&
-    !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor','hibrido','eletrico'].includes(t)) || '';
-  const powertrain = tokens.find(t => /^[a-z]\d{2,4}$/.test(t)) || '';
-  const expression = new RegExp('\\b' + brand.replace(/[^a-z0-9 ]/gi, '') +
-    '(?:\\s|[#*_\\-])+' + core.replace(/[^a-z0-9]/gi, '') + '\\b', 'gi');
+// Candidate prices from public search-index snippets and public catalog page content.
+// Each candidate is explicitly provisional and must not be classified as a verified ad.
+const listingPageCandidates = (pages: any[], brand: string, model: string, year: number, targetKm: number) => {
+  const canonical = (s:string) => normalize(s).replace(/[^a-z0-9]+/g,' ');
+  const tokens = canonical(model).split(/\s+/).filter(Boolean);
+  const core = tokens[0] || '';
+  const variant = tokens.slice(1).find(token => token.length >= 4 &&
+    !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor','hibrido','eletrico','gas','aut'].includes(token)) || '';
+  const engine = tokens.find(token => /^t\d{3,4}$/.test(token)) || '';
+  const firstPart = canonical(brand+' '+core).trim();
+  const outputs: any[] = [];
   const seen = new Set<string>();
-  const results: any[] = [];
   for (const page of pages) {
     const url = string(page.url);
     const source = portal(url);
-    if (!source || !/\/estoque\/|\/carros\/|\/carros-usados\/|\/autos-e-pecas\/|\/busca\//i.test(new URL(url).pathname)) continue;
-    const content = string(page.raw_content || page.content).slice(0, 100000).replace(/\u00a0/g, ' ');
-    if (!content) continue;
-    const hits = [...content.matchAll(expression)].slice(0, 70);
-    for (let i = 0; i < hits.length; i++) {
-      const start = hits[i].index || 0;
-      const following = i + 1 < hits.length ? hits[i + 1].index || content.length : content.length;
-      const block = content.slice(start, Math.min(following, start + 720));
-      const clean = normalize(block);
-      if (variant && !clean.includes(variant)) continue;
-      if (powertrain && !clean.includes(powertrain)) continue;
-      const yearMatch = block.match(/\b(?:19|20)\d{2}\s*\/\s*((?:19|20)\d{2})\b/);
-      const candidateYear = yearMatch ? Number(yearMatch[1]) : clean.includes(String(year)) ? year : 0;
-      if (candidateYear !== year) continue;
-      const price = priceOf(block), adKm = kmOf(block);
-      if (!price || !adKm || Math.abs(adKm - km) > 60000) continue;
-      if (riskWords.test(block.slice(0, 150))) continue;
-      const id = [source, price, adKm, year].join('|');
-      if (seen.has(id)) continue;
-      seen.add(id);
-      results.push({
-        source, price, km: adKm, year,
-        title: brand + ' ' + model + ' ' + year + ' · ' + adKm.toLocaleString('pt-BR') + ' km',
-        url: url.split('?')[0],
-        evidence: 'Preço, ano e KM localizados no mesmo bloco de página de resultados. Link individual não confirmado.',
-        catalog: true, confidence: 'catalog_page',
-      });
+    if (!source || isIndividualAdUrl(source,url)) continue;
+    // Public index snippets often contain price/KM where full-page extraction only has navigation.
+    // Inspect both representations separately so the latter cannot mask the former.
+    const texts = [string(page.content).slice(0,5500),string(page.raw_content).slice(0,100000)]
+      .filter(Boolean);
+    for (const content of texts) {
+      const normalized=content.replace(/\u00a0/g,' ').replace(/\s+/g,' ');
+      const heading = /(?:JEEP\s+COMMANDER|HYUNDAI\s+CRETA|FIAT\s+STRADA)/ig;
+      // General matching for other makes/models, with space/markup-separated words.
+      const pattern = new RegExp(brand.replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'\\s+')+
+        '[\\s*#:_\\-]+'+core.replace(/[^a-z0-9]/g,''),'gi');
+      const hits = [...normalized.matchAll(pattern)].slice(0,60);
+      for(let i=0;i<hits.length;i++){
+        const from=hits[i].index||0;
+        const next=i+1<hits.length?(hits[i+1].index||normalized.length):normalized.length;
+        const block=normalized.slice(from,Math.min(next,from+580));
+        const normalizedBlock=canonical(block);
+        if (!normalizedBlock.includes(firstPart)) continue;
+        if (variant && !normalizedBlock.split(' ').includes(variant)) continue;
+        if (engine && !normalizedBlock.split(' ').includes(engine)) continue;
+        // The exact model year must be explicit in the same item block.
+        const yearPair=block.match(/\b(?:19|20)\d{2}\s*\/\s*((?:19|20)\d{2})\b/);
+        const modelYear=yearPair?Number(yearPair[1]):/\b(?:19|20)\d{2}\b/.test(block)&&
+          new RegExp('\\b'+year+'\\b').test(block)?year:0;
+        if(modelYear!==year)continue;
+        const price=priceOf(block);
+        const adKm=kmOf(block);
+        if(!price||!adKm||Math.abs(adKm-targetKm)>60000)continue;
+        if(riskWords.test(block.slice(0,160)))continue;
+        const key=[source,price,adKm,modelYear].join('|');
+        if(seen.has(key))continue;
+        seen.add(key);
+        outputs.push({
+          source,price,km:adKm,year:modelYear,
+          title:brand+' '+model+' · '+modelYear+' · '+adKm.toLocaleString('pt-BR')+' km',
+          url:url.split('?')[0],
+          evidence:'Preço, KM e versão presentes no mesmo trecho indexado de vitrine pública; anúncio individual não confirmado.',
+          catalog:true,confidence:'catalog_page',
+        });
+      }
     }
   }
-  return results.sort((a, b) => a.price - b.price).slice(0, 20);
+  return outputs.sort((a,b)=>a.price-b.price).slice(0,20);
 };
 
 async function marketIqDeskSearchServer(req: any, res: any) {
