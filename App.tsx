@@ -23,6 +23,7 @@ import { configService } from './services/configService';
 import { calculateCommission } from './utils/commission';
 import { dealTenantService } from './services/dealTenantService';
 import MotyqShell from './components/MotyqShell';
+import MarketIQ from './components/MarketIQ';
 import { currentStockService } from './services/currentStockService';
 import { companyIdForUser } from './services/companyService';
 import { storeIdForUser } from './services/storeService';
@@ -275,6 +276,16 @@ const App: React.FC = () => {
 
   if (isAuthLoading) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white">Carregando...</div>;
   if (!user) return <>{authError && <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/90 text-white px-4 py-2 rounded-lg shadow-lg">{authError}</div>}<LoginScreen onLoginSuccess={() => {}} /></>;
+  if (user.role === 'pricing' || user.pricingDeskOnly) return (
+    <div className="min-h-screen bg-[#101315] text-white">
+      <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div><strong className="text-xl">Motyq IQ</strong><p className="text-xs text-zinc-400">Mesa de Precificação · ${user.name}</p></div>
+        <button onClick={handleLogout} className="rounded-lg border border-white/20 px-4 py-2 text-sm">Sair</button>
+      </header>
+      <main className="mx-auto max-w-5xl p-5"><h1 className="text-2xl font-semibold">Sua mesa de precificação</h1><p className="mt-2 text-sm text-zinc-400">Analise o veículo diretamente, sem solicitações de avaliação ou acesso aos demais módulos.</p></main>
+      <MarketIQ currentUser={user} companyId={companyIdForUser(user)} storeId={storeIdForUser(user)} storeName={user.companyName || 'Sua unidade'} deskMode />
+    </div>
+  );
   if (!fieldConfig || !commissionConfig || !bankRates) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white">Carregando configurações...</div>;
 
   return (
