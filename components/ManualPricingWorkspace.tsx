@@ -3,8 +3,9 @@ type Item={code:string;name:string};
 type FipeDetail={value:number;brand:string;model:string;year:number;fuel:string;referenceMonth:string;fipeCode:string};
 import {User} from '../types';
 import {auth} from '../firebase';
+import {calculateHistoricalPrice, MOTYQ_HISTORY_MODEL, HistoricalClass} from '../services/marketIqHistoricalPricing';
 type Ad={source?:'webmotors'|'olx'|'napista';price:string;km:string;url:string;status:'pending'|'valid'|'excluded';note:string;auto?:boolean;title?:string;catalog?:boolean};
-type Saved={id:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
+type Saved={id:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
 const number=(v:string)=>Number(v.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
 const money=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const blank=(source:'webmotors'|'olx'='webmotors'):Ad=>({source,price:'',km:'',url:'',status:'pending',note:''});
@@ -31,12 +32,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [brands,setBrands]=useState<Item[]>([]);const [models,setModels]=useState<Item[]>([]);const [years,setYears]=useState<Item[]>([]);
  const [fipe,setFipe]=useState<FipeDetail|null>(null);const [catalogError,setCatalogError]=useState('');const [catalogLoading,setCatalogLoading]=useState(false);const [km,setKm]=useState<string>(()=>typeof savedForm.km==='string'?savedForm.km:'');const [cost,setCost]=useState<string>(()=>typeof savedForm.cost==='string'?savedForm.cost:'0');const [repasse,setRepasse]=useState<boolean>(()=>Boolean(savedForm.repasse));
  const [ads,setAds]=useState<Ad[]>([blank(),blank(),blank()]);const [notice,setNotice]=useState('');
+ const [classification,setClassification]=useState<HistoricalClass|''>(()=>['A','B','C','D','E','SEM CLASSE'].includes(savedForm.classification)?savedForm.classification:'');
  const [autoLoading,setAutoLoading]=useState(false);const [autoError,setAutoError]=useState('');
  const [autoSearchedAt,setAutoSearchedAt]=useState('');const [autoSearchKey,setAutoSearchKey]=useState('');
  const [searchDiagnostics,setSearchDiagnostics]=useState('');
  useEffect(()=>{
-   try{sessionStorage.setItem(formKey,JSON.stringify({plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse}));}catch{}
- },[formKey,plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse]);
+   try{sessionStorage.setItem(formKey,JSON.stringify({plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse,classification}));}catch{}
+ },[formKey,plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse,classification]);
  const vehicleKey=[brandCode,modelCode,yearCode,km].join('|');
  const autoResultsVisible=autoSearchKey===vehicleKey;
  const [saved,setSaved]=useState<Saved[]>(()=>{try{const v=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v:[]}catch{return []}});
@@ -120,6 +122,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const suspectAds=sortedValid.filter(a=>/leil[aã]o|sinistr|recuperad|batid|restri[cç][aã]o/i.test(a.note));
  const ceiling=Math.max(0,avg*.86*(repasse?.95:1)-number(cost));
  const marketReady=primary.length>=2&&distantKm.length===0&&suspectAds.length===0;
+ const historicalEstimate=useMemo(()=>{
+   if(!fipe||!classification||number(km)<=0)return null;
+   return calculateHistoricalPrice({
+     fipe:fipe.value,modelYear:fipe.year,km:number(km),preparation:number(cost),
+     classification,destination:repasse?'REPASSE':'SHOWROOM'
+   });
+ },[fipe,classification,km,cost,repasse]);
  const save=()=>{
    const hasVehicle=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)&&brandCode&&modelCode&&yearCode&&fipe&&number(km)>0;
    if(!hasVehicle||(!marketReady&&referenceAvg<=0)){
