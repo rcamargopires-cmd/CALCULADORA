@@ -25,18 +25,18 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const savedForm=useMemo(()=>{
    try {const item=sessionStorage.getItem(formKey);return item?JSON.parse(item):{};} catch{return {};}
  },[formKey]);
- const [plate,setPlate]=useState('');const [retryCatalog,setRetryCatalog]=useState(0);
- const [model,setModel]=useState('');const [year,setYear]=useState('');
- const [brand,setBrand]=useState('');const [brandCode,setBrandCode]=useState('');const [modelCode,setModelCode]=useState('');const [yearCode,setYearCode]=useState('');
+ const [plate,setPlate]=useState<string>(()=>typeof savedForm.plate==='string'?savedForm.plate:'');const [retryCatalog,setRetryCatalog]=useState(0);
+ const [model,setModel]=useState<string>(()=>typeof savedForm.model==='string'?savedForm.model:'');const [year,setYear]=useState<string>(()=>typeof savedForm.year==='string'?savedForm.year:'');
+ const [brand,setBrand]=useState<string>(()=>typeof savedForm.brand==='string'?savedForm.brand:'');const [brandCode,setBrandCode]=useState<string>(()=>typeof savedForm.brandCode==='string'?savedForm.brandCode:'');const [modelCode,setModelCode]=useState<string>(()=>typeof savedForm.modelCode==='string'?savedForm.modelCode:'');const [yearCode,setYearCode]=useState<string>(()=>typeof savedForm.yearCode==='string'?savedForm.yearCode:'');
  const [brands,setBrands]=useState<Item[]>([]);const [models,setModels]=useState<Item[]>([]);const [years,setYears]=useState<Item[]>([]);
- const [fipe,setFipe]=useState<FipeDetail|null>(null);const [catalogError,setCatalogError]=useState('');const [catalogLoading,setCatalogLoading]=useState(false);const [km,setKm]=useState('');const [cost,setCost]=useState<string>(()=>typeof savedForm.cost==='string'?savedForm.cost:'0');const [repasse,setRepasse]=useState<boolean>(()=>Boolean(savedForm.repasse));
+ const [fipe,setFipe]=useState<FipeDetail|null>(null);const [catalogError,setCatalogError]=useState('');const [catalogLoading,setCatalogLoading]=useState(false);const [km,setKm]=useState<string>(()=>typeof savedForm.km==='string'?savedForm.km:'');const [cost,setCost]=useState<string>(()=>typeof savedForm.cost==='string'?savedForm.cost:'0');const [repasse,setRepasse]=useState<boolean>(()=>Boolean(savedForm.repasse));
  const [ads,setAds]=useState<Ad[]>([blank(),blank(),blank()]);const [notice,setNotice]=useState('');
  const [autoLoading,setAutoLoading]=useState(false);const [autoError,setAutoError]=useState('');
  const [autoSearchedAt,setAutoSearchedAt]=useState('');const [autoSearchKey,setAutoSearchKey]=useState('');
  const [searchDiagnostics,setSearchDiagnostics]=useState('');
  useEffect(()=>{
-   try{sessionStorage.setItem(formKey,JSON.stringify({cost,repasse}));}catch{}
- },[formKey,cost,repasse]);
+   try{sessionStorage.setItem(formKey,JSON.stringify({plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse}));}catch{}
+ },[formKey,plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse]);
  const vehicleKey=[brandCode,modelCode,yearCode,km].join('|');
  const autoResultsVisible=autoSearchKey===vehicleKey;
  const [saved,setSaved]=useState<Saved[]>(()=>{try{const v=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v:[]}catch{return []}});
