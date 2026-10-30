@@ -157,20 +157,20 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
  };
 
  return <div className="space-y-5 pb-8 text-slate-900">
-  <section className="relative overflow-hidden rounded-3xl bg-[#153444] p-6 text-white md:p-8">
+  <section className="motyq-iq-hero relative overflow-hidden rounded-3xl bg-[#153444] p-6 text-white md:p-8">
    <div className="absolute -right-20 -top-16 h-60 w-60 rounded-full bg-cyan-400/10 blur-2xl"/>
    <div className="relative flex flex-wrap items-start justify-between gap-4">
     <div>
-     <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-cyan-300">
+     <p className="motyq-iq-hero-eyebrow flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-cyan-300">
       <HandCoins size={17}/> Motyq IQ · Modalidade especial
      </p>
-     <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">Repasse Sob Consulta</h2>
-     <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+     <h2 className="motyq-iq-hero-title mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Repasse Sob Consulta</h2>
+     <p className="motyq-iq-hero-description mt-2 max-w-2xl text-sm leading-6 text-slate-200">
       Registre quanto outras lojas oferecem antes de definir o valor de entrada. Cada operação
       tem suas próprias despesas, tributos informados e margem desejada.
      </p>
     </div>
-    <span className="rounded-full border border-cyan-200/30 bg-cyan-100/10 px-3 py-1.5 text-xs font-bold text-cyan-200">
+    <span className="motyq-iq-hero-status rounded-full border border-cyan-200/30 bg-cyan-100/10 px-3 py-1.5 text-xs font-bold text-cyan-200">
       Testes · não executa compras
     </span>
    </div>
