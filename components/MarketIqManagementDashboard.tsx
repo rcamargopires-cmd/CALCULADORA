@@ -168,14 +168,14 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
  };
  const chartTooltip=(value:any,name:any)=>[fmtInt(Number(value)||0),String(name)];
  return <div className="space-y-5">
-  <div className="relative overflow-hidden rounded-3xl bg-[#132a3a] px-5 py-6 text-white md:px-7 md:py-8">
+  <div className="motyq-iq-hero relative overflow-hidden rounded-3xl bg-[#132a3a] px-5 py-6 text-white md:px-7 md:py-8">
     <div className="pointer-events-none absolute -right-12 -top-24 h-64 w-64 rounded-full bg-cyan-500/15 blur-2xl"/>
     <div className="pointer-events-none absolute -bottom-20 right-24 h-44 w-44 rounded-full bg-indigo-400/15 blur-2xl"/>
     <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
       <div>
-       <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[.2em] text-cyan-300"><Activity size={15}/> Inteligência de aquisições · Motyq IQ</div>
-       <h2 className="text-2xl font-black tracking-tight md:text-3xl">Painel gerencial da Mesa</h2>
-       <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Compras efetivas, cotações, capital aplicado e padrões de precificação. Uma leitura da operação para tomar decisões melhores.</p>
+       <div className="motyq-iq-hero-eyebrow mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[.2em] text-cyan-300"><Activity size={15}/> Inteligência de aquisições · Motyq IQ</div>
+       <h2 className="motyq-iq-hero-title text-2xl font-black tracking-tight text-white md:text-3xl">Painel gerencial da Mesa</h2>
+       <p className="motyq-iq-hero-description mt-2 max-w-2xl text-sm leading-6 text-slate-200">Compras efetivas, cotações, capital aplicado e padrões de precificação. Uma leitura da operação para tomar decisões melhores.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-black text-slate-900 transition hover:bg-cyan-50">
