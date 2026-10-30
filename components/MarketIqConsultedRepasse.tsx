@@ -4,7 +4,7 @@ import {ArrowDownToLine,ArrowRight,Building2,Calculator,CheckCircle2,
 import type {User} from '../types';
 import {
   appendConsultedAudit, calculateConsultedOffer, chooseBestConfirmedOffer,
-  emptyConsultedCosts, emptyConsultedOffer, emptyConsultedVehicle,
+  emptyConsultedCosts, emptyConsultedOffer, emptyConsultedVehicle,consultedFinancialInputsReady,
   exportConsultedLogCsv, exportConsultedReportCsv, formatReais,
   loadConsultedCases, makeConsultedId,moneyNumber,offerIsEligible,
   saveConsultedCases, type ConsultedCase,type ConsultedCosts,
@@ -77,6 +77,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
  const overCeiling=estimatedPrice!==null&&requestedBuy>estimatedPrice;
  const taxRate=moneyNumber(draft.costs.taxesPercent);
  const percentMargin=moneyNumber(draft.costs.margin);
+ const financialReady=consultedFinancialInputsReady(draft.costs);
  const validCosts=Object.keys(draft.costs)
    .filter(key=>key!=='marginMode')
    .every(key=>moneyNumber(draft.costs[key as keyof ConsultedCosts])>=0)&&
@@ -209,8 +210,9 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
       <label className="col-span-2 md:col-span-3"><span className={label}>Observação comercial (opcional)</span><input className={input} value={offer.note} placeholder="Ex.: retirada em nossa loja, pagamento após NF" onChange={e=>updateOffer(offer.id,'note',e.target.value)}/></label>
      </div>
      {calculation.sale>0&&<div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white p-3">
-      <div className="text-xs text-slate-600">Teto simulado após custos e margem: <strong className="text-slate-900">{formatReais(calculation.ceiling)}</strong></div>
-      <button type="button" onClick={()=>setDraft(d=>({...d,selectedOfferId:offer.id}))} disabled={!eligible||calculation.ceiling<=0}
+      <div className="text-xs text-slate-600">{financialReady?'Teto simulado após custos e margem: ':'Teto indisponível: informe NF, impostos e margem. '}
+        {financialReady&&<strong className="text-slate-900">{formatReais(calculation.ceiling)}</strong>}</div>
+      <button type="button" onClick={()=>setDraft(d=>({...d,selectedOfferId:offer.id}))} disabled={!eligible||!financialReady||calculation.ceiling<=0}
        className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">
        {selectedOffer?.id===offer.id?'Oferta selecionada':'Usar esta oferta'}
       </button>
@@ -235,6 +237,8 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
        <option value="reais">Valor em reais (R$)</option><option value="percentual">% sobre oferta de saída</option>
      </select></label>
     </div>
+    {!financialReady&&<p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
+       Para calcular o teto, informe a margem desejada, as despesas de NF e pelo menos uma hipótese tributária (valor fixo ou percentual). Digite 0 quando não houver custo.</p>}
     <p className="mt-3 rounded-lg bg-slate-50 p-3 text-[11px] leading-5 text-slate-600">
      O imposto percentual é aplicado sobre a oferta da loja compradora. A margem percentual, quando usada, também incide sobre essa oferta. Custos fixos e percentuais se somam. Não há cálculo fiscal automático nem substituição da conferência contábil.</p>
    </div>
@@ -255,7 +259,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
        <p className="mt-1 text-xs leading-5 text-slate-600">Simulação sujeita à validade da oferta, conferência fiscal, autorização da Mesa e negociação final.</p>
       </div>
      </>:<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-      Nenhuma oferta confirmada e válida disponível. Registre a proposta da loja e sua validade antes de considerar um teto de compra.</div>}
+      {!financialReady?'Ainda faltam custos de NF, impostos e/ou margem. Informe os valores desta negociação, inclusive zero quando aplicável.':'Nenhuma oferta confirmada e válida disponível. Registre a proposta da loja e sua validade antes de considerar um teto de compra.'}</div>}
      <label className="mt-4 block"><span className={label}>Valor que a Mesa pretende oferecer (R$)</span>
       <input className={input} value={draft.proposedBuy} onChange={e=>setDraft(d=>({...d,proposedBuy:e.target.value}))} inputMode="decimal" placeholder="125000"/></label>
      {current&&requestedBuy>0&&<>
