@@ -4,7 +4,7 @@ import {ArrowDownToLine,ArrowRight,Building2,Calculator,CheckCircle2,
 import type {User} from '../types';
 import {
   appendConsultedAudit, calculateConsultedOffer, chooseBestConfirmedOffer,
-  emptyConsultedCosts, emptyConsultedOffer, emptyConsultedVehicle,consultedFinancialInputsReady,
+  emptyConsultedCosts, emptyConsultedOffer, emptyConsultedVehicle,consultedFinancialInputsReady,consultedCostInputsValid,isValidConsultedMoney,
   exportConsultedLogCsv, exportConsultedReportCsv, formatReais,
   loadConsultedCases, makeConsultedId,moneyNumber,offerIsEligible,
   saveConsultedCases, type ConsultedCase,type ConsultedCosts,
@@ -78,10 +78,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
  const overCeiling=estimatedPrice!==null&&requestedBuy>estimatedPrice;
  const taxRate=moneyNumber(draft.costs.taxesPercent);
  const percentMargin=moneyNumber(draft.costs.margin);
- const validCosts=Object.keys(draft.costs)
-   .filter(key=>key!=='marginMode')
-   .every(key=>moneyNumber(draft.costs[key as keyof ConsultedCosts])>=0)&&
-   taxRate>=0&&taxRate<=100&&(draft.costs.marginMode!=='percentual'||percentMargin<=100);
+ const validCosts=consultedCostInputsValid(draft.costs);
  const before=rows.find(r=>r.id===draft.id)||null;
  const changed=before?JSON.stringify({
     vehicle:draft.vehicle,offers:draft.offers,costs:draft.costs,
@@ -96,7 +93,10 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
    if(!next.vehicle.brand.trim()||!next.vehicle.model.trim()){
      setError('Preencha marca e modelo do veículo antes de salvar.');return;
    }
-   if(!validCosts){setError('Verifique os custos e as alíquotas. Não são aceitos valores negativos ou percentuais acima de 100%.');return;}
+   if(!validCosts){setError('Verifique os custos e as alíquotas. Digite somente valores numéricos não negativos e percentuais de até 100%.');return;}
+   if(next.proposedBuy.trim()&&!isValidConsultedMoney(next.proposedBuy,false)){
+     setError('Informe um valor de compra numérico válido.');return;
+   }
    if(next.offers.length===0||!next.offers.some(o=>o.buyer.trim()&&moneyNumber(o.value)>0)){
      setError('Registre ao menos uma oferta de uma loja com nome e valor positivo.');return;
    }
