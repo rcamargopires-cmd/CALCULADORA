@@ -9,7 +9,7 @@ import {aggregateDashboard,dashboardOptions,emptyFilters,filterDashboardRows,
   from '../services/marketIqManagementData';
 import {OCT2026_SNAPSHOT} from '../services/marketIqManagementSnapshot';
 import {chooseBestConfirmedOffer,calculateConsultedOffer,offerIsEligible,
-  loadConsultedCases,exportConsultedLogCsv,exportConsultedReportCsv,moneyNumber,formatReais,
+  loadConsultedCases,exportConsultedLogCsv,exportConsultedReportCsv,moneyNumber,formatReais,consultedFinancialInputsReady,
   type ConsultedCase} from '../services/marketIqConsultedRepasse';
 import type {User} from '../types';
 
@@ -60,7 +60,7 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
  },[user.email]);
  const repasseRows=useMemo(()=>consultations.map(item=>{
    const best=chooseBestConfirmedOffer(item.offers,item.costs);
-   const selected=item.offers.find(o=>o.id===item.selectedOfferId&&offerIsEligible(o));
+   const selected=consultedFinancialInputsReady(item.costs)?item.offers.find(o=>o.id===item.selectedOfferId&&offerIsEligible(o)):undefined;
    const current=selected?{offer:selected,calculation:calculateConsultedOffer(selected,item.costs)}:best;
    const proposed=moneyNumber(item.proposedBuy);
    return {item,current,proposed,projectedMargin:current&&proposed>0?current.calculation.netBeforeMargin-proposed:null};
