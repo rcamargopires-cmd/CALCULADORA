@@ -63,12 +63,13 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
    setDraft(d=>({...d,costs:{...d.costs,[key]:v}}));
  const updateOffer=(id:string,key:keyof ConsultedOffer,v:string)=>
    setDraft(d=>({...d,offers:d.offers.map(o=>o.id===id?{...o,[key]:v}:o)}));
+ const financialReady=consultedFinancialInputsReady(draft.costs);
  const calculations=useMemo(()=>draft.offers.map(offer=>({
    offer,calculation:calculateConsultedOffer(offer,draft.costs),
    eligible:offerIsEligible(offer),
  })),[draft.offers,draft.costs]);
  const best=useMemo(()=>chooseBestConfirmedOffer(draft.offers,draft.costs),[draft.offers,draft.costs]);
- const chosen=calculations.find(row=>row.offer.id===draft.selectedOfferId&&row.eligible&&row.calculation.ceiling>0);
+ const chosen=financialReady?calculations.find(row=>row.offer.id===draft.selectedOfferId&&row.eligible&&row.calculation.ceiling>0):undefined;
  const current=chosen??(best?{...best,eligible:true}:null);
  const selectedOffer=current?.offer??null;
  const estimatedPrice=current?.calculation.ceiling??null;
@@ -77,7 +78,6 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
  const overCeiling=estimatedPrice!==null&&requestedBuy>estimatedPrice;
  const taxRate=moneyNumber(draft.costs.taxesPercent);
  const percentMargin=moneyNumber(draft.costs.margin);
- const financialReady=consultedFinancialInputsReady(draft.costs);
  const validCosts=Object.keys(draft.costs)
    .filter(key=>key!=='marginMode')
    .every(key=>moneyNumber(draft.costs[key as keyof ConsultedCosts])>=0)&&
@@ -317,7 +317,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
    {!rows.length?<p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Nenhuma consulta salva ainda. Registre a primeira oferta da loja para iniciar o histórico.</p>:
     <div className="mt-3 space-y-2">
      {rows.filter(r=>showArchive||r.state!=='arquivado').slice(0,30).map(r=>{
-      const selected=r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o));
+      const selected=consultedFinancialInputsReady(r.costs)?r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o)):undefined;
       const optimal=chooseBestConfirmedOffer(r.offers,r.costs);
       const active=selected?{offer:selected,calculation:calculateConsultedOffer(selected,r.costs)}:optimal;
       return <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
