@@ -148,18 +148,18 @@ export default function MarketIqApprovalCenter({user,managerOnly=false}:{user:Us
  };
  const toggleHistory=(id:string)=>setExpanded(keys=>keys.includes(id)?keys.filter(x=>x!==id):[...keys,id]);
  return <div className="space-y-5 pb-8 text-slate-900">
-  <div className="relative overflow-hidden rounded-3xl bg-[#132f40] p-6 text-white md:p-8">
+  <div className="motyq-iq-hero relative overflow-hidden rounded-3xl bg-[#132f40] p-6 text-white md:p-8">
    <div className="absolute -right-8 -top-12 h-52 w-52 rounded-full bg-indigo-300/10 blur-2xl"/>
    <div className="relative flex flex-wrap justify-between gap-4">
     <div>
-     <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-cyan-200"><Smartphone size={16}/> Aprovações · Motyq IQ</p>
-     <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">Solicitações e decisões da Mesa</h2>
-     <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+     <p className="motyq-iq-hero-eyebrow flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-cyan-200"><Smartphone size={16}/> Aprovações · Motyq IQ</p>
+     <h2 className="motyq-iq-hero-title mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Solicitações e decisões da Mesa</h2>
+     <p className="motyq-iq-hero-description mt-2 max-w-2xl text-sm leading-6 text-slate-200">
        Solicitar revisão sem interromper a negociação, preservar a recomendação técnica e guardar
        o valor decidido com responsável, justificativa e histórico.
      </p>
     </div>
-    <span className="self-start rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-black">
+    <span className="motyq-iq-hero-status self-start rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-black">
      {stageMode?'Simulação local · sem aprovação real':'Fluxo compartilhado'}
     </span>
    </div>
