@@ -81,8 +81,9 @@ export function parseDashboardData(input:InputLine[],source:'original'|'filtered
    if(status==='COMPRA'&&!validValue(value)){status='REVISAR';invalidPurchases++;}
    if(source==='original'&&status==='COMPRA'){
      const plate=norm(entry(r,'Placa da Avaliação'));
-     if(plate&&usedPlates.has(plate)){status='OUTROS';duplicates++;}
-     else if(plate)usedPlates.add(plate);
+     const purchaseKey=plate+'|'+Math.round(value);
+     if(plate&&usedPlates.has(purchaseKey)){status='OUTROS';duplicates++;}
+     else if(plate)usedPlates.add(purchaseKey);
    }
    const date=dateString(entry(r,source==='filtered'?'Data avaliação':'Data de Avaliação'));
    const destination=norm(entry(r,source==='filtered'?'Destino':'Finalidade'))||'NÃO INFORMADO';
