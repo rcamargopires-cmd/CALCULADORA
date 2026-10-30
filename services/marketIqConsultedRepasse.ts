@@ -109,14 +109,21 @@ export const calculateConsultedOffer = (offer: ConsultedOffer, costs: ConsultedC
   return {sale,taxesRate,expenses,margin,ceiling,
     netBeforeMargin:cents(sale-expenses)};
 };
+// Reject non-numeric text instead of interpreting an invalid entry as zero.
+export const isValidConsultedMoney = (input:string,allowEmpty=true) => {
+  const value=String(input??'').trim().replace(/R\$/gi,'').replace(/\s/g,'');
+  return value===''?allowEmpty:/^(?:\d+|\d{1,3}(?:\.\d{3})+)(?:[,.]\d{1,2})?$/.test(value);
+};
+export const consultedCostInputsValid = (costs:ConsultedCosts) =>
+  (['invoice','taxesFixed','taxesPercent','transport','preparation','other','margin'] as const)
+    .every(key=>isValidConsultedMoney(costs[key])&&moneyNumber(costs[key])>=0) &&
+  moneyNumber(costs.taxesPercent)<=100 &&
+  (costs.marginMode!=='percentual'||moneyNumber(costs.margin)<=100);
 export const consultedFinancialInputsReady = (costs: ConsultedCosts) =>
   costs.invoice.trim() !== '' &&
   costs.margin.trim() !== '' &&
   (costs.taxesFixed.trim() !== '' || costs.taxesPercent.trim() !== '') &&
-  (['invoice','taxesFixed','taxesPercent','transport','preparation','other','margin'] as const)
-    .every(key=>moneyNumber(costs[key])>=0) &&
-  moneyNumber(costs.taxesPercent)<=100 &&
-  (costs.marginMode!=='percentual'||moneyNumber(costs.margin)<=100);
+  consultedCostInputsValid(costs);
 export const chooseBestConfirmedOffer = (offers: ConsultedOffer[], costs: ConsultedCosts) => {
   // No ceiling for managerial reports until the desk explicitly filled
   // invoice cost, a fiscal assumption and a case-specific target margin.
