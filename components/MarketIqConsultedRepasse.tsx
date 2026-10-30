@@ -310,7 +310,10 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
     <button type="button" className="inline-flex items-center gap-2 rounded-xl bg-[#153f51] px-5 py-3 text-sm font-black text-white hover:bg-[#225468]" onClick={()=>save()}>
      <Save size={17}/>Salvar consulta local</button>
     {onOpenApprovals&&<button type="button" className="inline-flex items-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-3 text-sm font-black text-cyan-900 disabled:cursor-not-allowed disabled:opacity-50"
-      disabled={!before||changed||!current||requestedBuy<=0} onClick={onOpenApprovals}>
+      disabled={!before||changed||!current||requestedBuy<=0} onClick={()=>{
+       try{sessionStorage.setItem('motyq-iq-manager-case-'+email,draft.id);}catch{}
+       onOpenApprovals();
+      }}>
       <CheckCircle2 size={16}/>Solicitar revisão gerencial</button>}
     <button type="button" className={smallBtn} onClick={()=>{setDraft(newCase(vehicleFromDesk));setNotice('Novo caso iniciado. O caso anterior permanece salvo se você o registrou.');setError('');setShowAudit(false);}}>
      <Plus size={15}/>Nova consulta</button>
