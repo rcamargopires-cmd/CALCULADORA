@@ -1,13 +1,16 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {Activity,ArrowDownToLine,BarChart3,Building2,CheckCircle2,Clock3,
   FileSpreadsheet,Filter,Info,Layers3,RefreshCcw,ShieldCheck,TrendingUp,
-  Wallet,AlertTriangle,UploadCloud,X,CarFront} from 'lucide-react';
+  Wallet,AlertTriangle,UploadCloud,X,CarFront,HandCoins} from 'lucide-react';
 import {Bar,BarChart,CartesianGrid,Cell,Line,LineChart,Pie,PieChart,
   ResponsiveContainer,Tooltip,XAxis,YAxis,Legend} from 'recharts';
 import {aggregateDashboard,dashboardOptions,emptyFilters,filterDashboardRows,
   parseDashboardData,type DashboardFilters,type DashboardRow,type DashboardImportResult}
   from '../services/marketIqManagementData';
 import {OCT2026_SNAPSHOT} from '../services/marketIqManagementSnapshot';
+import {chooseBestConfirmedOffer,calculateConsultedOffer,offerIsEligible,
+  loadConsultedCases,exportConsultedLogCsv,exportConsultedReportCsv,moneyNumber,formatReais,
+  type ConsultedCase} from '../services/marketIqConsultedRepasse';
 import type {User} from '../types';
 
 const fmtMoney=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v);
@@ -15,7 +18,7 @@ const fmtCompact=(v:number)=>new Intl.NumberFormat('pt-BR',{notation:'compact',m
 const fmtInt=(v:number)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(v);
 const fmtPct=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'percent',maximumFractionDigits:1}).format(v);
 const COLORS=['#147d89','#6366f1','#e3a04c','#e36d6d','#94a3b8'];
-type Tab='overview'|'stores'|'quality';
+type Tab='overview'|'stores'|'quality'|'repasses';
 const classNameSelect='w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100';
 const panelClass='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const Header=({title,description}:{title:string;description?:string})=><div className="mb-4">
@@ -47,6 +50,32 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
  const [error,setError]=useState('');
  const [busy,setBusy]=useState(false);
  const [tab,setTab]=useState<Tab>('overview');
+ const [consultations,setConsultations]=useState<ConsultedCase[]>(()=>loadConsultedCases(String(user.email||'')));
+ useEffect(()=>{
+   const refresh=()=>setConsultations(loadConsultedCases(String(user.email||'')));
+   const onStorage=(event:StorageEvent)=>{if(event.key?.includes('motyq-iq-repasse-consulta-preview'))refresh();};
+   window.addEventListener('motyq:repasse-consulta-saved',refresh);
+   window.addEventListener('storage',onStorage);
+   return ()=>{window.removeEventListener('motyq:repasse-consulta-saved',refresh);window.removeEventListener('storage',onStorage);};
+ },[user.email]);
+ const repasseRows=useMemo(()=>consultations.map(item=>{
+   const best=chooseBestConfirmedOffer(item.offers,item.costs);
+   const selected=item.offers.find(o=>o.id===item.selectedOfferId&&offerIsEligible(o));
+   const current=selected?{offer:selected,calculation:calculateConsultedOffer(selected,item.costs)}:best;
+   const proposed=moneyNumber(item.proposedBuy);
+   return {item,current,proposed,projectedMargin:current&&proposed>0?current.calculation.netBeforeMargin-proposed:null};
+ }),[consultations]);
+ const repasseEvents=consultations.reduce((n,item)=>n+item.events.length,0);
+ const repasseConfirmed=repasseRows.filter(r=>r.current&&r.item.state!=='arquivado').length;
+ const repasseOver=repasseRows.filter(r=>r.current&&r.proposed>r.current.calculation.ceiling).length;
+ const downloadRepasseReport=(kind:'cases'|'log')=>{
+   const csv=kind==='cases'?exportConsultedReportCsv(consultations):exportConsultedLogCsv(consultations);
+   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+   const element=document.createElement('a');element.href=url;
+   element.download=kind==='cases'?'motyq-iq-repasses-gerencial.csv':'motyq-iq-repasses-log.csv';
+   document.body.appendChild(element);element.click();element.remove();
+   window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+ };
  const [filters,setFilters]=useState<DashboardFilters>({...emptyFilters});
  const inputRef=useRef<HTMLInputElement|null>(null);
  const ready=records.length>0;
@@ -170,7 +199,7 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
     <Metric label="Ticket mediano" value={fmtCompact(metrics.medianPaid)} detail="Preço efetivamente pago" icon={TrendingUp}/>
   </div>
   <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
-    {([['overview','Visão geral',BarChart3],['stores','Unidades e modelos',Building2],['quality','Qualidade dos dados',ShieldCheck]] as const).map(([id,label,Icon])=>
+    {([['overview','Visão geral',BarChart3],['stores','Unidades e modelos',Building2],['quality','Qualidade dos dados',ShieldCheck],['repasses','Repasse sob consulta',HandCoins]] as const).map(([id,label,Icon])=>
       <button key={id} onClick={()=>setTab(id)} className={'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black '+(tab===id?'bg-[#153f51] text-white':'bg-white text-slate-600 hover:bg-slate-100')}><Icon size={15}/>{label}</button>)}
   </div>
   {tab==='overview'&&<div className="space-y-4">
@@ -286,6 +315,53 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
         </div>
       </section>
     </div>
+  </div>}
+  {tab==='repasses'&&<div className="space-y-4">
+    <div className="grid gap-3 md:grid-cols-4">
+      <Metric label="Consultas salvas" value={fmtInt(consultations.length)} detail="Casos locais, não compras efetivadas" icon={HandCoins}/>
+      <Metric label="Ofertas confirmadas" value={fmtInt(repasseConfirmed)} detail="Casos com ao menos uma oferta válida" icon={CheckCircle2} tone="indigo"/>
+      <Metric label="Propostas acima do teto" value={fmtInt(repasseOver)} detail="Casos para revisão da Mesa" icon={AlertTriangle} tone="amber"/>
+      <Metric label="Eventos registrados" value={fmtInt(repasseEvents)} detail="Versões e alterações locais" icon={FileSpreadsheet}/>
+    </div>
+    <section className={panelClass}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <Header title="Registro gerencial de repasses sob consulta" description="Ofertas obtidas por telefone/WhatsApp, margens variáveis, revisões e teto líquido previsto. Não confundir com repasse efetivado."/>
+        <div className="flex flex-wrap gap-2">
+          <button disabled={!consultations.length} onClick={()=>downloadRepasseReport('cases')}
+           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40">Exportar resumo CSV</button>
+          <button disabled={!consultations.length} onClick={()=>downloadRepasseReport('log')}
+           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40">Exportar log CSV</button>
+        </div>
+      </div>
+      {!consultations.length?<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+        Nenhum repasse sob consulta registrado neste navegador. Abra a aba “Repasse Sob Consulta”, informe as ofertas e salve a negociação.</p>:
+      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs">
+        <thead><tr className="border-b border-slate-100 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+          <th className="px-3 py-3">Veículo</th><th className="px-3 py-3">Situação</th>
+          <th className="px-3 py-3 text-right">Melhor oferta</th><th className="px-3 py-3 text-right">Teto líquido</th>
+          <th className="px-3 py-3 text-right">Proposta Mesa</th><th className="px-3 py-3 text-right">Resultado previsto</th><th className="px-3 py-3">Histórico</th>
+        </tr></thead>
+        <tbody>{repasseRows.map(({item,current,proposed,projectedMargin})=>
+          <tr key={item.id} className="border-b border-slate-100 text-slate-700">
+            <td className="px-3 py-3"><strong>{item.vehicle.brand} {item.vehicle.model}</strong><p className="mt-1 text-[10px] text-slate-500">{item.vehicle.year} · {item.vehicle.km} km</p></td>
+            <td className="px-3 py-3">{item.state==='arquivado'?'Arquivado':current?'Oferta confirmada':'Em consulta'}</td>
+            <td className="px-3 py-3 text-right">{current?formatReais(current.calculation.sale):'—'}</td>
+            <td className="px-3 py-3 text-right font-bold">{current?formatReais(current.calculation.ceiling):'—'}</td>
+            <td className="px-3 py-3 text-right">{proposed?formatReais(proposed):'—'}</td>
+            <td className={'px-3 py-3 text-right font-bold '+(projectedMargin!==null&&projectedMargin<0?'text-red-700':'text-slate-900')}>{projectedMargin!==null?formatReais(projectedMargin):'—'}</td>
+            <td className="px-3 py-3"><details><summary className="cursor-pointer font-semibold text-cyan-800">v{item.version} · {item.events.length} eventos</summary>
+               <div className="mt-2 w-56 space-y-2 rounded-lg bg-slate-50 p-2">
+                 {item.events.slice().reverse().slice(0,8).map(e=><div key={e.id} className="border-b border-slate-200 pb-1">
+                   <p className="text-[10px] font-bold">{new Date(e.at).toLocaleString('pt-BR')} · {e.action}</p>
+                   <p className="text-[10px] text-slate-500">{e.actor}</p>
+                   <p className="text-[10px] text-slate-600">{e.changes.join('; ')}</p>
+                 </div>)}
+               </div>
+             </details></td>
+          </tr>)}</tbody>
+      </table></div>}
+      <p className="mt-3 text-[11px] leading-5 text-slate-500">Estes dados são armazenados apenas no navegador deste usuário. Não constituem trilha auditável de servidor, autorização de gerência, compra concluída ou validação fiscal.</p>
+    </section>
   </div>}
   <footer className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-5 text-slate-600"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-cyan-700"/>
     <span>Uso gerencial interno. Base importada processada somente neste dispositivo, sem upload para Vercel, GitHub ou outro servidor. Os números não representam margem de venda, lucro nem conversão comercial. Importações posteriores podem alterar o período e a distribuição por unidade.</span>
