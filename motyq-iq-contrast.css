@@ -1,0 +1,154 @@
+/*
+ * Motyq IQ · high-contrast visual layer
+ *
+ * Scoped to the standalone IQ workspace. The main Motyq Graphite theme
+ * has !important rules for muted typography and form controls: those work
+ * well in its dark shell, but lower contrast on IQ's light surfaces.
+ *
+ * This file loads AFTER motyq-theme.css and motyq-branding.css.
+ * No behaviour, business logic, account roles or production styling changes.
+ */
+
+body.motyq-graphite .motyq-iq-workspace {
+  background-color: #f4f7fb !important;
+  color: #14283b !important;
+  color-scheme: light;
+}
+
+/* Standalone preview header is intentionally dark, with readable text. */
+body.motyq-graphite .motyq-iq-workspace > header {
+  background-color: #112d3d !important;
+  color: #ffffff !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace > header strong {
+  color: #ffffff !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace > header p {
+  color: #d4e8f3 !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace > header a,
+body.motyq-graphite .motyq-iq-workspace > header button {
+  color: #ffffff !important;
+}
+
+/* Shared visual language across Management, Consulted Repasse, and Approvals. */
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-hero {
+  background: linear-gradient(118deg, #102d40 0%, #153e54 60%, #18465b 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(204, 240, 255, 0.10);
+  box-shadow: 0 15px 32px rgba(15, 38, 57, 0.10);
+}
+
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-hero .motyq-iq-hero-title,
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-hero h2 {
+  color: #ffffff !important;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+}
+
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-hero .motyq-iq-hero-description {
+  color: #e5f0f8 !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-hero .motyq-iq-hero-eyebrow {
+  color: #97efff !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-hero .motyq-iq-hero-status {
+  color: #103c51 !important;
+  background: #effbff !important;
+  border: 1px solid #c4effb !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* The active tab must never inherit dark text from the Graphite theme. */
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-tabs {
+  background-color: #ffffff !important;
+  border-color: #dae3ed !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-tabs button {
+  min-height: 42px;
+  color: #3a4d64 !important;
+  background-color: transparent !important;
+  font-weight: 700;
+}
+
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-tabs button:hover:not([aria-current="page"]) {
+  background-color: #eef4f8 !important;
+  color: #12394c !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-tabs button[aria-current="page"] {
+  color: #ffffff !important;
+  background-color: #153f51 !important;
+  box-shadow: 0 3px 8px rgba(12, 49, 69, 0.18);
+}
+
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-tabs button:focus-visible {
+  outline: 3px solid #35b9da !important;
+  outline-offset: 2px;
+}
+
+body.motyq-graphite .motyq-iq-workspace .motyq-iq-tabs-caption {
+  color: #4b6078 !important;
+}
+
+/* Muted typography in light cards should not use the Graphite light-on-dark palette. */
+body.motyq-graphite .motyq-iq-workspace .text-slate-500 {
+  color: #52647b !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace .text-slate-600 {
+  color: #40536c !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace .text-slate-400 {
+  color: #586a80 !important;
+}
+
+/* Explicit light-form contrast, without changing the rest of Motyq. */
+body.motyq-graphite .motyq-iq-workspace input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+body.motyq-graphite .motyq-iq-workspace select,
+body.motyq-graphite .motyq-iq-workspace textarea {
+  background-color: #ffffff !important;
+  border-color: #c6d4e2 !important;
+  color: #152d40 !important;
+  color-scheme: light;
+}
+
+body.motyq-graphite .motyq-iq-workspace input::placeholder,
+body.motyq-graphite .motyq-iq-workspace textarea::placeholder {
+  color: #61738a !important;
+  opacity: 1;
+}
+
+body.motyq-graphite .motyq-iq-workspace select option {
+  background-color: #ffffff !important;
+  color: #152d40 !important;
+}
+
+/* Maintain readable warnings and primary actions. */
+body.motyq-graphite .motyq-iq-workspace .bg-amber-50 .text-amber-900,
+body.motyq-graphite .motyq-iq-workspace .text-amber-900 {
+  color: #78350f !important;
+}
+
+body.motyq-graphite .motyq-iq-workspace button.bg-\[\#153f51\],
+body.motyq-graphite .motyq-iq-workspace button.bg-cyan-700 {
+  color: #ffffff !important;
+}
+
+@media (max-width: 640px) {
+  body.motyq-graphite .motyq-iq-workspace .motyq-iq-tabs button {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 135px;
+    text-align: center;
+  }
+
+  body.motyq-graphite .motyq-iq-workspace .motyq-iq-hero .motyq-iq-hero-title {
+    line-height: 1.2;
+  }
+}
