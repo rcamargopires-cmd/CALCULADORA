@@ -54,6 +54,13 @@ export const isApprovalApplicable=(req:ManagerApproval,source:ConsultedCase)=>{
  if(req.status!=='approved'||!positive(req.decidedBuy||0))return false;
  if(!consultedFinancialInputsReady(source.costs))return false;
  if(sumRounded(moneyNumber(source.proposedBuy))!==sumRounded(req.requestedBuy))return false;
+ const sourceCosts={
+   invoice:moneyNumber(source.costs.invoice),taxesFixed:moneyNumber(source.costs.taxesFixed),
+   taxesPercent:moneyNumber(source.costs.taxesPercent),transport:moneyNumber(source.costs.transport),
+   preparation:moneyNumber(source.costs.preparation),other:moneyNumber(source.costs.other),
+   marginMode:source.costs.marginMode,margin:moneyNumber(source.costs.margin)
+ };
+ if(JSON.stringify(sourceCosts)!==JSON.stringify(req.costSnapshot))return false;
  const option=source.offers.find(o=>o.buyer===req.outlet.name&&
    moneyNumber(o.value)===req.outlet.offer&&o.validUntil===req.outlet.validUntil);
  if(!option||!offerIsEligible(option))return false;
