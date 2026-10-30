@@ -40,7 +40,7 @@ const isMoto=(brand:string,model:string)=>{
  const b=norm(brand),m=norm(model);
  if(MOTOBRANDS.has(b))return true;
  if(b==='SUZUKI')return /^(INTRUDER|GSX|BURGMAN|V-STROM|YES|EN125|GSR)/.test(m);
- if(b==='HONDA')return /^(CG|CB |CB\d|CBR|PCX|ELITE|BIZ|POP |NXR|XRE|NX-|SHADOW|AFRICA|ADV|LEAD|X-ADV|CRF|TWISTER|NC\d|CG\d)/.test(m);
+ if(b==='HONDA')return /^(CG|CB |CB\d|CBR|PCX|ELITE|BIZ|POP |NXR|XRE|NX-|SHADOW|AFRICA|ADV|LEAD|X-ADV|CRF|TWISTER|SH |SH\d|CBX|NC\d|CG\d)/.test(m);
  if(b==='BMW')return /^(R \d|F \d|G \d|S \d|K \d|R\d|F\d|G\d|S\d)/.test(m);
  return false;
 };
@@ -62,6 +62,8 @@ export type DashboardImportResult={rows:DashboardRow[];excludedEvaluator:number;
 export function parseDashboardData(input:InputLine[],source:'original'|'filtered'):DashboardImportResult{
  const output:DashboardRow[]=[];
  const seen=new Set<string>();
+ // Only an ephemeral duplicate detector; plate is never persisted or sent anywhere.
+ const usedPlates=new Set<string>();
  let excludedEvaluator=0,excludedMotorcycles=0,duplicates=0,invalidPurchases=0;
  input.forEach((r,i)=>{
    const evaluator=norm(entry(r,'Avaliador'));
@@ -77,6 +79,11 @@ export function parseDashboardData(input:InputLine[],source:'original'|'filtered
    let status=classification(originalStatus);
    if(source==='original'&&status==='COTACAO'&&confirmedException(brand,model,year,value))status='COMPRA';
    if(status==='COMPRA'&&!validValue(value)){status='REVISAR';invalidPurchases++;}
+   if(source==='original'&&status==='COMPRA'){
+     const plate=norm(entry(r,'Placa da Avaliação'));
+     if(plate&&usedPlates.has(plate)){status='OUTROS';duplicates++;}
+     else if(plate)usedPlates.add(plate);
+   }
    const date=dateString(entry(r,source==='filtered'?'Data avaliação':'Data de Avaliação'));
    const destination=norm(entry(r,source==='filtered'?'Destino':'Finalidade'))||'NÃO INFORMADO';
    const className=norm(entry(r,source==='filtered'?'Classe':'Classificação'))||'NÃO INFORMADA';
