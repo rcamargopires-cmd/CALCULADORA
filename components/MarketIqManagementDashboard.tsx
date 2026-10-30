@@ -110,8 +110,8 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
  const statusData=metrics.status.map(x=>({name:x.name==='COMPRA'?'Comprados':x.name==='COTACAO'?'Cotações':x.name==='REPASSE PENDENTE'?'Repasse pend.':x.name==='REVISAR'?'Revisar':'Outros',value:x.value}));
  const classes=metrics.classes.filter(x=>x.name!=='NÃO INFORMADA');
  const destination=metrics.destinations.filter(x=>x.name==='SHOWROOM'||x.name==='REPASSE');
- const models=metrics.models.slice(0,10);
- const brands=metrics.brands.slice(0,10);
+ const models=metrics.models.slice(0,10).map(x=>({name:x.name,count:x.count}));
+ const brands=metrics.brands.slice(0,10).map(x=>({name:x.name,count:x.count}));
  const units=metrics.units;
  const timeline=metrics.dates.map(x=>({caption:x.caption,compras:x.purchases,cotacoes:x.quotes}));
  const summaryIndex=purchases+metrics.quoteCount>0?purchases/(purchases+metrics.quoteCount):0;
