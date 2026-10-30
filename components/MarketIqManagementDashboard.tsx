@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {Activity,ArrowDownToLine,BarChart3,Building2,CheckCircle2,Clock3,
   FileSpreadsheet,Filter,Info,Layers3,RefreshCcw,ShieldCheck,TrendingUp,
-  Wallet,AlertTriangle,UploadCloud,X,CarFront,HandCoins} from 'lucide-react';
+  Wallet,AlertTriangle,UploadCloud,X,CarFront,HandCoins,ClipboardCheck} from 'lucide-react';
 import {Bar,BarChart,CartesianGrid,Cell,Line,LineChart,Pie,PieChart,
   ResponsiveContainer,Tooltip,XAxis,YAxis,Legend} from 'recharts';
 import {aggregateDashboard,dashboardOptions,emptyFilters,filterDashboardRows,
@@ -12,13 +12,18 @@ import {chooseBestConfirmedOffer,calculateConsultedOffer,offerIsEligible,
   loadConsultedCases,exportConsultedLogCsv,exportConsultedReportCsv,moneyNumber,formatReais,consultedFinancialInputsReady,
   type ConsultedCase} from '../services/marketIqConsultedRepasse';
 import type {User} from '../types';
+import {
+ exportApprovalsCsv,exportApprovalEventsCsv,getLocalApprovalRequests,
+ type ApprovalActor,type ManagerApproval
+} from '../services/marketIqApprovalModel';
+import {CLOUD_APPROVALS_ENABLED,subscribeSharedApprovals} from '../services/marketIqApprovalCloud';
 
 const fmtMoney=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v);
 const fmtCompact=(v:number)=>new Intl.NumberFormat('pt-BR',{notation:'compact',maximumFractionDigits:1}).format(v);
 const fmtInt=(v:number)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(v);
 const fmtPct=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'percent',maximumFractionDigits:1}).format(v);
 const COLORS=['#147d89','#6366f1','#e3a04c','#e36d6d','#94a3b8'];
-type Tab='overview'|'stores'|'quality'|'repasses';
+type Tab='overview'|'stores'|'quality'|'repasses'|'approvals';
 const classNameSelect='w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100';
 const panelClass='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const Header=({title,description}:{title:string;description?:string})=><div className="mb-4">
@@ -51,6 +56,19 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
  const [busy,setBusy]=useState(false);
  const [tab,setTab]=useState<Tab>('overview');
  const [consultations,setConsultations]=useState<ConsultedCase[]>(()=>loadConsultedCases(String(user.email||'')));
+ const [approvals,setApprovals]=useState<ManagerApproval[]>(()=>CLOUD_APPROVALS_ENABLED?[]:getLocalApprovalRequests(String(user.email||'')));
+ useEffect(()=>{
+   if(CLOUD_APPROVALS_ENABLED){
+     const actor:ApprovalActor={email:user.email.toLowerCase(),name:user.name||user.email,role:user.role,
+       companyId:user.companyId||'abrao-reze',storeId:user.storeId||'outlet-sorocaba'};
+     return subscribeSharedApprovals(actor,setApprovals,()=>{});
+   }
+   const update=()=>setApprovals(getLocalApprovalRequests(String(user.email||'')));
+   const onStorage=(ev:StorageEvent)=>{if(ev.key?.includes('motyq-iq-approval-preview-local'))update();};
+   window.addEventListener('motyq:approvals-local-saved',update);
+   window.addEventListener('storage',onStorage);
+   return ()=>{window.removeEventListener('motyq:approvals-local-saved',update);window.removeEventListener('storage',onStorage);};
+ },[user.email,user.name,user.role,user.companyId,user.storeId]);
  useEffect(()=>{
    const refresh=()=>setConsultations(loadConsultedCases(String(user.email||'')));
    const onStorage=(event:StorageEvent)=>{if(event.key?.includes('motyq-iq-repasse-consulta-preview'))refresh();};
@@ -66,6 +84,10 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
    return {item,current,proposed,projectedMargin:current&&proposed>0?current.calculation.netBeforeMargin-proposed:null};
  }),[consultations]);
  const repasseEvents=consultations.reduce((n,item)=>n+item.events.length,0);
+ const approvalsPending=approvals.filter(r=>r.status==='pending').length;
+ const approvalsApproved=approvals.filter(r=>r.status==='approved').length;
+ const approvalsAbove=approvals.filter(r=>r.status==='approved'&&typeof r.decidedBuy==='number'&&r.decidedBuy>r.suggestedCeiling);
+ const approvalsExcess=approvalsAbove.reduce((sum,r)=>sum+(r.decidedBuy!-r.suggestedCeiling),0);
  const repasseConfirmed=repasseRows.filter(r=>r.current&&r.item.state!=='arquivado').length;
  const repasseOver=repasseRows.filter(r=>r.current&&r.proposed>r.current.calculation.ceiling).length;
  const downloadRepasseReport=(kind:'cases'|'log')=>{
@@ -137,6 +159,13 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
    const link=document.createElement('a');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
    link.href=url;link.download='motyq-iq-analise-filtrada.csv';link.click();URL.revokeObjectURL(url);
  };
+ const exportManagerApprovals=(kind:'cases'|'log')=>{
+   const csv=kind==='cases'?exportApprovalsCsv(approvals):exportApprovalEventsCsv(approvals);
+   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+   const a=document.createElement('a');a.href=url;
+   a.download=kind==='cases'?'motyq-iq-excecoes-gerenciais.csv':'motyq-iq-excecoes-log.csv';
+   document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+ };
  const chartTooltip=(value:any,name:any)=>[fmtInt(Number(value)||0),String(name)];
  return <div className="space-y-5">
   <div className="relative overflow-hidden rounded-3xl bg-[#132a3a] px-5 py-6 text-white md:px-7 md:py-8">
@@ -199,7 +228,7 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
     <Metric label="Ticket mediano" value={fmtCompact(metrics.medianPaid)} detail="Preço efetivamente pago" icon={TrendingUp}/>
   </div>
   <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
-    {([['overview','Visão geral',BarChart3],['stores','Unidades e modelos',Building2],['quality','Qualidade dos dados',ShieldCheck],['repasses','Repasse sob consulta',HandCoins]] as const).map(([id,label,Icon])=>
+    {([['overview','Visão geral',BarChart3],['stores','Unidades e modelos',Building2],['quality','Qualidade dos dados',ShieldCheck],['repasses','Repasse sob consulta',HandCoins],['approvals','Exceções e decisões',ClipboardCheck]] as const).map(([id,label,Icon])=>
       <button key={id} onClick={()=>setTab(id)} className={'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black '+(tab===id?'bg-[#153f51] text-white':'bg-white text-slate-600 hover:bg-slate-100')}><Icon size={15}/>{label}</button>)}
   </div>
   {tab==='overview'&&<div className="space-y-4">
@@ -361,6 +390,55 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
           </tr>)}</tbody>
       </table></div>}
       <p className="mt-3 text-[11px] leading-5 text-slate-500">Estes dados são armazenados apenas no navegador deste usuário. Não constituem trilha auditável de servidor, autorização de gerência, compra concluída ou validação fiscal.</p>
+    </section>
+  </div>}
+  {tab==='approvals'&&<div className="space-y-4">
+    <div className="grid gap-3 md:grid-cols-4">
+      <Metric label="Exceções registradas" value={fmtInt(approvals.length)} detail="Solicitações gerenciais nesta base" icon={ClipboardCheck}/>
+      <Metric label="Aguardando gerente" value={fmtInt(approvalsPending)} detail="Solicitações ainda pendentes" icon={Clock3} tone="amber"/>
+      <Metric label="Aprovadas" value={fmtInt(approvalsApproved)} detail="Não equivale a compra realizada" icon={CheckCircle2}/>
+      <Metric label="Excedente autorizado" value={fmtMoney(approvalsExcess)} detail="Soma das decisões acima do teto técnico" icon={AlertTriangle} tone="amber"/>
+    </div>
+    <section className={panelClass}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <Header title="Exceções gerenciais e trilha de decisões"
+          description="Valores técnicos preservados, pedidos da Mesa, decisões do gerente, diferenças e justificativas."/>
+        <div className="flex flex-wrap gap-2">
+          <button disabled={!approvals.length} onClick={()=>exportManagerApprovals('cases')}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40">Exportar resumo CSV</button>
+          <button disabled={!approvals.length} onClick={()=>exportManagerApprovals('log')}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40">Exportar log CSV</button>
+        </div>
+      </div>
+      {!approvals.length?<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+        Nenhuma solicitação registrada neste ambiente. Abra “Solicitações e aprovações” para criar e testar uma exceção.</p>:
+      <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-xs">
+        <thead><tr className="border-b border-slate-100 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+          <th className="px-3 py-3">Veículo</th><th className="px-3 py-3">Status</th>
+          <th className="px-3 py-3 text-right">Teto técnico</th><th className="px-3 py-3 text-right">Pedido Mesa</th>
+          <th className="px-3 py-3 text-right">Decisão gerente</th><th className="px-3 py-3 text-right">Diferença/teto</th>
+          <th className="px-3 py-3">Justificativa</th><th className="px-3 py-3">Log</th>
+        </tr></thead>
+        <tbody>{approvals.map(req=><tr key={req.id} className="border-b border-slate-100 text-slate-700">
+          <td className="px-3 py-3"><strong>{req.vehicle.brand} {req.vehicle.model}</strong>
+            <p className="mt-1 text-[10px] text-slate-500">{req.vehicle.year} · {req.storeId}</p></td>
+          <td className="px-3 py-3">{req.status==='approved'?'Aprovado':req.status==='pending'?'Pendente':
+             req.status==='rejected'?'Recusado':req.status==='countered'?'Contraproposta':'Cancelado'}{req.demoOnly?' · simulação':''}</td>
+          <td className="px-3 py-3 text-right">{fmtMoney(req.suggestedCeiling)}</td>
+          <td className="px-3 py-3 text-right">{fmtMoney(req.requestedBuy)}</td>
+          <td className="px-3 py-3 text-right font-bold">{typeof req.decidedBuy==='number'?fmtMoney(req.decidedBuy):'—'}</td>
+          <td className="px-3 py-3 text-right">{typeof req.decidedBuy==='number'?fmtMoney(req.decidedBuy-req.suggestedCeiling):'—'}</td>
+          <td className="max-w-[180px] px-3 py-3"><span className="line-clamp-3">{req.decisionReason||req.requestReason}</span></td>
+          <td className="px-3 py-3"><details><summary className="cursor-pointer text-cyan-800">v{req.revision} · {req.events.length} eventos</summary>
+            <div className="mt-2 w-52 space-y-2 rounded-lg bg-slate-50 p-2">{req.events.map(e=>
+              <p key={e.id} className="border-b border-slate-200 pb-1 text-[10px]">{new Date(e.at).toLocaleString('pt-BR')} · {e.action} · {e.actorName}: {e.reason}</p>)}</div>
+          </details></td>
+        </tr>)}</tbody>
+      </table></div>}
+      <p className="mt-3 text-[11px] text-amber-900">
+        {CLOUD_APPROVALS_ENABLED?'Registros compartilhados, sujeitos às regras de permissão do banco.':'Relatório de SIMULAÇÃO LOCAL. Nenhuma aprovação está autenticada ou foi comunicada a outros usuários.'}
+        Aprovação não significa aquisição concluída.
+      </p>
     </section>
   </div>}
   <footer className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-5 text-slate-600"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-cyan-700"/>
