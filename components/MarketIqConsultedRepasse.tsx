@@ -2,6 +2,9 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {ArrowDownToLine,ArrowRight,Building2,Calculator,CheckCircle2,
   Clock3,FileClock,FileText,HandCoins,Info,Plus,Save,ShieldAlert,Trash2} from 'lucide-react';
 import type {User} from '../types';
+import {getLocalApprovalRequests,isApprovalApplicable,type ApprovalActor,type ManagerApproval}
+ from '../services/marketIqApprovalModel';
+import {CLOUD_APPROVALS_ENABLED,subscribeSharedApprovals} from '../services/marketIqApprovalCloud';
 import {
   appendConsultedAudit, calculateConsultedOffer, chooseBestConfirmedOffer,
   emptyConsultedCosts, emptyConsultedOffer, emptyConsultedVehicle,consultedFinancialInputsReady,consultedCostInputsValid,isValidConsultedMoney,
@@ -39,12 +42,25 @@ const fieldName=(key:string)=>({
 }[key as keyof ConsultedCosts]||key);
 const vehicleDescription=(c:ConsultedVehicle)=>(c.brand+' '+c.model+' '+c.year).trim()||'Veículo não informado';
 
-export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
- user:User;vehicleFromDesk:Partial<ConsultedVehicle>;
+export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApprovals}:{
+ user:User;vehicleFromDesk:Partial<ConsultedVehicle>;onOpenApprovals?:()=>void;
 }){
  const email=String(user.email||'').toLowerCase();
  const draftKey='motyq-iq-repasse-draft-v1-'+email;
  const [rows,setRows]=useState<ConsultedCase[]>(()=>loadConsultedCases(email));
+ const [approvals,setApprovals]=useState<ManagerApproval[]>(()=>CLOUD_APPROVALS_ENABLED?[]:getLocalApprovalRequests(email));
+ useEffect(()=>{
+   if(CLOUD_APPROVALS_ENABLED){
+     const actor:ApprovalActor={email,name:user.name||email,role:user.role,
+       companyId:user.companyId||'abrao-reze',storeId:user.storeId||'outlet-sorocaba'};
+     return subscribeSharedApprovals(actor,setApprovals,()=>{});
+   }
+   const refresh=()=>setApprovals(getLocalApprovalRequests(email));
+   const storage=(event:StorageEvent)=>{if(event.key?.includes('motyq-iq-approval-preview-local'))refresh();};
+   window.addEventListener('motyq:approvals-local-saved',refresh);
+   window.addEventListener('storage',storage);
+   return ()=>{window.removeEventListener('motyq:approvals-local-saved',refresh);window.removeEventListener('storage',storage);};
+ },[email,user.name,user.role,user.companyId,user.storeId]);
  const [draft,setDraft]=useState<ConsultedCase>(()=>{
    try{
      const saved=JSON.parse(sessionStorage.getItem(draftKey)||'null');
@@ -74,6 +90,9 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
  const selectedOffer=current?.offer??null;
  const estimatedPrice=current?.calculation.ceiling??null;
  const requestedBuy=moneyNumber(draft.proposedBuy);
+ const appliedDecision=approvals.filter(req=>req.status==='approved'&&isApprovalApplicable(req,draft))
+    .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0]||null;
+ const pendingDecision=approvals.find(req=>req.sourceCaseId===draft.id&&req.sourceCaseVersion===draft.version&&req.status==='pending');
  const expectedProfit=current&&requestedBuy>0?current.calculation.netBeforeMargin-requestedBuy:null;
  const overCeiling=estimatedPrice!==null&&requestedBuy>estimatedPrice;
  const taxRate=moneyNumber(draft.costs.taxesPercent);
@@ -262,6 +281,14 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
       {!financialReady?'Ainda faltam custos de NF, impostos e/ou margem. Informe os valores desta negociação, inclusive zero quando aplicável.':'Nenhuma oferta confirmada e válida disponível. Registre a proposta da loja e sua validade antes de considerar um teto de compra.'}</div>}
      <label className="mt-4 block"><span className={label}>Valor que a Mesa pretende oferecer (R$)</span>
       <input className={input} value={draft.proposedBuy} onChange={e=>setDraft(d=>({...d,proposedBuy:e.target.value}))} inputMode="decimal" placeholder="125000"/></label>
+     {appliedDecision&&<div className="mt-3 rounded-xl border border-indigo-200 bg-white p-3">
+       <p className="text-[10px] font-black uppercase tracking-wide text-indigo-700">Valor vigente autorizado {appliedDecision.demoOnly?'· SIMULAÇÃO LOCAL':'· GERÊNCIA'}</p>
+       <p className="mt-1 text-2xl font-black text-indigo-950">{formatReais(appliedDecision.decidedBuy||0)}</p>
+       <p className="mt-1 text-xs text-slate-600">Valor original da Mesa: {formatReais(appliedDecision.requestedBuy)} · Teto técnico original: {formatReais(appliedDecision.suggestedCeiling)}</p>
+       <p className="mt-1 text-xs text-slate-600">Decidido por {appliedDecision.decidedByName} em {formatDate(appliedDecision.decidedAt||'')} · {appliedDecision.decisionReason}</p>
+       {appliedDecision.demoOnly&&<p className="mt-2 text-xs font-bold text-amber-900">Esta autorização é fictícia e não vale para uma compra real.</p>}
+      </div>}
+     {pendingDecision&&<p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">Esta versão da negociação tem uma solicitação de revisão pendente {pendingDecision.demoOnly?'(simulação)':''}.</p>}
      {current&&requestedBuy>0&&<>
       <div className="mt-3 flex justify-between gap-2 rounded-xl bg-white p-3 text-xs">
        <span>Resultado líquido projetado</span><strong className={expectedProfit!==null&&expectedProfit>=0?'text-emerald-800':'text-rose-700'}>{formatReais(expectedProfit||0)}</strong>
@@ -282,6 +309,9 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
    <div className="mt-4 flex flex-wrap items-center gap-2">
     <button type="button" className="inline-flex items-center gap-2 rounded-xl bg-[#153f51] px-5 py-3 text-sm font-black text-white hover:bg-[#225468]" onClick={()=>save()}>
      <Save size={17}/>Salvar consulta local</button>
+    {onOpenApprovals&&<button type="button" className="inline-flex items-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-3 text-sm font-black text-cyan-900 disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={!before||changed||!current||requestedBuy<=0} onClick={onOpenApprovals}>
+      <CheckCircle2 size={16}/>Solicitar revisão gerencial</button>}
     <button type="button" className={smallBtn} onClick={()=>{setDraft(newCase(vehicleFromDesk));setNotice('Novo caso iniciado. O caso anterior permanece salvo se você o registrou.');setError('');setShowAudit(false);}}>
      <Plus size={15}/>Nova consulta</button>
     {before&&<button type="button" className={smallBtn} onClick={()=>save(draft.state==='arquivado'?'consulta':'arquivado')}>
@@ -290,6 +320,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk}:{
     <button type="button" className={smallBtn} onClick={()=>setShowAudit(v=>!v)}>
      <FileClock size={16}/>{showAudit?'Ocultar':'Ver'} histórico do caso</button>
    </div>
+   {changed&&before&&<p className="mt-2 text-xs font-semibold text-amber-800">Salve as alterações antes de solicitar nova revisão gerencial.</p>}
    {notice&&<p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-xs font-semibold text-emerald-900">{notice}</p>}
    {error&&<p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-xs font-semibold text-rose-900">{error}</p>}
    {showAudit&&<div className="mt-4 space-y-2">
