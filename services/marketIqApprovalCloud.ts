@@ -13,7 +13,7 @@ import {db} from '../firebase';
 import type {ApprovalActor,ApprovalDecision,ManagerApproval} from './marketIqApprovalModel';
 import {applyManagerDecision,normalizedEmail} from './marketIqApprovalModel';
 
-export const CLOUD_APPROVALS_ENABLED=import.meta.env.VITE_MARKETIQ_APPROVALS_CLOUD==='true';
+export const CLOUD_APPROVALS_ENABLED=(import.meta as ImportMeta & {env?:Record<string,string|undefined>}).env?.VITE_MARKETIQ_APPROVALS_CLOUD==='true';
 const COLLECTION='marketiq_preview_approvals_v1';
 
 export const publishApprovalRequest = async (request:ManagerApproval):Promise<void> => {
