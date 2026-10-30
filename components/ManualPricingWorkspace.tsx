@@ -159,7 +159,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const restore=(r:Saved)=>{setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setRepasse(r.repasse);setClassification(r.historicalClass||'');setAds(r.ads);setNotice('Rascunho reaberto. Salvar cria uma nova versão.');window.scrollTo({top:0,behavior:'smooth'})};
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  return <main className="mx-auto max-w-7xl space-y-5 p-5 text-slate-900">
- <nav className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Áreas do Motyq IQ">
+ <nav className="motyq-iq-tabs flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Áreas do Motyq IQ">
   <button type="button" onClick={()=>switchDeskSection('dashboard')} aria-current={deskSection==='dashboard'?'page':undefined}
     className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='dashboard'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Painel gerencial</button>
   <button type="button" onClick={()=>switchDeskSection('pricing')} aria-current={deskSection==='pricing'?'page':undefined}
@@ -168,7 +168,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='consulted'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Repasse Sob Consulta</button>
   <button type="button" onClick={()=>switchDeskSection('approvals')} aria-current={deskSection==='approvals'?'page':undefined}
     className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='approvals'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Solicitações e aprovações</button>
-  <span className="ml-auto px-2 text-[11px] font-semibold text-slate-400">Motyq IQ · ambiente de testes</span>
+  <span className="motyq-iq-tabs-caption ml-auto px-2 text-[11px] font-semibold text-slate-500">Motyq IQ · ambiente de testes</span>
  </nav>
  {deskSection==='dashboard'?<MarketIqManagementDashboard user={user}/>:
   deskSection==='consulted'?<MarketIqConsultedRepasse user={user}
