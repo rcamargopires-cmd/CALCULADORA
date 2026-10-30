@@ -284,7 +284,7 @@ const App: React.FC = () => {
     window.location.hostname.endsWith('.vercel.app') &&
     new URLSearchParams(window.location.search).get('gerente') === 'teste';
   if(managementPreview)return (
-    <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
+    <div className="motyq-iq-workspace min-h-screen bg-[#f4f7fb] text-slate-900">
       <header className="flex flex-wrap items-center justify-between gap-3 bg-[#112d3d] px-5 py-4 text-white">
         <div><strong className="text-xl">Motyq IQ</strong><p className="text-xs text-slate-300">Solicitações gerenciais · {user.name}</p></div>
         <button onClick={handleLogout} className="rounded-lg border border-white/20 px-4 py-2 text-sm">Sair</button>
@@ -295,7 +295,7 @@ const App: React.FC = () => {
   // Temporary preview-branch-only visual test. This does not grant backend permissions or change the user's stored role.
   const deskPreview = user.email?.toLowerCase() === 'reinaldo.ribas@abraoreze.com.br' && new URLSearchParams(window.location.search).get('mesa') === 'teste';
   if (user.role === 'pricing' || user.pricingDeskOnly || deskPreview) return (
-    <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
+    <div className="motyq-iq-workspace min-h-screen bg-[#f4f7fb] text-slate-900">
       <header className="flex items-center justify-between border-b border-white/10 bg-[#112d3d] px-5 py-4 text-white">
         <div><strong className="text-xl">Motyq IQ</strong><p className="text-xs text-zinc-400">Mesa de Precificação · {user.name}</p></div>
         <div className="flex items-center gap-2">{deskPreview && <a href={window.location.pathname} className="rounded-lg border border-white/20 px-4 py-2 text-sm">Voltar ao Motyq GO</a>}<button onClick={handleLogout} className="rounded-lg border border-white/20 px-4 py-2 text-sm">Sair</button></div>
