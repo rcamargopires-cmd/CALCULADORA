@@ -53,6 +53,7 @@ assert.equal(app.isApprovalApplicable(approved,source),true);
 assert.equal(app.isApprovalApplicable(approved,{...source,version:2}),false);
 assert.equal(app.isApprovalApplicable(approved,{...source,proposedBuy:'141000'}),false);
 assert.equal(app.isApprovalApplicable(approved,{...source,costs:{...costs,invoice:'1000'}}),false);
+assert.equal(app.isApprovalApplicable(approved,{...source,costs:{...costs,invoice:'1000',other:'600'}}),false);
 assert.equal(app.isApprovalApplicable(approved,{...source,offers:[{...offer,validUntil:'2020-01-01'}]}),false);
 assert.throws(()=>app.applyManagerDecision(approved,bob,'approved',140000,'again'),/já recebeu/);
 const countered=app.applyManagerDecision(req,bob,'countered',135000,'Somente 135 mil');
