@@ -50,7 +50,7 @@ const confirmedException=(b:string,m:string,year:number,value:number)=>(
  (norm(b)==='FIAT'&&norm(m)==='TORO'&&year===2025&&Math.abs(value-131440)<1)||
  (norm(b)==='JEEP'&&norm(m)==='COMMANDER'&&year===2022&&Math.abs(value-92000)<1)
 );
-const classification=(raw:string)=>{
+const classification=(raw:string):DashboardStatus=>{
  const s=norm(raw);
  if(s==='COMPRA'||s==='UTILIZADO')return 'COMPRA';
  if(s==='COTACAO'||s==='AVALIADO')return 'COTACAO';
