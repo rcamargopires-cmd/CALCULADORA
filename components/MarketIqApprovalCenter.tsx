@@ -47,7 +47,9 @@ export default function MarketIqApprovalCenter({user,managerOnly=false}:{user:Us
  const [cases,setCases]=useState<ConsultedCase[]>(()=>loadConsultedCases(user.email));
  const [requests,setRequests]=useState<ManagerApproval[]>(()=>
     CLOUD_APPROVALS_ENABLED?[]:getLocalApprovalRequests(user.email));
- const [selectedCaseId,setSelectedCaseId]=useState('');
+ const [selectedCaseId,setSelectedCaseId]=useState(()=>{
+     try{return sessionStorage.getItem('motyq-iq-manager-case-'+user.email.toLowerCase())||'';}catch{return '';}
+   });
  const [requestReason,setRequestReason]=useState('');
  const [notice,setNotice]=useState('');
  const [error,setError]=useState('');
