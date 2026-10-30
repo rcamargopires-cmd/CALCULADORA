@@ -244,6 +244,91 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // STAGED FEATURE ONLY: dedicated MarketIQ manager exception requests.
+    // Not automatically deployed from Vercel preview. Enable cloud adapter
+    // only AFTER promoting/testing these rules on the intended Firebase DB.
+    match /marketiq_preview_approvals_v1/{approvalId} {
+      allow read: if (
+        (isManager() && sameStore(resource.data)) ||
+        (
+          isActive() && sameStore(resource.data) &&
+          resource.data.requesterEmail == request.auth.token.email
+        )
+      );
+
+      allow create: if isActive() &&
+        sameStore(request.resource.data) &&
+        request.resource.data.keys().hasOnly([
+          'id','origin','sourceCaseId','sourceCaseVersion','companyId','storeId',
+          'vehicle','outlet','costSnapshot','createdAt','updatedAt',
+          'requesterEmail','requesterName','suggestedCeiling','requestedBuy',
+          'requestReason','status','revision','events','demoOnly',
+          'createdServerAt','updatedServerAt'
+        ]) &&
+        request.resource.data.id == approvalId &&
+        request.resource.data.origin == 'repasse_consulta' &&
+        request.resource.data.sourceCaseVersion >= 1 &&
+        request.resource.data.requesterEmail == request.auth.token.email &&
+        request.resource.data.requestedBuy is number &&
+        request.resource.data.requestedBuy > 0 &&
+        request.resource.data.requestedBuy <= 2000000 &&
+        request.resource.data.suggestedCeiling is number &&
+        request.resource.data.suggestedCeiling > 0 &&
+        request.resource.data.requestReason is string &&
+        request.resource.data.requestReason.size() > 0 &&
+        request.resource.data.requestReason.size() <= 600 &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.demoOnly == false &&
+        request.resource.data.revision == 1 &&
+        request.resource.data.events is list &&
+        request.resource.data.events.size() == 1 &&
+        request.resource.data.events[0].action == 'submitted' &&
+        request.resource.data.events[0].actorEmail == request.auth.token.email &&
+        request.resource.data.events[0].revision == 1 &&
+        request.resource.data.createdServerAt == request.time &&
+        request.resource.data.updatedServerAt == request.time;
+
+      allow update: if isManager() &&
+        sameStore(resource.data) &&
+        sameStore(request.resource.data) &&
+        resource.data.demoOnly == false &&
+        request.resource.data.demoOnly == false &&
+        resource.data.status == 'pending' &&
+        resource.data.requesterEmail != request.auth.token.email &&
+        request.resource.data.status in ['approved','countered','rejected'] &&
+        request.resource.data.revision == resource.data.revision + 1 &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status','revision','updatedAt','decidedByEmail','decidedByName',
+          'decidedAt','decidedBuy','decisionReason','events','updatedServerAt',
+          'decidedServerAt'
+        ]) &&
+        request.resource.data.decidedByEmail == request.auth.token.email &&
+        request.resource.data.decisionReason is string &&
+        request.resource.data.decisionReason.size() > 0 &&
+        request.resource.data.decisionReason.size() <= 600 &&
+        (
+          (request.resource.data.status == 'rejected' && request.resource.data.decidedBuy == null) ||
+          (
+            request.resource.data.status in ['approved','countered'] &&
+            request.resource.data.decidedBuy is number &&
+            request.resource.data.decidedBuy > 0 &&
+            request.resource.data.decidedBuy <= 2000000
+          )
+        ) &&
+        request.resource.data.events is list &&
+        request.resource.data.events.size() == resource.data.events.size() + 1 &&
+        request.resource.data.events.hasAll(resource.data.events) &&
+        request.resource.data.events[resource.data.events.size()].action == request.resource.data.status &&
+        request.resource.data.events[resource.data.events.size()].revision == request.resource.data.revision &&
+        request.resource.data.events[resource.data.events.size()].actorEmail == request.auth.token.email &&
+        request.resource.data.events[resource.data.events.size()].reason == request.resource.data.decisionReason &&
+        request.resource.data.events[resource.data.events.size()].value == request.resource.data.decidedBuy &&
+        request.resource.data.events[resource.data.events.size()].previousValue == resource.data.requestedBuy &&
+        request.resource.data.updatedServerAt == request.time &&
+        request.resource.data.decidedServerAt == request.time;
+      allow delete: if false;
+    }
+
     match /evaluation_requests/{requestId} {
       allow read: if isAdmin() ||
         (canEvaluations() && sameStore(resource.data)) ||
