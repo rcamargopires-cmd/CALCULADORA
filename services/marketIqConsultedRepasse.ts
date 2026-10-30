@@ -207,7 +207,7 @@ export const exportConsultedReportCsv = (rows:ConsultedCase[]) => {
     'Margem desejada','Modo margem','Último responsável','Quantidade eventos'];
   const items=rows.map(r=>{
     const best=chooseBestConfirmedOffer(r.offers,r.costs);
-    const selected=r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o));
+    const selected=consultedFinancialInputsReady(r.costs)?r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o)):undefined;
     const active=selected?{offer:selected,calculation:calculateConsultedOffer(selected,r.costs)}:best;
     const proposed=moneyNumber(r.proposedBuy);
     return [
