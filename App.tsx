@@ -280,12 +280,12 @@ const App: React.FC = () => {
   // Temporary preview-branch-only visual test. This does not grant backend permissions or change the user's stored role.
   const deskPreview = user.email?.toLowerCase() === 'reinaldo.ribas@abraoreze.com.br' && new URLSearchParams(window.location.search).get('mesa') === 'teste';
   if (user.role === 'pricing' || user.pricingDeskOnly || deskPreview) return (
-    <div className="min-h-screen bg-[#101315] text-white">
-      <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+    <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
+      <header className="flex items-center justify-between border-b border-white/10 bg-[#112d3d] px-5 py-4 text-white">
         <div><strong className="text-xl">Motyq IQ</strong><p className="text-xs text-zinc-400">Mesa de Precificação · {user.name}</p></div>
         <div className="flex items-center gap-2">{deskPreview && <a href={window.location.pathname} className="rounded-lg border border-white/20 px-4 py-2 text-sm">Voltar ao Motyq GO</a>}<button onClick={handleLogout} className="rounded-lg border border-white/20 px-4 py-2 text-sm">Sair</button></div>
       </header>
-      <main className="mx-auto max-w-5xl p-5"><h1 className="text-2xl font-semibold">Sua mesa de precificação</h1><p className="mt-2 text-sm text-zinc-400">Analise o veículo diretamente, sem solicitações de avaliação ou acesso aos demais módulos.</p></main>
+      <main className="mx-auto max-w-7xl px-5 pt-6"><h1 className="text-2xl font-black tracking-tight">Motyq IQ · Inteligência de Seminovos</h1><p className="mt-1 text-sm text-slate-500">Painel gerencial de avaliações e compras, junto à sua Mesa de Precificação.</p></main>
       <ManualPricingWorkspace user={user} />
     </div>
   );
