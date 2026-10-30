@@ -109,7 +109,18 @@ export const calculateConsultedOffer = (offer: ConsultedOffer, costs: ConsultedC
   return {sale,taxesRate,expenses,margin,ceiling,
     netBeforeMargin:cents(sale-expenses)};
 };
+export const consultedFinancialInputsReady = (costs: ConsultedCosts) =>
+  costs.invoice.trim() !== '' &&
+  costs.margin.trim() !== '' &&
+  (costs.taxesFixed.trim() !== '' || costs.taxesPercent.trim() !== '') &&
+  (['invoice','taxesFixed','taxesPercent','transport','preparation','other','margin'] as const)
+    .every(key=>moneyNumber(costs[key])>=0) &&
+  moneyNumber(costs.taxesPercent)<=100 &&
+  (costs.marginMode!=='percentual'||moneyNumber(costs.margin)<=100);
 export const chooseBestConfirmedOffer = (offers: ConsultedOffer[], costs: ConsultedCosts) => {
+  // No ceiling for managerial reports until the desk explicitly filled
+  // invoice cost, a fiscal assumption and a case-specific target margin.
+  if (!consultedFinancialInputsReady(costs)) return null;
   const ranked = offers.filter(x=>offerIsEligible(x))
     .map(offer=>({offer,calculation:calculateConsultedOffer(offer,costs)}))
     .filter(x=>x.calculation.ceiling > 0)
