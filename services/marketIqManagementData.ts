@@ -35,7 +35,7 @@ const dateString=(v:unknown)=>{
  const br=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
  return br?br[3]+'-'+br[2].padStart(2,'0')+'-'+br[1].padStart(2,'0'):'';
 };
-const MOTOBRANDS=new Set(['ROYAL ENFIELD','YAMAHA','BAJAJ','TRIUMPH','DAFRA','HAOJUE','HARLEY-DAVIDSON','KAWASAKI']);
+const MOTOBRANDS=new Set(['ROYAL ENFIELD','YAMAHA','BAJAJ','TRIUMPH','DAFRA','HAOJUE','HARLEY-DAVIDSON','KAWASAKI','KTM','DUCATI','SHINERAY','HUSQVARNA','BENELLI','CFMOTO','KYMCO','PIAGGIO','VESPA','KASINSKI','SUNDOWN','ZONTES','INDIAN MOTORCYCLE','MOTTU','BMW MOTORRAD']);
 export const isMoto=(brand:string,model:string)=>{
  const b=norm(brand),m=norm(model);
  if(MOTOBRANDS.has(b))return true;
