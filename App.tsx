@@ -282,9 +282,9 @@ const App: React.FC = () => {
   const iqEmail=String(user.email||'').trim().toLowerCase();
   const iqAllowed=companyIdForUser(user)==='abrao-reze' &&
     (['pricing','manager','admin'].includes(user.role)||Boolean(user.pricingDeskOnly)||
-     iqEmail==='reinaldo.ribas@abraoreze.com.br');
+     Boolean(user.pricingDeskAccess)||iqEmail==='reinaldo.ribas@abraoreze.com.br');
   const iqSelected=new URLSearchParams(window.location.search).get('iq')==='1';
-  if(iqAllowed&&(iqSelected||user.role==='pricing'||user.pricingDeskOnly))return (
+  if(iqAllowed&&(iqSelected||user.role==='pricing'||user.pricingDeskOnly||iqEmail==='reinaldo.ribas@abraoreze.com.br'))return (
     <div className="motyq-iq-workspace min-h-screen bg-[#f4f7fb] text-slate-900">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#112d3d] px-5 py-4 text-white">
         <div><strong className="text-xl text-white">Motyq IQ</strong><p className="text-xs text-slate-200">Inteligência de seminovos · {user.name}</p></div>
