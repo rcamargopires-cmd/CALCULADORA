@@ -1,6 +1,6 @@
 type NamedCode={code?:string|number;name?:string;codigo?:string|number;nome?:string};
 
-const BASE='https://fipe.parallelum.com.br/api/v2/cars';
+const BASE_ROOT='https://fipe.parallelum.com.br/api/v2';
 const cleanBase=(value:string)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const clean=(value:string)=>cleanBase(value)
  .replace(/\bt[ -]?cross\b/g,'tcross')
@@ -64,20 +64,20 @@ const comfortFamilyOf=(value:string)=>{
 };
 const alphaNumFamilyOf=(value:string)=>cleanBase(value).split(' ').find(token=>/[a-z]/.test(token)&&/\d/.test(token))||'';
 
-async function resolveByFipeCode(fipeCode:string,year:string){
+async function resolveByFipeCode(base:string,fipeCode:string,year:string){
  const code=normalizeFipeCode(fipeCode);
  if(!/^\d{6}-\d$/.test(code))return null;
  const requestedYears=yearsFrom(year);
  const targetYear=requestedYears.length?requestedYears[requestedYears.length-1]:0;
- const years=await getJson(`${BASE}/${encodeURIComponent(code)}/years`) as NamedCode[];
+ const years=await getJson(`${base}/${encodeURIComponent(code)}/years`) as NamedCode[];
  let chosen=years.filter(item=>!targetYear||String(getCode(item)).startsWith(`${targetYear}-`)||getName(item).includes(String(targetYear)));
  if(!chosen.length&&requestedYears.length)chosen=years.filter(item=>requestedYears.some(ry=>String(getCode(item)).startsWith(`${ry}-`)||getName(item).includes(String(ry))));
  for(const item of chosen.slice(0,6)){
-   const detail:any=await getJson(`${BASE}/${encodeURIComponent(code)}/years/${encodeURIComponent(getCode(item))}`);
+   const detail:any=await getJson(`${base}/${encodeURIComponent(code)}/years/${encodeURIComponent(getCode(item))}`);
    const detailYear=Number(detail?.modelYear||detail?.AnoModelo||0);
    if(targetYear&&detailYear!==targetYear)continue;
    const value=parseValue(detail?.price||detail?.Valor);
-   if(!value||value<10000)continue;
+   if(!value||value<(base.endsWith('/motorcycles')?1000:10000))continue;
    return {
      value,
      brand:String(detail?.brand||detail?.Marca||''),
@@ -92,21 +92,21 @@ async function resolveByFipeCode(fipeCode:string,year:string){
  return null;
 };
 
-async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:string;fipeCode?:string}){
+async function resolveFipe(base:string,input:{brand:string;model:string;year:string;fuel?:string;fipeCode?:string}){
  if(input.fipeCode){
    try{
-     const exact=await resolveByFipeCode(input.fipeCode,input.year);
+     const exact=await resolveByFipeCode(base,input.fipeCode,input.year);
      if(exact?.value)return exact;
    }catch(error){console.warn('MarketIQ FIPE: código informado não resolveu; seguindo por metadados.',error);}
  }
- const brands=await getJson(`${BASE}/brands`) as NamedCode[];
+ const brands=await getJson(`${base}/brands`) as NamedCode[];
  const wantedBrand=canonicalBrand(input.brand);
  let brand=brands.find(item=>canonicalBrand(getName(item))===wantedBrand);
  if(!brand)brand=[...brands].sort((a,b)=>scoreText(input.brand,getName(b))-scoreText(input.brand,getName(a)))[0];
  if(!brand||scoreText(input.brand,getName(brand))<0.4)return null;
 
  const brandCode=getCode(brand);
- const models=await getJson(`${BASE}/brands/${brandCode}/models`) as NamedCode[];
+ const models=await getJson(`${base}/brands/${brandCode}/models`) as NamedCode[];
  const inputTokens=tokens(input.model);
  const family=inputTokens[0]||'';
  const targetTrim=targetTrimOf(input.model);
@@ -150,13 +150,13 @@ async function resolveFipe(input:{brand:string;model:string;year:string;fuel?:st
  const resolved:any[]=[];
  for(const candidate of candidates){
    const modelCode=getCode(candidate.item);
-   const years=await getJson(`${BASE}/brands/${brandCode}/models/${modelCode}/years`) as NamedCode[];
+   const years=await getJson(`${base}/brands/${brandCode}/models/${modelCode}/years`) as NamedCode[];
    let chosen=years.filter(y=>!targetYear||String(getCode(y)).startsWith(`${targetYear}-`)||getName(y).includes(String(targetYear)));
    if(!chosen.length&&requestedYears.length)chosen=years.filter(y=>requestedYears.some(ry=>String(getCode(y)).startsWith(`${ry}-`)||getName(y).includes(String(ry))));
    if(!chosen.length)continue;
    for(const y of chosen.slice(0,6)){
      const yearCode=getCode(y);
-     const detail:any=await getJson(`${BASE}/brands/${brandCode}/models/${modelCode}/years/${yearCode}`);
+     const detail:any=await getJson(`${base}/brands/${brandCode}/models/${modelCode}/years/${yearCode}`);
      const detailModel=String(detail?.model||detail?.Modelo||candidate.name);
      const detailFuel=String(detail?.fuel||detail?.Combustivel||'');
      const detailYear=Number(detail?.modelYear||detail?.AnoModelo||0);
@@ -226,9 +226,11 @@ export default async function handler(req:any,res:any){
  if(!['POST','GET'].includes(req.method))return res.status(405).json({error:'method_not_allowed'});
 
  const action=String(source?.action||'').trim().toLowerCase();
+  const vehicleType=String(source?.vehicleType||'car')==='motorcycle'?'motorcycles':'cars';
+  const base=BASE_ROOT+'/'+vehicleType;
  try{
    if(action==='brands'){
-     const brands=await getJson(`${BASE}/brands`) as NamedCode[];
+     const brands=await getJson(`${base}/brands`) as NamedCode[];
      return res.status(200).json({
        items:brands
          .map(item=>({code:getCode(item),name:getName(item)}))
@@ -239,7 +241,7 @@ export default async function handler(req:any,res:any){
    if(action==='models'){
      const brandCode=String(source?.brandCode||'').trim();
      if(!brandCode)return res.status(400).json({error:'missing_brand_code'});
-     const models=await getJson(`${BASE}/brands/${encodeURIComponent(brandCode)}/models`) as NamedCode[];
+     const models=await getJson(`${base}/brands/${encodeURIComponent(brandCode)}/models`) as NamedCode[];
      return res.status(200).json({
        items:models
          .map(item=>({code:getCode(item),name:getName(item)}))
@@ -251,7 +253,7 @@ export default async function handler(req:any,res:any){
      const brandCode=String(source?.brandCode||'').trim();
      const modelCode=String(source?.modelCode||'').trim();
      if(!brandCode||!modelCode)return res.status(400).json({error:'missing_catalog_codes'});
-     const years=await getJson(`${BASE}/brands/${encodeURIComponent(brandCode)}/models/${encodeURIComponent(modelCode)}/years`) as NamedCode[];
+     const years=await getJson(`${base}/brands/${encodeURIComponent(brandCode)}/models/${encodeURIComponent(modelCode)}/years`) as NamedCode[];
      return res.status(200).json({
        items:years
          .map(item=>({code:getCode(item),name:getName(item)}))
@@ -274,7 +276,7 @@ export default async function handler(req:any,res:any){
      const modelCode=String(source?.modelCode||'').trim();
      const yearCode=String(source?.yearCode||'').trim();
      if(!brandCode||!modelCode||!yearCode)return res.status(400).json({error:'missing_catalog_codes'});
-     const detail:any=await getJson(`${BASE}/brands/${encodeURIComponent(brandCode)}/models/${encodeURIComponent(modelCode)}/years/${encodeURIComponent(yearCode)}`);
+     const detail:any=await getJson(`${base}/brands/${encodeURIComponent(brandCode)}/models/${encodeURIComponent(modelCode)}/years/${encodeURIComponent(yearCode)}`);
      const value=parseValue(detail?.price||detail?.Valor);
      return res.status(200).json({
        value,
@@ -289,7 +291,7 @@ export default async function handler(req:any,res:any){
 
    const brand=String(source?.brand||'').trim(),model=String(source?.model||'').trim(),year=String(source?.year||'').trim(),fuel=String(source?.fuel||'').trim(),fipeCode=String(source?.fipeCode||'').trim();
    if(!brand||!model||!year)return res.status(400).json({error:'missing_vehicle_data'});
-   const result:any=await resolveFipe({brand,model,year,fuel,fipeCode});
+   const result:any=await resolveFipe(base,{brand,model,year,fuel,fipeCode});
    if(result?.ambiguous)return res.status(200).json(result);
    if(!result?.value)return res.status(404).json({error:'fipe_not_found'});
    return res.status(200).json(result);
