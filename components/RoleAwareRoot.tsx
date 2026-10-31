@@ -215,7 +215,8 @@ const RoleAwareRoot: React.FC = () => {
       Boolean(profile.pricingDeskOnly)||Boolean(profile.pricingDeskAccess)||
       iqEmail==='reinaldo.ribas@abraoreze.com.br');
   const iqSelected=new URLSearchParams(window.location.search).get('iq')==='1';
-  if(profile&&iqAllowed&&(iqSelected||profile.role==='pricing'||profile.pricingDeskOnly||iqEmail==='reinaldo.ribas@abraoreze.com.br'))
+  const goSelected=new URLSearchParams(window.location.search).get('go')==='1';
+  if(profile&&iqAllowed&&(iqSelected||profile.role==='pricing'||profile.pricingDeskOnly||(iqEmail==='reinaldo.ribas@abraoreze.com.br'&&!goSelected)))
     return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/>
       <BillingGate user={profile}><ModuleErrorBoundary name="Motyq IQ" critical><App/></ModuleErrorBoundary></BillingGate></>;
   if (profile?.role === 'evaluator') return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><EvaluatorMotyq user={profile}/></BillingGate></>;
