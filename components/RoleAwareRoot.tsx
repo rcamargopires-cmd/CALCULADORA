@@ -189,7 +189,7 @@ const RoleAwareRoot: React.FC = () => {
 
   // Standalone Motyq IQ, without seller docks, voice controls or operational overlays.
   const iqEmail=String(profile?.email||'').trim().toLowerCase();
-  const iqAllowed=profile?.companyId==='abrao-reze' &&
+  const iqAllowed=(profile?.companyId||'abrao-reze')==='abrao-reze' &&
     (['pricing','manager','admin'].includes(String(profile.role))||
       Boolean(profile.pricingDeskOnly)||iqEmail==='reinaldo.ribas@abraoreze.com.br');
   const iqSelected=new URLSearchParams(window.location.search).get('iq')==='1';
