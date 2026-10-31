@@ -106,6 +106,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    if(!validIncoming.length){setExtensionNotice('Nenhum link individual válido para importar.');return;}
    setAdsVehicleKey(vehicleKey);
    setAutoSearchKey(vehicleKey);
+   autoAttempted.current.add(vehicleKey);
    setAds(existing=>{
      const prior=adsVehicleKey===vehicleKey?existing:[];
      const existingUrls=new Set(prior.map(ad=>ad.url));
@@ -176,10 +177,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
  // Run only once per completed vehicle in this page session; users can retry manually.
  useEffect(()=>{
-   if(deskSection!=='pricing'||!searchReady||autoLoading||autoAttempted.current.has(vehicleKey))return;
+   if(deskSection!=='pricing'||!searchReady||extensionInbox.length>0||autoLoading||autoAttempted.current.has(vehicleKey))return;
    const timer=window.setTimeout(()=>{if(!autoAttempted.current.has(vehicleKey))void searchMarket();},1700);
    return ()=>window.clearTimeout(timer);
- },[deskSection,vehicleKey,searchReady,autoLoading]);
+ },[deskSection,vehicleKey,searchReady,autoLoading,extensionInbox.length]);
  const valid=useMemo(()=>currentAds.filter(a=>!a.auto&&a.status==='valid'&&number(a.price)>0&&number(a.km)>0&&!a.catalog&&validSource(a)),[currentAds]);
  const sortedValid=useMemo(()=>[...valid].sort((a,b)=>number(a.price)-number(b.price)),[valid]);
  const primary=sortedValid.filter(a=>a.source==='webmotors');
