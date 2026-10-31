@@ -8,6 +8,7 @@ import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import MarketIqApprovalCenter from './MarketIqApprovalCenter';
 import {calculateHistoricalPrice, MOTYQ_HISTORY_MODEL, HistoricalClass} from '../services/marketIqHistoricalPricing';
 import {chooseIndexedMarketSample} from '../services/marketIqIndexedSample';
+import {buildWebmotorsSearchUrl,validateWebmotorsSearchUrl} from '../services/marketIqWebmotorsUrl';
 type Ad={source?:'webmotors'|'olx'|'napista';price:string;km:string;url:string;status:'pending'|'valid'|'excluded';note:string;auto?:boolean;title?:string;catalog?:boolean};
 type Saved={id:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
 const number=(v:string)=>Number(v.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
@@ -47,6 +48,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [autoLoading,setAutoLoading]=useState(false);const [autoError,setAutoError]=useState('');
  const [autoSearchedAt,setAutoSearchedAt]=useState('');const [autoSearchKey,setAutoSearchKey]=useState('');
  const [searchDiagnostics,setSearchDiagnostics]=useState('');
+ const [webmotorsExactUrl,setWebmotorsExactUrl]=useState('');
+ const [webmotorsDirectLoading,setWebmotorsDirectLoading]=useState(false);
+ const [webmotorsDirectResult,setWebmotorsDirectResult]=useState('');
+
  const autoAttempted=useRef<Set<string>>(new Set());
  useEffect(()=>{
    try{sessionStorage.setItem(formKey,JSON.stringify({plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse,classification}));}catch{}
@@ -56,6 +61,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const currentAds=adsVehicleKey===vehicleKey?ads:[];
  const marketYear=Number(fipe?.year||String(yearCode).match(/^(?:19|20)\d{2}/)?.[0]||String(year).match(/(?:19|20)\d{2}/)?.[0]||0);
  const searchReady=Boolean(brand&&model&&marketYear>=1990&&number(km)>0);
+ const generatedWebmotorsUrl=brand&&model&&marketYear>=1990
+   ?buildWebmotorsSearchUrl({brand,model,year:marketYear,state:'sp'}):'';
+ const webmotorsUrlToCheck=webmotorsExactUrl.trim()||generatedWebmotorsUrl;
+ const checkedWebmotorsUrl=validateWebmotorsSearchUrl(webmotorsUrlToCheck);
+
  const missingMarketDetails=[
    !brand?'marca':null,!model?'modelo e versão':null,
    !marketYear?'ano/modelo':null,number(km)<=0?'quilometragem':null
@@ -71,6 +81,39 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const selectModel=(code:string)=>{setModelCode(code);setModel(models.find(x=>x.code===code)?.name||'');setYearCode('');setYear('');setFipe(null);};
  const selectYear=(code:string)=>{setYearCode(code);setYear(years.find(x=>x.code===code)?.name||'');setFipe(null);};
  const change=(index:number,patch:Partial<Ad>)=>setAds(a=>a.map((x,i)=>i===index?{...x,...patch}:x));
+ const scanExactWebmotorsUrl=async()=>{
+   if(!searchReady){setWebmotorsDirectResult('Selecione marca, modelo, ano e KM primeiro.');return;}
+   if(!checkedWebmotorsUrl.valid){setWebmotorsDirectResult(checkedWebmotorsUrl.reason);return;}
+   if(webmotorsDirectLoading)return;
+   setWebmotorsDirectLoading(true);setWebmotorsDirectResult('');
+   try{
+     const currentUser=auth.currentUser;
+     if(!currentUser)throw new Error('Faca login novamente.');
+     const token=await currentUser.getIdToken();
+     const response=await fetch('/api/marketiq-market-scan',{
+       method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+       body:JSON.stringify({action:'desk_webmotors_url_scan',webmotorsUrl:checkedWebmotorsUrl.url,brand,model,year:marketYear}),
+       signal:AbortSignal.timeout(18000)
+     });
+     const payload=await response.json().catch(()=>({}));
+     if(!response.ok)throw new Error(payload.error||'Falha ao testar a URL.');
+     const candidates:Ad[]=(Array.isArray(payload.ads)?payload.ads:[]).filter((ad:any)=>
+       ad.source==='webmotors'&&isWebmotors(String(ad.url||''))&&Number(ad.year)===marketYear&&Number(ad.price)>0&&Number(ad.km)>0
+     ).map((ad:any)=>({
+       source:'webmotors',title:String(ad.title||''),price:String(ad.price),km:String(ad.km),
+       url:String(ad.url),status:'pending' as const,auto:true,catalog:false,
+       note:'URL direta / dados estruturados: candidato nao auditado. '+String(ad.evidence||'')
+     }));
+     if(candidates.length){
+       setAdsVehicleKey(vehicleKey);setAutoSearchKey(vehicleKey);setAutoSearchedAt(String(payload.searchedAt||new Date().toISOString()));
+       setAds(existing=>[...candidates,...(adsVehicleKey===vehicleKey?existing:[]).filter(a=>!a.auto)]);
+     }
+     setWebmotorsDirectResult('HTTP '+(payload.pageStatus||'sem resposta')+
+       ' · '+candidates.length+' anuncio(s) individual(is) candidato(s). '+String(payload.warning||''));
+   }catch(error:any){
+     setWebmotorsDirectResult((error?.name==='TimeoutError'?'Tempo limite de leitura da pagina.':error?.message||'Nao foi possivel consultar a URL.')+' Nenhum valor foi confirmado.');
+   }finally{setWebmotorsDirectLoading(false);}
+ };
  const searchMarket=async()=>{
    if(!searchReady){setAutoError('Informe '+missingMarketDetails+' para pesquisar anúncios.');setAutoSearchKey(vehicleKey);return;}
    if(autoLoading)return;
@@ -235,6 +278,21 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   </div>:<p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Selecione a classificação, veículo, KM e FIPE para obter o preço-alvo histórico.</p>}
  </section>
  <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de mercado · Webmotors + OLX</h2><p className="text-sm text-slate-600">O MarketScan busca automaticamente anúncios indexados. Webmotors é a referência principal; OLX e NaPista são apoio quando o portal principal não fornece valores legíveis. Resultados indexados não são anúncios auditados.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady}>{autoLoading?'Pesquisando anúncios...':searchReady?'Pesquisar anúncios novamente':'Aguardando dados do veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
+
+ <div className="mb-4 space-y-2 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+   <p className="font-bold text-indigo-950">Piloto: pesquisar pela URL exata da Webmotors</p>
+   <p className="text-xs text-slate-700">Cole a URL com a versao exata, como a da Fiat Titano. Em branco, o Motyq monta busca por marca/modelo/ano, sem garantir a versao.</p>
+   <input type="url" className={input} aria-label="URL da pesquisa Webmotors" placeholder="https://www.webmotors.com.br/carros/sp/..." value={webmotorsExactUrl}
+     onChange={e=>{setWebmotorsExactUrl(e.target.value);setWebmotorsDirectResult('');}}/>
+   <div className="flex flex-wrap items-center gap-3">
+     <button type="button" onClick={()=>void scanExactWebmotorsUrl()} disabled={webmotorsDirectLoading||!searchReady||!checkedWebmotorsUrl.valid}
+       className="rounded-lg bg-indigo-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">{webmotorsDirectLoading?'Testando acesso...':'Testar leitura da URL'}</button>
+     {checkedWebmotorsUrl.valid&&<a href={checkedWebmotorsUrl.url} target="_blank" rel="noopener noreferrer"
+       className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-semibold text-indigo-900">Conferir pesquisa na Webmotors</a>}
+   </div>
+   {webmotorsDirectResult&&<p role="status" className="text-sm font-semibold text-indigo-950">{webmotorsDirectResult}</p>}
+   <p className="text-xs text-slate-600">Acesso publico direto, sem contornar protecoes. Bloqueio ou ausencia de anuncios verificaveis nao gera cotacao aprovada.</p>
+ </div>
  {!searchReady&&<p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950">
    Para pesquisar, preencha: {missingMarketDetails}. A FIPE não precisa terminar de carregar para liberar a busca.
  </p>}
