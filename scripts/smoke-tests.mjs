@@ -256,7 +256,9 @@ for(const required of [
   "{iqAvailable&&<button onClick={openIq}"
 ])if(!motyqShell.includes(required))fail('Motyq IQ launch routing missing: '+required);
 if(motyqShell.includes("onClick={()=>launcherStarts('MarketIQ')}"))fail('Old manager MarketIQ V2 sidebar launcher still active.');
-if(!legacyMarketIq.includes("onClick={()=>useNewIq?openNewIq():setOpen(true)}"))fail('Legacy V2 floating launcher must forward authorized managers.');
+if(!legacyMarketIq.includes('title="MarketIQ V2 · abrir avaliação anterior" onClick={()=>setOpen(true)}'))fail('Legacy V2 modal must remain available for managers.');
+if(!legacyMarketIq.includes('Abrir Motyq IQ atual'))fail('Legacy V2 must offer visible current IQ access.');
+if(!motyqShell.includes("companyIdForUser(user)==='abrao-reze'"))fail('Menu should accept missing companyId of legacy manager profiles.');
 if(!legacyMarketIq.includes("const inspectionOnly=currentUser.role==='evaluator'"))fail('Evaluator should retain inspection-only legacy flow.');
 if(!roleAware.includes("profile?.companyId||'abrao-reze'"))fail('Legacy default tenant IQ route missing.');
 if(!appSource.includes("companyIdForUser(user)==='abrao-reze'"))fail('App IQ tenant selection out of sync.');
