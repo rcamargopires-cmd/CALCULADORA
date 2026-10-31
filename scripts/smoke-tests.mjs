@@ -245,3 +245,19 @@ const roleRoot=read('components/RoleAwareRoot.tsx');
 for(const required of ['profile.pricingDeskOnly','<PricingDesk user={user} defaultOpen/>','PricingMotyq']){if(!roleRoot.includes(required))fail('Pricing desk route guard missing: '+required);}
 const userApi=read('api/analyze-deal.ts');
 for(const required of ["requestedRole==='pricing'","pricingDeskOnly?'manager':requestedRole","actor?.pricingDeskOnly===true"]){if(!userApi.includes(required))fail('Pricing desk backend restriction guard missing: '+required);}
+
+
+// Manager MarketIQ V2 launchers must lead to the current Motyq IQ workspace.
+const motyqShell=read('components/MotyqShell.tsx');
+const legacyMarketIq=read('components/MarketIQ.tsx');
+const roleAware=read('components/RoleAwareRoot.tsx');
+for(const required of [
+  "const openIq=()=>window.location.assign(window.location.pathname+'?iq=1')",
+  "onClick={openIq} title=\"Abrir Motyq IQ",
+  "{iqAvailable&&<button onClick={openIq}"
+])if(!motyqShell.includes(required))fail('Motyq IQ launch routing missing: '+required);
+if(motyqShell.includes("onClick={()=>launcherStarts('MarketIQ')}"))fail('Old manager MarketIQ V2 sidebar launcher still active.');
+if(!legacyMarketIq.includes("onClick={()=>useNewIq?openNewIq():setOpen(true)}"))fail('Legacy V2 floating launcher must forward authorized managers.');
+if(!legacyMarketIq.includes("const inspectionOnly=currentUser.role==='evaluator'"))fail('Evaluator should retain inspection-only legacy flow.');
+if(!roleAware.includes("profile?.companyId||'abrao-reze'"))fail('Legacy default tenant IQ route missing.');
+if(!appSource.includes("companyIdForUser(user)==='abrao-reze'"))fail('App IQ tenant selection out of sync.');
