@@ -44,7 +44,7 @@ const Pill=({children,tone='neutral'}:{children:React.ReactNode;tone?:'neutral'|
 <span className={'inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold '+(tone==='good'?'bg-emerald-50 text-emerald-700':tone==='warn'?'bg-amber-50 text-amber-800':'bg-slate-100 text-slate-600')}>{children}</span>;
 
 export default function MarketIqManagementDashboard({user}:{user:User}) {
- const storageKey='motyq-iq-dashboard-local-v1-'+String(user.email||'local').toLowerCase();
+ const storageKey='motyq-iq-dashboard-local-v2-all-vehicles-'+String(user.email||'local').toLowerCase();
  const [records,setRecords]=useState<DashboardRow[]>(()=>{
    try{const saved=JSON.parse(localStorage.getItem(storageKey)||'null');
      return Array.isArray(saved)&&saved.length<=15000?saved.filter(v=>v&&typeof v==='object'&&typeof v.status==='string'&&typeof v.store==='string'):[];
@@ -133,7 +133,7 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
      const input=XLSX.utils.sheet_to_json<Record<string,unknown>>(worksheet,{defval:null,raw:true});
      const source=Object.keys(input[0]||{}).some(k=>k.toLowerCase().includes('situação analítica'))?'filtered':'original';
      const parsed=parseDashboardData(input,source);
-     if(!parsed.rows.length)throw Error('Nenhuma avaliação de automóvel válida foi identificada no arquivo.');
+     if(!parsed.rows.length)throw Error('Nenhuma avaliação de carro ou moto válida foi identificada no arquivo.');
      // Only de-identified vehicle/financial fields are persisted. Nothing is uploaded.
      const compact=JSON.stringify(parsed.rows);
      if(compact.length>4000000)throw Error('A base ficou grande para o armazenamento local. Divida o período em arquivos menores.');
@@ -150,9 +150,9 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
  };
  const download=()=>{
    if(!ready)return;
-   const rows=[['Mês','Loja','Marca','Modelo','Classe','Destino','Situação','Valor avaliado/pago','Preparo previsto','FIPE','Referência Web','KM','Ano-modelo']];
+   const rows=[['Tipo de veículo','Mês','Loja','Marca','Modelo','Classe','Destino','Situação','Valor avaliado/pago','Preparo previsto','FIPE','Referência Web','KM','Ano-modelo']];
    for(const r of result){
-     rows.push([r.month,r.store,r.brand,r.model,r.className,r.destination,r.status,
+     rows.push([r.vehicleType==='motorcycle'?'Motocicleta':'Carro',r.month,r.store,r.brand,r.model,r.className,r.destination,r.status,
        String(r.value),String(r.preparation),String(r.fipe),String(r.webReference),String(r.km),String(r.year)]);
    }
    const csv='\ufeff'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
@@ -196,8 +196,9 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
     {ready&&<button onClick={clear} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-red-700"><X size={14}/>Limpar importação</button>}
   </div>
   {error&&<div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">{error}</div>}
-  {importInfo&&<p className="rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-xs leading-5 text-cyan-900">
-    Processamento local concluído: {fmtInt(importInfo.inputCount)} linhas de origem · {fmtInt(importInfo.excludedEvaluator)} registros do avaliador excluído · {fmtInt(importInfo.excludedMotorcycles)} motocicletas excluídas · {fmtInt(importInfo.duplicates)} duplicidades removidas.
+  {ready&&records.some(r=>!r.vehicleType)&&<p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Esta importação é anterior ao suporte a motos. Importe novamente o arquivo original para incluir todas as motocicletas.</p>}
+ {importInfo&&<p className="rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-xs leading-5 text-cyan-900">
+    Processamento local concluído: {fmtInt(importInfo.inputCount)} linhas de origem · {fmtInt(importInfo.excludedEvaluator)} registros do avaliador excluído · {fmtInt(importInfo.motorcyclesIncluded)} motocicletas incluídas · {fmtInt(importInfo.duplicates)} duplicidades removidas.
     {importInfo.invalidPurchases>0&&<> · {fmtInt(importInfo.invalidPurchases)} compra(s) com valor inválido separada(s) para revisão.</>}
   </p>}
   {!ready&&<div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/70 px-4 py-3 text-xs leading-5 text-indigo-900">
@@ -207,13 +208,13 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
     <div className="mb-3 flex items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Filter size={16}/>Filtros dinâmicos</h3>
       {filterActive&&<button className="text-xs font-bold text-cyan-700 hover:underline" onClick={()=>setFilters({...emptyFilters})}>Limpar filtros</button>}
     </div>
-    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-7">
-      {([['month','Período'],['store','Unidade'],['brand','Marca'],['model','Modelo'],['className','Classe'],['destination','Destino'],['status','Situação']] as [keyof DashboardFilters,string][]).map(([key,label])=><label key={key} className="space-y-1">
+    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-8">
+      {([['vehicleType','Tipo'],['month','Período'],['store','Unidade'],['brand','Marca'],['model','Modelo'],['className','Classe'],['destination','Destino'],['status','Situação']] as [keyof DashboardFilters,string][]).map(([key,label])=><label key={key} className="space-y-1">
         <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
         <select className={classNameSelect} value={filters[key]} onChange={e=>changeFilter(key,e.target.value)}>
           <option value="">Todos</option>
           {dashboardOptions(records.filter(x=>!filters.brand||key==='brand'||x.brand===filters.brand),key).map(v=>
-            <option value={v} key={v}>{v==='COMPRA'?'Comprado':v==='COTACAO'?'Cotado':v}</option>)}
+            <option value={v} key={v}>{v==='COMPRA'?'Comprado':v==='COTACAO'?'Cotado':v==='motorcycle'?'Motocicletas':v==='car'?'Automóveis':v}</option>)}
         </select>
       </label>)}
     </div>
