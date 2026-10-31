@@ -14,6 +14,9 @@ export const buildWebmotorsSearchUrl = ({brand,model,year,state='sp',versionSlug
   if (!make || !modelPart || !/^[a-z]{2}$/.test(uf)) return '';
   const version = versionSlug && /^[a-z0-9-]+$/.test(versionSlug) ? '/'+versionSlug : '';
   const url = new URL('https://www.webmotors.com.br/carros-usados/'+uf+'/'+make+'/'+modelPart+version+'/de.'+year+'/ate.'+year);
+  url.searchParams.set('tipoveiculo','carros');
+  url.searchParams.set('marca1',make);
+  url.searchParams.set('modelo1',modelPart);
   url.searchParams.set('anode',String(year));
   url.searchParams.set('anoate',String(year));
   url.searchParams.set('page','1');
@@ -29,7 +32,7 @@ export const validateWebmotorsSearchUrl = (value:string):{valid:boolean;url:stri
     if (candidate.protocol!=='https:'||!validHost||candidate.port||candidate.username||candidate.password)
       return {valid:false,url:'',reason:'Use somente um link HTTPS oficial da Webmotors.'};
     const path = candidate.pathname.toLowerCase();
-    if (!/^\/(?:carros|carros-usados)\/[a-z]{2}\/[a-z0-9-]+\/[a-z0-9-]+(?:\/[a-z0-9-]+)?(?:\/de\.\d{4}\/ate\.\d{4})?\/?$/.test(path))
+    if (!/^\/(?:carros|carros-usados)\/[a-z]{2}\/[a-z0-9-]+\/[a-z0-9-]+(?:\/[a-z0-9-]+)?(?:\/de\.\d{4}(?:\/ate\.\d{4})?|\/ate\.\d{4})?\/?$/.test(path))
       return {valid:false,url:'',reason:'A URL precisa ser uma pesquisa por marca e modelo na Webmotors.'};
     return {valid:true,url:candidate.toString(),reason:''};
   } catch {
