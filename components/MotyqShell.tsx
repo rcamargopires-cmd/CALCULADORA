@@ -111,7 +111,7 @@ const MotyqShell:React.FC<Props>=({
         </>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Avaliações Motyq')}><ClipboardCheck size={18}/><span>Avaliações</span></button>}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Estoque Motyq')}><CarFront size={18}/><span>Estoque</span></button>}
-        {manager&&<button className="mq-nav-item" onClick={()=>launcherStarts('MarketIQ')}><Gauge size={18}/><span>MarketIQ</span></button>}
+        {/* The old MarketIQ V2 modal is superseded by the single Motyq IQ entry above. */}
         {manager&&<button className="mq-nav-item" onClick={()=>launcher('Operação Motyq')}><UsersRound size={18}/><span>Gestão</span></button>}
 
       </nav>
@@ -154,7 +154,7 @@ const MotyqShell:React.FC<Props>=({
       <button className={activeView==='dashboard'?'is-active':''} onClick={onDashboard}><LayoutDashboard size={19}/><span>Hoje</span></button>
       {seller&&<button onClick={crm}><MessageSquareText size={19}/><span>CRM</span></button>}
       <button className={activeView==='calculator'?'is-active':''} onClick={onCalculator}><Calculator size={19}/><span>Negócio</span></button>
-      {manager&&<button onClick={()=>launcherStarts('MarketIQ')}><Gauge size={19}/><span>MarketIQ</span></button>}
+      {iqAvailable&&<button onClick={openIq}><Gauge size={19}/><span>Motyq IQ</span></button>}
       {role==='admin'
         ? <button onClick={()=>companyScopeService.enterAdminHome()}><Building2 size={19}/><span>Master</span></button>
         : manager&&<button onClick={()=>launcher('Operação Motyq')}><UsersRound size={19}/><span>Mais</span></button>}
