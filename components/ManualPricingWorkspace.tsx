@@ -82,9 +82,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const selectYear=(code:string)=>{setYearCode(code);setYear(years.find(x=>x.code===code)?.name||'');setFipe(null);};
  const change=(index:number,patch:Partial<Ad>)=>setAds(a=>a.map((x,i)=>i===index?{...x,...patch}:x));
  const scanExactWebmotorsUrl=async()=>{
-   if(!searchReady){setWebmotorsDirectResult('Selecione marca, modelo, ano e KM primeiro.');return;}
-   if(!checkedWebmotorsUrl.valid){setWebmotorsDirectResult(checkedWebmotorsUrl.reason);return;}
+   if(!searchReady){setWebmotorsDirectResult('Falta preencher: '+missingMarketDetails+'.');return;}
+   if(!checkedWebmotorsUrl.valid){setWebmotorsDirectResult('Não consegui montar a pesquisa: '+checkedWebmotorsUrl.reason);return;}
    if(webmotorsDirectLoading)return;
+   autoAttempted.current.add(vehicleKey);
    setWebmotorsDirectLoading(true);setWebmotorsDirectResult('');
    try{
      const currentUser=auth.currentUser;
@@ -108,10 +109,16 @@ export default function ManualPricingWorkspace({user}:{user:User}){
        setAdsVehicleKey(vehicleKey);setAutoSearchKey(vehicleKey);setAutoSearchedAt(String(payload.searchedAt||new Date().toISOString()));
        setAds(existing=>[...candidates,...(adsVehicleKey===vehicleKey?existing:[]).filter(a=>!a.auto)]);
      }
-     setWebmotorsDirectResult('HTTP '+(payload.pageStatus||'sem resposta')+
-       ' · '+candidates.length+' anuncio(s) individual(is) candidato(s). '+String(payload.warning||''));
+     const status=Number(payload.pageStatus||0);
+     if(candidates.length>0){
+       setWebmotorsDirectResult(candidates.length+' anúncio(s) encontrado(s) para análise. Confira as ofertas antes de aprovar uma compra.');
+     } else if([401,403,429].includes(status)){
+       setWebmotorsDirectResult('A Webmotors não permitiu a leitura automática desta pesquisa. Nenhum preço foi inventado. Você pode consultar a pesquisa pelo link abaixo.');
+     } else {
+       setWebmotorsDirectResult('A pesquisa foi realizada, mas não conseguimos confirmar preços de anúncios individuais. Nenhum valor de mercado foi calculado.');
+     }
    }catch(error:any){
-     setWebmotorsDirectResult((error?.name==='TimeoutError'?'Tempo limite de leitura da pagina.':error?.message||'Nao foi possivel consultar a URL.')+' Nenhum valor foi confirmado.');
+     setWebmotorsDirectResult('Não foi possível concluir a pesquisa na Webmotors agora. Nenhum preço foi considerado sem comprovação.');
    }finally{setWebmotorsDirectLoading(false);}
  };
  const searchMarket=async()=>{
@@ -159,12 +166,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      setAutoError((error?.name==='TimeoutError'?'A fonte de anúncios demorou demais.':error?.message||'Pesquisa automática indisponível.')+' O preço-alvo histórico continua disponível e não depende dessa pesquisa.');
    }finally{setAutoLoading(false);}
  };
- // Run only once per completed vehicle in this page session; users can retry manually.
+ // One automatic Webmotors lookup per completed vehicle; manual button permits a retry.
  useEffect(()=>{
-   if(deskSection!=='pricing'||!searchReady||autoLoading||autoAttempted.current.has(vehicleKey))return;
-   const timer=window.setTimeout(()=>{if(!autoAttempted.current.has(vehicleKey))void searchMarket();},1700);
+   if(deskSection!=='pricing'||!searchReady||webmotorsDirectLoading||autoAttempted.current.has(vehicleKey))return;
+   const timer=window.setTimeout(()=>{if(!autoAttempted.current.has(vehicleKey))void scanExactWebmotorsUrl();},1700);
    return ()=>window.clearTimeout(timer);
- },[deskSection,vehicleKey,searchReady,autoLoading]);
+ },[deskSection,vehicleKey,searchReady,webmotorsDirectLoading]);
  const valid=useMemo(()=>currentAds.filter(a=>!a.auto&&a.status==='valid'&&number(a.price)>0&&number(a.km)>0&&!a.catalog&&validSource(a)),[currentAds]);
  const sortedValid=useMemo(()=>[...valid].sort((a,b)=>number(a.price)-number(b.price)),[valid]);
  const primary=sortedValid.filter(a=>a.source==='webmotors');
@@ -277,26 +284,35 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     <p className="text-xs text-indigo-800 md:col-span-2">Calibrado somente com status UTILIZADO, não com AVALIADO. A previsão não identifica histórico de sinistro, leilão, avarias ou liquidez. Compare com anúncios verificáveis e faça inspeção presencial.</p>
   </div>:<p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Selecione a classificação, veículo, KM e FIPE para obter o preço-alvo histórico.</p>}
  </section>
- <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de mercado · Webmotors + OLX</h2><p className="text-sm text-slate-600">O MarketScan busca automaticamente anúncios indexados. Webmotors é a referência principal; OLX e NaPista são apoio quando o portal principal não fornece valores legíveis. Resultados indexados não são anúncios auditados.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady}>{autoLoading?'Pesquisando anúncios...':searchReady?'Pesquisar anúncios novamente':'Aguardando dados do veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
-
- <div className="mb-4 space-y-2 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-   <p className="font-bold text-indigo-950">Piloto: pesquisar pela URL exata da Webmotors</p>
-   <p className="text-xs text-slate-700">Cole a URL com a versao exata, como a da Fiat Titano. Em branco, o Motyq monta busca por marca/modelo/ano, sem garantir a versao.</p>
-   <input type="url" className={input} aria-label="URL da pesquisa Webmotors" placeholder="https://www.webmotors.com.br/carros/sp/..." value={webmotorsExactUrl}
-     onChange={e=>{setWebmotorsExactUrl(e.target.value);setWebmotorsDirectResult('');}}/>
-   <div className="flex flex-wrap items-center gap-3">
-     <button type="button" onClick={()=>void scanExactWebmotorsUrl()} disabled={webmotorsDirectLoading||!searchReady||!checkedWebmotorsUrl.valid}
-       className="rounded-lg bg-indigo-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">{webmotorsDirectLoading?'Testando acesso...':'Testar leitura da URL'}</button>
-     {checkedWebmotorsUrl.valid&&<a href={checkedWebmotorsUrl.url} target="_blank" rel="noopener noreferrer"
-       className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-semibold text-indigo-900">Conferir pesquisa na Webmotors</a>}
+ <section className="rounded-xl bg-white p-5">
+ <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+   <div><h2 className="text-xl font-semibold text-slate-950">Pesquisa de preços · Webmotors</h2>
+     <p className="mt-1 text-sm text-slate-700">Selecione o veículo e a quilometragem acima. O Motyq monta a pesquisa automaticamente, sem copiar links.</p>
    </div>
-   {webmotorsDirectResult&&<p role="status" className="text-sm font-semibold text-indigo-950">{webmotorsDirectResult}</p>}
-   <p className="text-xs text-slate-600">Acesso publico direto, sem contornar protecoes. Bloqueio ou ausencia de anuncios verificaveis nao gera cotacao aprovada.</p>
+   <button type="button" className="rounded-xl bg-cyan-700 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+     onClick={()=>void scanExactWebmotorsUrl()} disabled={webmotorsDirectLoading||!searchReady||!checkedWebmotorsUrl.valid}>
+     {webmotorsDirectLoading?'Pesquisando na Webmotors...':'Pesquisar na Webmotors'}
+   </button>
  </div>
- {!searchReady&&<p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950">
-   Para pesquisar, preencha: {missingMarketDetails}. A FIPE não precisa terminar de carregar para liberar a busca.
- </p>}
- {searchReady&&!autoAttempted.current.has(vehicleKey)&&!autoLoading&&<p className="mb-3 text-sm text-slate-700">A pesquisa começa automaticamente após o preenchimento do veículo. Você também pode usar o botão para repetir.</p>}
+ <div className="mb-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+   {searchReady?<p className="text-sm font-semibold text-slate-800">Veículo selecionado: {brand} {model} · {marketYear} · {number(km).toLocaleString('pt-BR')} km</p>:
+     <p className="text-sm font-semibold text-amber-900">Para iniciar, informe: {missingMarketDetails}.</p>}
+   {webmotorsDirectLoading&&<p role="status" className="text-sm font-semibold text-cyan-800">Buscando anúncios com preços e quilometragens disponíveis...</p>}
+   {webmotorsDirectResult&&<p role="status" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-800">{webmotorsDirectResult}</p>}
+   {checkedWebmotorsUrl.valid&&<a href={checkedWebmotorsUrl.url} target="_blank" rel="noopener noreferrer"
+      className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-cyan-900">Ver pesquisa na Webmotors</a>}
+   <details className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+     <summary className="cursor-pointer font-semibold">Opção avançada: usar um link específico da Webmotors</summary>
+     <p className="mt-2 text-xs text-slate-600">Normalmente não é necessário. Use apenas se quiser aplicar um filtro de versão diferente na Webmotors.</p>
+     <input type="url" className={input+' mt-2'} aria-label="Link específico da Webmotors"
+       placeholder="Cole o link da pesquisa aqui (opcional)" value={webmotorsExactUrl}
+       onChange={e=>{setWebmotorsExactUrl(e.target.value);setWebmotorsDirectResult('');}}/>
+     {webmotorsExactUrl.trim()&&!checkedWebmotorsUrl.valid&&<p className="mt-2 text-xs font-semibold text-amber-800">{checkedWebmotorsUrl.reason}</p>}
+     <p className="mt-2 text-xs text-slate-600">A pesquisa automática usa modelo e ano. A versão exata e os preços precisam ser conferidos nos anúncios individuais.</p>
+   </details>
+ </div>
+
+ {searchReady&&!autoAttempted.current.has(vehicleKey)&&!webmotorsDirectLoading&&<p className="mb-3 text-sm text-slate-700">A pesquisa inicia automaticamente quando você termina de selecionar o veículo.</p>}
  {autoLoading&&<p role="status" className="mb-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-semibold text-cyan-950">Pesquisando anúncios e verificando preço, ano e KM. Esta consulta pode demorar alguns segundos.</p>}
  {marketMessage&&<p role="status" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{marketMessage}</p>}{searchDiagnostics&&autoResultsVisible&&<p className="mb-2 text-xs text-slate-600">{searchDiagnostics}</p>}
  {autoResultsVisible&&autoSearchedAt&&<p className="mb-3 text-xs text-slate-600">Última pesquisa: {new Date(autoSearchedAt).toLocaleString('pt-BR')} · {indexed.length} preço(s) indexado(s) encontrado(s). Os dados indexados são preliminares e não comprovam anúncio ativo, versão ou histórico.</p>}
