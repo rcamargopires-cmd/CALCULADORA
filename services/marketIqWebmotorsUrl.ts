@@ -13,7 +13,7 @@ export const buildWebmotorsSearchUrl = ({brand,model,year,state='sp',versionSlug
   const uf = slug(state);
   if (!make || !modelPart || !/^[a-z]{2}$/.test(uf)) return '';
   const version = versionSlug && /^[a-z0-9-]+$/.test(versionSlug) ? '/'+versionSlug : '';
-  const url = new URL('https://www.webmotors.com.br/carros-usados/'+uf+'/'+make+'/'+modelPart+version+'/de.'+year+'/ate.'+year);
+  const url = new URL('https://www.webmotors.com.br/carros/'+uf+'/'+make+'/'+modelPart+version+'/de.'+year+'/ate.'+year);
   url.searchParams.set('tipoveiculo','carros');
   url.searchParams.set('marca1',make);
   url.searchParams.set('modelo1',modelPart);
