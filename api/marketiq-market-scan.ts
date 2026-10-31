@@ -134,6 +134,7 @@ const normalizePayload=(input:any)=>{
  });
  const year=text(input.year,60);
  const payload={
+   vehicleType:input.vehicleType==='motorcycle'?'motorcycle':'car',
    date,plate,model,brand,year,km:String(finite(input.km,1,999999)),
    cost:String(finite(input.cost,0,2000000)),
    repasse:input.repasse===true,ads,
