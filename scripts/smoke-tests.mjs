@@ -248,7 +248,6 @@ for(const required of ["requestedRole==='pricing'","pricingDeskOnly?'manager':re
 
 
 // Manager MarketIQ V2 launchers must lead to the current Motyq IQ workspace.
-const motyqShell=read('components/MotyqShell.tsx');
 const legacyMarketIq=read('components/MarketIQ.tsx');
 const roleAware=read('components/RoleAwareRoot.tsx');
 for(const required of [
