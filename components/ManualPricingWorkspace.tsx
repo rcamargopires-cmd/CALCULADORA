@@ -312,7 +312,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const verifiedWebmotors=[...primary].sort((a,b)=>number(a.price)-number(b.price)).slice(0,5);
  const avg=verifiedWebmotors.length?verifiedWebmotors.reduce((s,a)=>s+number(a.price),0)/verifiedWebmotors.length:0;
  const olxAvg=secondary.length?secondary.reduce((s,a)=>s+number(a.price),0)/secondary.length:0;
- const kmTolerance=30000;
+ const kmTolerance=vehicleType==='motorcycle'?10000:30000;
  const distantKm=sortedValid.filter(a=>Math.abs(number(a.km)-number(km))>kmTolerance);
  const suspectAds=sortedValid.filter(a=>/leil[aã]o|sinistr|recuperad|batid|restri[cç][aã]o/i.test(a.note));
  const ceiling=Math.max(0,avg*.86*(repasse?.95:1)-number(cost));
@@ -418,7 +418,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
       <div className="space-y-3">{filteredHistory.map(r=><div key={r.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
         <div className="min-w-[220px] flex-1">
           <p className="font-bold text-slate-950">{r.plate||'Sem placa'} · {r.brand} {r.model}</p>
-          <p className="mt-1 text-sm text-slate-700">{r.year} · {number(r.km).toLocaleString('pt-BR')} km · {r.repasse?'Repasse':'Varejo'}</p>
+          <p className="mt-1 text-sm text-slate-700">{r.vehicleType==='motorcycle'?'Motocicleta':'Automóvel'} · {r.year} · {number(r.km).toLocaleString('pt-BR')} km · {r.repasse?'Repasse':'Varejo'}</p>
           <p className="mt-1 text-xs text-slate-600">{new Date(r.createdAt||r.date).toLocaleString('pt-BR')} · {r.createdByName||'Responsável não registrado'} · {(r.ads||[]).length} anúncio(s)</p>
           <p className="mt-1 text-xs font-semibold text-slate-700">{r.provisional===false?'Anúncios conferidos':number(String(r.value))>0?'Estimativa preliminar':'Rascunho sem valor'}</p>
         </div>
