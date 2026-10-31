@@ -27,7 +27,8 @@ assert.ok(roleRoot.includes('setProfile(next?.status === \'active\' ? iqExclusiv
 assert.ok(roleRoot.includes("const iqAllowed=Boolean(profile) &&"),'No-profile login must not crash');
 assert.ok(roleRoot.includes("method:'GET',cache:'no-store'"),'Server profile sync is authenticated');
 assert.ok(app.includes("setUser(iqExclusiveUser({...dbUser,email:normalizedEmail}))"));
-assert.ok(server.includes('const scoped=await ensureEvandroIqOnly(email,profile);'));
+assert.ok(server.includes('await ensureEvandroIqOnly(email,profile)'),'Evandro IQ-only sync must remain chained with new additive access');
+assert.ok(server.includes('ensureReinaldoDeskAccess(email,'),'Reinaldo separate entitlement must be applied without touching Evandro role');
 assert.ok(server.includes("if(actor?.pricingDeskOnly===true||emailOf(actor?.email)===EVANDRO_IQ_ONLY)return false;"));
 
 let calls=[];

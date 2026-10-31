@@ -155,8 +155,9 @@ const RoleAwareRoot: React.FC = () => {
         }else{
 
           let user = await userService.getUser(normalizedEmail);
-          if(normalizedEmail===EVANDRO_IQ_ONLY_EMAIL&&user?.status==='active'&&
-             (user.role==='manager'||user.role==='pricing')){
+          if(user?.status==='active'&&(
+             (normalizedEmail===EVANDRO_IQ_ONLY_EMAIL&&(user.role==='manager'||user.role==='pricing'))||
+             normalizedEmail==='reinaldo.ribas@abraoreze.com.br')){
             try{
               const token=await firebaseUser.getIdToken();
               const response=await fetch('/api/analyze-deal?action=current-user',{
@@ -165,8 +166,10 @@ const RoleAwareRoot: React.FC = () => {
                 signal:AbortSignal.timeout(15000)
               });
               const payload=await response.json().catch(()=>({}));
-              if(response.ok&&payload.user?.pricingDeskOnly===true)user=payload.user as User;
-              else console.warn('Motyq IQ: restrição do perfil ainda não sincronizada no servidor.');
+              if(response.ok&&payload.user&&(normalizedEmail===EVANDRO_IQ_ONLY_EMAIL?
+                 payload.user.pricingDeskOnly===true:payload.user.pricingDeskAccess===true))
+                 user=payload.user as User;
+              else console.warn('Motyq IQ: atualização de permissão da Mesa ainda não confirmada no servidor.');
             }catch(error){console.warn('Motyq IQ: sincronização de perfil indisponível.',error);}
           }
           const active = user?.status === 'active' ? iqExclusiveUser({...user,email:normalizedEmail}) : null;
@@ -209,9 +212,11 @@ const RoleAwareRoot: React.FC = () => {
   // This guard also keeps the sign-in screen functional when ?iq=1 is supplied.
   const iqAllowed=Boolean(profile) && (profile?.companyId||'abrao-reze')==='abrao-reze' &&
     (['pricing','manager','admin'].includes(String(profile.role))||
-      Boolean(profile.pricingDeskOnly)||iqEmail==='reinaldo.ribas@abraoreze.com.br');
+      Boolean(profile.pricingDeskOnly)||Boolean(profile.pricingDeskAccess)||
+      iqEmail==='reinaldo.ribas@abraoreze.com.br');
   const iqSelected=new URLSearchParams(window.location.search).get('iq')==='1';
-  if(profile&&iqAllowed&&(iqSelected||profile.role==='pricing'||profile.pricingDeskOnly))
+  const goSelected=new URLSearchParams(window.location.search).get('go')==='1';
+  if(profile&&iqAllowed&&(iqSelected||profile.role==='pricing'||profile.pricingDeskOnly||(iqEmail==='reinaldo.ribas@abraoreze.com.br'&&!goSelected)))
     return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/>
       <BillingGate user={profile}><ModuleErrorBoundary name="Motyq IQ" critical><App/></ModuleErrorBoundary></BillingGate></>;
   if (profile?.role === 'evaluator') return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><EvaluatorMotyq user={profile}/></BillingGate></>;
