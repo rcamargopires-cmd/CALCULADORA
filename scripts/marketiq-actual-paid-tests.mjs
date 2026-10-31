@@ -7,7 +7,7 @@ const source=readFileSync('services/marketiqPricingHistoryServer.ts','utf8');
 const api=readFileSync('api/marketiq-market-scan.ts','utf8');
 const ui=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
 assert.ok(api.includes("'pricing_history_paid'"),'Actual paid action must dispatch through existing API');
-assert.ok(api.includes("kind:'purchase_paid'"),'Actual payments must be bundled in the deployed route');
+assert.ok(api.includes("kind:isApproval?'valuation_approved':'purchase_paid'"),'Approved and paid events must both be bundled without conflation');
 assert.ok(ui.includes("Valor aprovado na avaliação (R$, opcional)"),'New valuations must capture amount approved during appraisal');
 assert.ok(ui.includes("Registrar valor aprovado"),'Existing valuations must permit recording approved amount');
 assert.ok(ui.includes("Corrigir valor aprovado"),'Approval corrections must remain possible');
