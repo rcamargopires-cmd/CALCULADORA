@@ -27,6 +27,7 @@ import ManualPricingWorkspace from './components/ManualPricingWorkspace';
 import { currentStockService } from './services/currentStockService';
 import { companyIdForUser } from './services/companyService';
 import { storeIdForUser } from './services/storeService';
+import { iqExclusiveUser } from './services/marketIqExclusiveAccess';
 
 const getInitialData = (): DealData => ({
   licensePlate: '',
@@ -129,7 +130,7 @@ const App: React.FC = () => {
             setAuthError('');
           } else {
             const dbUser = await userService.getUser(normalizedEmail);
-            if (dbUser && dbUser.status === 'active') { setUser(dbUser); setAuthError(''); }
+            if (dbUser && dbUser.status === 'active') { setUser(iqExclusiveUser({...dbUser,email:normalizedEmail})); setAuthError(''); }
             else { setUser(null); setAuthError('Acesso negado. Sua conta não está ativa ou não possui permissão.'); await signOut(auth); }
           }
         } catch (error) { console.error('Error fetching user:', error); setAuthError('Erro ao verificar permissões.'); setUser(null); }

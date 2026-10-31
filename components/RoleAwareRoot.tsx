@@ -4,6 +4,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { User } from '../types';
+import { EVANDRO_IQ_ONLY_EMAIL, iqExclusiveUser } from '../services/marketIqExclusiveAccess';
 import { userService } from '../services/userService';
 import App from '../App';
 import ManagerTopNav from './ManagerTopNav';
@@ -152,8 +153,23 @@ const RoleAwareRoot: React.FC = () => {
           setAdminScope(ADMIN_HOME_SCOPE);
           setProfile(active);
         }else{
-          const user = await userService.getUser(normalizedEmail);
-          const active = user?.status === 'active' ? user : null;
+
+          let user = await userService.getUser(normalizedEmail);
+          if(normalizedEmail===EVANDRO_IQ_ONLY_EMAIL&&user?.status==='active'&&
+             (user.role==='manager'||user.role==='pricing')){
+            try{
+              const token=await firebaseUser.getIdToken();
+              const response=await fetch('/api/analyze-deal?action=current-user',{
+                method:'GET',cache:'no-store',
+                headers:{Authorization:'Bearer '+token},
+                signal:AbortSignal.timeout(15000)
+              });
+              const payload=await response.json().catch(()=>({}));
+              if(response.ok&&payload.user?.pricingDeskOnly===true)user=payload.user as User;
+              else console.warn('Motyq IQ: restrição do perfil ainda não sincronizada no servidor.');
+            }catch(error){console.warn('Motyq IQ: sincronização de perfil indisponível.',error);}
+          }
+          const active = user?.status === 'active' ? iqExclusiveUser({...user,email:normalizedEmail}) : null;
           if (active?.role === 'admin') {
             companyScopeService.enterAdminHome();
             setAdminScope(ADMIN_HOME_SCOPE);
@@ -161,7 +177,7 @@ const RoleAwareRoot: React.FC = () => {
           setProfile(active);
           profileUnsubscribe = onSnapshot(doc(db,'users',normalizedEmail), snapshot => {
             const next = snapshot.exists() ? snapshot.data() as User : null;
-            setProfile(next?.status === 'active' ? next : null);
+            setProfile(next?.status === 'active' ? iqExclusiveUser({...next,email:normalizedEmail}) : null);
           }, () => undefined);
         }
       } catch {

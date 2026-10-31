@@ -45,6 +45,14 @@ const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'curren
 const pct = (value: number) => `${(Number(value) || 0).toFixed(2).replace('.', ',')}%`;
 
 const OWNER_ADMIN = 'r.camargo.pires@gmail.com';
+const EVANDRO_IQ_ONLY='evandro.bergara@abraoreze.com.br';
+const evandroIqOverrides=Object.fromEntries([
+  'crmView','evaluationsView','proposalsView','purchasesView','salesView',
+  'stockView','stockWrite','prepView','prepRequest','prepApprove',
+  'financeView','financeCreate','financeSettle','documentsView','afterSalesView',
+  'workshopView','assetsView','reportsView','diagnostics','usersManage'
+].map((key)=>[key,key==='evaluationsView']));
+
 const MANAGER_ALLOWED_ROLES = new Set(['manager','seller','user','reception','evaluator']);
 const DMS_ACCESS_PROFILES = new Set(['management','preparation','finance']);
 const DMS_PERMISSION_KEYS = new Set([
@@ -110,6 +118,23 @@ const managementActor=async(req:any)=>{
   return {...profile,email};
 };
 
+
+/** Restrict this existing Abrão Reze manager to the pricing desk without
+ * creating a new account or touching their password, identity or store. */
+const ensureEvandroIqOnly=async(email:string,profile:any)=>{
+  if(email!==EVANDRO_IQ_ONLY||!profile||profile.status!=='active'||
+     companyOf(profile)!=='abrao-reze'||!['manager','pricing'].includes(roleOf(profile)))return profile;
+  const expected={role:'manager',pricingDeskOnly:true,dmsPermissionOverrides:evandroIqOverrides};
+  const current=profile.dmsPermissionOverrides||{};
+  const upToDate=profile.role==='manager'&&profile.pricingDeskOnly===true&&
+    Object.entries(evandroIqOverrides).every(([key,value])=>current[key]===value);
+  if(upToDate)return profile;
+  if(!motyqFirestore.configured())throw new Error('pricing_desk_profile_sync_unavailable');
+  await motyqFirestore.patch('users',email,expected);
+  const next={...profile,...expected};
+  await userAudit({email,id:email,...profile},next,'pricing_desk_only','Acesso exclusivo ao Motyq IQ','Perfis operacionais desativados; avaliações da mesa preservadas.');
+  return next;
+};
 const ensureManagementScope=(actor:any,targetCompany:string)=>{
   const role=roleOf(actor);
   if(role!=='admin'&&role!=='manager')throw Object.assign(new Error('forbidden'),{status:403});
@@ -120,7 +145,7 @@ const safeDocId=(value:any)=>String(value||'').replace(/[^a-zA-Z0-9_-]/g,'-').re
 const managerPermission=(actor:any,key:string,managementDefault:boolean)=>{
   if(roleOf(actor)==='admin')return true;
   if(roleOf(actor)!=='manager')return false;
-  if(actor?.pricingDeskOnly===true)return false;
+  if(actor?.pricingDeskOnly===true||emailOf(actor?.email)===EVANDRO_IQ_ONLY)return false;
   const overrides=actor?.dmsPermissionOverrides&&typeof actor.dmsPermissionOverrides==='object'?actor.dmsPermissionOverrides:{};
   if(typeof overrides?.[key]==='boolean')return overrides[key]===true;
   const profile=String(actor?.dmsAccessProfile||'');
@@ -397,7 +422,8 @@ export default async function handler(req: any, res: any) {
       }
       const profile:any=await currentUserProfileWithIdToken(token,email);
       if(!profile||profile.status!=='active')return res.status(403).json({error:'inactive_or_missing_user'});
-      return res.status(200).json({user:{...profile,email}});
+      const scoped=await ensureEvandroIqOnly(email,profile);
+      return res.status(200).json({user:{...scoped,email}});
     } catch (error:any) {
       console.error('Current-user lookup failed',error?.message||error);
       return res.status(401).json({ error: String(error?.message || 'not_authenticated') });
