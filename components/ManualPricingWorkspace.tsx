@@ -415,36 +415,41 @@ export default function ManualPricingWorkspace({user}:{user:User}){
           <p className="mt-1 text-xs font-semibold text-slate-700">{r.provisional===false?'Anúncios conferidos':number(String(r.value))>0?'Estimativa preliminar':'Rascunho sem valor'}</p>
         </div>
         <div className="min-w-[200px] text-right">
-          <p className="text-xs text-slate-600">Valor estimado na avaliação</p>
+          <p className="text-xs text-slate-600">Valor estimado pelo Motyq</p>
           <p className="text-lg font-bold text-slate-950">{money(r.value)}</p>
-          {Number(r.paidValue)>0?
+          {Number(r.approvedValue)>0?
             <div className="mt-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3">
-              <p className="text-xs font-bold uppercase text-emerald-900">Valor realmente pago</p>
-              <p className="text-xl font-black text-emerald-950">{money(Number(r.paidValue))}</p>
-              <p className="text-xs font-semibold text-emerald-900">{Number(r.paidValue)>r.value?'Acima':Number(r.paidValue)<r.value?'Abaixo':'Igual à estimativa'}{Number(r.paidValue)!==r.value?' em '+money(Math.abs(Number(r.paidValue)-r.value)):''}</p>
-              <p className="mt-1 text-xs text-emerald-900">Compra: {r.paidAt?.split('-').reverse().join('/')||'-'} · Registrado por {r.paidRecordedBy||'usuário autorizado'}</p>
+              <p className="text-xs font-bold uppercase text-emerald-900">Valor aprovado na avaliação</p>
+              <p className="text-xl font-black text-emerald-950">{money(Number(r.approvedValue))}</p>
+              <p className="text-xs font-semibold text-emerald-900">{Number(r.approvedValue)>r.value?'Acima':Number(r.approvedValue)<r.value?'Abaixo':'Igual à estimativa'}{Number(r.approvedValue)!==r.value?' em '+money(Math.abs(Number(r.approvedValue)-r.value)):''}</p>
+              <p className="mt-1 text-xs text-emerald-900">Aprovação: {r.approvedAt?.split('-').reverse().join('/')||'-'} · {r.approvedRecordedBy||'usuário autorizado'}</p>
             </div>:
-            <p className="mt-2 text-xs font-semibold text-amber-900">Valor pago ainda não informado</p>}
+            <p className="mt-2 text-xs font-semibold text-amber-900">Valor aprovado ainda não informado</p>}
+          {Number(r.paidValue)>0&&<div className="mt-2 rounded-lg border border-slate-300 bg-slate-100 p-2">
+            <p className="text-xs font-semibold text-slate-700">Registro anterior de valor realmente pago</p>
+            <p className="font-bold text-slate-950">{money(Number(r.paidValue))}</p>
+            <p className="text-xs text-slate-600">Compra: {r.paidAt?.split('-').reverse().join('/')||'-'}. Mantido separado, não considerado aprovação.</p>
+          </div>}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={()=>{setEditingApprovedId(r.id);setEditingApprovedValue(r.paidValue?Number(r.paidValue).toFixed(2).replace('.',','):'');setEditingApprovedDate(r.paidAt||localDate());setHistoryError('');}}
-            className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-bold text-emerald-900">{Number(r.paidValue)>0?'Corrigir valor pago':'Registrar valor pago'}</button>
+          <button type="button" onClick={()=>{setEditingApprovedId(r.id);setEditingApprovedValue(r.approvedValue?Number(r.approvedValue).toFixed(2).replace('.',','):'');setEditingApprovedDate(r.approvedAt||localDate());setHistoryError('');}}
+            className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-bold text-emerald-900">{Number(r.approvedValue)>0?'Corrigir valor aprovado':'Registrar valor aprovado'}</button>
           <button type="button" onClick={()=>restore(r)} className="rounded-lg bg-cyan-800 px-4 py-2 text-sm font-bold text-white">Reabrir avaliação</button>
         </div>
         {editingApprovedId===r.id&&<div className="w-full rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4">
-          <p className="font-bold text-emerald-950">Registrar valor efetivamente pago · {r.plate}</p>
-          <p className="mb-3 text-xs text-emerald-900">Esse valor é informado por você após a compra. Não altera o preço estimado; correções mantêm o registro anterior para auditoria.</p>
+          <p className="font-bold text-emerald-950">Valor aprovado na avaliação · {r.plate}</p>
+          <p className="mb-3 text-xs text-emerald-900">Informe o valor aprovado pela mesa de avaliação. Não exige que o veículo tenha sido comprado. Correções preservam o registro anterior para auditoria.</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-semibold text-slate-900">Valor pago (R$)
+            <label className="text-sm font-semibold text-slate-900">Valor aprovado na avaliação (R$)
               <input className={input+' mt-1'} inputMode="decimal" type="text" placeholder="Ex.: 76.000,00" value={editingApprovedValue} onChange={e=>setEditingApprovedValue(e.target.value)} />
             </label>
-            <label className="text-sm font-semibold text-slate-900">Data da compra
+            <label className="text-sm font-semibold text-slate-900">Data da aprovação
               <input className={input+' mt-1'} type="date" max={localDate()} value={editingApprovedDate} onChange={e=>setEditingApprovedDate(e.target.value)} />
             </label>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" disabled={historyBusy||!approvalInputValid(editingApprovedValue)||!editingApprovedDate} onClick={()=>void recordApproved(r)}
-              className="rounded-lg bg-emerald-800 px-5 py-2 text-sm font-bold text-white disabled:opacity-40">{historyBusy?'Registrando...':'Confirmar valor pago'}</button>
+              className="rounded-lg bg-emerald-800 px-5 py-2 text-sm font-bold text-white disabled:opacity-40">{historyBusy?'Registrando...':'Confirmar valor aprovado'}</button>
             <button type="button" onClick={()=>setEditingApprovedId('')} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800">Cancelar</button>
           </div>
         </div>}
@@ -500,13 +505,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      </button>
    </div>
    <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
-     <label className="text-sm font-bold text-slate-900">Valor realmente pago (R$, opcional)
-       <input type="text" inputMode="decimal" className={input+' mt-1'} placeholder="Preencha apenas após a compra. Ex.: 76.658,00" value={newApprovedValue} onChange={e=>setNewApprovedValue(e.target.value)}/>
+     <label className="text-sm font-bold text-slate-900">Valor aprovado na avaliação (R$, opcional)
+       <input type="text" inputMode="decimal" className={input+' mt-1'} placeholder="Valor autorizado pela mesa. Ex.: 76.658,00" value={newApprovedValue} onChange={e=>setNewApprovedValue(e.target.value)}/>
      </label>
-     <label className="text-sm font-bold text-slate-900">Data da compra
+     <label className="text-sm font-bold text-slate-900">Data da aprovação
        <input type="date" className={input+' mt-1'} max={localDate()} value={newApprovedDate} onChange={e=>setNewApprovedDate(e.target.value)}/>
      </label>
-     <p className="text-xs font-medium text-slate-700 sm:col-span-2">O valor pago é independente do preço-alvo estimado. Se a compra ainda não aconteceu, deixe o campo vazio e registre o pagamento depois, na aba Histórico de avaliações.</p>
+     <p className="text-xs font-medium text-slate-700 sm:col-span-2">Registre o valor aprovado na avaliação, mesmo que o veículo não seja comprado. A estimativa do Motyq continua preservada para comparação; você também pode registrar a aprovação depois, no Histórico de avaliações.</p>
    </div>
    {historyError&&<p role="alert" className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-900">{historyError}</p>}
    {notice&&<p role="status" className="mt-2 text-sm font-semibold text-slate-800">{notice}</p>}
