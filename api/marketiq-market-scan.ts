@@ -706,6 +706,9 @@ const listingPageCandidates = (pages: any[], brand: string, model: string, year:
   return outputs.sort((a,b)=>a.price-b.price).slice(0,20);
 };
 
+// Search queries depend on model/year, not the vehicle's plate or KM.
+// Keep successful public-index responses briefly to reduce free shared-rate-limit pressure.
+const marketSearchCache=new Map<string,{expiresAt:number;lookups:PromiseSettledResult<any[]>[]}>();
 async function marketIqDeskSearchServer(req: any, res: any) {
   res.setHeader('Cache-Control', 'private, no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
@@ -718,12 +721,24 @@ async function marketIqDeskSearchServer(req: any, res: any) {
   const tokens = normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
   const variant = tokens.slice(1).find(t => t.length >= 4 && !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor'].includes(t)) || '';
   const queryBase = [marketBrand(brand),tokens[0],variant,year].filter(Boolean).join(' ');
-  const lookups = await Promise.allSettled([
-    search(queryBase + ' ' + year + '/' + year + ' site:webmotors.com.br/carros-usados preço km', 'webmotors.com.br'),
-    search(queryBase + ' site:webmotors.com.br/comprar/ preço km', 'webmotors.com.br'),
-    search(queryBase + ' site:olx.com.br carro usado preço quilometragem', 'olx.com.br'),
-    search(queryBase + ' site:napista.com.br/busca/ preço km', 'napista.com.br'),
-  ]);
+  const cacheKey=normalize(queryBase).replace(/\s+/g,' ');
+  const cached=marketSearchCache.get(cacheKey);
+  const cacheHit=Boolean(cached&&cached.expiresAt>Date.now());
+  let lookups:PromiseSettledResult<any[]>[];
+  if(cacheHit) {
+    lookups=cached!.lookups;
+  } else {
+    lookups=await Promise.allSettled([
+      search(queryBase + ' ' + year + '/' + year + ' site:webmotors.com.br/carros-usados preço km', 'webmotors.com.br'),
+      search(queryBase + ' site:webmotors.com.br/comprar/ preço km', 'webmotors.com.br'),
+      search(queryBase + ' site:olx.com.br carro usado preço quilometragem', 'olx.com.br'),
+      search(queryBase + ' site:napista.com.br/busca/ preço km', 'napista.com.br'),
+    ]);
+    if(lookups.some(result=>result.status==='fulfilled'&&result.value.length>0)) {
+      if(marketSearchCache.size>=60)marketSearchCache.delete(marketSearchCache.keys().next().value!);
+      marketSearchCache.set(cacheKey,{expiresAt:Date.now()+15*60*1000,lookups});
+    }
+  }
   const complete = lookups.flatMap(result => result.status === 'fulfilled' ? result.value : []);
   const failed = lookups.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
   if (!complete.length && failed.length === lookups.length) {
@@ -773,7 +788,7 @@ async function marketIqDeskSearchServer(req: any, res: any) {
     evidence:searchEvidence,
   }));
   return res.status(200).json({
-    ads, searchedAt: new Date().toISOString(), provider: 'Tavily Keyless · busca web gratuita',
+    ads, searchedAt: new Date().toISOString(), cached:cacheHit, provider: 'Tavily Keyless · busca web gratuita',
     warning: 'Dados extraídos de trechos indexados, não diretamente da página do anunciante. Conferência do anúncio necessária antes de aprovar compra.',
     pagesFound: complete.length,
     evidenceSummary: {
