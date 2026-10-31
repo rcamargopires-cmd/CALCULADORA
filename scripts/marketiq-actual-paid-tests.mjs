@@ -7,12 +7,15 @@ const source=readFileSync('services/marketiqPricingHistoryServer.ts','utf8');
 const api=readFileSync('api/marketiq-market-scan.ts','utf8');
 const ui=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
 assert.ok(api.includes("'pricing_history_paid'"),'Actual paid action must dispatch through existing API');
-assert.ok(api.includes("kind:'purchase_paid'"),'Actual payments must be bundled in the deployed route');
-assert.ok(ui.includes("Valor realmente pago (R$, opcional)"),'New evaluations must accept actual value');
-assert.ok(ui.includes("Registrar valor pago"),'Old evaluations must accept actual value');
-assert.ok(ui.includes("Corrigir valor pago"),'Corrections must remain possible');
-assert.ok(ui.includes("Com valor pago"),'History filter must include completed purchases');
+assert.ok(api.includes("kind:isApproval?'valuation_approved':'purchase_paid'"),'Approved and paid events must both be bundled without conflation');
+assert.ok(ui.includes("Valor aprovado na avaliação (R$, opcional)"),'New valuations must capture amount approved during appraisal');
+assert.ok(ui.includes("Registrar valor aprovado"),'Existing valuations must permit recording approved amount');
+assert.ok(ui.includes("Corrigir valor aprovado"),'Approval corrections must remain possible');
+assert.ok(ui.includes("Com valor aprovado"),'History filter must include approved valuations');
 assert.ok(ui.includes("Acima"),'History must show comparison with estimate');
+assert.ok(api.includes("'pricing_history_approved'"),'Approval event must be routed in same API');
+assert.ok(source.includes("kind:isApproval?'valuation_approved':'purchase_paid'"),'Approved and paid events must not be conflated');
+assert.ok(ui.includes('Registro anterior de valor realmente pago')&&!ui.includes('Valor realmente pago (R$, opcional)'),'Legacy purchase payments must remain labeled separately from approved valuation');
 
 const js=ts.transpileModule(source.replace(/^import .+;\s*$/gm,'')
   .replace('export default async function handler','async function handler')+'\nresult=handler;',{
@@ -121,3 +124,42 @@ assert.equal(unauth.statusCode,401);
 assert.equal(db.size,3,'Original valuation and two separate audited payment versions must be retained');
 assert.ok(requests.some(x=>x.url.includes('/tenant-a/stores/unit-1/evaluations/'+id)),'Must verify parent valuation inside tenant scope');
 console.log('Motyq IQ actual paid history: immutable audit, authentication, tenant isolation, validation, list hydration passed.');
+
+
+// Approved price is a DIFFERENT business event, not the amount paid.
+const approval=await send('pricing_history_approved',{evaluationId:id,amount:76000,approvedAt:'2026-10-31'});
+assert.equal(approval.statusCode,200,JSON.stringify(approval.body));
+assert.equal(approval.body.approved.kind,'valuation_approved');
+assert.equal(approval.body.approved.approvedValue,76000);
+assert.ok(!('paidValue' in approval.body.approved),'Approved values must never be stored as purchase payments');
+list=await send('pricing_history_list');
+assert.equal(list.body.records.length,1);
+assert.equal(list.body.records[0].value,76658,'Algorithm estimate remains intact');
+assert.equal(list.body.records[0].approvedValue,76000,'Approved amount is available in history');
+assert.equal(list.body.records[0].paidValue,74550,'Existing actual purchase record remains separately visible');
+
+const badApprovalDate=await send('pricing_history_approved',{evaluationId:id,amount:76000,approvedAt:'2026-02-30'});
+assert.equal(badApprovalDate.statusCode,400);
+const badApprovalAmount=await send('pricing_history_approved',{evaluationId:id,amount:-1,approvedAt:'2026-10-31'});
+assert.equal(badApprovalAmount.statusCode,400);
+currentCompany='tenant-b';
+const crossTenantApproval=await send('pricing_history_approved',{evaluationId:id,amount:74000,approvedAt:'2026-10-31'});
+assert.equal(crossTenantApproval.statusCode,404);
+currentCompany='tenant-a';
+currentStore='unit-2';
+const crossStoreApproval=await send('pricing_history_approved',{evaluationId:id,amount:74000,approvedAt:'2026-10-31'});
+assert.equal(crossStoreApproval.statusCode,404);
+currentStore='unit-1';
+currentRole='seller';
+const forbiddenApproval=await send('pricing_history_approved',{evaluationId:id,amount:74000,approvedAt:'2026-10-31'});
+assert.equal(forbiddenApproval.statusCode,403);
+currentRole='manager';
+const updatedApproval=await send('pricing_history_approved',{evaluationId:id,amount:75400,approvedAt:'2026-10-31'});
+assert.equal(updatedApproval.statusCode,200);
+list=await send('pricing_history_list');
+assert.equal(list.body.records.length,1,'Corrections must not duplicate valuations');
+assert.equal(list.body.records[0].approvedValue,75400,'Newest approval correction must display');
+assert.equal(list.body.records[0].paidValue,74550,'Approval corrections cannot change the paid purchase amount');
+assert.equal(list.body.records[0].value,76658,'Approval corrections cannot rewrite Motyq estimate');
+assert.equal(db.size,5,'Two purchase events and two approval events alongside the valuation are preserved');
+console.log('Motyq IQ approved valuation: distinct approval and purchase events, tenant isolation and audit passed.');
