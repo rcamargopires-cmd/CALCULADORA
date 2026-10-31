@@ -9,6 +9,36 @@ import MarketIqApprovalCenter from './MarketIqApprovalCenter';
 import {calculateHistoricalPrice, MOTYQ_HISTORY_MODEL, HistoricalClass} from '../services/marketIqHistoricalPricing';
 import {chooseIndexedMarketSample} from '../services/marketIqIndexedSample';
 type Ad={source?:'webmotors'|'olx'|'napista';price:string;km:string;url:string;status:'pending'|'valid'|'excluded';note:string;auto?:boolean;title?:string;catalog?:boolean};
+type CapturedAd=Ad & {year:number};
+const decodeExtensionTransfer=(hash:string):CapturedAd[]=>{
+ try{
+   const encoded=new URLSearchParams(String(hash||'').replace(/^#/,'')).get('motyq-import');
+   if(!encoded||encoded.length>12000||!/^[A-Za-z0-9_-]+$/.test(encoded))return [];
+   const binary=atob(encoded.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-encoded.length%4)%4));
+   const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(binary,c=>c.charCodeAt(0))));
+   if(data?.kind!=='motyq-assisted-v1'||!Array.isArray(data.ads)||data.ads.length>12)return [];
+   const seen=new Set<string>();
+   return data.ads.flatMap((raw:any)=>{
+     const price=Number(raw?.price),km=Number(raw?.km),year=Number(raw?.year);
+     const url=String(raw?.url||'').trim();
+     let link:URL;
+     try{link=new URL(url);}catch{return [];}
+     if(link.protocol!=='https:'||!['www.webmotors.com.br','webmotors.com.br'].includes(link.hostname.toLowerCase())||
+       !/^\/comprar\/[^/]+\/[^/]+\/.+\/\d{7,}\/?$/i.test(link.pathname)||
+       !Number.isFinite(price)||price<10000||price>2000000||!Number.isFinite(km)||km<1||km>999999||
+       !Number.isInteger(year)||year<1990||year>2100)return [];
+     const canonical=link.origin+link.pathname;
+     if(seen.has(canonical))return [];
+     seen.add(canonical);
+     return [{
+       source:'webmotors' as const,price:String(Math.round(price)),km:String(Math.round(km)),year,url:canonical,
+       title:String(raw.title||'').slice(0,120),status:'pending' as const,auto:false,catalog:false,
+       note:'Registrado manualmente pela extensão Motyq. Confira versão, ano, preço, KM e condições no anúncio antes de validar.'
+     }];
+   });
+ }catch{return [];}
+};
+
 type Saved={id:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
 const number=(v:string)=>Number(v.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
 const money=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -43,6 +73,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [brands,setBrands]=useState<Item[]>([]);const [models,setModels]=useState<Item[]>([]);const [years,setYears]=useState<Item[]>([]);
  const [fipe,setFipe]=useState<FipeDetail|null>(null);const [catalogError,setCatalogError]=useState('');const [catalogLoading,setCatalogLoading]=useState(false);const [km,setKm]=useState<string>(()=>typeof savedForm.km==='string'?savedForm.km:'');const [cost,setCost]=useState<string>(()=>typeof savedForm.cost==='string'?savedForm.cost:'0');const [repasse,setRepasse]=useState<boolean>(()=>Boolean(savedForm.repasse));
  const [ads,setAds]=useState<Ad[]>([]);const [adsVehicleKey,setAdsVehicleKey]=useState('');const [notice,setNotice]=useState('');
+ const [extensionInbox,setExtensionInbox]=useState<CapturedAd[]>(()=>decodeExtensionTransfer(window.location.hash));
+ const [extensionNotice,setExtensionNotice]=useState('');
+ useEffect(()=>{
+   if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import')){
+     window.history.replaceState(null,'',window.location.pathname+window.location.search);
+   }
+ },[]);
+
  const [classification,setClassification]=useState<HistoricalClass|''>(()=>['A','B','C','D','E','SEM CLASSE'].includes(savedForm.classification)?savedForm.classification:'');
  const [autoLoading,setAutoLoading]=useState(false);const [autoError,setAutoError]=useState('');
  const [autoSearchedAt,setAutoSearchedAt]=useState('');const [autoSearchKey,setAutoSearchKey]=useState('');
@@ -56,6 +94,25 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const currentAds=adsVehicleKey===vehicleKey?ads:[];
  const marketYear=Number(fipe?.year||String(yearCode).match(/^(?:19|20)\d{2}/)?.[0]||String(year).match(/(?:19|20)\d{2}/)?.[0]||0);
  const searchReady=Boolean(brand&&model&&marketYear>=1990&&number(km)>0);
+
+ const applyExtensionCapture=()=>{
+   if(!searchReady){setExtensionNotice('Selecione marca, versão, ano e KM do veículo antes de importar.');return;}
+   if(extensionInbox.some(x=>x.year!==marketYear)){
+     setExtensionNotice('Os anúncios importados têm ano diferente do veículo selecionado. Confira o ano antes de continuar.');
+     return;
+   }
+   const validIncoming=extensionInbox.filter(x=>validSource(x));
+   if(!validIncoming.length){setExtensionNotice('Nenhum link individual válido para importar.');return;}
+   setAdsVehicleKey(vehicleKey);
+   setAutoSearchKey(vehicleKey);
+   setAds(existing=>{
+     const prior=adsVehicleKey===vehicleKey?existing:[];
+     const existingUrls=new Set(prior.map(ad=>ad.url));
+     return [...prior,...validIncoming.filter(ad=>!existingUrls.has(ad.url))];
+   });
+   setExtensionInbox([]);
+   setExtensionNotice(validIncoming.length+' anúncio(s) incluído(s) como PENDENTES. Confira cada um e marque Válido, conferido antes do cálculo definitivo.');
+ };
  const missingMarketDetails=[
    !brand?'marca':null,!model?'modelo e versão':null,
    !marketYear?'ano/modelo':null,number(km)<=0?'quilometragem':null
@@ -234,6 +291,18 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     <p className="text-xs text-indigo-800 md:col-span-2">Calibrado somente com status UTILIZADO, não com AVALIADO. A previsão não identifica histórico de sinistro, leilão, avarias ou liquidez. Compare com anúncios verificáveis e faça inspeção presencial.</p>
   </div>:<p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Selecione a classificação, veículo, KM e FIPE para obter o preço-alvo histórico.</p>}
  </section>
+
+ {extensionInbox.length>0&&<section className="rounded-xl border-2 border-cyan-300 bg-cyan-50 p-5">
+   <h2 className="text-lg font-bold text-cyan-950">Anúncios recebidos da extensão Motyq</h2>
+   <p className="mt-1 text-sm text-slate-800">{extensionInbox.length} anúncio(s) aguardando importação. Selecione acima a versão, o ano e a KM do veículo que você está avaliando.</p>
+   <div className="mt-3 space-y-2">{extensionInbox.map((ad,i)=><div key={ad.url} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cyan-200 bg-white p-3 text-sm">
+     <div><p className="font-semibold text-slate-900">{i+1}. {ad.title||'Anúncio Webmotors'}</p><p className="text-slate-700">{money(number(ad.price))} · {number(ad.km).toLocaleString('pt-BR')} km · {ad.year}</p></div>
+     <a href={ad.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-cyan-800 underline">Conferir anúncio</a>
+   </div>)}</div>
+   <button type="button" disabled={!searchReady} onClick={applyExtensionCapture} className="mt-4 rounded-lg bg-cyan-800 px-5 py-3 text-sm font-bold text-white disabled:opacity-40">Adicionar anúncios à comparação</button>
+   {extensionNotice&&<p role="status" className="mt-2 text-sm font-semibold text-amber-900">{extensionNotice}</p>}
+   <p className="mt-2 text-xs text-slate-700">Dados informados manualmente na extensão, não auditados. Nenhuma cotação de compra é aprovada automaticamente.</p>
+ </section>}
  <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de mercado · Webmotors + OLX</h2><p className="text-sm text-slate-600">O MarketScan busca automaticamente anúncios indexados. Webmotors é a referência principal; OLX e NaPista são apoio quando o portal principal não fornece valores legíveis. Resultados indexados não são anúncios auditados.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady}>{autoLoading?'Pesquisando anúncios...':searchReady?'Pesquisar anúncios novamente':'Aguardando dados do veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
  {!searchReady&&<p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950">
    Para pesquisar, preencha: {missingMarketDetails}. A FIPE não precisa terminar de carregar para liberar a busca.
