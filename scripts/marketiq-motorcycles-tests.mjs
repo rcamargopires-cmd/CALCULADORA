@@ -34,7 +34,7 @@ assert.equal(parsed.duplicates,1);
 assert.equal(parsed.rows.filter(x=>x.vehicleType==='car').length,1);
 assert.equal(filterDashboardRows(parsed.rows,{vehicleType:'motorcycle',store:'',brand:'',model:'',className:'',destination:'',month:'',status:''}).length,5,'Type filter must isolate motorcycle group');
 assert.equal(filterDashboardRows(parsed.rows,{vehicleType:'car',store:'',brand:'',model:'',className:'',destination:'',month:'',status:''}).length,1);
-assert.equal(aggregateDashboard(parsed.rows).purchases,6,'Purchases from both types count in manager totals');
+assert.equal(aggregateDashboard(parsed.rows).purchaseCount,6,'Purchases from both types count in manager totals');
 const batch=Array.from({length:138},(_,i)=>mk(i+100,'HONDA','CG 160 FAN','Motocicleta'));
 const all=parseDashboardData(batch,'original');
 assert.equal(all.rows.length,138,'138 motorbike rows should import rather than be excluded');
