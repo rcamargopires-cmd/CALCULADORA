@@ -33,9 +33,15 @@ const getJson=async(url:string)=>{
  const token=process.env.FIPE_API_TOKEN||process.env.FIPE_SUBSCRIPTION_TOKEN||'';
  const headers:Record<string,string>={'Accept':'application/json','User-Agent':'Motyq-MarketIQ/1.0'};
  if(token)headers['X-Subscription-Token']=token;
- const response=await fetch(url,{headers});
- if(!response.ok)throw new Error(`FIPE HTTP ${response.status} ${url}`);
- return response.json();
+ let lastError:any;
+ for(let attempt=0;attempt<2;attempt++){
+   try{
+     const response=await fetch(url,{headers,signal:AbortSignal.timeout(6500)});
+     if(!response.ok)throw new Error(`FIPE HTTP ${response.status}`);
+     return await response.json();
+   }catch(error:any){lastError=error;if(attempt===0)await new Promise(resolve=>setTimeout(resolve,250));}
+ }
+ throw new Error('FIPE upstream timeout or unavailable: '+String(lastError?.message||lastError));
 };
 const parseValue=(value:string)=>Number(String(value||'').replace(/[^0-9,]/g,'').replace(',','.'))||0;
 const yearsFrom=(value:string)=>((String(value||'').match(/(?:19|20)\d{2}/g)||[]).map(Number));
