@@ -114,7 +114,7 @@ const validAdUrl=(value:unknown)=>{
    const u=new URL(String(value||''));
    if(u.protocol!=='https:')return false;
    const host=u.hostname.toLowerCase();
-   return ['webmotors.com.br','www.webmotors.com.br','olx.com.br','www.olx.com.br','napista.com.br','www.napista.com.br'].includes(host);
+   return ['webmotors.com.br','olx.com.br','napista.com.br'].some(domain=>host===domain||host.endsWith('.'+domain));
  }catch{return false;}
 };
 const normalizePayload=(input:any)=>{
