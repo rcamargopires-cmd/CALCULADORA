@@ -262,3 +262,12 @@ if(!motyqShell.includes("companyIdForUser(user)==='abrao-reze'"))fail('Menu shou
 if(!legacyMarketIq.includes("const inspectionOnly=currentUser.role==='evaluator'"))fail('Evaluator should retain inspection-only legacy flow.');
 if(!roleAware.includes("profile?.companyId||'abrao-reze'"))fail('Legacy default tenant IQ route missing.');
 if(!appSource.includes("companyIdForUser(user)==='abrao-reze'"))fail('App IQ tenant selection out of sync.');
+
+
+// Login and IQ URLs must render safely when Firebase has no authenticated profile.
+// A regression used the tenant fallback without guarding profile.role, blanking the whole page.
+const loginRootSource=read('components/RoleAwareRoot.tsx');
+if(!loginRootSource.includes("const iqAllowed=Boolean(profile) && (profile?.companyId||'abrao-reze')==='abrao-reze' &&"))
+  fail('IQ authorization must short-circuit when no profile exists; login white-screen regression.');
+if(!loginRootSource.includes("if (profile) return"))
+  fail('The sign-in fallback in RoleAwareRoot must remain reachable without a profile.');
