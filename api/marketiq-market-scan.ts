@@ -90,13 +90,15 @@ const userContext=async(sa:any,token:string,firebaseUser:any)=>{
    profile={
      role:readString(f,'role'),status:readString(f,'status'),
      companyId:readString(f,'companyId'),storeId:readString(f,'storeId'),
-     name:readString(f,'name'),pricingDeskOnly:f.pricingDeskOnly?.booleanValue===true
+     name:readString(f,'name'),pricingDeskOnly:f.pricingDeskOnly?.booleanValue===true,
+     pricingDeskAccess:f.pricingDeskAccess?.booleanValue===true
    };
  }else if(response.status!==404){
    throw new Error('HISTORY_USER_LOOKUP_FAILED');
  }
  const valid=isOwner||(profile?.status==='active'&&(
-   ['admin','manager','pricing'].includes(profile?.role)||profile?.pricingDeskOnly===true
+   ['admin','manager','pricing'].includes(profile?.role)||
+   profile?.pricingDeskOnly===true||profile?.pricingDeskAccess===true
  ));
  if(!valid)throw new Error('HISTORY_PERMISSION_DENIED');
  return {
