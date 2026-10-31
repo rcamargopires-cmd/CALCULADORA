@@ -15,7 +15,7 @@ assert.ok(ui.includes("Com valor aprovado"),'History filter must include approve
 assert.ok(ui.includes("Acima"),'History must show comparison with estimate');
 assert.ok(api.includes("'pricing_history_approved'"),'Approval event must be routed in same API');
 assert.ok(source.includes("kind:isApproval?'valuation_approved':'purchase_paid'"),'Approved and paid events must not be conflated');
-assert.ok(ui.includes('Valor realmente pago')&&!ui.includes('Valor realmente pago (R$, opcional)'),'Legacy paid records must be distinguishable from new approval field');
+assert.ok(ui.includes('Registro anterior de valor realmente pago')&&!ui.includes('Valor realmente pago (R$, opcional)'),'Legacy purchase payments must remain labeled separately from approved valuation');
 
 const js=ts.transpileModule(source.replace(/^import .+;\s*$/gm,'')
   .replace('export default async function handler','async function handler')+'\nresult=handler;',{
