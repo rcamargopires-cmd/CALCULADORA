@@ -99,7 +99,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      setAutoSearchKey(vehicleKey);
      const pages=Number(payload.pagesFound||0),full=Number(payload.sourcePagesWithFullContent||0);
      const parts=(Array.isArray(payload.sourcesChecked)?payload.sourcesChecked:[]).map((source:any)=>
-       String(source.source)+': '+(source.available?String(source.pageCount||0)+' página(s)':'indisponível'));
+       String(source.source)+': '+(source.available?String(source.pageCount||0)+' página(s)':'indisponível ('+String(source.error||'sem resposta').slice(0,90)+')'));
      const evidence=payload.evidenceSummary||{};
      const fullByPortal=evidence.fullContentByPortal||{};
      setSearchDiagnostics('Páginas localizadas: '+pages+' · texto disponível: '+full+
