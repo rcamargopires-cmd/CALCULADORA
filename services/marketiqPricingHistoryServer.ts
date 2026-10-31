@@ -277,6 +277,6 @@ export default async function handler(req:any,res:any){
      return respond(res,400,{error:'Confira placa, veículo, valor e anúncios antes de salvar.'});
    // Do not expose service account errors or infrastructure details to the browser.
    console.error('Motyq IQ history:',name.slice(0,80));
-   return respond(res,503,{error:'Histórico online temporariamente indisponível. Sua avaliação continua na tela, mas ainda não foi salva.'});
+   return respond(res,503,{error:req.body?.action==='pricing_history_paid'?'Não foi possível registrar o valor pago. A avaliação original permanece salva.':'Histórico online temporariamente indisponível. Sua avaliação continua na tela, mas ainda não foi salva.'});
  }
 }
