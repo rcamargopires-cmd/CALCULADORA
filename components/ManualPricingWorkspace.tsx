@@ -138,10 +138,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    const currentUser=auth.currentUser;
    if(!currentUser)throw new Error('Sessão encerrada. Entre novamente.');
    const token=await currentUser.getIdToken();
-   const response=await fetch('/api/marketiq-pricing-history',{
+   const response=await fetch('/api/marketiq-market-scan',{
      method:'POST',cache:'no-store',
      headers:{'content-type':'application/json','Authorization':'Bearer '+token},
-     body:JSON.stringify({action,...(evaluation?{evaluation}:{})}),
+     body:JSON.stringify({action:'pricing_history_'+action,...(evaluation?{evaluation}:{})}),
      signal:AbortSignal.timeout(35000)
    });
    const result=await response.json().catch(()=>({}));
