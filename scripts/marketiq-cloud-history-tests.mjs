@@ -44,6 +44,10 @@ assert.ok(server.includes("['admin','manager','pricing']"));
 assert.ok(server.includes("scope.companyId,storeId:scope.storeId"));
 assert.ok(!api.includes('api/marketiq-pricing-history'));
 assert.ok(api.includes("pricingHistoryHandler(req,res)"));
+assert.ok(api.includes('const pricingHistoryHandler=(()=>{'),'History handler must be bundled in the API function');
+assert.ok(!api.includes("import pricingHistoryHandler from '../services/marketiqPricingHistoryServer'"),'Do not use unresolvable extensionless TS imports in Vercel API routes');
+assert.ok(api.includes('return async function handler(req:any,res:any)'),'Inline history function must be callable');
+
 assert.ok(ui.includes("Histórico de avaliações"));
 assert.ok(ui.includes("Salvar avaliação no histórico"));
 assert.ok(ui.includes("historyRequest('save',record)"));
