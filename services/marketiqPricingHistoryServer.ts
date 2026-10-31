@@ -17,7 +17,15 @@ type JsonObject=Record<string,Json>;
 type Field={stringValue?:string;integerValue?:string;booleanValue?:boolean;mapValue?:{fields?:Record<string,Field>}};
 const respond=(res:any,status:number,body:unknown)=>res.status(status).json(body);
 const text=(value:unknown,size=180)=>String(value??'').trim().slice(0,size);
-const finite=(value:unknown,min:number,max:number)=>{const n=Number(value);return Number.isFinite(n)&&n>=min&&n<=max?n:0;};
+const finite=(value:unknown,min:number,max:number)=>{
+ const raw=String(value??'').trim().replace(/\s/g,'').replace(/R\$/gi,'');
+ if(!raw)return 0;
+ const clean=raw.replace(/[^0-9.,-]/g,'');
+ const normalized=clean.includes(',')?clean.replace(/\./g,'').replace(',','.'):
+   /^\d{1,3}(?:\.\d{3})+$/.test(clean)?clean.replace(/\./g,''):clean;
+ const n=typeof value==='number'?value:Number(normalized);
+ return Number.isFinite(n)&&n>=min&&n<=max?n:0;
+};
 const email=(value:unknown)=>text(value,240).toLowerCase();
 const idTokenFrom=(req:any)=>{
  const raw=String(req.headers?.authorization||'');
