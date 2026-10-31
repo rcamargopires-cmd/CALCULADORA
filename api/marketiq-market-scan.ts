@@ -582,6 +582,11 @@ RETORNE APENAS JSON:
 
 const string = (value: unknown) => String(value ?? '').trim();
 const normalize = (value: string) => value.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const marketBrand = (value: string) => {
+  const parts = string(value).split(/\s+-\s+/).map(x => x.trim()).filter(Boolean);
+  const last = parts.length > 1 ? parts[parts.length - 1] : string(value);
+  return last.replace(/^vw\s+/i,'').replace(/^gm\s+/i,'').trim();
+};
 type Source = 'webmotors' | 'olx' | 'napista';
 const portal = (raw: string): Source | null => {
   try {
@@ -648,7 +653,8 @@ const listingPageCandidates = (pages: any[], brand: string, model: string, year:
   const variant = tokens.slice(1).find(token => token.length >= 4 &&
     !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor','hibrido','eletrico','gas','aut'].includes(token)) || '';
   const engine = tokens.find(token => /^t\d{3,4}$/.test(token)) || '';
-  const firstPart = canonical(brand+' '+core).trim();
+  const normalizedBrand=marketBrand(brand);
+  const firstPart = canonical(normalizedBrand+' '+core).trim();
   const outputs: any[] = [];
   const seen = new Set<string>();
   for (const page of pages) {
@@ -663,7 +669,7 @@ const listingPageCandidates = (pages: any[], brand: string, model: string, year:
       const normalized=content.replace(/\u00a0/g,' ').replace(/\s+/g,' ');
       const heading = /(?:JEEP\s+COMMANDER|HYUNDAI\s+CRETA|FIAT\s+STRADA)/ig;
       // General matching for other makes/models, with space/markup-separated words.
-      const pattern = new RegExp(brand.replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'\\s+')+
+      const pattern = new RegExp(normalizedBrand.replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'\\s+')+
         '[\\s*#:_\\-]+'+core.replace(/[^a-z0-9]/g,''),'gi');
       const hits = [...normalized.matchAll(pattern)].slice(0,60);
       for(let i=0;i<hits.length;i++){
@@ -672,7 +678,8 @@ const listingPageCandidates = (pages: any[], brand: string, model: string, year:
         const block=normalized.slice(from,Math.min(next,from+580));
         const normalizedBlock=canonical(block);
         if (!normalizedBlock.includes(firstPart)) continue;
-        if (variant && !normalizedBlock.split(' ').includes(variant)) continue;
+        if (variant && !normalizedBlock.split(' ').some(token=>token===variant||
+          (token.length>=4&&variant.length>=5&&variant.startsWith(token)))) continue;
         if (engine && !normalizedBlock.split(' ').includes(engine)) continue;
         // The exact model year must be explicit in the same item block.
         const yearPair=block.match(/\b(?:19|20)\d{2}\s*\/\s*((?:19|20)\d{2})\b/);
@@ -688,7 +695,7 @@ const listingPageCandidates = (pages: any[], brand: string, model: string, year:
         seen.add(key);
         outputs.push({
           source,price,km:adKm,year:modelYear,
-          title:brand+' '+model+' · '+modelYear+' · '+adKm.toLocaleString('pt-BR')+' km',
+          title:normalizedBrand+' '+model+' · '+modelYear+' · '+adKm.toLocaleString('pt-BR')+' km',
           url:url.split('?')[0],
           evidence:'Preço, KM e versão presentes no mesmo trecho indexado de vitrine pública; anúncio individual não confirmado.',
           catalog:true,confidence:'catalog_page',
@@ -710,7 +717,7 @@ async function marketIqDeskSearchServer(req: any, res: any) {
     return res.status(400).json({ error: 'Selecione marca, versão, ano e quilometragem antes da pesquisa.' });
   const tokens = normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
   const variant = tokens.slice(1).find(t => t.length >= 4 && !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor'].includes(t)) || '';
-  const queryBase = [brand,tokens[0],variant,year].filter(Boolean).join(' ');
+  const queryBase = [marketBrand(brand),tokens[0],variant,year].filter(Boolean).join(' ');
   const lookups = await Promise.allSettled([
     search(queryBase + ' ' + year + '/' + year + ' site:webmotors.com.br/carros-usados preço km', 'webmotors.com.br'),
     search(queryBase + ' site:webmotors.com.br/comprar/ preço km', 'webmotors.com.br'),
@@ -746,7 +753,7 @@ async function marketIqDeskSearchServer(req: any, res: any) {
     return { source, title, url: cleanUrl, price, km: adKm, year,
       evidence: snippet.slice(0, 220), confidence: 'candidate' };
   }).filter(Boolean).sort((a: any, b: any) => a.price - b.price).slice(0, 20);
-  const listingAds = listingPageCandidates(complete, brand, model, year, km);
+  const listingAds = listingPageCandidates(complete, marketBrand(brand), model, year, km);
   const ads = [...individualAds, ...listingAds].filter((item:any,index:number,items:any[])=>items.findIndex((other:any)=>other.source===item.source&&other.price===item.price&&other.km===item.km&&other.year===item.year)===index).sort((a:any,b:any)=>a.price-b.price).slice(0,24);
   const searchEvidence = complete.map((p:any) => {
     const source=portal(string(p.url));
