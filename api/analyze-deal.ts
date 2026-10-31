@@ -46,6 +46,7 @@ const pct = (value: number) => `${(Number(value) || 0).toFixed(2).replace('.', '
 
 const OWNER_ADMIN = 'r.camargo.pires@gmail.com';
 const EVANDRO_IQ_ONLY='evandro.bergara@abraoreze.com.br';
+const REINALDO_DESK_ACCESS='reinaldo.ribas@abraoreze.com.br';
 const evandroIqOverrides=Object.fromEntries([
   'crmView','evaluationsView','proposalsView','purchasesView','salesView',
   'stockView','stockWrite','prepView','prepRequest','prepApprove',
@@ -133,6 +134,20 @@ const ensureEvandroIqOnly=async(email:string,profile:any)=>{
   await motyqFirestore.patch('users',email,expected);
   const next={...profile,...expected};
   await userAudit({email,id:email,...profile},next,'pricing_desk_only','Acesso exclusivo ao Motyq IQ','Perfis operacionais desativados; avaliações da mesa preservadas.');
+  return next;
+};
+/** Grant the existing account additive desk access. Preserve its role,
+ * stock/CRM permissions and other module entitlements. */
+const ensureReinaldoDeskAccess=async(email:string,profile:any)=>{
+  if(email!==REINALDO_DESK_ACCESS||!profile||profile.status!=='active'||
+     companyOf(profile)!=='abrao-reze')return profile;
+  if(profile.pricingDeskAccess===true)return profile;
+  if(!motyqFirestore.configured())throw new Error('pricing_desk_access_sync_unavailable');
+  await motyqFirestore.patch('users',email,{pricingDeskAccess:true});
+  const next={...profile,pricingDeskAccess:true};
+  await userAudit({email,id:email,...profile},next,'pricing_desk_access',
+     'Acesso adicional à Mesa de Precificação',
+     'Permissão de Mesa habilitada sem modificar cargo, empresa, unidade nem outros módulos.');
   return next;
 };
 const ensureManagementScope=(actor:any,targetCompany:string)=>{
@@ -422,7 +437,7 @@ export default async function handler(req: any, res: any) {
       }
       const profile:any=await currentUserProfileWithIdToken(token,email);
       if(!profile||profile.status!=='active')return res.status(403).json({error:'inactive_or_missing_user'});
-      const scoped=await ensureEvandroIqOnly(email,profile);
+      const scoped=await ensureReinaldoDeskAccess(email,await ensureEvandroIqOnly(email,profile));
       return res.status(200).json({user:{...scoped,email}});
     } catch (error:any) {
       console.error('Current-user lookup failed',error?.message||error);
