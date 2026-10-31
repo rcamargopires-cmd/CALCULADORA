@@ -57,6 +57,7 @@ const validSource=(a:Ad)=>{try{
 export default function ManualPricingWorkspace({user}:{user:User}){
  const key='motyq-iq-local-test-'+user.email.toLowerCase();
  const [deskSection,setDeskSection]=useState<'dashboard'|'pricing'|'consulted'|'approvals'>(()=>{
+   if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import'))return 'pricing';
    const previous=sessionStorage.getItem('motyq-iq-active-desk-tab');
    return previous==='pricing'||previous==='consulted'||previous==='approvals'?previous:'dashboard';
  });
