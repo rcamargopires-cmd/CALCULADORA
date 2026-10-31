@@ -186,6 +186,16 @@ const RoleAwareRoot: React.FC = () => {
   }, []);
 
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#f6f8fb] text-sm font-semibold text-slate-500">Carregando MOTYQ...</div>;
+
+  // Standalone Motyq IQ, without seller docks, voice controls or operational overlays.
+  const iqEmail=String(profile?.email||'').trim().toLowerCase();
+  const iqAllowed=profile?.companyId==='abrao-reze' &&
+    (['pricing','manager','admin'].includes(String(profile.role))||
+      Boolean(profile.pricingDeskOnly)||iqEmail==='reinaldo.ribas@abraoreze.com.br');
+  const iqSelected=new URLSearchParams(window.location.search).get('iq')==='1';
+  if(profile&&iqAllowed&&(iqSelected||profile.role==='pricing'||profile.pricingDeskOnly))
+    return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/>
+      <BillingGate user={profile}><ModuleErrorBoundary name="Motyq IQ" critical><App/></ModuleErrorBoundary></BillingGate></>;
   if (profile?.role === 'evaluator') return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><EvaluatorMotyq user={profile}/></BillingGate></>;
   if (profile?.role === 'manager' && profile.pricingDeskOnly) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><PricingMotyq user={profile}/></BillingGate></>;
   if (profile?.role === 'admin' && adminScope === ADMIN_HOME_SCOPE) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><AdminControlCenter currentUser={profile}/></>;
