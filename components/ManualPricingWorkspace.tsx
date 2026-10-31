@@ -25,7 +25,7 @@ const decodeExtensionTransfer=(hash:string):CapturedAd[]=>{
      try{link=new URL(url);}catch{return [];}
      if(link.protocol!=='https:'||!['www.webmotors.com.br','webmotors.com.br'].includes(link.hostname.toLowerCase())||
        !/^\/comprar\/[^/]+\/[^/]+\/.+\/\d{7,}\/?$/i.test(link.pathname)||
-       !Number.isFinite(price)||price<10000||price>2000000||!Number.isFinite(km)||km<1||km>999999||
+       !Number.isFinite(price)||price<1000||price>2000000||!Number.isFinite(km)||km<1||km>999999||
        !Number.isInteger(year)||year<1990||year>2100)return [];
      const canonical=link.origin+link.pathname;
      if(seen.has(canonical))return [];
@@ -39,7 +39,7 @@ const decodeExtensionTransfer=(hash:string):CapturedAd[]=>{
  }catch{return [];}
 };
 
-type Saved={approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
+type Saved={vehicleType?:'car'|'motorcycle';approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
 const number=(v:string)=>Number(v.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
 const money=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const localDate=()=>{const now=new Date();return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);};
@@ -70,6 +70,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const savedForm=useMemo(()=>{
    try {const item=sessionStorage.getItem(formKey);return item?JSON.parse(item):{};} catch{return {};}
  },[formKey]);
+ const [vehicleType,setVehicleType]=useState<'car'|'motorcycle'>(()=>savedForm.vehicleType==='motorcycle'?'motorcycle':'car');
  const [plate,setPlate]=useState<string>(()=>typeof savedForm.plate==='string'?savedForm.plate:'');const [retryCatalog,setRetryCatalog]=useState(0);
  const [model,setModel]=useState<string>(()=>typeof savedForm.model==='string'?savedForm.model:'');const [year,setYear]=useState<string>(()=>typeof savedForm.year==='string'?savedForm.year:'');
  const [brand,setBrand]=useState<string>(()=>typeof savedForm.brand==='string'?savedForm.brand:'');const [brandCode,setBrandCode]=useState<string>(()=>typeof savedForm.brandCode==='string'?savedForm.brandCode:'');const [modelCode,setModelCode]=useState<string>(()=>typeof savedForm.modelCode==='string'?savedForm.modelCode:'');const [yearCode,setYearCode]=useState<string>(()=>typeof savedForm.yearCode==='string'?savedForm.yearCode:'');
@@ -90,9 +91,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [searchDiagnostics,setSearchDiagnostics]=useState('');
  const autoAttempted=useRef<Set<string>>(new Set());
  useEffect(()=>{
-   try{sessionStorage.setItem(formKey,JSON.stringify({plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse,classification}));}catch{}
- },[formKey,plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse,classification]);
- const vehicleKey=[brandCode,modelCode,yearCode,km].join('|');
+   try{sessionStorage.setItem(formKey,JSON.stringify({vehicleType,plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse,classification}));}catch{}
+ },[formKey,vehicleType,plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse,classification]);
+ const vehicleKey=[vehicleType,brandCode,modelCode,yearCode,km].join('|');
  const autoResultsVisible=autoSearchKey===vehicleKey;
  const currentAds=adsVehicleKey===vehicleKey?ads:[];
  const marketYear=Number(fipe?.year||String(yearCode).match(/^(?:19|20)\d{2}/)?.[0]||String(year).match(/(?:19|20)\d{2}/)?.[0]||0);
@@ -216,16 +217,23 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    return matches&&(historyStatus==='all'||(historyStatus==='approved'?Number(r.approvedValue)>0:status===historyStatus));
  });
 
- const catalog=async(action:string,params:Record<string,string>,signal:AbortSignal)=>{const query=new URLSearchParams({action,...params});const cacheKey='motyq-iq-fipe-'+query.toString();const stored=sessionStorage.getItem(cacheKey);if(stored){try{return JSON.parse(stored);}catch{sessionStorage.removeItem(cacheKey);}}let lastError:Error=new Error('FIPE indisponível');for(let attempt=0;attempt<3;attempt++){if(signal.aborted)throw new DOMException('Consulta cancelada','AbortError');try{const response=await fetch('/api/marketiq-fipe?'+query.toString(),{signal,cache:'no-store'});if(!response.ok){lastError=new Error('FIPE HTTP '+response.status);if(response.status<500&&response.status!==429)throw lastError;}else{const data=await response.json();sessionStorage.setItem(cacheKey,JSON.stringify(data));return data;}}catch(e:any){if(e?.name==='AbortError')throw e;lastError=e instanceof Error?e:lastError;}if(attempt<2)await new Promise<void>((resolve,reject)=>{const timer=window.setTimeout(()=>{signal.removeEventListener('abort',cancel);resolve();},500*(attempt+1));const cancel=()=>{window.clearTimeout(timer);reject(new DOMException('Consulta cancelada','AbortError'));};signal.addEventListener('abort',cancel,{once:true});});}throw lastError;};
- useEffect(()=>{const controller=new AbortController();setCatalogLoading(true);catalog('brands',{},controller.signal).then(v=>setBrands(v.items||[])).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível carregar as marcas. Use Tentar novamente.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[retryCatalog]);
- useEffect(()=>{setModels([]);if(!brandCode)return;const controller=new AbortController();setCatalogLoading(true);setCatalogError('');catalog('models',{brandCode},controller.signal).then(v=>setModels(v.items||[])).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível carregar os modelos. Tente novamente em alguns instantes.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[brandCode]);
- useEffect(()=>{setYears([]);if(!brandCode||!modelCode)return;const controller=new AbortController();setCatalogLoading(true);setCatalogError('');catalog('years',{brandCode,modelCode},controller.signal).then(v=>setYears(v.items||[])).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível carregar os anos. Tente novamente em alguns instantes.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[brandCode,modelCode]);
- useEffect(()=>{setFipe(null);if(!brandCode||!modelCode||!yearCode)return;const controller=new AbortController();setCatalogLoading(true);setCatalogError('');catalog('detail',{brandCode,modelCode,yearCode},controller.signal).then(v=>{if(Number(v.value)>0)setFipe(v);else setCatalogError('Valor FIPE indisponível para esta versão.');}).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível consultar o valor FIPE. Tente novamente em alguns instantes.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[brandCode,modelCode,yearCode]);
+ const catalog=async(action:string,params:Record<string,string>,signal:AbortSignal)=>{const query=new URLSearchParams({action,vehicleType,...params});const cacheKey='motyq-iq-fipe-'+query.toString();const stored=sessionStorage.getItem(cacheKey);if(stored){try{return JSON.parse(stored);}catch{sessionStorage.removeItem(cacheKey);}}let lastError:Error=new Error('FIPE indisponível');for(let attempt=0;attempt<3;attempt++){if(signal.aborted)throw new DOMException('Consulta cancelada','AbortError');try{const response=await fetch('/api/marketiq-fipe?'+query.toString(),{signal,cache:'no-store'});if(!response.ok){lastError=new Error('FIPE HTTP '+response.status);if(response.status<500&&response.status!==429)throw lastError;}else{const data=await response.json();sessionStorage.setItem(cacheKey,JSON.stringify(data));return data;}}catch(e:any){if(e?.name==='AbortError')throw e;lastError=e instanceof Error?e:lastError;}if(attempt<2)await new Promise<void>((resolve,reject)=>{const timer=window.setTimeout(()=>{signal.removeEventListener('abort',cancel);resolve();},500*(attempt+1));const cancel=()=>{window.clearTimeout(timer);reject(new DOMException('Consulta cancelada','AbortError'));};signal.addEventListener('abort',cancel,{once:true});});}throw lastError;};
+ useEffect(()=>{const controller=new AbortController();setCatalogLoading(true);catalog('brands',{},controller.signal).then(v=>setBrands(v.items||[])).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível carregar as marcas. Use Tentar novamente.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[retryCatalog,vehicleType]);
+ useEffect(()=>{setModels([]);if(!brandCode)return;const controller=new AbortController();setCatalogLoading(true);setCatalogError('');catalog('models',{brandCode},controller.signal).then(v=>setModels(v.items||[])).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível carregar os modelos. Tente novamente em alguns instantes.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[brandCode,vehicleType]);
+ useEffect(()=>{setYears([]);if(!brandCode||!modelCode)return;const controller=new AbortController();setCatalogLoading(true);setCatalogError('');catalog('years',{brandCode,modelCode},controller.signal).then(v=>setYears(v.items||[])).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível carregar os anos. Tente novamente em alguns instantes.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[brandCode,modelCode,vehicleType]);
+ useEffect(()=>{setFipe(null);if(!brandCode||!modelCode||!yearCode)return;const controller=new AbortController();setCatalogLoading(true);setCatalogError('');catalog('detail',{brandCode,modelCode,yearCode},controller.signal).then(v=>{if(Number(v.value)>0)setFipe(v);else setCatalogError('Valor FIPE indisponível para esta versão.');}).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível consultar o valor FIPE. Tente novamente em alguns instantes.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[brandCode,modelCode,yearCode,vehicleType]);
+ const selectVehicleType=(next:'car'|'motorcycle')=>{
+   if(next===vehicleType)return;
+   setVehicleType(next);setBrandCode('');setBrand('');setModelCode('');setModel('');
+   setYearCode('');setYear('');setFipe(null);setAds([]);setAutoSearchKey('');
+   setNotice('Tipo de veículo alterado. Selecione a marca, o modelo e o ano novamente.');
+ };
  const selectBrand=(code:string)=>{setBrandCode(code);setBrand(brands.find(x=>x.code===code)?.name||'');setModelCode('');setModel('');setYearCode('');setYear('');setFipe(null);};
  const selectModel=(code:string)=>{setModelCode(code);setModel(models.find(x=>x.code===code)?.name||'');setYearCode('');setYear('');setFipe(null);};
  const selectYear=(code:string)=>{setYearCode(code);setYear(years.find(x=>x.code===code)?.name||'');setFipe(null);};
  const change=(index:number,patch:Partial<Ad>)=>setAds(a=>a.map((x,i)=>i===index?{...x,...patch}:x));
  const searchMarket=async()=>{
+   if(vehicleType==='motorcycle'){setAutoError('Para motos, use anúncios individuais conferidos. A busca indexada de carros não é aplicada.');return;}
    if(!searchReady){setAutoError('Informe '+missingMarketDetails+' para pesquisar anúncios.');setAutoSearchKey(vehicleKey);return;}
    if(autoLoading)return;
    autoAttempted.current.add(vehicleKey);
@@ -238,7 +246,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      const token=await currentUser.getIdToken();
      const response=await fetch('/api/marketiq-market-scan',{
        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-       body:JSON.stringify({action:'desk_market_search',brand,model,year:marketYear,km:number(km)}),
+       body:JSON.stringify({action:'desk_market_search',vehicleType,brand,model,year:marketYear,km:number(km)}),
        signal:AbortSignal.timeout(55000)
      });
      const payload=await response.json().catch(()=>({}));
@@ -310,12 +318,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const ceiling=Math.max(0,avg*.86*(repasse?.95:1)-number(cost));
  const marketReady=primary.length>=2&&distantKm.length===0&&suspectAds.length===0;
  const historicalEstimate=useMemo(()=>{
-   if(!fipe||!classification||number(km)<=0)return null;
+   if(vehicleType==='motorcycle'||!fipe||!classification||number(km)<=0)return null;
    return calculateHistoricalPrice({
      fipe:fipe.value,modelYear:fipe.year,km:number(km),preparation:number(cost),
      classification,destination:repasse?'REPASSE':'SHOWROOM'
    });
- },[fipe,classification,km,cost,repasse]);
+ },[vehicleType,fipe,classification,km,cost,repasse]);
  const save=async()=>{
    const hasVehicle=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)&&brandCode&&modelCode&&yearCode&&number(km)>0;
    if(!hasVehicle){
@@ -330,8 +338,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      setHistoryError('Informe uma data de aprovação válida, até hoje.');return;
    }
    const provisional=!marketReady;
-   const record:Saved={id:String(Date.now()),date:new Date().toISOString(),plate,model,year,km,cost,repasse,
-     ads:currentAds,value:provisional?(referenceAvg>0?referenceCeiling:historicalEstimate?.target||0):ceiling,provisional,
+   const record:Saved={id:String(Date.now()),date:new Date().toISOString(),vehicleType,plate,model,year,km,cost,repasse,
+     ads:currentAds,value:provisional?(vehicleType==='motorcycle'?0:referenceAvg>0?referenceCeiling:historicalEstimate?.target||0):ceiling,provisional,
      referenceName:provisional?(referenceAvg>0?referenceName:'Histórico de compras'):'Webmotors verificada',
      historicalTarget:historicalEstimate?.target,historicalClass:classification||undefined,
      brand,brandCode,modelCode,yearCode,fipe};
@@ -361,7 +369,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      setNotice('Não foi salva. Seus dados continuam nesta tela. Verifique a mensagem do histórico e tente novamente.');
    }finally{setHistoryBusy(false);}
  };
- const restore=(r:Saved)=>{setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setRepasse(r.repasse);setClassification(r.historicalClass||'');setAds(r.ads);const restoredKey=[r.brandCode||'',r.modelCode||'',r.yearCode||'',r.km].join('|');setAdsVehicleKey(restoredKey);setAutoSearchKey(restoredKey);autoAttempted.current.add(restoredKey);setAutoSearchedAt(r.date);switchDeskSection('pricing');setNewApprovedValue('');setNewApprovedDate(localDate());setNotice('Avaliação reaberta. Salvar cria nova versão; os valores aprovados anteriormente continuam registrados na avaliação original.');window.scrollTo({top:0,behavior:'smooth'})};
+ const restore=(r:Saved)=>{setVehicleType(r.vehicleType==='motorcycle'?'motorcycle':'car');setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setRepasse(r.repasse);setClassification(r.historicalClass||'');setAds(r.ads);const restoredKey=[r.vehicleType==='motorcycle'?'motorcycle':'car',r.brandCode||'',r.modelCode||'',r.yearCode||'',r.km].join('|');setAdsVehicleKey(restoredKey);setAutoSearchKey(restoredKey);autoAttempted.current.add(restoredKey);setAutoSearchedAt(r.date);switchDeskSection('pricing');setNewApprovedValue('');setNewApprovedDate(localDate());setNotice('Avaliação reaberta. Salvar cria nova versão; os valores aprovados anteriormente continuam registrados na avaliação original.');window.scrollTo({top:0,behavior:'smooth'})};
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  return <main className="mx-auto max-w-7xl space-y-5 p-5 text-slate-900">
  <nav className="motyq-iq-tabs flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Áreas do Motyq IQ">
@@ -457,8 +465,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   </section>:
   <>
  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><strong>Piloto oficial:</strong> a busca automática usa páginas indexadas e pode ficar sem anúncios quando a fonte gratuita falhar. A estimativa histórica é independente da Webmotors e recalcula com FIPE, KM, classificação, preparo e destino. Anúncios não auditados não autorizam compras. As avaliações salvas no histórico online podem ser reabertas por perfis autorizados da mesma unidade.</div>
- <section className="rounded-xl bg-white p-5"><h2 className="mb-3 text-xl font-semibold">Nova precificação</h2><div className="grid gap-3 md:grid-cols-2"><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="ABC1D23" maxLength={7}/></label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">Selecione modelo e versão</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Ano/modelo e combustível<select className={input} value={yearCode} disabled={!modelCode} onChange={e=>selectYear(e.target.value)}><option value="">Selecione ano</option>{years.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>KM do veículo<input className={input} value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" placeholder="Ex.: 45000"/></label></div><div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Tabela FIPE · consulta gratuita</p>{catalogLoading?<p>Consultando catálogo FIPE...</p>:fipe?<><p className="text-2xl font-bold text-slate-900">{money(fipe.value)}</p><p className="text-sm text-slate-700">{fipe.brand} · {fipe.model} · {fipe.year} · {fipe.fuel}</p><p className="text-xs text-slate-600">Código FIPE: {fipe.fipeCode} · Referência: {fipe.referenceMonth}</p></>:<p className="text-sm text-slate-600">Selecione marca, modelo/versão e ano para consultar o valor automaticamente.</p>}{catalogError&&<div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-red-700">{catalogError}</p><button type="button" onClick={()=>{setCatalogError("");setRetryCatalog(x=>x+1);if(brandCode){const current=brandCode;setBrandCode('');window.setTimeout(()=>setBrandCode(current),0);}}} className="rounded-lg border border-cyan-700 px-3 py-1 text-sm font-semibold text-cyan-900">Tentar novamente</button></div>}</div></section>
- <section className="rounded-xl border border-indigo-100 bg-white p-5">
+ <section className="rounded-xl bg-white p-5"><h2 className="mb-3 text-xl font-semibold">Nova precificação</h2><div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="ABC1D23" maxLength={7}/></label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">Selecione modelo e versão</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Ano/modelo e combustível<select className={input} value={yearCode} disabled={!modelCode} onChange={e=>selectYear(e.target.value)}><option value="">Selecione ano</option>{years.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>KM do veículo<input className={input} value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" placeholder="Ex.: 45000"/></label></div><div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Tabela FIPE · {vehicleType==='motorcycle'?'motocicletas':'automóveis'} · consulta gratuita</p>{catalogLoading?<p>Consultando catálogo FIPE...</p>:fipe?<><p className="text-2xl font-bold text-slate-900">{money(fipe.value)}</p><p className="text-sm text-slate-700">{fipe.brand} · {fipe.model} · {fipe.year} · {fipe.fuel}</p><p className="text-xs text-slate-600">Código FIPE: {fipe.fipeCode} · Referência: {fipe.referenceMonth}</p></>:<p className="text-sm text-slate-600">Selecione marca, modelo/versão e ano para consultar o valor automaticamente.</p>}{catalogError&&<div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-red-700">{catalogError}</p><button type="button" onClick={()=>{setCatalogError("");setRetryCatalog(x=>x+1);if(brandCode){const current=brandCode;setBrandCode('');window.setTimeout(()=>setBrandCode(current),0);}}} className="rounded-lg border border-cyan-700 px-3 py-1 text-sm font-semibold text-cyan-900">Tentar novamente</button></div>}</div></section>
+ {vehicleType==='car'? <section className="rounded-xl border border-indigo-100 bg-white p-5">
   <div className="flex flex-wrap items-start justify-between gap-2">
     <div><h2 className="text-xl font-semibold">Preço-alvo histórico · Motyq IQ</h2>
       <p className="mt-1 text-sm text-slate-600">Estimativa de quanto a empresa costuma pagar por veículos semelhantes, usando FIPE, ano, KM, classe, destino e preparo. Não depende da pesquisa Webmotors.</p></div>
@@ -490,7 +498,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     </div>
     <p className="text-xs text-indigo-800 md:col-span-2">Calibrado somente com status UTILIZADO, não com AVALIADO. A previsão não identifica histórico de sinistro, leilão, avarias ou liquidez. Compare com anúncios verificáveis e faça inspeção presencial.</p>
   </div>:<p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Selecione a classificação, veículo, KM e FIPE para obter o preço-alvo histórico.</p>}
- </section>
+ </section>:<section className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+   <h2 className="text-xl font-bold text-amber-950">Precificação de motocicletas</h2>
+   <p className="mt-2 text-sm text-amber-900">A FIPE da moto aparece acima. O modelo histórico de 223 compras foi treinado somente com automóveis e não será aplicado a motos. Para sugerir compra, confira pelo menos 2 anúncios individuais da mesma versão e ano, com quilometragem comparável, e informe os custos de preparo.</p>
+   <p className="mt-2 text-sm font-semibold text-amber-950">{marketReady?'Anúncios conferidos disponíveis: o cálculo da Mesa pode ser analisado.':'Sem anúncios suficientes: nenhuma sugestão automática de compra será inventada.'}</p>
+ </section>}
 
 
  <section className="rounded-xl border border-cyan-200 bg-white p-4">
