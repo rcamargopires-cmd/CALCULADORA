@@ -242,7 +242,7 @@ export default async function handler(req:any,res:any){
          payload:{stringValue:JSON.stringify(event)},
          companyId:{stringValue:scope.companyId},storeId:{stringValue:scope.storeId},
          createdAt:{stringValue:event.recordedAt},
-         eventType:{stringValue:'purchase_paid'},evaluationId:{stringValue}
+         eventType:{stringValue:'purchase_paid'},evaluationId:{stringValue:evaluationId}
        }}),signal:AbortSignal.timeout(16000)
      });
      if(!response.ok)throw new Error('HISTORY_PAID_WRITE_FAILED_'+response.status);
