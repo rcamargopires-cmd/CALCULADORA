@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { User } from '../types';
 import { companyScopeService } from '../services/companyScopeService';
+import { companyIdForUser } from '../services/companyService';
 
 type View='dashboard'|'calculator';
 type Props={
@@ -60,7 +61,7 @@ const MotyqShell:React.FC<Props>=({
   const role=String(user.role||'');
   const seller=role==='seller'||role==='user';
   const manager=role==='manager'||role==='admin';
-  const iqAvailable=user.companyId==='abrao-reze'&&
+  const iqAvailable=companyIdForUser(user)==='abrao-reze'&&
     (manager||role==='pricing'||Boolean(user.pricingDeskOnly)||
       String(user.email||'').toLowerCase()==='reinaldo.ribas@abraoreze.com.br');
   const openIq=()=>window.location.assign(window.location.pathname+'?iq=1');
