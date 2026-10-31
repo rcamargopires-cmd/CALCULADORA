@@ -1,3 +1,4 @@
+import pricingHistoryHandler from '../services/marketiqPricingHistoryServer';
 import { GoogleGenAI } from '@google/genai';
 
 const FIREBASE_API_KEY = 'AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
@@ -173,6 +174,7 @@ export default async function handler(req: any, res: any) {
 
     const firebaseUser = await verifyFirebaseToken(token);
     if (!firebaseUser?.email) return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
+    if (['pricing_history_list','pricing_history_save'].includes(String(req.body?.action||''))) return pricingHistoryHandler(req,res);
     if (req.body?.action === 'desk_market_search') return marketIqDeskSearchServer(req, res);
 
     const apiKey = process.env.GEMINI_API_KEY;
