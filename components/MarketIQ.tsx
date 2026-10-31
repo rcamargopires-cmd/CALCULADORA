@@ -16,6 +16,8 @@ const riskLabel=(score:number)=>score>=80?'COMPRA FORTE':score>=65?'COMPRA RECOM
 
 const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
  const inspectionOnly=currentUser.role==='evaluator';
+ const useNewIq=!inspectionOnly && (currentUser.companyId||'abrao-reze')==='abrao-reze' && ['manager','admin','pricing'].includes(currentUser.role);
+ const openNewIq=()=>window.location.assign(window.location.pathname+'?iq=1');
  const[open,setOpen]=useState(false);
  const[plate,setPlate]=useState('');const[brand,setBrand]=useState('');const[brandCode,setBrandCode]=useState('');const[vehicle,setVehicle]=useState('');const[modelCode,setModelCode]=useState('');const[year,setYear]=useState('');const[yearCode,setYearCode]=useState('');
  const[brands,setBrands]=useState<CatalogItem[]>([]);const[models,setModels]=useState<CatalogItem[]>([]);const[years,setYears]=useState<CatalogItem[]>([]);const[catalogBusy,setCatalogBusy]=useState(false);const[fipeBusy,setFipeBusy]=useState(false);
@@ -169,9 +171,9 @@ const MarketIQ:React.FC<Props>=({currentUser,storeName})=>{
  const catalogSelect=(label:string,value:string,onChange:(value:string)=>void,options:CatalogItem[],placeholder:string,disabled=false,wide=false)=><label className={wide?'lg:col-span-2':''}><span className={labelCls}>{label}</span><select value={value} disabled={disabled} onChange={e=>onChange(e.target.value)} className="h-10 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-white outline-none focus:border-cyan-300/40 disabled:cursor-not-allowed disabled:opacity-50"><option value="">{placeholder}</option>{options.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</select></label>;
 
  return <>
-  <button title="MarketIQ · avaliação e precificação" onClick={()=>setOpen(true)} className="fixed bottom-[154px] right-4 z-[153] flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-[#11191b]/95 px-4 py-3 text-left text-white shadow-2xl shadow-black/45 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#142025] active:scale-[.98]">
+  <button title={useNewIq?'Motyq IQ · Mesa de Precificação':'MarketIQ · avaliação e precificação'} onClick={()=>useNewIq?openNewIq():setOpen(true)} className="fixed bottom-[154px] right-4 z-[153] flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-[#11191b]/95 px-4 py-3 text-left text-white shadow-2xl shadow-black/45 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#142025] active:scale-[.98]">
    <span className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/15 bg-cyan-300/[.07] text-cyan-300"><Gauge size={20}/></span>
-   <span className="hidden sm:block"><span className="block text-[9px] font-black uppercase tracking-[.17em] text-cyan-300">MERCADO</span><span className="mt-0.5 block text-sm font-semibold">MarketIQ</span></span>
+   <span className="hidden sm:block"><span className="block text-[9px] font-black uppercase tracking-[.17em] text-cyan-300">MERCADO</span><span className="mt-0.5 block text-sm font-semibold">{useNewIq?'Motyq IQ':'MarketIQ'}</span></span>
   </button>
 
   {open&&<div className="fixed inset-0 z-[590] overflow-y-auto bg-black/80 p-3 backdrop-blur-md md:p-5">

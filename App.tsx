@@ -279,7 +279,7 @@ const App: React.FC = () => {
 
   // Authorized IQ access on the official Motyq site, keeping the user's stored role.
   const iqEmail=String(user.email||'').trim().toLowerCase();
-  const iqAllowed=user.companyId==='abrao-reze' &&
+  const iqAllowed=companyIdForUser(user)==='abrao-reze' &&
     (['pricing','manager','admin'].includes(user.role)||Boolean(user.pricingDeskOnly)||
      iqEmail==='reinaldo.ribas@abraoreze.com.br');
   const iqSelected=new URLSearchParams(window.location.search).get('iq')==='1';
