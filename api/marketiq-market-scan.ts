@@ -1,3 +1,4 @@
+import { validateWebmotorsSearchUrl } from '../services/marketIqWebmotorsUrl';
 import { GoogleGenAI } from '@google/genai';
 
 const FIREBASE_API_KEY = 'AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
@@ -174,6 +175,7 @@ export default async function handler(req: any, res: any) {
     const firebaseUser = await verifyFirebaseToken(token);
     if (!firebaseUser?.email) return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
     if (req.body?.action === 'desk_market_search') return marketIqDeskSearchServer(req, res);
+    if (req.body?.action === 'desk_webmotors_url_scan') return marketIqWebmotorsUrlScan(req, res);
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(503).json({ error: 'Gemini ainda não está configurado no servidor.' });
@@ -804,4 +806,98 @@ async function marketIqDeskSearchServer(req: any, res: any) {
       error: result.status === 'rejected' ? String(result.reason?.message || 'Fonte indisponível').slice(0,180) : '',
     })),
   });
+}
+
+
+/**
+ * Piloto de leitura de uma URL exata da Webmotors, sem contornar bloqueios.
+ * Somente aceita anuncios individuais publicados em JSON-LD com preco, ano e KM.
+ * Pagina de resultados ou trecho de busca nao vira anuncio confirmado.
+ */
+async function marketIqWebmotorsUrlScan(req:any, res:any) {
+  res.setHeader('Cache-Control','private, no-store');
+  const checked=validateWebmotorsSearchUrl(String(req.body?.webmotorsUrl||''));
+  if(!checked.valid) return res.status(400).json({error:checked.reason,ads:[]});
+  const brand=string(req.body?.brand);
+  const model=string(req.body?.model);
+  const year=Number(req.body?.year);
+  if(!brand||!model||!Number.isInteger(year)||year<1990||year>2100)
+    return res.status(400).json({error:'Informe marca, modelo e ano para validar os anuncios.',ads:[]});
+  const canonical=(v:unknown)=>normalize(String(v||'')).replace(/[^a-z0-9]+/g,' ');
+  const brandToken=canonical(marketBrand(brand));
+  const modelToken=canonical(model).split(' ').filter(Boolean)[0]||'';
+  let pageStatus=0;
+  try {
+    const response=await fetch(checked.url,{
+      redirect:'manual', headers:{'accept':'text/html,application/xhtml+xml'},
+      signal:AbortSignal.timeout(12000),
+    });
+    pageStatus=response.status;
+    if(response.status>=300&&response.status<400) return res.status(200).json({
+      ads:[],provider:'Webmotors URL direta',pageStatus,
+      warning:'A Webmotors respondeu com redirecionamento. Leitura automatica nao confirmada; nenhuma cotacao foi calculada.',
+    });
+    if(!response.ok) return res.status(200).json({
+      ads:[],provider:'Webmotors URL direta',pageStatus,
+      warning:'A Webmotors nao autorizou a leitura da pagina (HTTP '+pageStatus+'). Sem dados extraidos; nao estimar preco de mercado.',
+    });
+    const mime=String(response.headers.get('content-type')||'');
+    if(!mime.includes('text/html')) return res.status(200).json({
+      ads:[],provider:'Webmotors URL direta',pageStatus,warning:'Resposta nao e HTML de anuncios. Nenhuma cotacao foi produzida.',
+    });
+    const length=Number(response.headers.get('content-length')||0);
+    if(length>6000000) return res.status(200).json({ads:[],provider:'Webmotors URL direta',pageStatus,
+      warning:'Pagina acima do limite de leitura do piloto.'});
+    const html=(await response.text()).slice(0,6000000);
+    const snippets=[...html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)].slice(0,100);
+    const ads:any[]=[];
+    const visited=new Set<string>();
+    let scanned=0;
+    const readNum=(v:any)=>{
+      const val=typeof v==='object'&&v!==null?v.value:v;
+      const raw=String(val??'').trim().replace(/\s/g,'');
+      return Number(raw.replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
+    };
+    const inspect=(data:any,depth=0):void=>{
+      if(!data||depth>8||scanned++>10000)return;
+      if(Array.isArray(data)){data.forEach(x=>inspect(x,depth+1));return;}
+      if(typeof data!=='object')return;
+      const kind=String(Array.isArray(data['@type'])?data['@type'].join(' '):data['@type']||'');
+      const offer=Array.isArray(data.offers)?data.offers[0]:data.offers||{};
+      const adUrl=String(data.url||offer?.url||'');
+      const title=String(data.name||'');
+      const key=canonical(title+' '+String(data.brand?.name||data.brand||''));
+      const adYear=readNum(data.vehicleModelDate||data.modelDate||data.modelYear||data.year);
+      const km=readNum(data.mileageFromOdometer||data.mileage||data.km);
+      const price=readNum(offer?.price||data.price);
+      if(/Vehicle|Car|Product/i.test(kind)&&key.includes(brandToken)&&key.includes(modelToken)&&
+        adYear===year&&price>=15000&&price<=2000000&&km>0&&adUrl){
+        try{
+          const u=new URL(adUrl,checked.url);
+          const host=u.hostname.toLowerCase();
+          if(u.protocol==='https:'&&(host==='www.webmotors.com.br'||host==='webmotors.com.br')&&
+            /^\/comprar\/[^/]+\/[^/]+\/.+\/\d{7,}\/?$/.test(u.pathname.toLowerCase())){
+            const clean=u.origin+u.pathname;
+            if(!visited.has(clean)){visited.add(clean);ads.push({source:'webmotors',title,price,km,year:adYear,
+              url:clean,catalog:false,confidence:'candidate',evidence:'Preco, ano, KM e link individual em dados estruturados da pagina; verificar anuncio ativo.'});}
+          }
+        }catch{}
+      }
+      for(const child of Object.values(data)) if(child&&typeof child==='object')inspect(child,depth+1);
+    };
+    for(const match of snippets){try{inspect(JSON.parse(match[1]));}catch{}}
+    return res.status(200).json({
+      ads:ads.sort((a,b)=>a.price-b.price).slice(0,30),
+      provider:'Webmotors URL direta · JSON-LD',
+      pageStatus,
+      scriptCount:snippets.length,
+      pagesFound:1,
+      searchedAt:new Date().toISOString(),
+      warning:ads.length?'Dados estruturados encontrados. Anuncios permanecem candidatos ate conferencia individual.':
+        'A pagina foi aberta, mas nao forneceu anuncios individuais com preco, ano e KM verificaveis em dados estruturados. Nao ha preco automatico confirmado.',
+    });
+  } catch(error:any) {
+    return res.status(200).json({ads:[],provider:'Webmotors URL direta',pageStatus,
+      warning:'Falha na leitura da Webmotors: '+String(error?.name==='TimeoutError'?'tempo limite':error?.message||'acesso indisponivel').slice(0,150)+'. Nenhuma cotacao foi calculada.'});
+  }
 }
