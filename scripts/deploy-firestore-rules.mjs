@@ -1,6 +1,11 @@
 import { createSign } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
+// Pilot release: database rules require a separate explicit, reviewed authorization.
+if (process.env.MOTYQ_EXPLICIT_FIRESTORE_RULES_RELEASE !== 'true') {
+  console.log('[firestore-rules] skip: no explicit rules-release authorization');
+  process.exit(0);
+}
 const env = String(process.env.VERCEL_ENV || '').trim();
 if (env !== 'production') {
   console.log('[firestore-rules] skip: VERCEL_ENV=' + (env || 'local'));

@@ -23,6 +23,7 @@ import { configService } from './services/configService';
 import { calculateCommission } from './utils/commission';
 import { dealTenantService } from './services/dealTenantService';
 import MotyqShell from './components/MotyqShell';
+import ManualPricingWorkspace from './components/ManualPricingWorkspace';
 import { currentStockService } from './services/currentStockService';
 import { companyIdForUser } from './services/companyService';
 import { storeIdForUser } from './services/storeService';
@@ -275,6 +276,29 @@ const App: React.FC = () => {
 
   if (isAuthLoading) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white">Carregando...</div>;
   if (!user) return <>{authError && <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/90 text-white px-4 py-2 rounded-lg shadow-lg">{authError}</div>}<LoginScreen onLoginSuccess={() => {}} /></>;
+
+  // Authorized IQ access on the official Motyq site, keeping the user's stored role.
+  const iqEmail=String(user.email||'').trim().toLowerCase();
+  const iqAllowed=user.companyId==='abrao-reze' &&
+    (['pricing','manager','admin'].includes(user.role)||Boolean(user.pricingDeskOnly)||
+     iqEmail==='reinaldo.ribas@abraoreze.com.br');
+  const iqSelected=new URLSearchParams(window.location.search).get('iq')==='1';
+  if(iqAllowed&&(iqSelected||user.role==='pricing'||user.pricingDeskOnly))return (
+    <div className="motyq-iq-workspace min-h-screen bg-[#f4f7fb] text-slate-900">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#112d3d] px-5 py-4 text-white">
+        <div><strong className="text-xl text-white">Motyq IQ</strong><p className="text-xs text-slate-200">Inteligência de seminovos · {user.name}</p></div>
+        <div className="flex items-center gap-2">
+          {user.role!=='pricing'&&!user.pricingDeskOnly&&<a href={window.location.pathname} className="rounded-lg border border-white/20 px-4 py-2 text-sm text-white">Voltar ao Motyq GO</a>}
+          <button onClick={handleLogout} className="rounded-lg border border-white/20 px-4 py-2 text-sm text-white">Sair</button>
+        </div>
+      </header>
+      <main className="mx-auto max-w-7xl px-5 pt-6">
+        <h1 className="text-2xl font-black tracking-tight text-slate-900">Motyq IQ · Inteligência de Seminovos</h1>
+        <p className="mt-1 text-sm text-slate-600">Painel gerencial, precificação e repasses em versão piloto.</p>
+      </main>
+      <ManualPricingWorkspace user={user}/>
+    </div>
+  );
   if (!fieldConfig || !commissionConfig || !bankRates) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white">Carregando configurações...</div>;
 
   return (

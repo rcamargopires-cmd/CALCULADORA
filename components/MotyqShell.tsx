@@ -60,6 +60,10 @@ const MotyqShell:React.FC<Props>=({
   const role=String(user.role||'');
   const seller=role==='seller'||role==='user';
   const manager=role==='manager'||role==='admin';
+  const iqAvailable=user.companyId==='abrao-reze'&&
+    (manager||role==='pricing'||Boolean(user.pricingDeskOnly)||
+      String(user.email||'').toLowerCase()==='reinaldo.ribas@abraoreze.com.br');
+  const openIq=()=>window.location.assign(window.location.pathname+'?iq=1');
   const crm=()=>window.dispatchEvent(new CustomEvent('motyq:open-crm',{detail:{}}));
 
   useEffect(()=>{
@@ -90,6 +94,9 @@ const MotyqShell:React.FC<Props>=({
           <LayoutDashboard size={18}/><span>{seller?'Meu dia':'Visão geral'}</span>
         </button>
         {seller&&<button className="mq-nav-item" onClick={crm}><MessageSquareText size={18}/><span>CRM</span></button>}
+        {iqAvailable&&<button className="mq-nav-item" onClick={openIq} title="Abrir Motyq IQ · Inteligência de Seminovos">
+          <Gauge size={18}/><span>Motyq IQ</span>
+        </button>}
         <button className={'mq-nav-item '+(activeView==='calculator'?'is-active':'')} onClick={onCalculator}>
           <Calculator size={18}/><span>Negociação</span>
         </button>

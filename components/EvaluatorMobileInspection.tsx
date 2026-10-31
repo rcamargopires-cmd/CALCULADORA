@@ -51,7 +51,7 @@ const EvaluatorMobileInspection:React.FC<{user:User}>=({user})=>{
   const list=tab==='new'?newItems:mine;
 
   const ensureDraft=async(request:EvaluationQueueRequest)=>{
-    let evaluation=request.marketiqEvaluationId?await marketIqEvaluationService.getById(request.marketiqEvaluationId).catch(()=>null):null;
+    let evaluation=request.marketIqEvaluationId?await marketIqEvaluationService.getById(request.marketiqEvaluationId).catch(()=>null):null;
     if(!evaluation){
       const samePlate=await marketIqEvaluationService.listByPlate(companyId,storeId,request.plate).catch(()=>[]);
       evaluation=samePlate.find(item=>item.status==='draft'&&String(item.createdByEmail||'').toLowerCase()===email)||null;
