@@ -155,12 +155,27 @@ const normalizePayload=(input:any)=>{
  if(JSON.stringify(payload).length>30000)throw new Error('HISTORY_PAYLOAD_TOO_LARGE');
  return payload;
 };
+// Purchase amounts are separate, append-only events. The original valuation is never overwritten.
+const hydratePaidRecords=(records:any[])=>{
+ const newest=new Map<string,any>();
+ for(const entry of records){
+   if(entry?.kind!=='purchase_paid'||typeof entry.evaluationId!=='string')continue;
+   const previous=newest.get(entry.evaluationId);
+   if(!previous||String(entry.recordedAt)>String(previous.recordedAt))newest.set(entry.evaluationId,entry);
+ }
+ return records.filter(entry=>entry?.kind!=='purchase_paid').map(entry=>{
+   const paid=newest.get(entry.id);
+   return paid?{...entry,paidValue:paid.paidValue,paidAt:paid.paidAt,
+      paidRecordedAt:paid.recordedAt,paidRecordedBy:paid.recordedBy,
+      paidRecordedEmail:paid.recordedEmail}:entry;
+ });
+};
 const historyPath=(base:string,scope:{companyId:string;storeId:string})=>
  base+'/marketiq_pricing_histories_v1/'+scope.companyId+'/stores/'+scope.storeId+'/evaluations';
 export default async function handler(req:any,res:any){
  res.setHeader('Cache-Control','no-store, private');
  if(req.method!=='POST')return respond(res,405,{error:'Método não permitido.'});
- if(!['pricing_history_list','pricing_history_save'].includes(String(req.body?.action||'')))return respond(res,400,{error:'Operação inválida.'});
+ if(!['pricing_history_list','pricing_history_save','pricing_history_paid'].includes(String(req.body?.action||'')))return respond(res,400,{error:'Operação inválida.'});
  const idToken=idTokenFrom(req);
  if(!idToken||idToken.length>8000)return respond(res,401,{error:'Entre no Motyq novamente.'});
  try{
@@ -189,6 +204,50 @@ export default async function handler(req:any,res:any){
      if(!response.ok)throw new Error('HISTORY_WRITE_FAILED_'+response.status);
      return respond(res,200,{saved:true,record});
    }
+   if(req.body.action==='pricing_history_paid'){
+     const evaluationId=text(req.body?.evaluationId,80);
+     const rawAmount=req.body?.amount;
+     const amount=Number(rawAmount);
+     const paidAt=text(req.body?.paidAt,10);
+     const paidDate=new Date(paidAt+'T12:00:00Z');
+     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(evaluationId)||
+       typeof rawAmount!=='number'||!Number.isFinite(amount)||amount<=0||amount>2000000||
+       !/^\d{4}-\d{2}-\d{2}$/.test(paidAt)||
+       Number.isNaN(paidDate.getTime())||paidDate.toISOString().slice(0,10)!==paidAt||
+       paidAt>new Date().toISOString().slice(0,10))
+       return respond(res,400,{error:'Confira o valor pago e a data da compra.'});
+     // The authenticated tenant determines the collection path. A forged record id
+     // can never point to another store's valuation.
+     const originalResponse=await fetch(base+'/'+encodeURIComponent(evaluationId),{
+       headers:authorization,signal:AbortSignal.timeout(12000)
+     });
+     if(originalResponse.status===404)return respond(res,404,{error:'Avaliação não encontrada nesta unidade.'});
+     if(!originalResponse.ok)throw new Error('HISTORY_PAID_ORIGINAL_READ_FAILED_'+originalResponse.status);
+     const originalData=await originalResponse.json() as any;
+     let original:any;
+     try{original=JSON.parse(readString(documentFields(originalData),'payload'));}catch{}
+     if(!original||original.id!==evaluationId||original.companyId!==scope.companyId||
+        original.storeId!==scope.storeId||original.kind==='purchase_paid')
+       return respond(res,404,{error:'Avaliação não encontrada nesta unidade.'});
+     const event={
+       kind:'purchase_paid',id:randomUUID(),evaluationId,
+       paidValue:Math.round(amount*100)/100,paidAt,
+       recordedAt:new Date().toISOString(),
+       recordedBy:scope.name,recordedEmail:scope.email,
+       companyId:scope.companyId,storeId:scope.storeId
+     };
+     const response=await fetch(base+'?documentId='+encodeURIComponent(event.id),{
+       method:'POST',headers:{...authorization,'content-type':'application/json'},
+       body:JSON.stringify({fields:{
+         payload:{stringValue:JSON.stringify(event)},
+         companyId:{stringValue:scope.companyId},storeId:{stringValue:scope.storeId},
+         createdAt:{stringValue:event.recordedAt},
+         eventType:{stringValue:'purchase_paid'},evaluationId:{stringValue}
+       }}),signal:AbortSignal.timeout(16000)
+     });
+     if(!response.ok)throw new Error('HISTORY_PAID_WRITE_FAILED_'+response.status);
+     return respond(res,200,{saved:true,paid:event});
+   }
    const rows:any[]=[];
    let pageToken='';
    for(let page=0;page<5;page++){
@@ -202,14 +261,15 @@ export default async function handler(req:any,res:any){
        try{
          const record=JSON.parse(readString(documentFields(doc),'payload'));
          if(record?.companyId===scope.companyId&&record?.storeId===scope.storeId&&
-           typeof record?.id==='string'&&typeof record?.plate==='string')rows.push(record);
+           typeof record?.id==='string'&&(typeof record?.plate==='string'||record?.kind==='purchase_paid'))rows.push(record);
        }catch{}
      }
      pageToken=String(body.nextPageToken||'');
      if(!pageToken)break;
    }
-   rows.sort((a,b)=>String(b.createdAt||b.date).localeCompare(String(a.createdAt||a.date)));
-   return respond(res,200,{records:rows,hasMore:Boolean(pageToken)});
+   const history=hydratePaidRecords(rows);
+   history.sort((a,b)=>String(b.createdAt||b.date).localeCompare(String(a.createdAt||a.date)));
+   return respond(res,200,{records:history,hasMore:Boolean(pageToken)});
  }catch(error:any){
    const name=String(error?.message||'');
    if(name==='HISTORY_PERMISSION_DENIED')return respond(res,403,{error:'Seu perfil não tem permissão para acessar o histórico da mesa.'});
