@@ -5,7 +5,7 @@
  */
 export type DashboardStatus='COMPRA'|'COTACAO'|'REPASSE PENDENTE'|'REVISAR'|'OUTROS';
 export type DashboardRow={
- date:string;month:string;store:string;brand:string;model:string;
+ vehicleType:'car'|'motorcycle';date:string;month:string;store:string;brand:string;model:string;
  className:string;destination:string;status:DashboardStatus;
  value:number;preparation:number;fipe:number;webReference:number;km:number;year:number;
 };
@@ -35,14 +35,20 @@ const dateString=(v:unknown)=>{
  const br=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
  return br?br[3]+'-'+br[2].padStart(2,'0')+'-'+br[1].padStart(2,'0'):'';
 };
-const MOTOBRANDS=new Set(['ROYAL ENFIELD','YAMAHA','BAJAJ','TRIUMPH','DAFRA','HAOJUE','HARLEY-DAVIDSON','KAWASAKI']);
-const isMoto=(brand:string,model:string)=>{
+const MOTOBRANDS=new Set(['ROYAL ENFIELD','YAMAHA','BAJAJ','TRIUMPH','DAFRA','HAOJUE','HARLEY-DAVIDSON','KAWASAKI','KTM','DUCATI','SHINERAY','HUSQVARNA','BENELLI','CFMOTO','KYMCO','PIAGGIO','VESPA','KASINSKI','SUNDOWN','ZONTES','INDIAN MOTORCYCLE','MOTTU','BMW MOTORRAD']);
+export const isMoto=(brand:string,model:string)=>{
  const b=norm(brand),m=norm(model);
  if(MOTOBRANDS.has(b))return true;
  if(b==='SUZUKI')return /^(INTRUDER|GSX|BURGMAN|V-STROM|YES|EN125|GSR)/.test(m);
  if(b==='HONDA')return /^(CG|CB |CB\d|CBR|PCX|ELITE|BIZ|POP |NXR|XRE|NX-|SHADOW|AFRICA|ADV|LEAD|X-ADV|CRF|TWISTER|SH |SH\d|CBX|NC\d|CG\d)/.test(m);
  if(b==='BMW')return /^(R \d|F \d|G \d|S \d|K \d|R\d|F\d|G\d|S\d)/.test(m);
  return false;
+};
+const vehicleTypeOf=(row:InputLine,brand:string,model:string):'car'|'motorcycle'=>{
+ const explicit=norm(entry(row,'Tipo de Veículo')??entry(row,'Tipo Veículo')??entry(row,'Tipo')??entry(row,'Categoria'));
+ if(/MOTOCIC|\bMOTO\b|\bSCOOTER\b|\bCICLOMOTOR\b/.test(explicit))return 'motorcycle';
+ if(/AUTOMOV|CARRO|CAMINHONETE|UTILITARIO|PASSEIO|SUV/.test(explicit))return 'car';
+ return isMoto(brand,model)?'motorcycle':'car';
 };
 const validValue=(v:number)=>Number.isFinite(v)&&v>=1000&&v<=2000000;
 // Explicitly confirmed in the conversation as purchased, although export says AVALIADO.
@@ -58,18 +64,18 @@ const classification=(raw:string):DashboardStatus=>{
  if(s==='REVISAR')return 'REVISAR';
  return 'OUTROS';
 };
-export type DashboardImportResult={rows:DashboardRow[];excludedEvaluator:number;excludedMotorcycles:number;duplicates:number;invalidPurchases:number;source:'original'|'filtered';inputCount:number};
+export type DashboardImportResult={rows:DashboardRow[];excludedEvaluator:number;motorcyclesIncluded:number;duplicates:number;invalidPurchases:number;source:'original'|'filtered';inputCount:number};
 export function parseDashboardData(input:InputLine[],source:'original'|'filtered'):DashboardImportResult{
  const output:DashboardRow[]=[];
  const seen=new Set<string>();
  // Only an ephemeral duplicate detector; plate is never persisted or sent anywhere.
  const usedPlates=new Set<string>();
- let excludedEvaluator=0,excludedMotorcycles=0,duplicates=0,invalidPurchases=0;
+ let excludedEvaluator=0,motorcyclesIncluded=0,duplicates=0,invalidPurchases=0;
  input.forEach((r,i)=>{
    const evaluator=norm(entry(r,'Avaliador'));
    if(evaluator==='DANIEL BARRUCHELLI DA SILVA'){excludedEvaluator++;return;}
    const brand=text(entry(r,'Marca')),model=text(entry(r,'Modelo'));
-   if(isMoto(brand,model)){excludedMotorcycles++;return;}
+   const vehicleType=vehicleTypeOf(r,brand,model);
    const id=text(entry(r,'ID Avaliação')??entry(r,'ID avaliação'));
    if(id&&seen.has(id)){duplicates++;return;}
    if(id)seen.add(id);
@@ -88,8 +94,9 @@ export function parseDashboardData(input:InputLine[],source:'original'|'filtered
    const date=dateString(entry(r,source==='filtered'?'Data avaliação':'Data de Avaliação'));
    const destination=norm(entry(r,source==='filtered'?'Destino':'Finalidade'))||'NÃO INFORMADO';
    const className=norm(entry(r,source==='filtered'?'Classe':'Classificação'))||'NÃO INFORMADA';
+   if(vehicleType==='motorcycle')motorcyclesIncluded++;
    output.push({
-     date,month:date?date.slice(0,7):'SEM DATA',
+     vehicleType,date,month:date?date.slice(0,7):'SEM DATA',
      store:text(entry(r,source==='filtered'?'Loja':'Lojas'))||'NÃO INFORMADA',
      brand:brand.toUpperCase()||'NÃO INFORMADA',
      model:model.toUpperCase()||'NÃO INFORMADO',
@@ -100,16 +107,16 @@ export function parseDashboardData(input:InputLine[],source:'original'|'filtered
      km:amount(entry(r,'KM')),year,
    });
  });
- return {rows:output,excludedEvaluator,excludedMotorcycles,duplicates,invalidPurchases,source,inputCount:input.length};
+ return {rows:output,excludedEvaluator,motorcyclesIncluded,duplicates,invalidPurchases,source,inputCount:input.length};
 }
-export type DashboardFilters={store:string;brand:string;model:string;className:string;destination:string;month:string;status:string};
-export const emptyFilters:DashboardFilters={store:'',brand:'',model:'',className:'',destination:'',month:'',status:''};
+export type DashboardFilters={vehicleType:string;store:string;brand:string;model:string;className:string;destination:string;month:string;status:string};
+export const emptyFilters:DashboardFilters={vehicleType:'',store:'',brand:'',model:'',className:'',destination:'',month:'',status:''};
 export const dashboardOptions=(rows:DashboardRow[],key:keyof DashboardFilters)=>{
  const values=rows.map(x=>String(x[key as keyof DashboardRow]||'')).filter(Boolean);
  return [...new Set(values)].sort((a,b)=>a.localeCompare(b,'pt-BR'));
 };
 export const filterDashboardRows=(rows:DashboardRow[],f:DashboardFilters)=>rows.filter(r=>
- (!f.store||r.store===f.store)&&(!f.brand||r.brand===f.brand)&&(!f.model||r.model===f.model)&&
+ (!f.vehicleType||r.vehicleType===f.vehicleType)&&(!f.store||r.store===f.store)&&(!f.brand||r.brand===f.brand)&&(!f.model||r.model===f.model)&&
  (!f.className||r.className===f.className)&&(!f.destination||r.destination===f.destination)&&
  (!f.month||r.month===f.month)&&(!f.status||r.status===f.status));
 const median=(values:number[])=>{
