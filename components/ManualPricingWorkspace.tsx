@@ -241,12 +241,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      setAutoError((error?.name==='TimeoutError'?'A fonte de anúncios demorou demais.':error?.message||'Pesquisa automática indisponível.')+' O preço-alvo histórico continua disponível e não depende dessa pesquisa.');
    }finally{setAutoLoading(false);}
  };
- // Run only once per completed vehicle in this page session; users can retry manually.
- useEffect(()=>{
-   if(deskSection!=='pricing'||!searchReady||extensionInbox.length>0||autoLoading||autoAttempted.current.has(vehicleKey))return;
-   const timer=window.setTimeout(()=>{if(!autoAttempted.current.has(vehicleKey))void searchMarket();},1700);
-   return ()=>window.clearTimeout(timer);
- },[deskSection,vehicleKey,searchReady,autoLoading,extensionInbox.length]);
+ // Indexed results are optional and not audited; do not run a speculative
+ // background lookup for every selected vehicle. The primary workflow is the
+ // user-assisted Webmotors extension plus verified individual listings.
  const valid=useMemo(()=>currentAds.filter(a=>!a.auto&&a.status==='valid'&&number(a.price)>0&&number(a.km)>0&&!a.catalog&&validSource(a)),[currentAds]);
  const sortedValid=useMemo(()=>[...valid].sort((a,b)=>number(a.price)-number(b.price)),[valid]);
  const primary=sortedValid.filter(a=>a.source==='webmotors');
@@ -408,6 +405,21 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   </div>:<p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Selecione a classificação, veículo, KM e FIPE para obter o preço-alvo histórico.</p>}
  </section>
 
+
+ <section className="rounded-xl border border-cyan-200 bg-white p-4">
+   <div className="flex flex-wrap items-center justify-between gap-3">
+     <div><h3 className="text-base font-bold text-slate-950">Guardar esta avaliação no histórico</h3>
+       <p className="text-sm text-slate-700">Salve o veículo, a FIPE, os custos e os anúncios já conferidos. Mesmo sem anúncios, a estimativa será identificada como preliminar.</p>
+       {(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate))&&<p className="mt-1 text-xs font-semibold text-amber-800">Para salvar, informe uma placa válida no início da avaliação.</p>}
+     </div>
+     <button type="button" onClick={()=>void save()} disabled={historyBusy||!searchReady||!(/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate))}
+       className="rounded-lg bg-cyan-800 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">
+       {historyBusy?'Salvando...':'Salvar avaliação no histórico'}
+     </button>
+   </div>
+   {historyError&&<p role="alert" className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-900">{historyError}</p>}
+   {notice&&<p role="status" className="mt-2 text-sm font-semibold text-slate-800">{notice}</p>}
+ </section>
  {extensionInbox.length>0&&<section className="rounded-xl border-2 border-cyan-300 bg-cyan-50 p-5">
    <h2 className="text-lg font-bold text-cyan-950">Anúncios recebidos da extensão Motyq</h2>
    <p className="mt-1 text-sm text-slate-800">{extensionInbox.length} anúncio(s) aguardando importação. Selecione acima a versão, o ano e a KM do veículo que você está avaliando.</p>
@@ -419,11 +431,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    {extensionNotice&&<p role="status" className="mt-2 text-sm font-semibold text-amber-900">{extensionNotice}</p>}
    <p className="mt-2 text-xs text-slate-700">Dados informados manualmente na extensão, não auditados. Nenhuma cotação de compra é aprovada automaticamente.</p>
  </section>}
- <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de mercado · Webmotors + OLX</h2><p className="text-sm text-slate-600">O MarketScan busca automaticamente anúncios indexados. Webmotors é a referência principal; OLX e NaPista são apoio quando o portal principal não fornece valores legíveis. Resultados indexados não são anúncios auditados.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady}>{autoLoading?'Pesquisando anúncios...':searchReady?'Pesquisar anúncios novamente':'Aguardando dados do veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
+ <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Use a extensão Motyq IQ para anotar preços e KM de anúncios individuais da Webmotors e enviar para esta mesa. Confira os anúncios antes de classificá-los como válidos.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady}>{autoLoading?'Consultando índice...':searchReady?'Busca indexada (opcional)':'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
  {!searchReady&&<p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950">
    Para pesquisar, preencha: {missingMarketDetails}. A FIPE não precisa terminar de carregar para liberar a busca.
  </p>}
- {searchReady&&!autoAttempted.current.has(vehicleKey)&&!autoLoading&&<p className="mb-3 text-sm text-slate-700">A pesquisa começa automaticamente após o preenchimento do veículo. Você também pode usar o botão para repetir.</p>}
+ {searchReady&&!autoAttempted.current.has(vehicleKey)&&!autoLoading&&<p className="mb-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-medium text-cyan-950">Para comparar preços reais, abra anúncios na Webmotors e envie as ofertas pela extensão Motyq IQ. A busca indexada é opcional e pode não localizar anúncios verificáveis.</p>}
  {autoLoading&&<p role="status" className="mb-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-semibold text-cyan-950">Pesquisando anúncios e verificando preço, ano e KM. Esta consulta pode demorar alguns segundos.</p>}
  {marketMessage&&<p role="status" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{marketMessage}</p>}{searchDiagnostics&&autoResultsVisible&&<p className="mb-2 text-xs text-slate-600">{searchDiagnostics}</p>}
  {autoResultsVisible&&autoSearchedAt&&<p className="mb-3 text-xs text-slate-600">Última pesquisa: {new Date(autoSearchedAt).toLocaleString('pt-BR')} · {indexed.length} preço(s) indexado(s) encontrado(s). Os dados indexados são preliminares e não comprovam anúncio ativo, versão ou histórico.</p>}
@@ -443,7 +455,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  <p className="text-xs font-bold uppercase tracking-wider text-indigo-800">Sem anúncios indexados · usando histórico de compras</p>
  <p className="mt-1 text-3xl font-black text-indigo-950">{money(historicalEstimate.target)}</p>
  <p className="mt-1 text-xs text-indigo-900">Faixa estimada {money(historicalEstimate.rangeMin)} a {money(historicalEstimate.rangeMax)}. Ajusta automaticamente com FIPE, KM, classificação, custos e destino. Não é preço de anúncio nem compra aprovada.</p>
- </div>:<p className="text-sm font-semibold text-amber-800">Sem anúncios confiáveis. Para obter o preço histórico, selecione a classificação da avaliação e confira FIPE e KM acima.</p>}<button onClick={()=>void save()} disabled={historyBusy||!searchReady||!(/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate))} className="mt-3 w-full rounded-lg bg-cyan-700 p-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{historyBusy?'Salvando...':'Salvar avaliação no histórico'}</button>{historyError&&<p role="alert" className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-900">{historyError}</p>}{notice&&<p role="status" className="mt-2 text-sm">{notice}</p>}</div></section>
+ </div>:<p className="text-sm font-semibold text-amber-800">Sem anúncios confiáveis. Para obter o preço histórico, selecione a classificação da avaliação e confira FIPE e KM acima.</p>}</div></section>
  <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">O histórico permanente fica na aba <button type="button" onClick={()=>switchDeskSection('history')} className="font-bold text-cyan-800 underline">Histórico de avaliações</button>. Cada versão salva mantém data, responsável, anúncios, custos e valor registrado.</section>
  </>}
  </main>;
