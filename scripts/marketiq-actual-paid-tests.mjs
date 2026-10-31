@@ -93,6 +93,14 @@ assert.equal(list.body.records.length,1,'Audit event must not be shown as anothe
 assert.equal(list.body.records[0].value,76658,'Estimate must stay intact');
 assert.equal(list.body.records[0].paidValue,75000.2,'Actual amount must appear beside estimate');
 assert.equal(list.body.records[0].paidAt,'2026-10-30');
+await new Promise(resolve=>setTimeout(resolve,7));
+const correction=await send('pricing_history_paid',{evaluationId:id,amount:74550,paidAt:'2026-10-31'});
+assert.equal(correction.statusCode,200,'Correction must be an additional recorded event');
+list=await send('pricing_history_list');
+assert.equal(list.body.records.length,1,'Correcting payment must not create another valuation');
+assert.equal(list.body.records[0].paidValue,74550,'Latest corrected payment should display');
+assert.equal(list.body.records[0].value,76658,'Original price estimate must never change');
+
 
 currentStore='unit-2';
 const wrongStore=await send('pricing_history_paid',{evaluationId:id,amount:72000,paidAt:'2026-10-30'});
@@ -110,6 +118,6 @@ assert.equal(deny.statusCode,403);
 currentRole='manager';
 const unauth=makeRes();await handler({method:'POST',headers:{},body:{action:'pricing_history_paid'}},unauth);
 assert.equal(unauth.statusCode,401);
-assert.equal(db.size,2,'Only the original evaluation and one audited payment should be persisted');
+assert.equal(db.size,3,'Original valuation and two separate audited payment versions must be retained');
 assert.ok(requests.some(x=>x.url.includes('/tenant-a/stores/unit-1/evaluations/'+id)),'Must verify parent valuation inside tenant scope');
 console.log('Motyq IQ actual paid history: immutable audit, authentication, tenant isolation, validation, list hydration passed.');
