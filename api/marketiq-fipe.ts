@@ -1,3 +1,73 @@
+/**
+ * Prevent a month-old FIPE feed from being displayed as the current quote.
+ * Primary: Parallelum FIPE API (already used in Motyq IQ).
+ * Read-only free alternative: tabelafipe.info (attribution required).
+ * Never extrapolate next month's price or convert a different model/year.
+ */
+type FipeFreshness='current'|'outdated'|'unverified';
+const months=['janeiro','fevereiro','marco','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+const referencePeriod=(reference:unknown):string=>{
+ const normalized=String(reference||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+ const iso=normalized.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])\b/);
+ if(iso)return iso[1]+'-'+iso[2].padStart(2,'0');
+ const match=normalized.match(/\b(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b\s*(?:de|[-/])?\s*(20\d{2})\b/);
+ if(!match)return '';
+ return match[2]+'-'+String(months.indexOf(match[1])+1).padStart(2,'0');
+};
+const monthInSaoPaulo=(now=new Date()):string=>{
+ const parts=new Intl.DateTimeFormat('en-US',{
+   timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit'
+ }).formatToParts(now);
+ const year=parts.find(x=>x.type==='year')?.value||'';
+ const month=parts.find(x=>x.type==='month')?.value||'';
+ return /^\d{4}$/.test(year)&&/^\d{2}$/.test(month)?year+'-'+month:'';
+};
+const monthLabel=(period:string):string=>{
+ const match=String(period||'').match(/^(20\d{2})-(0[1-9]|1[0-2])$/);
+ return match?months[Number(match[2])-1]+' de '+match[1]:'';
+};
+const fipeCode=(code:unknown)=>String(code||'').trim().replace(/[^0-9-]/g,'');
+const numericYear=(v:unknown)=>Number(v);
+type AlternativeReference={
+ value:number; referenceMonth:string; fipeCode:string; year:number;source:'tabelafipe.info';
+};
+const validatedAlternative=(raw:any,primary:any,now=new Date()):AlternativeReference|null=>{
+ const current=monthInSaoPaulo(now);
+ const actual=raw?.atual;
+ if(!actual||!primary)return null;
+ const expectedCode=fipeCode(primary.fipeCode);
+ const returnedCode=fipeCode(actual.codigo_fipe||raw.codigo_fipe);
+ const expectedYear=numericYear(primary.year),returnedYear=numericYear(actual.model_year);
+ const period=referencePeriod(actual.periodo||actual.mes);
+ const cents=Number(actual.value_cents);
+ if(!/^\d{6}-\d$/.test(expectedCode)||returnedCode!==expectedCode||
+   !Number.isInteger(expectedYear)||expectedYear<1900||
+   returnedYear!==expectedYear||period!==current||
+   !Number.isSafeInteger(cents)||cents<100000||cents>200000000)return null;
+ const value=cents/100,previous=Number(primary.value);
+ if(!Number.isFinite(previous)||previous<=0||
+   value<previous*.5||value>previous*1.5)return null;
+ return {value,referenceMonth:monthLabel(period),fipeCode:expectedCode,year:expectedYear,source:'tabelafipe.info'};
+};
+const withFipeFreshness=(primary:any,alternative:AlternativeReference|null,now=new Date())=>{
+ const expectedPeriod=monthInSaoPaulo(now);
+ const primaryPeriod=referencePeriod(primary?.referenceMonth);
+ if(primaryPeriod===expectedPeriod)return {
+   ...primary,referenceStatus:'current' as FipeFreshness,
+   referenceSource:'Parallelum',expectedReference:monthLabel(expectedPeriod)
+ };
+ if(alternative&&referencePeriod(alternative.referenceMonth)===expectedPeriod)return {
+   ...primary,value:alternative.value,referenceMonth:alternative.referenceMonth,
+   referenceStatus:'current' as FipeFreshness,
+   referenceSource:'tabelafipe.info',expectedReference:monthLabel(expectedPeriod)
+ };
+ return {
+   ...primary,referenceStatus:(primaryPeriod&&primaryPeriod<expectedPeriod?'outdated':'unverified') as FipeFreshness,
+   referenceSource:'Parallelum',expectedReference:monthLabel(expectedPeriod)
+ };
+};
+
 type NamedCode={code?:string|number;name?:string;codigo?:string|number;nome?:string};
 
 const BASE_ROOT='https://fipe.parallelum.com.br/api/v2';
@@ -221,6 +291,31 @@ async function resolveFipe(base:string,input:{brand:string;model:string;year:str
  };
 }
 
+// Primary free API sometimes publishes a month late. Only accept a current
+// alternative when FIPE code, model year, period and plausible price ALL match.
+const freshQuote=async(primary:any)=>{
+ if(!primary?.value)return primary;
+ if(referencePeriod(primary.referenceMonth)===monthInSaoPaulo())
+   return withFipeFreshness(primary,null);
+ let alternative=null;
+ const code=String(primary.fipeCode||'');
+ const year=Number(primary.year);
+ if(/^\d{6}-\d$/.test(code)&&Number.isInteger(year)&&year>=1900){
+   try{
+     const url='https://api.tabelafipe.info/api/v1/fipe/'+encodeURIComponent(code)+'?ano='+year;
+     const response=await fetch(url,{
+       headers:{Accept:'application/json','User-Agent':'Motyq-MarketIQ/1.0'},
+       cache:'no-store',signal:AbortSignal.timeout(6500)
+     });
+     if(response.ok)alternative=validatedAlternative(await response.json(),primary);
+     else console.warn('MarketIQ FIPE: secondary provider status',response.status);
+   }catch(error:any){
+     console.warn('MarketIQ FIPE: secondary source unavailable, keeping explicit stale reference',String(error?.message||error));
+   }
+ }
+ return withFipeFreshness(primary,alternative);
+};
+
 export default async function handler(req:any,res:any){
  const source=req.method==='GET'?req.query:req.body;
  if(!['POST','GET'].includes(req.method))return res.status(405).json({error:'method_not_allowed'});
@@ -278,7 +373,7 @@ export default async function handler(req:any,res:any){
      if(!brandCode||!modelCode||!yearCode)return res.status(400).json({error:'missing_catalog_codes'});
      const detail:any=await getJson(`${base}/brands/${encodeURIComponent(brandCode)}/models/${encodeURIComponent(modelCode)}/years/${encodeURIComponent(yearCode)}`);
      const value=parseValue(detail?.price||detail?.Valor);
-     return res.status(200).json({
+     const quote=await freshQuote({
        value,
        brand:String(detail?.brand||detail?.Marca||''),
        model:String(detail?.model||detail?.Modelo||''),
@@ -287,6 +382,8 @@ export default async function handler(req:any,res:any){
        referenceMonth:String(detail?.referenceMonth||detail?.MesReferencia||''),
        fipeCode:String(detail?.codeFipe||detail?.CodigoFipe||''),
      });
+     res.setHeader('Cache-Control','private, no-store');
+     return res.status(200).json(quote);
    }
 
    const brand=String(source?.brand||'').trim(),model=String(source?.model||'').trim(),year=String(source?.year||'').trim(),fuel=String(source?.fuel||'').trim(),fipeCode=String(source?.fipeCode||'').trim();
@@ -294,7 +391,8 @@ export default async function handler(req:any,res:any){
    const result:any=await resolveFipe(base,{brand,model,year,fuel,fipeCode});
    if(result?.ambiguous)return res.status(200).json(result);
    if(!result?.value)return res.status(404).json({error:'fipe_not_found'});
-   return res.status(200).json(result);
+   res.setHeader('Cache-Control','private, no-store');
+   return res.status(200).json(await freshQuote(result));
  }catch(error:any){
    console.error('MarketIQ FIPE lookup failed',error);
    return res.status(500).json({error:'lookup_failed',detail:String(error?.message||error)});
