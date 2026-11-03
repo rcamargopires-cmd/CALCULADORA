@@ -1,3 +1,4 @@
+import {monthInSaoPaulo,referencePeriod,validatedAlternative,withFipeFreshness} from '../services/marketIqFipeFreshness';
 type NamedCode={code?:string|number;name?:string;codigo?:string|number;nome?:string};
 
 const BASE_ROOT='https://fipe.parallelum.com.br/api/v2';
@@ -221,6 +222,31 @@ async function resolveFipe(base:string,input:{brand:string;model:string;year:str
  };
 }
 
+// Primary free API sometimes publishes a month late. Only accept a current
+// alternative when FIPE code, model year, period and plausible price ALL match.
+const freshQuote=async(primary:any)=>{
+ if(!primary?.value)return primary;
+ if(referencePeriod(primary.referenceMonth)===monthInSaoPaulo())
+   return withFipeFreshness(primary,null);
+ let alternative=null;
+ const code=String(primary.fipeCode||'');
+ const year=Number(primary.year);
+ if(/^\d{6}-\d$/.test(code)&&Number.isInteger(year)&&year>=1900){
+   try{
+     const url='https://api.tabelafipe.info/api/v1/fipe/'+encodeURIComponent(code)+'?ano='+year;
+     const response=await fetch(url,{
+       headers:{Accept:'application/json','User-Agent':'Motyq-MarketIQ/1.0'},
+       cache:'no-store',signal:AbortSignal.timeout(6500)
+     });
+     if(response.ok)alternative=validatedAlternative(await response.json(),primary);
+     else console.warn('MarketIQ FIPE: secondary provider status',response.status);
+   }catch(error:any){
+     console.warn('MarketIQ FIPE: secondary source unavailable, keeping explicit stale reference',String(error?.message||error));
+   }
+ }
+ return withFipeFreshness(primary,alternative);
+};
+
 export default async function handler(req:any,res:any){
  const source=req.method==='GET'?req.query:req.body;
  if(!['POST','GET'].includes(req.method))return res.status(405).json({error:'method_not_allowed'});
@@ -278,7 +304,7 @@ export default async function handler(req:any,res:any){
      if(!brandCode||!modelCode||!yearCode)return res.status(400).json({error:'missing_catalog_codes'});
      const detail:any=await getJson(`${base}/brands/${encodeURIComponent(brandCode)}/models/${encodeURIComponent(modelCode)}/years/${encodeURIComponent(yearCode)}`);
      const value=parseValue(detail?.price||detail?.Valor);
-     return res.status(200).json({
+     const quote=await freshQuote({
        value,
        brand:String(detail?.brand||detail?.Marca||''),
        model:String(detail?.model||detail?.Modelo||''),
@@ -287,6 +313,8 @@ export default async function handler(req:any,res:any){
        referenceMonth:String(detail?.referenceMonth||detail?.MesReferencia||''),
        fipeCode:String(detail?.codeFipe||detail?.CodigoFipe||''),
      });
+     res.setHeader('Cache-Control','private, no-store');
+     return res.status(200).json(quote);
    }
 
    const brand=String(source?.brand||'').trim(),model=String(source?.model||'').trim(),year=String(source?.year||'').trim(),fuel=String(source?.fuel||'').trim(),fipeCode=String(source?.fipeCode||'').trim();
@@ -294,7 +322,8 @@ export default async function handler(req:any,res:any){
    const result:any=await resolveFipe(base,{brand,model,year,fuel,fipeCode});
    if(result?.ambiguous)return res.status(200).json(result);
    if(!result?.value)return res.status(404).json({error:'fipe_not_found'});
-   return res.status(200).json(result);
+   res.setHeader('Cache-Control','private, no-store');
+   return res.status(200).json(await freshQuote(result));
  }catch(error:any){
    console.error('MarketIQ FIPE lookup failed',error);
    return res.status(500).json({error:'lookup_failed',detail:String(error?.message||error)});
