@@ -185,9 +185,10 @@ const hydratePaidRecords=(records:any[])=>{
    const effectiveDate=paidSource?.kind==='valuation_approved'?
      paidSource.approvedAt:paidSource?.paidAt;
    return {...entry,
-     ...(approved?{approvedValue:approved.approvedValue,approvedAt:approved.approvedAt,
-       approvedRecordedAt:approved.recordedAt,approvedRecordedBy:approved.recordedBy,
-       approvedRecordedEmail:approved.recordedEmail}:{}),
+     ...(Number.isFinite(effectivePaid)&&effectivePaid>0?
+       {approvedValue:effectivePaid,approvedAt:effectiveDate,
+        approvedRecordedAt:paidSource.recordedAt,approvedRecordedBy:paidSource.recordedBy,
+        approvedRecordedEmail:paidSource.recordedEmail}:{}),
      ...(Number.isFinite(effectivePaid)&&effectivePaid>0?
        {paidValue:effectivePaid,paidAt:effectiveDate,
         paidRecordedAt:paidSource.recordedAt,paidRecordedBy:paidSource.recordedBy,
