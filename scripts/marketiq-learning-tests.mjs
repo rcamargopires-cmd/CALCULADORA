@@ -54,6 +54,13 @@ assert.equal(ready.calibrationCandidate.models,5);
 assert.equal(ready.calibrationCandidate.percent,5,'The suggested correction is capped at 5% of FIPE');
 const sameModel=buildMarketIqLearning([],manyPaid.map(r=>({...r,model:'CG 160'}))).categories.find(c=>c.kind==='motorcycle');
 assert.equal(sameModel.calibrationCandidate,null,'30 copies of one model are not diverse enough');
+const fazerPaid=buildMarketIqLearning([],[{
+ id:'fazer-study',vehicleType:'motorcycle',brand:'YAMAHA',model:'FZ25 FAZER',
+ value:12150,fipe:{value:15960},paidValue:7000
+}]).categories.find(c=>c.kind==='motorcycle');
+assert.equal(fazerPaid.cloudPaidCount,1);
+assert.equal(fazerPaid.paidEstimateMae,5150,'The R$7k purchase exposes the R$5,150 estimate error');
+assert.equal(fazerPaid.calibrationCandidate,null,'One paid Fazer must not retrain motorcycle prices automatically');
 assert.ok(ui.includes('Aprendizado contínuo'));
 assert.ok(ui.includes('Status COMPRA no arquivo'));
 assert.ok(ui.includes('valor efetivamente pago'));
