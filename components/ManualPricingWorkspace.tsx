@@ -8,6 +8,7 @@ import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import MarketIqApprovalCenter from './MarketIqApprovalCenter';
 import {calculateHistoricalPrice, MOTYQ_HISTORY_MODEL, HistoricalClass} from '../services/marketIqHistoricalPricing';
+import {calculateMotorcycleMarketReference,loadMotorcyclesForUser} from '../services/marketIqMotorcycleReference';
 import {chooseIndexedMarketSample} from '../services/marketIqIndexedSample';
 type Ad={source?:'webmotors'|'olx'|'napista';price:string;km:string;url:string;status:'pending'|'valid'|'excluded';note:string;auto?:boolean;title?:string;catalog?:boolean};
 type CapturedAd=Ad & {year:number};
@@ -234,7 +235,6 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const selectYear=(code:string)=>{setYearCode(code);setYear(years.find(x=>x.code===code)?.name||'');setFipe(null);};
  const change=(index:number,patch:Partial<Ad>)=>setAds(a=>a.map((x,i)=>i===index?{...x,...patch}:x));
  const searchMarket=async()=>{
-   if(vehicleType==='motorcycle'){setAutoError('Para motos, use anúncios individuais conferidos. A busca indexada de carros não é aplicada.');return;}
    if(!searchReady){setAutoError('Informe '+missingMarketDetails+' para pesquisar anúncios.');setAutoSearchKey(vehicleKey);return;}
    if(autoLoading)return;
    autoAttempted.current.add(vehicleKey);
@@ -273,10 +273,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
        ' · '+parts.join(' · '));
      setAutoSearchedAt(String(payload.searchedAt||new Date().toISOString()));
      setAds(existing=>[...found,...(adsVehicleKey===vehicleKey?existing:[]).filter(a=>!a.auto&&(a.price||a.km||a.url||a.note))]);
-     if(!found.length)setAutoError('A pesquisa terminou, mas não localizou anúncios com preço, ano e KM confiáveis para este veículo. O preço-alvo histórico continua disponível abaixo. Não inventamos valores de mercado.');
+     if(!found.length)setAutoError('Pesquisa concluída, mas nenhum anúncio indexado com versão, ano, preço e KM suficientes foi localizado. Consulte a Webmotors ou cadastre anúncios conferidos. Nenhum valor foi inventado.');
    }catch(error:any){
      setAutoSearchKey(vehicleKey);
-     setAutoError((error?.name==='TimeoutError'?'A fonte de anúncios demorou demais.':error?.message||'Pesquisa automática indisponível.')+' O preço-alvo histórico continua disponível e não depende dessa pesquisa.');
+     setAutoError((error?.name==='TimeoutError'?'A fonte de anúncios demorou demais.':error?.message||'Pesquisa automática indisponível.')+' Use anúncios individuais conferidos quando não houver dados automáticos.');
    }finally{setAutoLoading(false);}
  };
  // Indexed results are optional and not audited; do not run a speculative
@@ -287,13 +287,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const primary=sortedValid.filter(a=>a.source==='webmotors');
  const secondary=sortedValid.filter(a=>a.source==='olx');
  const indexed=autoResultsVisible?currentAds.filter(a=>a.auto&&a.status!=='excluded'&&portalLink(a)&&number(a.price)>0&&number(a.km)>0):[];
- const indexedWebmotors=indexed.filter(a=>a.source==='webmotors'&&Math.abs(number(a.km)-number(km))<=30000);
+ const indexedWebmotors=indexed.filter(a=>a.source==='webmotors'&&Math.abs(number(a.km)-number(km))<=(vehicleType==='motorcycle'?12000:30000));
  // An indexed Webmotors sample whose whole floor is materially above FIPE
  // cannot be presented as the cheapest offers without independent confirmation.
  const webmotorsBaseline=indexedWebmotors.filter(a=>!fipe||number(a.price)<=fipe.value*1.05);
  const webmotorsAboveReference=indexedWebmotors.length>0&&!webmotorsBaseline.length;
- const indexedOlx=indexed.filter(a=>a.source==='olx'&&Math.abs(number(a.km)-number(km))<=30000);
- const indexedNapista=indexed.filter(a=>a.source==='napista'&&Math.abs(number(a.km)-number(km))<=30000);
+ const indexedOlx=indexed.filter(a=>vehicleType==='car'&&a.source==='olx'&&Math.abs(number(a.km)-number(km))<=30000);
+ const indexedNapista=indexed.filter(a=>vehicleType==='car'&&a.source==='napista'&&Math.abs(number(a.km)-number(km))<=30000);
  // Prefer a sufficiently sized Webmotors sample. With no reliable Webmotors
  // candidate set, compare multiple OLX observations before trying NaPista.
  // A single indexed price is never enough to calculate a market ceiling.
@@ -318,6 +318,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const suspectAds=sortedValid.filter(a=>/leil[aã]o|sinistr|recuperad|batid|restri[cç][aã]o/i.test(a.note));
  const ceiling=Math.max(0,avg*.86*(repasse?.95:1)-number(cost));
  const marketReady=primary.length>=2&&distantKm.length===0&&suspectAds.length===0;
+ const motorcycleRows=useMemo(()=>loadMotorcyclesForUser(user.email),[user.email,deskSection]);
+ const motorcycleReference=useMemo(()=>vehicleType==='motorcycle'&&fipe?
+   calculateMotorcycleMarketReference(motorcycleRows,{
+     brand,model,year:fipe.year,km:number(km),fipe:fipe.value
+   }):null,[vehicleType,motorcycleRows,fipe,brand,model,km]);
  const historicalEstimate=useMemo(()=>{
    if(vehicleType==='motorcycle'||!fipe||!classification||number(km)<=0)return null;
    return calculateHistoricalPrice({
@@ -504,8 +509,20 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   </div>:<p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Selecione a classificação, veículo, KM e FIPE para obter o preço-alvo histórico.</p>}
  </section>:<section className="rounded-xl border border-amber-200 bg-amber-50 p-5">
    <h2 className="text-xl font-bold text-amber-950">Precificação de motocicletas</h2>
-   <p className="mt-2 text-sm text-amber-900">A FIPE da moto aparece acima. O modelo histórico de 223 compras foi treinado somente com automóveis e não será aplicado a motos. Para sugerir compra, confira pelo menos 2 anúncios individuais da mesma versão e ano, com quilometragem comparável, e informe os custos de preparo.</p>
-   <p className="mt-2 text-sm font-semibold text-amber-950">{marketReady?'Anúncios conferidos disponíveis: o cálculo da Mesa pode ser analisado.':'Sem anúncios suficientes: nenhuma sugestão automática de compra será inventada.'}</p>
+   <p className="mt-2 text-sm text-amber-900">A FIPE acima é específica da moto. Os dados históricos de motos não são misturados com o modelo treinado com 223 carros. O indicador abaixo usa registros locais de motocicletas e não comprova o pagamento final.</p>
+   {motorcycleReference?<div className="mt-3 grid gap-3 rounded-xl border border-amber-300 bg-white p-4 sm:grid-cols-2">
+     <div><p className="text-xs font-bold uppercase text-slate-600">Média de valores avaliados · ajustada à FIPE</p>
+       <p className="mt-1 text-2xl font-black text-slate-950">{money(motorcycleReference.meanIndication)}</p>
+       <p className="text-xs text-slate-700">Média histórica: {(motorcycleReference.meanRatio*100).toFixed(1).replace('.',',')}% da FIPE</p>
+     </div>
+     <div><p className="text-xs font-bold uppercase text-slate-600">Mediana histórica · referência preliminar</p>
+       <p className="mt-1 text-2xl font-black text-slate-950">{money(motorcycleReference.medianIndication)}</p>
+       <p className="text-xs text-slate-700">Mediana: {(motorcycleReference.medianRatio*100).toFixed(1).replace('.',',')}% da FIPE</p>
+     </div>
+     <p className="text-sm font-semibold text-amber-950 sm:col-span-2">Amostra: {motorcycleReference.sampleSize} registros {motorcycleReference.scope==='model'?'de modelo, ano e KM próximos':motorcycleReference.scope==='brand'?'da mesma marca':'de motos de categorias diferentes'}. Referência exploratória, não preço aprovado de compra.</p>
+     {number(cost)>0&&<p className="text-xs text-amber-900 sm:col-span-2">Cenário após subtrair custos previstos de {money(number(cost))}: {money(Math.max(0,motorcycleReference.medianIndication-number(cost)))}. Não contempla negociação, impostos ou avarias não informados.</p>}
+   </div>:<p className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-sm font-semibold text-amber-950">Ainda não há amostra suficiente de motos utilizável neste navegador. Importe novamente a planilha original pelo Painel Gerencial para calcular a média histórica, ou confira ofertas individuais da Webmotors.</p>}
+   <p className="mt-2 text-sm font-semibold text-amber-950">{marketReady?'Pelo menos dois anúncios Webmotors foram conferidos.':'Para uma média de mercado verificável, confira pelo menos 2 anúncios Webmotors de versão, ano e KM próximos. O botão abaixo tenta localizar anúncios indexados, mas pode retornar poucos resultados.'}</p>
  </section>}
 
 
@@ -543,18 +560,18 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    {extensionNotice&&<p role="status" className="mt-2 text-sm font-semibold text-amber-900">{extensionNotice}</p>}
    <p className="mt-2 text-xs text-slate-700">Dados informados manualmente na extensão, não auditados. Nenhuma cotação de compra é aprovada automaticamente.</p>
  </section>}
- <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Use a extensão Motyq IQ para anotar preços e KM de anúncios individuais da Webmotors e enviar para esta mesa. Confira os anúncios antes de classificá-los como válidos.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady}>{autoLoading?'Consultando índice...':searchReady?'Busca indexada (opcional)':'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
+ <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Use a extensão Motyq IQ para anotar preços e KM de anúncios individuais da Webmotors e enviar para esta mesa. Confira os anúncios antes de classificá-los como válidos.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady}>{autoLoading?'Pesquisando ofertas...':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
  {!searchReady&&<p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950">
    Para pesquisar, preencha: {missingMarketDetails}. A FIPE não precisa terminar de carregar para liberar a busca.
  </p>}
- {searchReady&&!autoAttempted.current.has(vehicleKey)&&!autoLoading&&<p className="mb-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-medium text-cyan-950">Para comparar preços reais, abra anúncios na Webmotors e envie as ofertas pela extensão Motyq IQ. A busca indexada é opcional e pode não localizar anúncios verificáveis.</p>}
+ {searchReady&&!autoAttempted.current.has(vehicleKey)&&!autoLoading&&<p className="mb-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-medium text-cyan-950">Para comparar preços reais, use a pesquisa indexada ou envie anúncios individuais pela extensão Motyq IQ. Resultados automáticos são preliminares e precisam de conferência.</p>}
  {autoLoading&&<p role="status" className="mb-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-semibold text-cyan-950">Pesquisando anúncios e verificando preço, ano e KM. Esta consulta pode demorar alguns segundos.</p>}
  {marketMessage&&<p role="status" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{marketMessage}</p>}{searchDiagnostics&&autoResultsVisible&&<p className="mb-2 text-xs text-slate-600">{searchDiagnostics}</p>}
  {autoResultsVisible&&autoSearchedAt&&<p className="mb-3 text-xs text-slate-600">Última pesquisa: {new Date(autoSearchedAt).toLocaleString('pt-BR')} · {indexed.length} preço(s) indexado(s) encontrado(s). Os dados indexados são preliminares e não comprovam anúncio ativo, versão ou histórico.</p>}
  {indexed.length>0&&referenceAvg===0&&<p className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
  Foram encontrados {indexed.length} preços indexados, mas nenhum portal apresentou ao menos dois registros distintos e comparáveis em KM para uma média preliminar. Uma única vitrine não define preço de compra.
  </p>}
- {referenceAvg>0&&<div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-cyan-800">Simulação automática preliminar · não aprovada</p><p className="mt-1 text-sm text-slate-700">Base: {referenceName} · {referenceLowest.length} menor(es) preço(s) com até 30 mil km de diferença · média {money(referenceAvg)} ({confidenceNote}).</p><p className="mt-1 text-xs text-slate-600">Webmotors: {indexedWebmotors.length} · OLX: {indexedOlx.length} · NaPista: {indexedNapista.length} preço(s) indexado(s) próximos em KM.</p>
+ {referenceAvg>0&&<div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-cyan-800">Simulação automática preliminar · não aprovada</p><p className="mt-1 text-sm text-slate-700">Base: {referenceName} · {referenceLowest.length} menor(es) preço(s) com até {vehicleType==='motorcycle'?'12 mil':'30 mil'} km de diferença · média {money(referenceAvg)} ({confidenceNote}).</p><p className="mt-1 text-xs text-slate-600">Webmotors: {indexedWebmotors.length} · OLX: {indexedOlx.length} · NaPista: {indexedNapista.length} preço(s) indexado(s) próximos em KM.</p>
  {marketSample.fallback&&<p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-950">Webmotors não forneceu uma amostra mínima aproveitável. A referência abaixo usa {referenceName} somente como apoio, não como cotação Webmotors.</p>}
  <p className="mt-2 text-xs font-semibold text-slate-700">Preços selecionados: {referenceLowest.map(ad=>money(number(ad.price))+' ('+number(ad.km).toLocaleString('pt-BR')+' km)').join(' · ')}.</p>
  {marketSample.sampleContainsCatalogPages&&<p className="mt-1 text-xs font-semibold text-amber-900">A amostra inclui vitrines indexadas, sem comprovação de anúncios individuais. Pode conter preços desatualizados e não representa vendas realizadas.</p>}
