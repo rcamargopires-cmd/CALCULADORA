@@ -2,6 +2,7 @@ import React,{useMemo,useState} from 'react';
 import type {User} from '../types';
 import type {DashboardRow} from '../services/marketIqManagementData';
 import {buildMarketIqLearning,type LearningHistoryRecord} from '../services/marketIqLearning';
+import MarketIqAccuracyPanel from './MarketIqAccuracyPanel';
 
 const fmt=(n:number)=>n.toLocaleString('pt-BR');
 const money=(value:number|null)=>value===null?'Aguardando dados':value.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -59,6 +60,7 @@ export default function MarketIqLearningPanel({
        <p className="mt-2 text-2xl font-black">{fmt(report.categories.reduce((n,c)=>n+c.cloudPaidCount,0))}</p>
      </div>
    </div>
+   <MarketIqAccuracyPanel history={history}/>
    {records.length===0&&<p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
      Ainda não existe importação histórica neste navegador para esta conta.
      Abra o <strong>Painel gerencial</strong> e importe o relatório original para analisar avaliações e compras registradas.
