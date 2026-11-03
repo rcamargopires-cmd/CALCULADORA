@@ -30,7 +30,8 @@ export function calculateMotorcycleMarketReference(
  if(!Number.isFinite(input.fipe)||input.fipe<1000||input.fipe>300000||
    !Number.isFinite(input.year)||input.year<1980||input.year>2100||
    !Number.isFinite(input.km)||input.km<0)return null;
- const brand=canonical(input.brand),model=canonical(input.model),modelKey=model.split(' ').slice(0,2).join(' ');
+ const brand=canonical(input.brand),model=canonical(input.model),parts=model.split(' ');
+ const modelKey=parts[0]?.length<=3&&/^\d{2,4}$/.test(parts[1]||'')?parts.slice(0,2).join(' '):parts[0]||'';
  const valid=rows.filter(r=>r.vehicleType==='motorcycle'&&r.status==='COMPRA'&&
    finite(r.value)>=1000&&finite(r.fipe)>=1000&&r.value/r.fipe>=.35&&r.value/r.fipe<=1.25&&
    finite(r.year)>=1980&&finite(r.km)>=0
