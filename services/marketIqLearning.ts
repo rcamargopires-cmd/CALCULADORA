@@ -11,7 +11,9 @@ import type {DashboardRow} from './marketIqManagementData';
 
 export type VehicleKind='car'|'motorcycle';
 export type LearningHistoryRecord={
- id?:string; vehicleType?:string; brand?:string; model?:string;
+ id?:string; vehicleType?:string; brand?:string; model?:string; plate?:string; provisional?:boolean;
+ originalEstimatedValue?:number;revisionCount?:number;groupedRecords?:number;
+ paidRecordedAt?:string;approvedRecordedAt?:string;
  value?:number|string; fipe?:{value?:number}|null;
  approvedValue?:number;paidValue?:number;createdAt?:string;date?:string;
 };
@@ -51,6 +53,11 @@ const precision=(v:number|null)=>v===null?null:Math.round(v*10000)/10000;
 // The dealership records the effective paid price in the Mesa-approved field.
  // Read older approval-only records even when they have not been projected by
  // the server yet. A separately recorded paid amount, if present, wins.
+const originalEstimate=(row:LearningHistoryRecord):number|null=>{
+ const first=row.originalEstimatedValue!==undefined?row.originalEstimatedValue:
+   Number(row.revisionCount||0)>0?null:row.value;
+ return valid(first)?Number(first):null;
+};
 const actualPaidValue=(row:LearningHistoryRecord):number|null=>
  valid(row.paidValue)?Number(row.paidValue):valid(row.approvedValue)?Number(row.approvedValue):null;
 const modelKey=(row:{brand?:string;model?:string})=>(
@@ -72,9 +79,9 @@ export function buildMarketIqLearning(rows:DashboardRow[],history:LearningHistor
    const approved=stats(approvals.map(r=>ratio(r.approvedValue,r.fipe?.value)));
    const paid=stats(actualPaid.map(r=>ratio(actualPaidValue(r),r.fipe?.value)));
    const withEstimator=(items:LearningHistoryRecord[],priceKey:'paidValue'|'approvedValue')=>
-     items.filter(r=>valid(r.value)&&
+     items.filter(r=>originalEstimate(r)!==null&&
        (priceKey==='paidValue'?actualPaidValue(r)!==null:valid(r.approvedValue)))
-       .map(r=>(priceKey==='paidValue'?Number(actualPaidValue(r)):Number(r.approvedValue))-Number(r.value));
+       .map(r=>(priceKey==='paidValue'?Number(actualPaidValue(r)):Number(r.approvedValue))-Number(originalEstimate(r)));
    const paidErrors=withEstimator(actualPaid,'paidValue');
    const approvalErrors=withEstimator(approvals,'approvedValue');
    const average=(list:number[])=>list.length?list.reduce((a,b)=>a+b,0)/list.length:null;
@@ -82,8 +89,8 @@ export function buildMarketIqLearning(rows:DashboardRow[],history:LearningHistor
    // We only propose a future calibration for review, never silently alter a
    // buying quote. Minimum 30 real paid outcomes, from 5 distinct models.
    const models=new Set(actualPaid.map(modelKey)).size;
-   const comparable=actualPaid.filter(r=>valid(r.value)&&actualPaidValue(r)!==null&&valid(r.fipe?.value));
-   const deviation=comparable.map(r=>(Number(actualPaidValue(r))-Number(r.value))/Number(r.fipe!.value));
+   const comparable=actualPaid.filter(r=>originalEstimate(r)!==null&&actualPaidValue(r)!==null&&valid(r.fipe?.value));
+   const deviation=comparable.map(r=>(Number(actualPaidValue(r))-Number(originalEstimate(r)))/Number(r.fipe!.value));
    const candidate=deviation.length>=30&&models>=5?quantile(deviation,.5):null;
    const calibrationCandidate=candidate===null?null:{
      percent:Math.round(Math.max(-.05,Math.min(.05,candidate))*10000)/100,
