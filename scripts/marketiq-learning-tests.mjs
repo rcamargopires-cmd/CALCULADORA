@@ -37,6 +37,8 @@ assert.equal(bike.cloudPaidCount,1);
 assert.equal(bike.paid.median,.7,'Only actual paid evidence feeds paid ratio');
 assert.equal(bike.approved.median,.8,'Approved value is a separate target');
 assert.equal(bike.paidEstimateMae,1000);
+assert.equal(bike.paidEstimateComparisonCount,1);
+assert.equal(bike.paidWithoutEstimateCount,0);
 assert.equal(bike.paidEstimateBias,-1000);
 assert.equal(bike.calibrationCandidate,null,'One paid motorcycle must never alter predictions');
 assert.equal(car.paid.count,1,'Legacy car approval alone must count as paid');
@@ -44,6 +46,7 @@ assert.equal(car.paid.median,.81,'Legacy approved-only valuation supplies actual
 assert.equal(car.purchaseProxy.count,1);
 assert.equal(car.cloudApprovedCount,1);
 assert.equal(car.cloudPaidCount,1,'One approved-only car must increment paid purchases');
+assert.equal(car.paidEstimateComparisonCount,1);
 const manyPaid=Array.from({length:30},(_,i)=>({
  id:String(i),vehicleType:'motorcycle',brand:'HONDA',model:'MOTO '+(i%5),
  value:14000,fipe:{value:20000},paidValue:15000,
@@ -63,6 +66,17 @@ assert.equal(fazerPaid.cloudPaidCount,1);
 assert.equal(fazerPaid.paid.count,1,'Approved-only Fazer must be included in paid price statistics');
 assert.equal(fazerPaid.paidEstimateMae,3150,'The corrected R$9k Fazer purchase exposes R$3,150 estimate error');
 assert.equal(fazerPaid.calibrationCandidate,null,'One paid Fazer must not retrain motorcycle prices automatically');
+const pendingEstimate=buildMarketIqLearning([],[{
+ id:'old-moto',vehicleType:'motorcycle',brand:'YAMAHA',model:'FAZER FZ25',
+ value:0,fipe:{value:15960},approvedValue:9000
+}]).categories.find(c=>c.kind==='motorcycle');
+assert.equal(pendingEstimate.cloudPaidCount,1,'Paid motorcycle must count even when original estimate is absent');
+assert.equal(pendingEstimate.paid.count,1,'Paid price and FIPE can be compared even without an original estimate');
+assert.equal(pendingEstimate.paidEstimateComparisonCount,0);
+assert.equal(pendingEstimate.paidWithoutEstimateCount,1);
+assert.equal(pendingEstimate.paidEstimateMae,null,'Do not invent a retroactive estimate or display false error');
+assert.ok(ui.includes('Sem estimativa original válida'),'Screen must explain missing motorcycle error');
+assert.ok(ui.includes('category.paidEstimateComparisonCount'),'Screen must show car error sample coverage');
 assert.ok(ui.includes('Aprendizado contínuo'));
 assert.ok(ui.includes('Status COMPRA no arquivo'));
 assert.ok(ui.includes('valor efetivamente pago'));
