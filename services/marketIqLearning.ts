@@ -23,6 +23,7 @@ export type LearningKindSummary={
  purchaseProxy:RatioStats;approved:RatioStats;paid:RatioStats;
  cloudEvaluations:number;cloudApprovedCount:number;cloudPaidCount:number;
  paidEstimateMae:number|null;paidEstimateBias:number|null;
+ paidEstimateComparisonCount:number;paidWithoutEstimateCount:number;
  approvedEstimateMae:number|null;approvedEstimateBias:number|null;
  calibrationCandidate:{percent:number;count:number;models:number}|null;
  readiness:'insufficient'|'collecting'|'validation_ready';
@@ -101,6 +102,8 @@ export function buildMarketIqLearning(rows:DashboardRow[],history:LearningHistor
      cloudApprovedCount:approvals.length,
      cloudPaidCount:actualPaid.length,
      paidEstimateMae:precision(average(paidErrors.map(Math.abs))),
+     paidEstimateComparisonCount:paidErrors.length,
+     paidWithoutEstimateCount:actualPaid.length-paidErrors.length,
      paidEstimateBias:precision(paidBias),
      approvedEstimateMae:precision(average(approvalErrors.map(Math.abs))),
      approvedEstimateBias:precision(approvalBias),
