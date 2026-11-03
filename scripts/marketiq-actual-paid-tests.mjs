@@ -15,7 +15,13 @@ assert.ok(ui.includes("Com valor aprovado"),'History filter must include approve
 assert.ok(ui.includes("Acima"),'History must show comparison with estimate');
 assert.ok(api.includes("'pricing_history_approved'"),'Approval event must be routed in same API');
 assert.ok(source.includes("kind:isApproval?'valuation_approved':'purchase_paid'"),'Approved and paid events must not be conflated');
-assert.ok(ui.includes('Registro anterior de valor realmente pago')&&!ui.includes('Valor realmente pago (R$, opcional)'),'Legacy purchase payments must remain labeled separately from approved valuation');
+assert.ok(ui.includes('Valor realmente pago na compra (R$, opcional)'),'New evaluations must allow real purchase price');
+assert.ok(ui.includes('Registrar valor realmente pago'),'Saved evaluations must accept paid prices later');
+assert.ok(ui.includes('Corrigir valor realmente pago'),'Corrections must be audited and reversible by a new event');
+assert.ok(ui.includes('Com valor realmente pago'),'History must filter real purchase prices');
+assert.ok(ui.includes("historyRequest('paid'"),'Paid records must use the existing signed-in server action');
+assert.ok(ui.includes('recordPaid(r)'),'Saved evaluations must invoke real paid action');
+assert.ok(ui.includes("referenceName:provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas'"),'Motorcycle historical estimate must be labelled preliminary');
 
 const js=ts.transpileModule(source.replace(/^import .+;\s*$/gm,'')
   .replace('export default async function handler','async function handler')+'\nresult=handler;',{
