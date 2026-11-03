@@ -177,7 +177,7 @@ const dailyKey=(plate:unknown,iso:unknown)=>{
 };
 // Stable Firestore document id makes simultaneous first saves conflict rather
 // than create two independent valuations.
-const dailyDocId=(key:string)=>'eval_'+key.replace('|','_');
+const dailyDocId=(key:string)=>{const [plate,day]=key.split('|');return 'eval_'+day+'_'+plate;};
 const mostRecent=(a:any,b:any,field:string)=>String(a?.[field]||'').localeCompare(String(b?.[field]||''));
 const hydratePaidRecords=(records:any[])=>{
  const latest=(kind:string)=>{
