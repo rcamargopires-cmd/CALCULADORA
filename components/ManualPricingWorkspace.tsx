@@ -490,7 +490,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
           {Number(r.paidValue)>0?<div className="mt-2 rounded-lg border border-cyan-300 bg-cyan-50 p-3">
             <p className="text-xs font-bold uppercase text-cyan-900">Valor realmente pago na compra</p>
             <p className="text-xl font-black text-cyan-950">{money(Number(r.paidValue))}</p>
-            {r.value>0&&<p className="text-xs font-semibold text-cyan-900">{Number(r.paidValue)<r.value?'R$ '+money(r.value-Number(r.paidValue))+' abaixo da estimativa':Number(r.paidValue)>r.value?money(Number(r.paidValue)-r.value)+' acima da estimativa':'Exatamente igual à estimativa'}</p>}
+            {r.value>0&&<p className="text-xs font-semibold text-cyan-900">{Number(r.paidValue)<r.value?money(r.value-Number(r.paidValue))+' abaixo da estimativa':Number(r.paidValue)>r.value?money(Number(r.paidValue)-r.value)+' acima da estimativa':'Exatamente igual à estimativa'}</p>}
             <p className="mt-1 text-xs text-cyan-900">Compra: {r.paidAt?.split('-').reverse().join('/')||'-'} · {r.paidRecordedBy||'Usuário autorizado'}</p>
           </div>:<p className="mt-2 text-xs font-semibold text-slate-600">Valor realmente pago não informado</p>}
         </div>
