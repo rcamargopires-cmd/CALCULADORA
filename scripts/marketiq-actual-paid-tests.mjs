@@ -167,3 +167,32 @@ assert.equal(list.body.records[0].paidFromApproval,true,'Correction remains attr
 assert.equal(list.body.records[0].value,76658,'Approval corrections cannot rewrite Motyq estimate');
 assert.equal(db.size,5,'Two purchase events and two approval events alongside the valuation are preserved');
 console.log('Motyq IQ approved/pago: historical approvals count as paid; event corrections, tenant isolation and audit passed.');
+
+// Regression: a historical evaluation with ONLY an approved-value event must
+// automatically count as paid, without requiring a second input or payment event.
+const motoRecord=await send('pricing_history_save',{evaluation:{
+ ...base,plate:'ABC1D23',vehicleType:'motorcycle',brand:'YAMAHA',model:'FZ25 FAZER',
+ year:'2018',km:'64000',value:12150,fipe:{value:15960,brand:'YAMAHA',model:'FZ25',year:2018}
+}});
+assert.equal(motoRecord.statusCode,200,'Motorcycle history must still save');
+const motoId=motoRecord.body.record.id;
+const paidViaApproval=await send('pricing_history_approved',{evaluationId:motoId,amount:9000,approvedAt:'2026-10-31'});
+assert.equal(paidViaApproval.statusCode,200);
+let allWithMoto=await send('pricing_history_list');
+assert.equal(allWithMoto.statusCode,200);
+const moto=allWithMoto.body.records.find(r=>r.id===motoId);
+assert.equal(allWithMoto.body.records.length,2);
+assert.equal(moto.approvedValue,9000);
+assert.equal(moto.paidValue,9000,'Legacy approved-only records must feed real-paid learning');
+assert.equal(moto.paidFromApproval,true);
+assert.equal(moto.paidAt,'2026-10-31');
+assert.equal(moto.value,12150,'Price estimate remains unchanged');
+const beforeCorrection=db.size;
+await new Promise(resolve=>setTimeout(resolve,5));
+const correctedMoto=await send('pricing_history_approved',{evaluationId:motoId,amount:9200,approvedAt:'2026-10-31'});
+assert.equal(correctedMoto.statusCode,200);
+allWithMoto=await send('pricing_history_list');
+assert.equal(allWithMoto.body.records.find(r=>r.id===motoId).paidValue,9200);
+assert.equal(db.size,beforeCorrection+1,'Correction must append an audit event, not overwrite the prior value');
+assert.equal(allWithMoto.body.records.length,2,'A paid-from-approval event must not double-count the valuation');
+console.log('Motyq IQ historic approved-only migration: 1 purchase counted from 1 approval, without modifying old records.');
