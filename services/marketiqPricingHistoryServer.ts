@@ -218,7 +218,7 @@ const hydratePaidRecords=(records:any[])=>{
      paidSource.approvedValue:paidSource?.paidValue;
    const effectiveDate=paidSource?.kind==='valuation_approved'?
      paidSource.approvedAt:paidSource?.paidAt;
-   return {...current,revisionCount:counts.get(entry.id)||0,
+   return {...current,originalEstimatedValue:entry.value,revisionCount:counts.get(entry.id)||0,
      ...(Number.isFinite(effectivePaid)&&effectivePaid>0?
        {approvedValue:effectivePaid,approvedAt:effectiveDate,
         approvedRecordedAt:paidSource.recordedAt,approvedRecordedBy:paidSource.recordedBy,
