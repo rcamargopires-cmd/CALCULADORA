@@ -112,7 +112,7 @@ assert.equal(write.body.record.companyId,'tenant-a');
 assert.equal(write.body.record.storeId,'unit-1');
 assert.equal(write.body.record.createdByName,'Mesa de Precificação');
 assert.equal(write.body.record.ads[0].price,'89900');
-assert.equal(write.body.record.id,'mock-snapshot-001');
+assert.match(write.body.record.id,/^eval_[0-9]{8}_ABC1D23$/,'One canonical Firestore id for each plate and local day');
 assert.ok(calls.some(x=>x.url.includes('/marketiq_pricing_histories_v1/tenant-a/stores/unit-1/evaluations')));
 assert.ok(!calls.some(x=>x.url.includes('/other-tenant/')));
 const list=mkRes();

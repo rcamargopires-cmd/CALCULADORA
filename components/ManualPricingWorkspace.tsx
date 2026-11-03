@@ -41,7 +41,7 @@ const decodeExtensionTransfer=(hash:string):CapturedAd[]=>{
  }catch{return [];}
 };
 
-type Saved={vehicleType?:'car'|'motorcycle';approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;paidFromApproval?:boolean;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
+type Saved={vehicleType?:'car'|'motorcycle';approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;paidFromApproval?:boolean;groupedRecords?:number;valuationVersions?:number;revisionCount?:number;revisedAt?:string;revisedBy?:string;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
 const number=(v:string)=>Number(v.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
 const money=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const localDate=()=>{const now=new Date();return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);};
@@ -353,7 +353,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    try{
      const result=await historyRequest('save',record);
      if(result.saved!==true)throw new Error('Não foi possível confirmar a gravação.');
-     setSaved(rows=>[result.record,...rows]);
+     // Always refresh from the server: a second save on the same day revises
+     // the existing entry and must never add a second history card.
      const recorded:string[]=[];
      const failures:string[]=[];
      if(newApprovedValue.trim()){
@@ -367,17 +368,17 @@ export default function ManualPricingWorkspace({user}:{user:User}){
          recorded.push('valor aprovado e efetivamente pago');
        }catch(e:any){failures.push('Valor aprovado/pago não registrado: '+(e?.message||'erro de gravação'));}
      }
-     if(recorded.length)await refreshHistory();
+     await refreshHistory();
      if(failures.length){
        setHistoryError('A avaliação foi salva, mas '+failures.join(' · ')+'. Não salve novamente: complemente no Histórico.');
        setNotice('Avaliação salva. Confirme os eventos pendentes no Histórico de avaliações.');
-     }else setNotice('Avaliação salva'+(recorded.length?' com '+recorded.join(' e '):'')+'. O valor informado pela Mesa é usado como preço realmente pago no Aprendizado IQ.');
+     }else setNotice((result.updated?'Avaliação de hoje atualizada sem criar duplicidade.':'Avaliação salva no histórico.')+(recorded.length?' Valor aprovado/pago confirmado.':'')+' O histórico mantém as versões anteriores para auditoria.');
    }catch(error:any){
      setHistoryError(error?.message||'Não foi possível salvar no histórico online.');
      setNotice('Não foi salva. Seus dados continuam nesta tela. Verifique a mensagem do histórico e tente novamente.');
    }finally{setHistoryBusy(false);}
  };
- const restore=(r:Saved)=>{setVehicleType(r.vehicleType==='motorcycle'?'motorcycle':'car');setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setRepasse(r.repasse);setClassification(r.historicalClass||'');setAds(r.ads);const restoredKey=[r.vehicleType==='motorcycle'?'motorcycle':'car',r.brandCode||'',r.modelCode||'',r.yearCode||'',r.km].join('|');setAdsVehicleKey(restoredKey);setAutoSearchKey(restoredKey);autoAttempted.current.add(restoredKey);setAutoSearchedAt(r.date);switchDeskSection('pricing');setNewApprovedValue('');setNewApprovedDate(localDate());setNotice('Avaliação reaberta. Salvar cria nova versão; os valores aprovados anteriormente continuam registrados na avaliação original.');window.scrollTo({top:0,behavior:'smooth'})};
+ const restore=(r:Saved)=>{setVehicleType(r.vehicleType==='motorcycle'?'motorcycle':'car');setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setRepasse(r.repasse);setClassification(r.historicalClass||'');setAds(r.ads);const restoredKey=[r.vehicleType==='motorcycle'?'motorcycle':'car',r.brandCode||'',r.modelCode||'',r.yearCode||'',r.km].join('|');setAdsVehicleKey(restoredKey);setAutoSearchKey(restoredKey);autoAttempted.current.add(restoredKey);setAutoSearchedAt(r.date);switchDeskSection('pricing');setNewApprovedValue('');setNewApprovedDate(localDate());setNotice('Avaliação reaberta. Salvar novamente no mesmo dia atualiza o registro existente e mantém as alterações anteriores para auditoria.');window.scrollTo({top:0,behavior:'smooth'})};
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  return <main className="mx-auto max-w-7xl space-y-5 p-5 text-slate-900">
  <nav className="motyq-iq-tabs flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Áreas do Motyq IQ">
@@ -404,7 +405,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   deskSection==='history'?<section className="space-y-4 rounded-xl bg-white p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 className="text-xl font-bold text-slate-900">Histórico de avaliações</h2>
-        <p className="mt-1 text-sm text-slate-600">Registros online por empresa e unidade. Cada salvamento cria uma versão que pode ser reaberta.</p></div>
+        <p className="mt-1 text-sm text-slate-600">Uma avaliação por placa e dia em cada unidade. Correções atualizam o cartão existente; versões anteriores ficam preservadas para auditoria.</p></div>
       <button type="button" onClick={()=>void refreshHistory()} disabled={historyBusy||migrateBusy}
         className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{historyBusy?'Atualizando...':'Atualizar histórico'}</button>
     </div>
@@ -432,6 +433,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
           <p className="mt-1 text-sm text-slate-700">{r.vehicleType==='motorcycle'?'Motocicleta':'Automóvel'} · {r.year} · {number(r.km).toLocaleString('pt-BR')} km · {r.repasse?'Repasse':'Varejo'}</p>
           <p className="mt-1 text-xs text-slate-600">{new Date(r.createdAt||r.date).toLocaleString('pt-BR')} · {r.createdByName||'Responsável não registrado'} · {(r.ads||[]).length} anúncio(s)</p>
           <p className="mt-1 text-xs font-semibold text-slate-700">{r.provisional===false?'Anúncios conferidos':number(String(r.value))>0?'Estimativa preliminar':'Rascunho sem valor'}</p>
+          {(r.valuationVersions||1)>1&&<p className="mt-1 text-xs font-semibold text-cyan-900">
+            {r.valuationVersions} versões registradas neste dia
+            {(r.groupedRecords||1)>1?' · '+r.groupedRecords+' avaliações anteriores consolidadas':''}
+          </p>}
+          {r.revisedAt&&<p className="mt-1 text-xs text-slate-700">Última revisão: {new Date(r.revisedAt).toLocaleString('pt-BR')} · {r.revisedBy||'Mesa'}</p>}
         </div>
         <div className="min-w-[200px] text-right">
           <p className="text-xs text-slate-600">Valor estimado pelo Motyq</p>

@@ -6,7 +6,7 @@
  * verified with Firebase Auth; company/store scope is derived from a *server-
  * read* active user profile, never from request body or URL.
  *
- * History is append-only. Firestore client rules deny direct access to this
+ * History stores revisions as append-only events, with one logical valuation per plate/day. Firestore client rules deny direct access to this
  * separate collection; this route supplies the authorization boundary.
  */
 import {createSign,randomUUID} from 'node:crypto';
@@ -162,6 +162,23 @@ const normalizePayload=(input:any)=>{
 // effectively paid. Reuse historical approval events as paid outcomes on read,
 // without rewriting Firestore documents or double-counting a purchase.
 
+const dailyKey=(plate:unknown,iso:unknown)=>{
+ const normalized=text(plate,16).toUpperCase().replace(/[^A-Z0-9]/g,'');
+ if(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(normalized))return '';
+ const date=new Date(String(iso||''));
+ if(!Number.isFinite(date.getTime()))return '';
+ const parts=new Intl.DateTimeFormat('en-US',{
+   timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'
+ }).formatToParts(date);
+ const year=parts.find(p=>p.type==='year')?.value;
+ const month=parts.find(p=>p.type==='month')?.value;
+ const day=parts.find(p=>p.type==='day')?.value;
+ return year&&month&&day?normalized+'|'+year+month+day:'';
+};
+// Stable Firestore document id makes simultaneous first saves conflict rather
+// than create two independent valuations.
+const dailyDocId=(key:string)=>{const [plate,day]=key.split('|');return 'eval_'+day+'_'+plate;};
+const mostRecent=(a:any,b:any,field:string)=>String(a?.[field]||'').localeCompare(String(b?.[field]||''));
 const hydratePaidRecords=(records:any[])=>{
  const latest=(kind:string)=>{
    const newest=new Map<string,any>();
@@ -175,8 +192,21 @@ const hydratePaidRecords=(records:any[])=>{
    return newest;
  };
  const approvals=latest('valuation_approved'), purchases=latest('purchase_paid');
- return records.filter(entry=>entry?.kind!=='purchase_paid'&&entry?.kind!=='valuation_approved').map(entry=>{
+ const revisions=latest('valuation_revision');
+ const counts=new Map<string,number>();
+ for(const event of records){
+   if(event?.kind==='valuation_revision'&&typeof event.evaluationId==='string')
+     counts.set(event.evaluationId,(counts.get(event.evaluationId)||0)+1);
+ }
+ return records.filter(entry=>!['purchase_paid','valuation_approved','valuation_revision'].includes(entry?.kind)).map(entry=>{
    const approved=approvals.get(entry.id), paid=purchases.get(entry.id);
+   const revision=revisions.get(entry.id);
+   // Keep the immutable original id, date and access scope. Only valuation
+   // fields may be revised; paid/approved results are separate audit events.
+   const current=revision?.snapshot&&typeof revision.snapshot==='object'?
+     {...entry,...revision.snapshot,id:entry.id,createdAt:entry.createdAt,
+      companyId:entry.companyId,storeId:entry.storeId,
+      revisedAt:revision.recordedAt,revisedBy:revision.recordedBy}:entry;
    // An explicit payment event remains authoritative if it was registered
    // later. A newer corrected approval takes precedence. Every approval now
    // counts as a real paid outcome in this company's established process.
@@ -188,7 +218,7 @@ const hydratePaidRecords=(records:any[])=>{
      paidSource.approvedValue:paidSource?.paidValue;
    const effectiveDate=paidSource?.kind==='valuation_approved'?
      paidSource.approvedAt:paidSource?.paidAt;
-   return {...entry,
+   return {...current,revisionCount:counts.get(entry.id)||0,
      ...(Number.isFinite(effectivePaid)&&effectivePaid>0?
        {approvedValue:effectivePaid,approvedAt:effectiveDate,
         approvedRecordedAt:paidSource.recordedAt,approvedRecordedBy:paidSource.recordedBy,
@@ -200,6 +230,60 @@ const hydratePaidRecords=(records:any[])=>{
         paidFromApproval:paidSource.kind==='valuation_approved'}:{})
    };
  });
+};
+const groupHistoryByDay=(records:any[])=>{
+ const grouped=new Map<string,any[]>();
+ for(const record of records){
+   const key=dailyKey(record.plate,record.createdAt||record.date)||
+     'ungrouped:'+String(record.id||'');
+   const group=grouped.get(key)||[];
+   group.push(record);
+   grouped.set(key,group);
+ }
+ return [...grouped.values()].map(group=>{
+   group.sort((a,b)=>mostRecent(b,a,'revisedAt')||
+      mostRecent(b,a,'createdAt')||String(b.id).localeCompare(String(a.id)));
+   const recent=group[0];
+   const paid=group.filter(r=>Number(r.paidValue)>0).sort((a,b)=>
+     mostRecent(b,a,'paidRecordedAt')||String(b.id).localeCompare(String(a.id)))[0];
+   // Legacy same-day duplicates may have the approval attached to an older
+   // evaluation. Display that existing confirmed outcome on the single card.
+   return {...recent,
+     ...(paid?{
+       paidValue:paid.paidValue,paidAt:paid.paidAt,paidRecordedAt:paid.paidRecordedAt,
+       paidRecordedBy:paid.paidRecordedBy,paidRecordedEmail:paid.paidRecordedEmail,
+       paidFromApproval:paid.paidFromApproval,
+       approvedValue:paid.paidValue,approvedAt:paid.paidAt,
+       approvedRecordedAt:paid.paidRecordedAt,approvedRecordedBy:paid.paidRecordedBy,
+       approvedRecordedEmail:paid.paidRecordedEmail
+     }:{}),
+     groupedRecords:group.length,revisionCount:group.reduce((n,r)=>n+(r.revisionCount||0),0),
+     valuationVersions:group.reduce((n,r)=>n+1+(r.revisionCount||0),0)
+   };
+ });
+};
+const readHistoryRows=async(base:string,authorization:Record<string,string>,scope:{companyId:string;storeId:string})=>{
+ const rows:any[]=[];
+ let pageToken='';
+ for(let page=0;page<5;page++){
+   const url=new URL(base);
+   url.searchParams.set('pageSize','100');
+   if(pageToken)url.searchParams.set('pageToken',pageToken);
+   const response=await fetch(url,{headers:authorization,signal:AbortSignal.timeout(16000)});
+   if(!response.ok)throw new Error('HISTORY_READ_FAILED_'+response.status);
+   const body=await response.json() as any;
+   for(const doc of (Array.isArray(body.documents)?body.documents:[])){
+     try{
+       const record=JSON.parse(readString(documentFields(doc),'payload'));
+       if(record?.companyId===scope.companyId&&record?.storeId===scope.storeId&&
+         typeof record?.id==='string'&&(typeof record?.plate==='string'||
+         ['purchase_paid','valuation_approved','valuation_revision'].includes(record?.kind)))rows.push(record);
+     }catch{}
+   }
+   pageToken=String(body.nextPageToken||'');
+   if(!pageToken)break;
+ }
+ return {rows,hasMore:Boolean(pageToken)};
 };
 const historyPath=(base:string,scope:{companyId:string;storeId:string})=>
  base+'/marketiq_pricing_histories_v1/'+scope.companyId+'/stores/'+scope.storeId+'/evaluations';
@@ -219,8 +303,46 @@ export default async function handler(req:any,res:any){
    const authorization={authorization:'Bearer '+token};
    if(req.body.action==='pricing_history_save'){
      const payload=normalizePayload(req.body.evaluation);
-     const id=randomUUID();
-     const record={...payload,id,createdAt:new Date().toISOString(),
+     const now=new Date().toISOString();
+     // Server-local day determines uniqueness; clients cannot backdate it.
+     const key=dailyKey(payload.plate,now);
+     if(!key)return respond(res,400,{error:'Placa ou data de avaliação inválida.'});
+     const existingHistory=await readHistoryRows(base,authorization,scope);
+     if(existingHistory.hasMore)
+       return respond(res,409,{error:'Há mais de 500 eventos no histórico. A verificação de duplicidade precisa ser ampliada antes de salvar com segurança.'});
+     const existing=groupHistoryByDay(hydratePaidRecords(existingHistory.rows)).find(
+       row=>dailyKey(row.plate,row.createdAt||row.date)===key
+     );
+     const revise=async(original:any)=>{
+       if(original?.companyId!==scope.companyId||original?.storeId!==scope.storeId||
+         dailyKey(original.plate,original.createdAt||original.date)!==key)
+         return respond(res,409,{error:'Avaliação existente não corresponde a esta placa e data.'});
+       const event={
+         kind:'valuation_revision',id:randomUUID(),evaluationId:original.id,
+         snapshot:{...payload,date:original.date},recordedAt:now,
+         recordedBy:scope.name,recordedEmail:scope.email,
+         companyId:scope.companyId,storeId:scope.storeId
+       };
+       const response=await fetch(base+'?documentId='+encodeURIComponent(event.id),{
+         method:'POST',headers:{...authorization,'content-type':'application/json'},
+         body:JSON.stringify({fields:{
+           payload:{stringValue:JSON.stringify(event)},
+           companyId:{stringValue:scope.companyId},storeId:{stringValue:scope.storeId},
+           eventType:{stringValue:event.kind},evaluationId:{stringValue:original.id},
+           createdAt:{stringValue:now},plate:{stringValue:payload.plate}
+         }}),signal:AbortSignal.timeout(16000)
+       });
+       if(!response.ok)throw new Error('HISTORY_REVISION_WRITE_FAILED_'+response.status);
+       return respond(res,200,{saved:true,updated:true,record:{
+         ...original,...payload,id:original.id,date:original.date,
+         createdAt:original.createdAt,companyId:scope.companyId,storeId:scope.storeId,
+         revisedAt:now,revisedBy:scope.name,
+         revisionCount:(original.revisionCount||0)+1
+       }});
+     };
+     if(existing)return revise(existing);
+     const id=dailyDocId(key);
+     const record={...payload,id,date:now,createdAt:now,
        createdByEmail:scope.email,createdByName:scope.name,
        companyId:scope.companyId,storeId:scope.storeId};
      const response=await fetch(base+'?documentId='+encodeURIComponent(id),{
@@ -232,8 +354,19 @@ export default async function handler(req:any,res:any){
          plate:{stringValue:record.plate},model:{stringValue:record.model}
        }}),signal:AbortSignal.timeout(16000)
      });
+     if(response.status===409){
+       // Another tab created this plate/day after the lookup. Return the
+       // same logical valuation and append a revision instead.
+       const previous=await fetch(base+'/'+encodeURIComponent(id),{
+         headers:authorization,signal:AbortSignal.timeout(12000)
+       });
+       if(!previous.ok)throw new Error('HISTORY_CONCURRENT_READ_FAILED_'+previous.status);
+       let initial:any=null;
+       try{initial=JSON.parse(readString(documentFields(await previous.json()),'payload'));}catch{}
+       return revise(initial);
+     }
      if(!response.ok)throw new Error('HISTORY_WRITE_FAILED_'+response.status);
-     return respond(res,200,{saved:true,record});
+     return respond(res,200,{saved:true,updated:false,record});
    }
    if(req.body.action==='pricing_history_paid'||req.body.action==='pricing_history_approved'){
      const isApproval=req.body.action==='pricing_history_approved';
@@ -242,7 +375,7 @@ export default async function handler(req:any,res:any){
      const amount=Number(rawAmount);
      const eventDate=text(isApproval?req.body?.approvedAt:req.body?.paidAt,10);
      const parsedDate=new Date(eventDate+'T12:00:00Z');
-     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(evaluationId)||
+     if(!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(evaluationId)||/^eval_[0-9]{8}_[A-Z0-9]{7}$/.test(evaluationId))||
        typeof rawAmount!=='number'||!Number.isFinite(amount)||amount<=0||amount>2000000||
        !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)||
        Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==eventDate||
@@ -280,28 +413,11 @@ export default async function handler(req:any,res:any){
      if(!response.ok)throw new Error('HISTORY_EVENT_WRITE_FAILED_'+response.status);
      return respond(res,200,isApproval?{saved:true,approved:event}:{saved:true,paid:event});
    }
-   const rows:any[]=[];
-   let pageToken='';
-   for(let page=0;page<5;page++){
-     const url=new URL(base);
-     url.searchParams.set('pageSize','100');
-     if(pageToken)url.searchParams.set('pageToken',pageToken);
-     const response=await fetch(url,{headers:authorization,signal:AbortSignal.timeout(16000)});
-     if(!response.ok)throw new Error('HISTORY_READ_FAILED_'+response.status);
-     const body=await response.json() as any;
-     for(const doc of (Array.isArray(body.documents)?body.documents:[])){
-       try{
-         const record=JSON.parse(readString(documentFields(doc),'payload'));
-         if(record?.companyId===scope.companyId&&record?.storeId===scope.storeId&&
-           typeof record?.id==='string'&&(typeof record?.plate==='string'||['purchase_paid','valuation_approved'].includes(record?.kind)))rows.push(record);
-       }catch{}
-     }
-     pageToken=String(body.nextPageToken||'');
-     if(!pageToken)break;
-   }
-   const history=hydratePaidRecords(rows);
-   history.sort((a,b)=>String(b.createdAt||b.date).localeCompare(String(a.createdAt||a.date)));
-   return respond(res,200,{records:history,hasMore:Boolean(pageToken)});
+   const {rows,hasMore}=await readHistoryRows(base,authorization,scope);
+   const history=groupHistoryByDay(hydratePaidRecords(rows));
+   history.sort((a,b)=>String(b.revisedAt||b.createdAt||b.date).localeCompare(
+     String(a.revisedAt||a.createdAt||a.date)));
+   return respond(res,200,{records:history,hasMore});
  }catch(error:any){
    const name=String(error?.message||'');
    if(name==='HISTORY_PERMISSION_DENIED')return respond(res,403,{error:'Seu perfil não tem permissão para acessar o histórico da mesa.'});
