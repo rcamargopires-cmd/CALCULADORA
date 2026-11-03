@@ -136,22 +136,27 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [historyBusy,setHistoryBusy]=useState(false);
  const [newApprovedValue,setNewApprovedValue]=useState('');
  const [newApprovedDate,setNewApprovedDate]=useState(localDate);
+ const [newPaidValue,setNewPaidValue]=useState('');
+ const [newPaidDate,setNewPaidDate]=useState(localDate);
  const [editingApprovedId,setEditingApprovedId]=useState('');
  const [editingApprovedValue,setEditingApprovedValue]=useState('');
  const [editingApprovedDate,setEditingApprovedDate]=useState(localDate);
+ const [editingPaidId,setEditingPaidId]=useState('');
+ const [editingPaidValue,setEditingPaidValue]=useState('');
+ const [editingPaidDate,setEditingPaidDate]=useState(localDate);
  const [historyError,setHistoryError]=useState('');
  const [historySearch,setHistorySearch]=useState('');
- const [historyStatus,setHistoryStatus]=useState<'all'|'approved'|'reviewed'|'preliminary'|'draft'>('all');
+ const [historyStatus,setHistoryStatus]=useState<'all'|'approved'|'paid'|'reviewed'|'preliminary'|'draft'>('all');
  const [historyMore,setHistoryMore]=useState(false);
  const [migrateBusy,setMigrateBusy]=useState(false);
- const historyRequest=async(action:'list'|'save'|'approved',evaluation?:Saved,approval?:{evaluationId:string;amount:number;approvedAt:string})=>{
+ const historyRequest=async(action:'list'|'save'|'approved'|'paid',evaluation?:Saved,event?:{evaluationId:string;amount:number;approvedAt?:string;paidAt?:string})=>{
    const currentUser=auth.currentUser;
    if(!currentUser)throw new Error('Sessão encerrada. Entre novamente.');
    const token=await currentUser.getIdToken();
    const response=await fetch('/api/marketiq-market-scan',{
      method:'POST',cache:'no-store',
      headers:{'content-type':'application/json','Authorization':'Bearer '+token},
-     body:JSON.stringify({action:'pricing_history_'+action,...(evaluation?{evaluation}:{}),...(approval||{})}),
+     body:JSON.stringify({action:'pricing_history_'+action,...(evaluation?{evaluation}:{}),...(event||{})}),
      signal:AbortSignal.timeout(35000)
    });
    const result=await response.json().catch(()=>({}));
@@ -189,6 +194,27 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      await refreshHistory();
      setNotice('Valor aprovado na avaliação registrado no histórico, sem alterar a estimativa original.');
    }catch(e:any){setHistoryError(e?.message||'Não foi possível registrar o valor aprovado.');}
+   finally{setHistoryBusy(false);}
+ };
+ const recordPaid=async(record:Saved)=>{
+   if(historyBusy)return;
+   if(!approvalInputValid(editingPaidValue)){
+     setHistoryError('Informe o valor realmente pago, maior que zero.');return;
+   }
+   if(!editingPaidDate||editingPaidDate>localDate()){
+     setHistoryError('Informe uma data de compra válida, até hoje.');return;
+   }
+   setHistoryBusy(true);setHistoryError('');
+   try{
+     const data=await historyRequest('paid',undefined,{
+       evaluationId:record.id,amount:Math.round(number(editingPaidValue)*100)/100,
+       paidAt:editingPaidDate
+     });
+     if(data.saved!==true)throw new Error('Não foi possível confirmar o valor realmente pago.');
+     setEditingPaidId('');
+     await refreshHistory();
+     setNotice('Compra efetiva registrada. O valor pago foi incorporado ao Aprendizado IQ sem alterar a avaliação original.');
+   }catch(e:any){setHistoryError(e?.message||'Falha ao registrar valor realmente pago.');}
    finally{setHistoryBusy(false);}
  };
  const legacyPending=legacySaved.filter(r=>!migratedIds.includes(r.id));
