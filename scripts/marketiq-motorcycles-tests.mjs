@@ -47,7 +47,7 @@ assert.ok(fipe.includes("const base=BASE_ROOT+'/'+vehicleType;"));
 assert.ok(ui.includes('<option value="motorcycle">Motocicleta</option>'));
 assert.ok(ui.includes("const query=new URLSearchParams({action,vehicleType,...params})"));
 assert.ok(ui.includes("vehicleType==='motorcycle'||!fipe||!classification"),'Car-only trained history must never price motorcycles');
-assert.ok(ui.includes("value:provisional?(vehicleType==='motorcycle'?0:"),'Missing motorcycle comparables must never use the car estimate or indexed floor');
+assert.ok(ui.includes("value:provisional?(vehicleType==='motorcycle'?(motorcycleReference?.medianIndication||0):"),'Motorcycle appraisal must save only its own preliminary historical estimate, never use the car model');
 assert.ok(ui.includes("vehicleType,plate,model,year,km,cost,repasse"));
 assert.ok(history.includes("vehicleType:input.vehicleType==='motorcycle'?'motorcycle':'car'"));
 assert.ok(deployed.includes("vehicleType:input.vehicleType==='motorcycle'?'motorcycle':'car'"));
