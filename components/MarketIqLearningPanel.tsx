@@ -83,9 +83,20 @@ export default function MarketIqLearningPanel({
            <span>Mediana do valor aprovado e pago/FIPE</span>
            <strong>{percent(category.paid.median)} <span className="font-normal text-slate-600">({category.paid.count})</span></strong>
          </div>
-         <div className="flex flex-wrap justify-between gap-2 border-b border-slate-200 pb-2">
-           <span>Erro médio absoluto da estimativa frente ao valor pago</span>
-           <strong>{money(category.paidEstimateMae)}</strong>
+         <div className="border-b border-slate-200 pb-2">
+           <div className="flex flex-wrap justify-between gap-2">
+             <span>Erro médio absoluto da estimativa frente ao valor pago</span>
+             <strong>{category.paidEstimateComparisonCount?money(category.paidEstimateMae):'Sem estimativa original válida'}</strong>
+           </div>
+           <p className="mt-1 text-xs text-slate-600">
+             {category.paidEstimateComparisonCount} de {category.cloudPaidCount} compra(s) com estimativa original e valor pago comparáveis
+           </p>
+           {category.paidWithoutEstimateCount>0&&<p className="mt-1 text-xs font-semibold text-amber-900">
+             {category.paidWithoutEstimateCount} compra(s) já registrada(s) sem estimativa original válida.
+             O Motyq não calcula o erro retroativamente para não alterar a previsão que existia na data da avaliação.
+           </p>}
+           {category.paidEstimateMae!==null&&category.paidEstimateMae>5000&&
+             <p className="mt-1 text-xs text-amber-900">Erro elevado nesta amostra. Revise as estimativas, a classificação e os custos antes de calibrar o modelo.</p>}
          </div>
        </div>
        <div className="mt-4 rounded-lg bg-cyan-50 p-3">
