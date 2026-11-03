@@ -1057,6 +1057,11 @@ async function marketIqDeskSearchServer(req: any, res: any) {
     const snippet = string(item?.content).slice(0, 2200);
     const text = title + ' ' + snippet + ' ' + string(item?.raw_content).slice(0, 5000);
     const normalizedText = normalize(text + ' ' + url);
+    // In Webmotors /comprar URLs the final year of YYYY-YYYY is the model year.
+    // Do not turn a 2018/2019 motorcycle into a 2018 model merely because the
+    // production year appears in the indexed title.
+    const yearPair=(source==='webmotors'?new URL(url).pathname.match(/\/(?:19|20)\d{2}-((?:19|20)\d{2})\//):null);
+    if(yearPair&&Number(yearPair[1])!==year)return null;
     const price = priceOf(text,vehicleType==='motorcycle'?2500:15000), adKm = kmOf(text);
     if (!source || !isIndividualAdUrl(source,url) || !coreModel || !normalizedText.includes(coreModel)) return null;
     if (trimToken && !normalizedText.includes(trimToken)) return null;
