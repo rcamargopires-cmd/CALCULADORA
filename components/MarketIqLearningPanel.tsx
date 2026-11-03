@@ -35,7 +35,7 @@ export default function MarketIqLearningPanel({
      <div>
        <h2 className="text-xl font-black">Motyq IQ · Aprendizado contínuo</h2>
        <p className="mt-1 max-w-3xl text-sm text-slate-700">
-         A cada avaliação salva, aprovação ou compra registrada, o histórico online oferece novos resultados
+         A cada avaliação salva e valor aprovado/pago registrado, o histórico online oferece resultados
          para comparar com a estimativa. As importações locais ajudam a entender o volume, os modelos e o funil.
          Motos e automóveis são analisados separadamente.
        </p>
@@ -55,7 +55,7 @@ export default function MarketIqLearningPanel({
        <p className="mt-2 text-2xl font-black">{fmt(report.cloudTotal)}</p>
      </div>
      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-       <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Compras com valor realmente pago</p>
+       <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Compras com valor aprovado e pago</p>
        <p className="mt-2 text-2xl font-black">{fmt(report.categories.reduce((n,c)=>n+c.cloudPaidCount,0))}</p>
      </div>
    </div>
@@ -71,8 +71,8 @@ export default function MarketIqLearningPanel({
        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
          <div className="rounded-lg bg-slate-50 p-3"><dt className="text-slate-600">Avaliações no arquivo</dt><dd className="text-xl font-bold">{fmt(category.importedEvaluations)}</dd></div>
          <div className="rounded-lg bg-slate-50 p-3"><dt className="text-slate-600">Status COMPRA no arquivo</dt><dd className="text-xl font-bold">{fmt(category.importedPurchases)}</dd></div>
-         <div className="rounded-lg bg-slate-50 p-3"><dt className="text-slate-600">Valor aprovado na Mesa</dt><dd className="text-xl font-bold">{fmt(category.cloudApprovedCount)}</dd></div>
-         <div className="rounded-lg bg-slate-50 p-3"><dt className="text-slate-600">Valor pago confirmado</dt><dd className="text-xl font-bold">{fmt(category.cloudPaidCount)}</dd></div>
+         <div className="rounded-lg bg-slate-50 p-3"><dt className="text-slate-600">Aprovações/pagamentos registrados</dt><dd className="text-xl font-bold">{fmt(category.cloudPaidCount)}</dd></div>
+         <div className="rounded-lg bg-slate-50 p-3"><dt className="text-slate-600">Com FIPE para comparar</dt><dd className="text-xl font-bold">{fmt(category.paid.count)}</dd></div>
        </dl>
        <div className="mt-4 space-y-3 text-sm">
          <div className="flex flex-wrap justify-between gap-2 border-b border-slate-200 pb-2">
@@ -80,11 +80,7 @@ export default function MarketIqLearningPanel({
            <strong>{percent(category.purchaseProxy.median)} <span className="font-normal text-slate-600">({category.purchaseProxy.count} registros)</span></strong>
          </div>
          <div className="flex flex-wrap justify-between gap-2 border-b border-slate-200 pb-2">
-           <span>Mediana do valor aprovado/FIPE</span>
-           <strong>{percent(category.approved.median)} <span className="font-normal text-slate-600">({category.approved.count})</span></strong>
-         </div>
-         <div className="flex flex-wrap justify-between gap-2 border-b border-slate-200 pb-2">
-           <span>Mediana do preço efetivamente pago/FIPE</span>
+           <span>Mediana do valor aprovado e pago/FIPE</span>
            <strong>{percent(category.paid.median)} <span className="font-normal text-slate-600">({category.paid.count})</span></strong>
          </div>
          <div className="flex flex-wrap justify-between gap-2 border-b border-slate-200 pb-2">
@@ -107,9 +103,10 @@ export default function MarketIqLearningPanel({
      <strong>Como o aprendizado funciona:</strong> avaliações importadas contam como observações de mercado.
      O status COMPRA no Excel ainda usa o campo <em>Valor avaliado</em>, que pode não ser o pagamento final;
      por isso ele fica separado da base de preços realmente pagos.
-     Aprovações registradas no Motyq ensinam o comportamento da Mesa.
-     Compras com valor efetivamente pago confirmado permitem medir o erro da estimativa e testar futuras calibrações.
-     Nenhum preço é automaticamente alterado apenas por volume de avaliações.
+     Neste processo, o valor aprovado pela Mesa é o valor efetivamente pago pela loja.
+     O sistema usa essa informação uma única vez para medir o erro da estimativa e testar futuras calibrações.
+     Registros anteriores de aprovação também entram nesses indicadores, sem nova digitação.
+     Nenhum preço de compra é alterado automaticamente apenas pelo volume de avaliações.
    </p>
  </section>;
 }
