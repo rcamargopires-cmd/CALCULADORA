@@ -41,7 +41,7 @@ const decodeExtensionTransfer=(hash:string):CapturedAd[]=>{
  }catch{return [];}
 };
 
-type Saved={vehicleType?:'car'|'motorcycle';approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
+type Saved={vehicleType?:'car'|'motorcycle';approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;paidFromApproval?:boolean;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
 const number=(v:string)=>Number(v.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
 const money=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const localDate=()=>{const now=new Date();return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);};
@@ -136,14 +136,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [historyBusy,setHistoryBusy]=useState(false);
  const [newApprovedValue,setNewApprovedValue]=useState('');
  const [newApprovedDate,setNewApprovedDate]=useState(localDate);
- const [newPaidValue,setNewPaidValue]=useState('');
- const [newPaidDate,setNewPaidDate]=useState(localDate);
  const [editingApprovedId,setEditingApprovedId]=useState('');
  const [editingApprovedValue,setEditingApprovedValue]=useState('');
  const [editingApprovedDate,setEditingApprovedDate]=useState(localDate);
- const [editingPaidId,setEditingPaidId]=useState('');
- const [editingPaidValue,setEditingPaidValue]=useState('');
- const [editingPaidDate,setEditingPaidDate]=useState(localDate);
  const [historyError,setHistoryError]=useState('');
  const [historySearch,setHistorySearch]=useState('');
  const [historyStatus,setHistoryStatus]=useState<'all'|'approved'|'paid'|'reviewed'|'preliminary'|'draft'>('all');
@@ -192,29 +187,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      if(data.saved!==true)throw new Error('Não foi possível confirmar a aprovação.');
      setEditingApprovedId('');
      await refreshHistory();
-     setNotice('Valor aprovado na avaliação registrado no histórico, sem alterar a estimativa original.');
+     setNotice('Valor aprovado e efetivamente pago registrado. O Aprendizado IQ usará esse valor sem alterar a estimativa original.');
    }catch(e:any){setHistoryError(e?.message||'Não foi possível registrar o valor aprovado.');}
-   finally{setHistoryBusy(false);}
- };
- const recordPaid=async(record:Saved)=>{
-   if(historyBusy)return;
-   if(!approvalInputValid(editingPaidValue)){
-     setHistoryError('Informe o valor realmente pago, maior que zero.');return;
-   }
-   if(!editingPaidDate||editingPaidDate>localDate()){
-     setHistoryError('Informe uma data de compra válida, até hoje.');return;
-   }
-   setHistoryBusy(true);setHistoryError('');
-   try{
-     const data=await historyRequest('paid',undefined,{
-       evaluationId:record.id,amount:Math.round(number(editingPaidValue)*100)/100,
-       paidAt:editingPaidDate
-     });
-     if(data.saved!==true)throw new Error('Não foi possível confirmar o valor realmente pago.');
-     setEditingPaidId('');
-     await refreshHistory();
-     setNotice('Compra efetiva registrada. O valor pago foi incorporado ao Aprendizado IQ sem alterar a avaliação original.');
-   }catch(e:any){setHistoryError(e?.message||'Falha ao registrar valor realmente pago.');}
    finally{setHistoryBusy(false);}
  };
  const legacyPending=legacySaved.filter(r=>!migratedIds.includes(r.id));
@@ -242,7 +216,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    const query=historySearch.trim().toLowerCase();
    const matches=!query||[r.plate,r.brand,r.model,r.year,r.createdByName].join(' ').toLowerCase().includes(query);
    const status=r.provisional===false?'reviewed':Number(r.value)>0?'preliminary':'draft';
-   return matches&&(historyStatus==='all'||(historyStatus==='approved'?Number(r.approvedValue)>0:historyStatus==='paid'?Number(r.paidValue)>0:status===historyStatus));
+   return matches&&(historyStatus==='all'||(historyStatus==='approved'?Number(r.approvedValue)>0||Number(r.paidValue)>0:historyStatus==='paid'?Number(r.paidValue)>0||Number(r.approvedValue)>0:status===historyStatus));
  });
 
  const catalog=async(action:string,params:Record<string,string>,signal:AbortSignal)=>{const query=new URLSearchParams({action,vehicleType,...params});const cacheKey='motyq-iq-fipe-'+query.toString();const stored=sessionStorage.getItem(cacheKey);if(stored){try{return JSON.parse(stored);}catch{sessionStorage.removeItem(cacheKey);}}let lastError:Error=new Error('FIPE indisponível');for(let attempt=0;attempt<3;attempt++){if(signal.aborted)throw new DOMException('Consulta cancelada','AbortError');try{const response=await fetch('/api/marketiq-fipe?'+query.toString(),{signal,cache:'no-store'});if(!response.ok){lastError=new Error('FIPE HTTP '+response.status);if(response.status<500&&response.status!==429)throw lastError;}else{const data=await response.json();sessionStorage.setItem(cacheKey,JSON.stringify(data));return data;}}catch(e:any){if(e?.name==='AbortError')throw e;lastError=e instanceof Error?e:lastError;}if(attempt<2)await new Promise<void>((resolve,reject)=>{const timer=window.setTimeout(()=>{signal.removeEventListener('abort',cancel);resolve();},500*(attempt+1));const cancel=()=>{window.clearTimeout(timer);reject(new DOMException('Consulta cancelada','AbortError'));};signal.addEventListener('abort',cancel,{once:true});});}throw lastError;};
@@ -369,12 +343,6 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    if(newApprovedValue.trim()&&(!newApprovedDate||newApprovedDate>localDate())){
      setHistoryError('Informe uma data de aprovação válida, até hoje.');return;
    }
-   if(newPaidValue.trim()&&!approvalInputValid(newPaidValue)){
-     setHistoryError('Corrija o valor realmente pago antes de salvar.');return;
-   }
-   if(newPaidValue.trim()&&(!newPaidDate||newPaidDate>localDate())){
-     setHistoryError('Informe a data real da compra, até hoje.');return;
-   }
    const provisional=!marketReady;
    const record:Saved={id:String(Date.now()),date:new Date().toISOString(),vehicleType,plate,model,year,km,cost,repasse,
      ads:currentAds,value:provisional?(vehicleType==='motorcycle'?(motorcycleReference?.medianIndication||0):referenceAvg>0?referenceCeiling:historicalEstimate?.target||0):ceiling,provisional,
@@ -396,31 +364,20 @@ export default function ManualPricingWorkspace({user}:{user:User}){
          });
          if(data.saved!==true)throw new Error('Gravação não confirmada.');
          setNewApprovedValue('');
-         recorded.push('aprovação');
-       }catch(e:any){failures.push('Valor aprovado não registrado: '+(e?.message||'erro de gravação'));}
-     }
-     if(newPaidValue.trim()){
-       try{
-         const data=await historyRequest('paid',undefined,{
-           evaluationId:result.record.id,
-           amount:Math.round(number(newPaidValue)*100)/100,paidAt:newPaidDate
-         });
-         if(data.saved!==true)throw new Error('Gravação não confirmada.');
-         setNewPaidValue('');
-         recorded.push('valor realmente pago');
-       }catch(e:any){failures.push('Pagamento efetivo não registrado: '+(e?.message||'erro de gravação'));}
+         recorded.push('valor aprovado e efetivamente pago');
+       }catch(e:any){failures.push('Valor aprovado/pago não registrado: '+(e?.message||'erro de gravação'));}
      }
      if(recorded.length)await refreshHistory();
      if(failures.length){
        setHistoryError('A avaliação foi salva, mas '+failures.join(' · ')+'. Não salve novamente: complemente no Histórico.');
        setNotice('Avaliação salva. Confirme os eventos pendentes no Histórico de avaliações.');
-     }else setNotice('Avaliação salva'+(recorded.length?' com '+recorded.join(' e '):'')+'. O valor aprovado e o valor realmente pago permanecem registros independentes.');
+     }else setNotice('Avaliação salva'+(recorded.length?' com '+recorded.join(' e '):'')+'. O valor informado pela Mesa é usado como preço realmente pago no Aprendizado IQ.');
    }catch(error:any){
      setHistoryError(error?.message||'Não foi possível salvar no histórico online.');
      setNotice('Não foi salva. Seus dados continuam nesta tela. Verifique a mensagem do histórico e tente novamente.');
    }finally{setHistoryBusy(false);}
  };
- const restore=(r:Saved)=>{setVehicleType(r.vehicleType==='motorcycle'?'motorcycle':'car');setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setRepasse(r.repasse);setClassification(r.historicalClass||'');setAds(r.ads);const restoredKey=[r.vehicleType==='motorcycle'?'motorcycle':'car',r.brandCode||'',r.modelCode||'',r.yearCode||'',r.km].join('|');setAdsVehicleKey(restoredKey);setAutoSearchKey(restoredKey);autoAttempted.current.add(restoredKey);setAutoSearchedAt(r.date);switchDeskSection('pricing');setNewApprovedValue('');setNewApprovedDate(localDate());setNewPaidValue('');setNewPaidDate(localDate());setNotice('Avaliação reaberta. Salvar cria nova versão; os valores aprovados anteriormente continuam registrados na avaliação original.');window.scrollTo({top:0,behavior:'smooth'})};
+ const restore=(r:Saved)=>{setVehicleType(r.vehicleType==='motorcycle'?'motorcycle':'car');setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setRepasse(r.repasse);setClassification(r.historicalClass||'');setAds(r.ads);const restoredKey=[r.vehicleType==='motorcycle'?'motorcycle':'car',r.brandCode||'',r.modelCode||'',r.yearCode||'',r.km].join('|');setAdsVehicleKey(restoredKey);setAutoSearchKey(restoredKey);autoAttempted.current.add(restoredKey);setAutoSearchedAt(r.date);switchDeskSection('pricing');setNewApprovedValue('');setNewApprovedDate(localDate());setNotice('Avaliação reaberta. Salvar cria nova versão; os valores aprovados anteriormente continuam registrados na avaliação original.');window.scrollTo({top:0,behavior:'smooth'})};
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  return <main className="mx-auto max-w-7xl space-y-5 p-5 text-slate-900">
  <nav className="motyq-iq-tabs flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Áreas do Motyq IQ">
@@ -463,7 +420,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
         <input className={input} value={historySearch} onChange={e=>setHistorySearch(e.target.value)} placeholder="Ex.: ABC1D23 ou Titano"/></label>
       <label className="min-w-[180px] text-sm font-medium text-slate-700">Situação
         <select className={input} value={historyStatus} onChange={e=>setHistoryStatus(e.target.value as typeof historyStatus)}>
-          <option value="all">Todas</option><option value="approved">Com valor aprovado</option><option value="paid">Com valor realmente pago</option><option value="reviewed">Conferidas</option><option value="preliminary">Preliminares</option><option value="draft">Rascunhos sem valor</option>
+          <option value="all">Todas</option><option value="approved">Com valor aprovado/pago</option><option value="reviewed">Conferidas</option><option value="preliminary">Preliminares</option><option value="draft">Rascunhos sem valor</option>
         </select></label>
     </div>
     {historyMore&&<p className="text-xs font-semibold text-amber-800">O banco possui mais de 500 registros nesta unidade. A lista mostra os primeiros 500; refine a busca em uma próxima versão.</p>}
@@ -481,58 +438,33 @@ export default function ManualPricingWorkspace({user}:{user:User}){
           <p className="text-lg font-bold text-slate-950">{money(r.value)}</p>
           {Number(r.approvedValue)>0?
             <div className="mt-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3">
-              <p className="text-xs font-bold uppercase text-emerald-900">Valor aprovado na avaliação</p>
+              <p className="text-xs font-bold uppercase text-emerald-900">Valor aprovado e pago pela loja</p>
               <p className="text-xl font-black text-emerald-950">{money(Number(r.approvedValue))}</p>
               <p className="text-xs font-semibold text-emerald-900">{Number(r.approvedValue)>r.value?'Acima':Number(r.approvedValue)<r.value?'Abaixo':'Igual à estimativa'}{Number(r.approvedValue)!==r.value?' em '+money(Math.abs(Number(r.approvedValue)-r.value)):''}</p>
               <p className="mt-1 text-xs text-emerald-900">Aprovação: {r.approvedAt?.split('-').reverse().join('/')||'-'} · {r.approvedRecordedBy||'usuário autorizado'}</p>
             </div>:
-            <p className="mt-2 text-xs font-semibold text-amber-900">Valor aprovado ainda não informado</p>}
-          {Number(r.paidValue)>0?<div className="mt-2 rounded-lg border border-cyan-300 bg-cyan-50 p-3">
-            <p className="text-xs font-bold uppercase text-cyan-900">Valor realmente pago na compra</p>
-            <p className="text-xl font-black text-cyan-950">{money(Number(r.paidValue))}</p>
-            {r.value>0&&<p className="text-xs font-semibold text-cyan-900">{Number(r.paidValue)<r.value?money(r.value-Number(r.paidValue))+' abaixo da estimativa':Number(r.paidValue)>r.value?money(Number(r.paidValue)-r.value)+' acima da estimativa':'Exatamente igual à estimativa'}</p>}
-            <p className="mt-1 text-xs text-cyan-900">Compra: {r.paidAt?.split('-').reverse().join('/')||'-'} · {r.paidRecordedBy||'Usuário autorizado'}</p>
-          </div>:<p className="mt-2 text-xs font-semibold text-slate-600">Valor realmente pago não informado</p>}
+            <p className="mt-2 text-xs font-semibold text-amber-900">Valor aprovado/pago ainda não informado</p>}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={()=>{setEditingApprovedId(r.id);setEditingApprovedValue(r.approvedValue?Number(r.approvedValue).toFixed(2).replace('.',','):'');setEditingApprovedDate(r.approvedAt||localDate());setHistoryError('');}}
-            className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-bold text-emerald-900">{Number(r.approvedValue)>0?'Corrigir valor aprovado':'Registrar valor aprovado'}</button>
-          <button type="button" onClick={()=>{setEditingPaidId(r.id);setEditingPaidValue(r.paidValue?Number(r.paidValue).toFixed(2).replace('.',','):'');setEditingPaidDate(r.paidAt||localDate());setHistoryError('');}}
-            className="rounded-lg border border-cyan-800 bg-white px-4 py-2 text-sm font-bold text-cyan-900">{Number(r.paidValue)>0?'Corrigir valor realmente pago':'Registrar valor realmente pago'}</button>
+          <button type="button" onClick={()=>{setEditingApprovedId(r.id);setEditingApprovedValue((r.paidValue||r.approvedValue)?Number(r.paidValue||r.approvedValue).toFixed(2).replace('.',','):'');setEditingApprovedDate(r.paidAt||r.approvedAt||localDate());setHistoryError('');}}
+            className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-bold text-emerald-900">{Number(r.approvedValue)>0||Number(r.paidValue)>0?'Corrigir valor aprovado/pago':'Registrar valor aprovado/pago'}</button>
           <button type="button" onClick={()=>restore(r)} className="rounded-lg bg-cyan-800 px-4 py-2 text-sm font-bold text-white">Reabrir avaliação</button>
         </div>
         {editingApprovedId===r.id&&<div className="w-full rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4">
-          <p className="font-bold text-emerald-950">Valor aprovado na avaliação · {r.plate}</p>
-          <p className="mb-3 text-xs text-emerald-900">Informe o valor aprovado pela mesa de avaliação. Não exige que o veículo tenha sido comprado. Correções preservam o registro anterior para auditoria.</p>
+          <p className="font-bold text-emerald-950">Valor aprovado e pago · {r.plate}</p>
+          <p className="mb-3 text-xs text-emerald-900">Informe o valor que a loja efetivamente pagou após a aprovação da Mesa. Ele será contabilizado no Aprendizado IQ; correções preservam os eventos anteriores para auditoria.</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-semibold text-slate-900">Valor aprovado na avaliação (R$)
+            <label className="text-sm font-semibold text-slate-900">Valor aprovado e pago (R$)
               <input className={input+' mt-1'} inputMode="decimal" type="text" placeholder="Ex.: 76.000,00" value={editingApprovedValue} onChange={e=>setEditingApprovedValue(e.target.value)} />
             </label>
-            <label className="text-sm font-semibold text-slate-900">Data da aprovação
+            <label className="text-sm font-semibold text-slate-900">Data da aprovação/compra
               <input className={input+' mt-1'} type="date" max={localDate()} value={editingApprovedDate} onChange={e=>setEditingApprovedDate(e.target.value)} />
             </label>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" disabled={historyBusy||!approvalInputValid(editingApprovedValue)||!editingApprovedDate} onClick={()=>void recordApproved(r)}
-              className="rounded-lg bg-emerald-800 px-5 py-2 text-sm font-bold text-white disabled:opacity-40">{historyBusy?'Registrando...':'Confirmar valor aprovado'}</button>
+              className="rounded-lg bg-emerald-800 px-5 py-2 text-sm font-bold text-white disabled:opacity-40">{historyBusy?'Registrando...':'Confirmar valor aprovado e pago'}</button>
             <button type="button" onClick={()=>setEditingApprovedId('')} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800">Cancelar</button>
-          </div>
-        </div>}
-        {editingPaidId===r.id&&<div className="w-full rounded-xl border-2 border-cyan-300 bg-cyan-50 p-4">
-          <p className="font-bold text-cyan-950">Compra efetivamente realizada · {r.plate}</p>
-          <p className="mb-3 text-xs text-cyan-900">Informe o valor que a empresa de fato pagou. Não confunda com o valor aprovado na avaliação. Correções ficam registradas para auditoria.</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-semibold text-slate-950">Valor realmente pago (R$)
-              <input className={input+' mt-1'} inputMode="decimal" type="text" placeholder="Ex.: 7.000,00" value={editingPaidValue} onChange={e=>setEditingPaidValue(e.target.value)} />
-            </label>
-            <label className="text-sm font-semibold text-slate-950">Data efetiva da compra
-              <input className={input+' mt-1'} type="date" max={localDate()} value={editingPaidDate} onChange={e=>setEditingPaidDate(e.target.value)} />
-            </label>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" disabled={historyBusy||!approvalInputValid(editingPaidValue)||!editingPaidDate} onClick={()=>void recordPaid(r)}
-              className="rounded-lg bg-cyan-800 px-5 py-2 text-sm font-bold text-white disabled:opacity-40">{historyBusy?'Gravando...':'Confirmar valor realmente pago'}</button>
-            <button type="button" onClick={()=>setEditingPaidId('')} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-950">Cancelar</button>
           </div>
         </div>}
       </div>)}</div>}
@@ -603,22 +535,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      </button>
    </div>
    <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
-     <label className="text-sm font-bold text-slate-900">Valor aprovado na avaliação (R$, opcional)
-       <input type="text" inputMode="decimal" className={input+' mt-1'} placeholder="Valor autorizado pela mesa. Ex.: 76.658,00" value={newApprovedValue} onChange={e=>setNewApprovedValue(e.target.value)}/>
+     <label className="text-sm font-bold text-slate-900">Valor aprovado na avaliação (efetivamente pago, R$, opcional)
+       <input type="text" inputMode="decimal" className={input+' mt-1'} placeholder="Valor que a loja pagou. Ex.: 24.000,00" value={newApprovedValue} onChange={e=>setNewApprovedValue(e.target.value)}/>
      </label>
      <label className="text-sm font-bold text-slate-900">Data da aprovação
        <input type="date" className={input+' mt-1'} max={localDate()} value={newApprovedDate} onChange={e=>setNewApprovedDate(e.target.value)}/>
      </label>
-     <p className="text-xs font-medium text-slate-700 sm:col-span-2">Registre o valor aprovado na avaliação, mesmo que o veículo não seja comprado. A estimativa do Motyq continua preservada para comparação; você também pode registrar a aprovação depois, no Histórico de avaliações.</p>
-   </div>
-   <div className="mt-3 grid gap-3 rounded-xl border border-cyan-300 bg-cyan-50 p-4 sm:grid-cols-2">
-     <label className="text-sm font-bold text-cyan-950">Valor realmente pago na compra (R$, opcional)
-       <input type="text" inputMode="decimal" className={input+' mt-1'} placeholder="Informe somente se a compra ocorreu. Ex.: 7.000,00" value={newPaidValue} onChange={e=>setNewPaidValue(e.target.value)}/>
-     </label>
-     <label className="text-sm font-bold text-cyan-950">Data efetiva da compra
-       <input type="date" className={input+' mt-1'} max={localDate()} value={newPaidDate} onChange={e=>setNewPaidDate(e.target.value)}/>
-     </label>
-     <p className="text-xs font-semibold text-cyan-950 sm:col-span-2">Este é o preço realmente desembolsado, não o valor aprovado. Se ainda não comprou, deixe vazio e registre depois no Histórico. Esse valor alimentará o Aprendizado IQ.</p>
+     <p className="text-xs font-medium text-slate-700 sm:col-span-2">O valor aprovado na Mesa é o valor efetivamente pago pela loja e alimenta automaticamente o Aprendizado IQ. Se ainda não houve compra, deixe vazio. É possível registrar ou corrigir esse valor depois no Histórico de avaliações.</p>
    </div>
    {historyError&&<p role="alert" className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-900">{historyError}</p>}
    {notice&&<p role="status" className="mt-2 text-sm font-semibold text-slate-800">{notice}</p>}
