@@ -47,7 +47,13 @@ const stats=(samples:Array<number|null>):RatioStats=>{
  return {count:values.length,median:quantile(values,.5),p25:quantile(values,.25),p75:quantile(values,.75)};
 };
 const precision=(v:number|null)=>v===null?null:Math.round(v*10000)/10000;
+// The dealership records the effective paid price in the Mesa-approved field.
+ // Read older approval-only records even when they have not been projected by
+ // the server yet. A separately recorded paid amount, if present, wins.
+const actualPaidValue=(row:LearningHistoryRecord):number|null=>
+ valid(row.paidValue)?Number(row.paidValue):valid(row.approvedValue)?Number(row.approvedValue):null;
 const modelKey=(row:{brand?:string;model?:string})=>(
+
  String(row.brand||'').trim().toUpperCase()+'|'+String(row.model||'').trim().toUpperCase()
 );
 
@@ -61,12 +67,13 @@ export function buildMarketIqLearning(rows:DashboardRow[],history:LearningHistor
    const purchaseProxy=stats(imported.filter(r=>r.status==='COMPRA')
      .map(r=>ratio(r.value,r.fipe)));
    const approvals=cloud.filter(r=>valid(r.approvedValue));
-   const actualPaid=cloud.filter(r=>valid(r.paidValue));
+   const actualPaid=cloud.filter(r=>actualPaidValue(r)!==null);
    const approved=stats(approvals.map(r=>ratio(r.approvedValue,r.fipe?.value)));
-   const paid=stats(actualPaid.map(r=>ratio(r.paidValue,r.fipe?.value)));
+   const paid=stats(actualPaid.map(r=>ratio(actualPaidValue(r),r.fipe?.value)));
    const withEstimator=(items:LearningHistoryRecord[],priceKey:'paidValue'|'approvedValue')=>
-     items.filter(r=>valid(r.value)&&valid(r[priceKey]))
-       .map(r=>Number(r[priceKey])-Number(r.value));
+     items.filter(r=>valid(r.value)&&
+       (priceKey==='paidValue'?actualPaidValue(r)!==null:valid(r.approvedValue)))
+       .map(r=>(priceKey==='paidValue'?Number(actualPaidValue(r)):Number(r.approvedValue))-Number(r.value));
    const paidErrors=withEstimator(actualPaid,'paidValue');
    const approvalErrors=withEstimator(approvals,'approvedValue');
    const average=(list:number[])=>list.length?list.reduce((a,b)=>a+b,0)/list.length:null;
@@ -74,8 +81,8 @@ export function buildMarketIqLearning(rows:DashboardRow[],history:LearningHistor
    // We only propose a future calibration for review, never silently alter a
    // buying quote. Minimum 30 real paid outcomes, from 5 distinct models.
    const models=new Set(actualPaid.map(modelKey)).size;
-   const comparable=actualPaid.filter(r=>valid(r.value)&&valid(r.paidValue)&&valid(r.fipe?.value));
-   const deviation=comparable.map(r=>(Number(r.paidValue)-Number(r.value))/Number(r.fipe!.value));
+   const comparable=actualPaid.filter(r=>valid(r.value)&&actualPaidValue(r)!==null&&valid(r.fipe?.value));
+   const deviation=comparable.map(r=>(Number(actualPaidValue(r))-Number(r.value))/Number(r.fipe!.value));
    const candidate=deviation.length>=30&&models>=5?quantile(deviation,.5):null;
    const calibrationCandidate=candidate===null?null:{
      percent:Math.round(Math.max(-.05,Math.min(.05,candidate))*10000)/100,

@@ -158,7 +158,10 @@ const normalizePayload=(input:any)=>{
  if(JSON.stringify(payload).length>30000)throw new Error('HISTORY_PAYLOAD_TOO_LARGE');
  return payload;
 };
-// Approved valuation and actual purchase are distinct immutable events; neither changes the estimate.
+// In this dealership's workflow, the amount approved by the desk is the amount
+// effectively paid. Reuse historical approval events as paid outcomes on read,
+// without rewriting Firestore documents or double-counting a purchase.
+
 const hydratePaidRecords=(records:any[])=>{
  const latest=(kind:string)=>{
    const newest=new Map<string,any>();
@@ -174,13 +177,27 @@ const hydratePaidRecords=(records:any[])=>{
  const approvals=latest('valuation_approved'), purchases=latest('purchase_paid');
  return records.filter(entry=>entry?.kind!=='purchase_paid'&&entry?.kind!=='valuation_approved').map(entry=>{
    const approved=approvals.get(entry.id), paid=purchases.get(entry.id);
+   // An explicit payment event remains authoritative if it was registered
+   // later. A newer corrected approval takes precedence. Every approval now
+   // counts as a real paid outcome in this company's established process.
+   const paidIsNewer=paid&&(!approved||
+     String(paid.recordedAt)>String(approved.recordedAt)||
+     (String(paid.recordedAt)===String(approved.recordedAt)&&String(paid.id)>String(approved.id)));
+   const paidSource=paidIsNewer?paid:(approved||paid);
+   const effectivePaid=paidSource?.kind==='valuation_approved'?
+     paidSource.approvedValue:paidSource?.paidValue;
+   const effectiveDate=paidSource?.kind==='valuation_approved'?
+     paidSource.approvedAt:paidSource?.paidAt;
    return {...entry,
-     ...(approved?{approvedValue:approved.approvedValue,approvedAt:approved.approvedAt,
-       approvedRecordedAt:approved.recordedAt,approvedRecordedBy:approved.recordedBy,
-       approvedRecordedEmail:approved.recordedEmail}:{}),
-     ...(paid?{paidValue:paid.paidValue,paidAt:paid.paidAt,
-       paidRecordedAt:paid.recordedAt,paidRecordedBy:paid.recordedBy,
-       paidRecordedEmail:paid.recordedEmail}:{})
+     ...(Number.isFinite(effectivePaid)&&effectivePaid>0?
+       {approvedValue:effectivePaid,approvedAt:effectiveDate,
+        approvedRecordedAt:paidSource.recordedAt,approvedRecordedBy:paidSource.recordedBy,
+        approvedRecordedEmail:paidSource.recordedEmail}:{}),
+     ...(Number.isFinite(effectivePaid)&&effectivePaid>0?
+       {paidValue:effectivePaid,paidAt:effectiveDate,
+        paidRecordedAt:paidSource.recordedAt,paidRecordedBy:paidSource.recordedBy,
+        paidRecordedEmail:paidSource.recordedEmail,
+        paidFromApproval:paidSource.kind==='valuation_approved'}:{})
    };
  });
 };

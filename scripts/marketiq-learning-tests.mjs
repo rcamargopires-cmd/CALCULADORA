@@ -39,10 +39,11 @@ assert.equal(bike.approved.median,.8,'Approved value is a separate target');
 assert.equal(bike.paidEstimateMae,1000);
 assert.equal(bike.paidEstimateBias,-1000);
 assert.equal(bike.calibrationCandidate,null,'One paid motorcycle must never alter predictions');
-assert.equal(car.paid.count,0);
+assert.equal(car.paid.count,1,'Legacy car approval alone must count as paid');
+assert.equal(car.paid.median,.81,'Legacy approved-only valuation supplies actual paid/FIPE ratio');
 assert.equal(car.purchaseProxy.count,1);
 assert.equal(car.cloudApprovedCount,1);
-assert.equal(car.cloudPaidCount,0);
+assert.equal(car.cloudPaidCount,1,'One approved-only car must increment paid purchases');
 const manyPaid=Array.from({length:30},(_,i)=>({
  id:String(i),vehicleType:'motorcycle',brand:'HONDA',model:'MOTO '+(i%5),
  value:14000,fipe:{value:20000},paidValue:15000,
@@ -56,10 +57,11 @@ const sameModel=buildMarketIqLearning([],manyPaid.map(r=>({...r,model:'CG 160'})
 assert.equal(sameModel.calibrationCandidate,null,'30 copies of one model are not diverse enough');
 const fazerPaid=buildMarketIqLearning([],[{
  id:'fazer-study',vehicleType:'motorcycle',brand:'YAMAHA',model:'FZ25 FAZER',
- value:12150,fipe:{value:15960},paidValue:7000
+ value:12150,fipe:{value:15960},approvedValue:9000
 }]).categories.find(c=>c.kind==='motorcycle');
 assert.equal(fazerPaid.cloudPaidCount,1);
-assert.equal(fazerPaid.paidEstimateMae,5150,'The R$7k purchase exposes the R$5,150 estimate error');
+assert.equal(fazerPaid.paid.count,1,'Approved-only Fazer must be included in paid price statistics');
+assert.equal(fazerPaid.paidEstimateMae,3150,'The corrected R$9k Fazer purchase exposes R$3,150 estimate error');
 assert.equal(fazerPaid.calibrationCandidate,null,'One paid Fazer must not retrain motorcycle prices automatically');
 assert.ok(ui.includes('Aprendizado contínuo'));
 assert.ok(ui.includes('Status COMPRA no arquivo'));

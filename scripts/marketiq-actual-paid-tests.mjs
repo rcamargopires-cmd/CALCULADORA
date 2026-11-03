@@ -8,20 +8,16 @@ const api=readFileSync('api/marketiq-market-scan.ts','utf8');
 const ui=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
 assert.ok(api.includes("'pricing_history_paid'"),'Actual paid action must dispatch through existing API');
 assert.ok(api.includes("kind:isApproval?'valuation_approved':'purchase_paid'"),'Approved and paid events must both be bundled without conflation');
-assert.ok(ui.includes("Valor aprovado na avaliação (R$, opcional)"),'New valuations must capture amount approved during appraisal');
-assert.ok(ui.includes("Registrar valor aprovado"),'Existing valuations must permit recording approved amount');
-assert.ok(ui.includes("Corrigir valor aprovado"),'Approval corrections must remain possible');
-assert.ok(ui.includes("Com valor aprovado"),'History filter must include approved valuations');
-assert.ok(ui.includes("Acima"),'History must show comparison with estimate');
-assert.ok(api.includes("'pricing_history_approved'"),'Approval event must be routed in same API');
-assert.ok(source.includes("kind:isApproval?'valuation_approved':'purchase_paid'"),'Approved and paid events must not be conflated');
-assert.ok(ui.includes('Valor realmente pago na compra (R$, opcional)'),'New evaluations must allow real purchase price');
-assert.ok(ui.includes('Registrar valor realmente pago'),'Saved evaluations must accept paid prices later');
-assert.ok(ui.includes('Corrigir valor realmente pago'),'Corrections must be audited and reversible by a new event');
-assert.ok(ui.includes('Com valor realmente pago'),'History must filter real purchase prices');
-assert.ok(ui.includes("historyRequest('paid'"),'Paid records must use the existing signed-in server action');
-assert.ok(ui.includes('recordPaid(r)'),'Saved evaluations must invoke real paid action');
-assert.ok(ui.includes("referenceName:provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas'"),'Motorcycle historical estimate must be labelled preliminary');
+assert.ok(ui.includes('Valor aprovado na avaliação (efetivamente pago, R$, opcional)'),'Single Mesa field must capture actual approved-and-paid amount');
+assert.ok(ui.includes('Registrar valor aprovado/pago'),'Existing evaluations must use one price field');
+assert.ok(ui.includes('Corrigir valor aprovado/pago'),'Corrections must remain auditable');
+assert.ok(ui.includes('Com valor aprovado/pago'),'History filter must include approved and paid outcomes');
+assert.ok(ui.includes('Valor aprovado e pago pela loja'),'Paid status must be visible in history');
+assert.ok(!ui.includes('Valor realmente pago na compra (R$, opcional)'),'No redundant paid field can be shown');
+assert.ok(!ui.includes('recordPaid(r)'),'No second paid action can be required from the operator');
+assert.ok(api.includes("'pricing_history_approved'"),'Approval events must continue through existing authenticated route');
+assert.ok(source.includes("paidFromApproval:paidSource.kind==='valuation_approved'"),'Old approval events must feed actual outcomes on history read');
+assert.ok(ui.includes("referenceName:provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas'"),'Motorcycle history must stay explicitly preliminary');
 
 const js=ts.transpileModule(source.replace(/^import .+;\s*$/gm,'')
   .replace('export default async function handler','async function handler')+'\nresult=handler;',{
@@ -132,17 +128,18 @@ assert.ok(requests.some(x=>x.url.includes('/tenant-a/stores/unit-1/evaluations/'
 console.log('Motyq IQ actual paid history: immutable audit, authentication, tenant isolation, validation, list hydration passed.');
 
 
-// Approved price is a DIFFERENT business event, not the amount paid.
+// For this dealership, Mesa approvals are the effective paid outcome. Legacy events remain auditable.
 const approval=await send('pricing_history_approved',{evaluationId:id,amount:76000,approvedAt:'2026-10-31'});
 assert.equal(approval.statusCode,200,JSON.stringify(approval.body));
 assert.equal(approval.body.approved.kind,'valuation_approved');
 assert.equal(approval.body.approved.approvedValue,76000);
-assert.ok(!('paidValue' in approval.body.approved),'Approved values must never be stored as purchase payments');
+assert.ok(!('paidValue' in approval.body.approved),'The source event remains append-only; the paid value is projected during history listing');
 list=await send('pricing_history_list');
 assert.equal(list.body.records.length,1);
 assert.equal(list.body.records[0].value,76658,'Algorithm estimate remains intact');
 assert.equal(list.body.records[0].approvedValue,76000,'Approved amount is available in history');
-assert.equal(list.body.records[0].paidValue,74550,'Existing actual purchase record remains separately visible');
+assert.equal(list.body.records[0].paidValue,76000,'Newer approval is the effective real paid amount');
+assert.equal(list.body.records[0].paidFromApproval,true,'Paid value derived from Mesa approval must preserve its provenance');
 
 const badApprovalDate=await send('pricing_history_approved',{evaluationId:id,amount:76000,approvedAt:'2026-02-30'});
 assert.equal(badApprovalDate.statusCode,400);
@@ -165,7 +162,37 @@ assert.equal(updatedApproval.statusCode,200);
 list=await send('pricing_history_list');
 assert.equal(list.body.records.length,1,'Corrections must not duplicate valuations');
 assert.equal(list.body.records[0].approvedValue,75400,'Newest approval correction must display');
-assert.equal(list.body.records[0].paidValue,74550,'Approval corrections cannot change the paid purchase amount');
+assert.equal(list.body.records[0].paidValue,75400,'Corrected approval is also the corrected effective paid amount');
+assert.equal(list.body.records[0].paidFromApproval,true,'Correction remains attributed to approval source');
 assert.equal(list.body.records[0].value,76658,'Approval corrections cannot rewrite Motyq estimate');
 assert.equal(db.size,5,'Two purchase events and two approval events alongside the valuation are preserved');
-console.log('Motyq IQ approved valuation: distinct approval and purchase events, tenant isolation and audit passed.');
+console.log('Motyq IQ approved/pago: historical approvals count as paid; event corrections, tenant isolation and audit passed.');
+
+// Regression: a historical evaluation with ONLY an approved-value event must
+// automatically count as paid, without requiring a second input or payment event.
+const motoRecord=await send('pricing_history_save',{evaluation:{
+ ...base,plate:'ABC1D23',vehicleType:'motorcycle',brand:'YAMAHA',model:'FZ25 FAZER',
+ year:'2018',km:'64000',value:12150,fipe:{value:15960,brand:'YAMAHA',model:'FZ25',year:2018}
+}});
+assert.equal(motoRecord.statusCode,200,'Motorcycle history must still save');
+const motoId=motoRecord.body.record.id;
+const paidViaApproval=await send('pricing_history_approved',{evaluationId:motoId,amount:9000,approvedAt:'2026-10-31'});
+assert.equal(paidViaApproval.statusCode,200);
+let allWithMoto=await send('pricing_history_list');
+assert.equal(allWithMoto.statusCode,200);
+const moto=allWithMoto.body.records.find(r=>r.id===motoId);
+assert.equal(allWithMoto.body.records.length,2);
+assert.equal(moto.approvedValue,9000);
+assert.equal(moto.paidValue,9000,'Legacy approved-only records must feed real-paid learning');
+assert.equal(moto.paidFromApproval,true);
+assert.equal(moto.paidAt,'2026-10-31');
+assert.equal(moto.value,12150,'Price estimate remains unchanged');
+const beforeCorrection=db.size;
+await new Promise(resolve=>setTimeout(resolve,5));
+const correctedMoto=await send('pricing_history_approved',{evaluationId:motoId,amount:9200,approvedAt:'2026-10-31'});
+assert.equal(correctedMoto.statusCode,200);
+allWithMoto=await send('pricing_history_list');
+assert.equal(allWithMoto.body.records.find(r=>r.id===motoId).paidValue,9200);
+assert.equal(db.size,beforeCorrection+1,'Correction must append an audit event, not overwrite the prior value');
+assert.equal(allWithMoto.body.records.length,2,'A paid-from-approval event must not double-count the valuation');
+console.log('Motyq IQ historic approved-only migration: 1 purchase counted from 1 approval, without modifying old records.');
