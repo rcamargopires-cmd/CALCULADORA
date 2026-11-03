@@ -24,7 +24,7 @@ const db=new Map();
 let company='tenant-a',store='unit-1',seq=0;
 const ok=data=>({ok:true,status:200,json:async()=>data});
 const fail=code=>({ok:false,status:code,json:async()=>({})});
-const prefix=(c=company,s=store)=>'/marketiq_pricing_histories_v1/'+c+'/stores/'+s+'/evaluations/';
+const prefix=(c=company,s=store)=>'/v1/projects/test-project/databases/(default)/documents/marketiq_pricing_histories_v1/'+c+'/stores/'+s+'/evaluations/';
 const put=record=>db.set(prefix()+record.id,{fields:{payload:{stringValue:JSON.stringify(record)}}});
 const mockFetch=async(url,init={})=>{
  const text=String(url),method=init.method||'GET';
