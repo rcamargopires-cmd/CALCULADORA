@@ -5,7 +5,7 @@ import ts from 'typescript';
 const source=readFileSync('services/marketIqMonthlyArchive.ts','utf8');
 const ui=readFileSync('components/MarketIqMonthlyArchivePanel.tsx','utf8');
 const workspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
-const api=readFileSync('api/marketiq-monthly-archive.ts','utf8');
+const api=readFileSync('api/marketiq-market-scan.ts','utf8');
 const panel=readFileSync('components/MarketIqManagementDashboard.tsx','utf8');
 const transpile=ts.transpileModule(source,{compilerOptions:{
  target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext
@@ -95,4 +95,6 @@ assert.ok(api.includes('readChunks(')&&api.includes('ARCHIVE_INCOMPLETE'),
 assert.ok(api.includes('normalizeRow(r,month)'),'Server must reconstruct row allowlist');
 assert.ok(!api.includes('raw.Cliente')&&!api.includes('raw.Telefone')&&!api.includes('raw.VIN'),'No customer PII in server');
 assert.ok(api.includes('paidAmountCoverage:0'),'Do not infer actual paid amounts from spreadsheet');
+assert.ok(api.includes('monthlyArchiveHandler(req,res)'),'Use consolidated route without creating another Vercel function');
+assert.ok(ui.includes("'/api/marketiq-market-scan'"),'Client targets existing routed API');
 console.log('Motyq IQ monthly archive: months, 52-column source, all statuses/vehicles, stable IDs, privacy, source-vs-KM class, paid-price safety and cloud staging verified.');

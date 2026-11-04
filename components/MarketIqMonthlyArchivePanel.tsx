@@ -26,12 +26,13 @@ async function archiveRequest(action:string,extra:Record<string,unknown>={},meth
  const user=auth.currentUser;
  if(!user)throw Error('Sua sessão expirou. Entre novamente.');
  const token=await user.getIdToken();
- const url='/api/marketiq-monthly-archive'+(method==='GET'?'?'+new URLSearchParams({
-  action,...Object.fromEntries(Object.entries(extra).map(([k,v])=>[k,String(v)]))
+ const apiAction='monthly_archive_'+action;
+ const url='/api/marketiq-market-scan'+(method==='GET'?'?'+new URLSearchParams({
+  action:apiAction,...Object.fromEntries(Object.entries(extra).map(([k,v])=>[k,String(v)]))
  }).toString():'');
  const response=await fetch(url,{
   method,headers:{authorization:'Bearer '+token,...(method==='POST'?{'content-type':'application/json'}:{})},
-  ...(method==='POST'?{body:JSON.stringify({action,...extra})}:{}),
+  ...(method==='POST'?{body:JSON.stringify({action:apiAction,...extra})}:{}),
   cache:'no-store',signal:AbortSignal.timeout(50000)
  });
  const payload=await response.json().catch(()=>({}));
