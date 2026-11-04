@@ -18,6 +18,8 @@ import {calculateMotorcycleMarketReference,loadMotorcyclesForUser} from '../serv
 import {chooseIndexedMarketSample} from '../services/marketIqIndexedSample';
 import {rankWebmotorsCandidates} from '../services/marketIqWebmotorsShortlist';
 import MarketIqWebmotorsShortlistPanel from './MarketIqWebmotorsShortlistPanel';
+import MarketIqAssistedCapturePanel from './MarketIqAssistedCapturePanel';
+import type {VisibleOffer} from '../services/marketIqAssistedOffers';
 import {buildWebmotorsBrowseLinks,withWebmotorsOrder,WEBMOTORS_REGIONS,type WebmotorsRegion,type WebmotorsOrder}
  from '../services/marketIqWebmotorsBrowseLinks';
 type Ad={source?:'webmotors'|'olx'|'napista';price:string;km:string;url:string;status:'pending'|'valid'|'excluded';note:string;auto?:boolean;title?:string;catalog?:boolean};
@@ -172,8 +174,17 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      setExtensionNotice('Os anúncios importados têm ano diferente do veículo selecionado. Confira o ano antes de continuar.');
      return;
    }
-   const validIncoming=extensionInbox.filter(x=>validSource(x));
-   if(!validIncoming.length){setExtensionNotice('Nenhum link individual válido para importar.');return;}
+   const browseParts=webmotorsBrowse.modelUrl?
+    new URL(webmotorsBrowse.modelUrl).pathname.split('/').filter(Boolean):[];
+   const expectedBrand=browseParts[2],expectedModel=browseParts[3];
+   const validIncoming=extensionInbox.filter(x=>{
+    if(!validSource(x)||!expectedBrand||!expectedModel)return false;
+    try{
+      const segments=new URL(x.url).pathname.split('/').filter(Boolean);
+      return segments[0]==='comprar'&&segments[1]===expectedBrand&&segments[2]===expectedModel;
+    }catch{return false;}
+   });
+   if(!validIncoming.length){setExtensionNotice('Nenhum link individual da marca e do modelo selecionados foi encontrado. Confira o veículo e a página capturada.');return;}
    setAdsVehicleKey(vehicleKey);
    setAutoSearchKey(vehicleKey);
    autoAttempted.current.add(vehicleKey);
@@ -184,6 +195,26 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    });
    setExtensionInbox([]);
    setExtensionNotice(validIncoming.length+' anúncio(s) incluído(s) como PENDENTES. Confira cada um e marque Válido, conferido antes do cálculo definitivo.');
+ };
+ const importTextOffers=(offers:VisibleOffer[])=>{
+   if(!searchReady)return;
+   setAdsVehicleKey(vehicleKey);
+   setAds(existing=>{
+     const prior=adsVehicleKey===vehicleKey?existing:[];
+     const existingDrafts=new Set(prior.filter(x=>!x.url).map(x=>[x.price,x.km,x.title].join('|')));
+     const drafts:Ad[]=offers.slice(0,15).map(x=>({
+       source:'webmotors',price:String(Math.round(x.price)),km:String(Math.round(x.km)),
+       url:'',status:'pending',auto:false,catalog:false,
+       title:x.title+' · '+x.version,
+       note:'Lista copiada da Webmotors, SEM ANÚNCIO INDIVIDUAL. '+x.location+
+         '. Confira versão, preço e KM e preencha o link individual para validar.'
+     }));
+     return [...prior,...drafts.filter(ad=>{
+       const key=[ad.price,ad.km,ad.title].join('|');
+       if(existingDrafts.has(key))return false;
+       existingDrafts.add(key);return true;
+     })].slice(0,50);
+   });
  };
  const missingMarketDetails=[
    !brand?'marca':null,!model?'modelo e versão':null,
@@ -685,7 +716,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    {notice&&<p role="status" className="mt-2 text-sm font-semibold text-slate-800">{notice}</p>}
  </section>
  {extensionInbox.length>0&&<section className="rounded-xl border-2 border-cyan-300 bg-cyan-50 p-5">
-   <h2 className="text-lg font-bold text-cyan-950">Anúncios recebidos da extensão Motyq</h2>
+   <h2 className="text-lg font-bold text-cyan-950">Anúncios capturados da Webmotors</h2>
    <p className="mt-1 text-sm text-slate-800">{extensionInbox.length} anúncio(s) aguardando importação. Selecione acima a versão, o ano e a KM do veículo que você está avaliando.</p>
    <div className="mt-3 space-y-2">{extensionInbox.map((ad,i)=><div key={ad.url} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cyan-200 bg-white p-3 text-sm">
      <div><p className="font-semibold text-slate-900">{i+1}. {ad.title||'Anúncio Webmotors'}</p><p className="text-slate-700">{money(number(ad.price))} · {number(ad.km).toLocaleString('pt-BR')} km · {ad.year}</p></div>
@@ -693,9 +724,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    </div>)}</div>
    <button type="button" disabled={!searchReady} onClick={applyExtensionCapture} className="mt-4 rounded-lg bg-cyan-800 px-5 py-3 text-sm font-bold text-white disabled:opacity-40">Adicionar anúncios à comparação</button>
    {extensionNotice&&<p role="status" className="mt-2 text-sm font-semibold text-amber-900">{extensionNotice}</p>}
-   <p className="mt-2 text-xs text-slate-700">Dados informados manualmente na extensão, não auditados. Nenhuma cotação de compra é aprovada automaticamente.</p>
+   <p className="mt-2 text-xs text-slate-700">Dados obtidos da página aberta pelo operador, ainda não auditados. Nenhuma cotação de compra é aprovada automaticamente.</p>
  </section>}
- <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a extensão Motyq IQ para complementar anúncios que não apareceram no índice. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
+ <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a captura assistida para trazer ofertas da página da Webmotors sem depender do índice gratuito. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
  <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-slate-950" aria-label="Busca Webmotors com localização, modelo e versão">
   <div className="flex flex-wrap items-end justify-between gap-3">
    <div>
@@ -762,6 +793,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    </p>
   </div>:<p className="mt-2 text-xs font-semibold text-amber-900">Selecione marca, modelo e ano para habilitar a busca.</p>}
  </div>
+ <MarketIqAssistedCapturePanel target={{
+   brand,model,year:marketYear,km:number(km),vehicleType,
+   versionLabel:webmotorsBrowse.versionLabel
+ }} onImport={importTextOffers}/>
  {!searchReady&&<p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950">
    Para pesquisar, preencha: {missingMarketDetails}. A FIPE não precisa terminar de carregar para liberar a busca.
  </p>}
@@ -805,7 +840,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  {webmotorsAboveReference&&<p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-900">Atenção: as ofertas Webmotors extraídas ficaram {vehicleType==='motorcycle'?'mais de 60%':'mais de 35%'} acima da FIPE. A busca pode ter ignorado os menores preços. {referenceAvg>0?'Esta é apenas uma simulação indexada da Webmotors, nunca uma cotação definitiva.':'Nenhuma média de mercado foi calculada.'}</p>}<p className="mt-2 text-2xl font-bold text-cyan-950">{money(referenceCeiling)}</p><p className="mt-1 text-xs text-cyan-900">Cálculo: média × 0,86 {repasse?'× 0,95 ':''}− custos {money(number(cost))}. Não é teto definitivo nem aprovação de compra. Anúncios, versão e condições ainda não foram auditados.</p></div>}{currentAds.length===0&&<div className="mb-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-700">
   Ainda não há anúncios associados a este veículo. Nenhum preço foi criado artificialmente.
   {historicalEstimate&&<p className="mt-2 font-bold text-indigo-900">Referência histórica disponível: {money(historicalEstimate.target)} (estimativa de compra, não preço anunciado).</p>}
- </div>}<div className="space-y-3">{currentAds.map((ad,i)=><div key={i} className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-4"><label>Portal{ad.auto&&<span className="ml-2 text-xs font-semibold text-cyan-700">{ad.catalog?'Vitrine indexada':'Anúncio indexado'}</span>}<select className={input} disabled={Boolean(ad.auto)} value={ad.source||"webmotors"} onChange={e=>change(i,{source:e.target.value as Ad["source"],url:"",status:"pending"})}><option value="webmotors">Webmotors</option><option value="olx">OLX</option><option value="napista">NaPista</option></select></label>{ad.title&&<p className="self-end text-xs font-semibold text-slate-600 md:col-span-3">{ad.title}{ad.catalog&&<span className="ml-2 text-amber-700">· preço da vitrine, sem link individual</span>}</p>}<label>Preço R$<input className={input} readOnly={Boolean(ad.auto)} value={ad.price} onChange={e=>change(i,{price:e.target.value})}/></label><label>KM anúncio<input className={input} readOnly={Boolean(ad.auto)} value={ad.km} onChange={e=>change(i,{km:e.target.value})}/></label><label>Link da fonte<input className={input} readOnly={Boolean(ad.auto)} value={ad.url} onChange={e=>change(i,{url:e.target.value})}/>{ad.url&&!portalLink(ad)&&<small className="text-red-700">Link HTTPS do portal selecionado necessário.</small>}{ad.catalog&&<small className="text-amber-700">Página de resultados, sem anúncio individual comprovado.</small>}</label><label>Classificação<select className={input} value={ad.auto&&ad.status==='valid'?'pending':ad.status} onChange={e=>change(i,{status:e.target.value==='excluded'?'excluded':ad.auto?'pending':e.target.value as Ad['status']})}><option value="pending">{ad.auto?'Indexado, sem auditoria':'Pendente'}</option><option value="valid" disabled={Boolean(ad.auto||ad.catalog)}>Válido, conferido</option><option value="excluded">Excluir</option></select></label><label className="md:col-span-3">Observação / suspeita de leilão ou sinistro<input className={input} readOnly={Boolean(ad.auto)} value={ad.note} onChange={e=>change(i,{note:e.target.value})}/></label><div className="flex items-end gap-2">{portalLink(ad)&&<a href={ad.url} target="_blank" rel="noopener noreferrer" className="rounded border p-2 text-sm">{ad.catalog?'Ver fonte':'Abrir anúncio'}</a>}<button className="rounded border p-2 text-sm text-red-700" onClick={()=>setAds(a=>a.filter((_,j)=>j!==i))}>Excluir</button></div></div>)}</div><p className="mt-3 text-xs text-amber-800">Um anúncio indexado não comprova procedência nem ausência de sinistro ou leilão. Confira laudo, versão e condições antes de validar.</p>{distantKm.length>0&&<p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Atenção: {distantKm.length} anúncio(s) marcado(s) válido(s) têm diferença superior a 30.000 km do veículo. Revise ou exclua antes de salvar.</p>}{suspectAds.length>0&&<p className="mt-2 rounded-lg bg-red-50 p-3 text-sm text-red-800">Atenção: {suspectAds.length} anúncio(s) válido(s) têm observações de possível leilão, sinistro ou restrição. Exclua da média ou revise a classificação.</p>}</section>
+ </div>}<div className="space-y-3">{currentAds.map((ad,i)=><div key={i} className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-4"><label>Portal{ad.auto&&<span className="ml-2 text-xs font-semibold text-cyan-700">{ad.catalog?'Vitrine indexada':'Anúncio indexado'}</span>}<select className={input} disabled={Boolean(ad.auto)} value={ad.source||"webmotors"} onChange={e=>change(i,{source:e.target.value as Ad["source"],url:"",status:"pending"})}><option value="webmotors">Webmotors</option><option value="olx">OLX</option><option value="napista">NaPista</option></select></label>{ad.title&&<p className="self-end text-xs font-semibold text-slate-600 md:col-span-3">{ad.title}{ad.catalog&&<span className="ml-2 text-amber-700">· preço da vitrine, sem link individual</span>}</p>}<label>Preço R$<input className={input} readOnly={Boolean(ad.auto)} value={ad.price} onChange={e=>change(i,{price:e.target.value})}/></label><label>KM anúncio<input className={input} readOnly={Boolean(ad.auto)} value={ad.km} onChange={e=>change(i,{km:e.target.value})}/></label><label>Link da fonte<input className={input} readOnly={Boolean(ad.auto)} value={ad.url} onChange={e=>change(i,{url:e.target.value})}/>{ad.url&&!portalLink(ad)&&<small className="text-red-700">Link HTTPS do portal selecionado necessário.</small>}{ad.catalog&&<small className="text-amber-700">Página de resultados, sem anúncio individual comprovado.</small>}</label><label>Classificação<select className={input} value={ad.auto&&ad.status==='valid'?'pending':ad.status} onChange={e=>change(i,{status:e.target.value==='excluded'?'excluded':ad.auto?'pending':e.target.value as Ad['status']})}><option value="pending">{ad.auto?'Indexado, sem auditoria':'Pendente'}</option><option value="valid" disabled={Boolean(ad.auto||ad.catalog||!validSource(ad))}>Válido, conferido</option><option value="excluded">Excluir</option></select></label><label className="md:col-span-3">Observação / suspeita de leilão ou sinistro<input className={input} readOnly={Boolean(ad.auto)} value={ad.note} onChange={e=>change(i,{note:e.target.value})}/></label><div className="flex items-end gap-2">{portalLink(ad)&&<a href={ad.url} target="_blank" rel="noopener noreferrer" className="rounded border p-2 text-sm">{ad.catalog?'Ver fonte':'Abrir anúncio'}</a>}<button className="rounded border p-2 text-sm text-red-700" onClick={()=>setAds(a=>a.filter((_,j)=>j!==i))}>Excluir</button></div></div>)}</div><p className="mt-3 text-xs text-amber-800">Um anúncio indexado não comprova procedência nem ausência de sinistro ou leilão. Confira laudo, versão e condições antes de validar.</p>{distantKm.length>0&&<p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Atenção: {distantKm.length} anúncio(s) marcado(s) válido(s) têm diferença superior a 30.000 km do veículo. Revise ou exclua antes de salvar.</p>}{suspectAds.length>0&&<p className="mt-2 rounded-lg bg-red-50 p-3 text-sm text-red-800">Atenção: {suspectAds.length} anúncio(s) válido(s) têm observações de possível leilão, sinistro ou restrição. Exclua da média ou revise a classificação.</p>}</section>
  <section className="grid gap-4 rounded-xl bg-white p-5 md:grid-cols-2"><div><h2 className="mb-3 text-xl font-semibold">Cálculo da Mesa</h2><p className="text-sm text-slate-600">Custos informados: <strong>{money(number(cost))}</strong></p><p className="mt-2 text-sm text-slate-600">Destino: <strong>{repasse?'Repasse · 14% + 5%':'Showroom · 14%'}</strong></p><p className="mt-2 text-xs text-slate-500">Para alterar a classificação, o preparo ou o destino, use os campos no início da análise histórica.</p></div><div className="rounded-xl bg-slate-50 p-4"><p>{valid.length} anúncio(s) válido(s) de {currentAds.length}</p><p className="text-sm">Webmotors: {primary.length} válido(s), média {money(avg)} · OLX: {secondary.length} válido(s), média {money(olxAvg)}</p>{primary.length>0&&secondary.length>0&&<p className="text-xs text-slate-600">Diferença OLX x Webmotors: {money(olxAvg-avg)}. Apenas referência, sem ajuste automático.</p>}<p className="text-xs text-slate-600">Anúncios válidos ordenados do menor preço: {sortedValid.length?sortedValid.map(a=>money(number(a.price))).join(" · "):"nenhuma"}</p>{primary.length>0&&<><p>Média dos menores Webmotors conferidos: <strong>{money(avg)}</strong></p><p>Após 14%: {money(avg*.86)}</p>{repasse&&<p>Após 5% adicionais: {money(avg*.86*.95)}</p>}</>}<p>Custos: {money(number(cost))}</p><p className="mt-3 text-lg font-semibold">Precificação da Mesa</p>{marketReady?<><p className="text-xs font-semibold text-emerald-700">Teto com anúncios conferidos</p><p className="text-3xl font-bold text-emerald-700">{money(ceiling)}</p></>:referenceAvg>0?<><p className="text-xs font-semibold text-amber-800">Estimativa automática, não aprovada · {referenceName}</p><p className="text-3xl font-bold text-cyan-800">{money(referenceCeiling)}</p><p className="mt-1 text-xs text-slate-600">Teto definitivo indisponível até conferir 2 anúncios individuais Webmotors. {marketSample.sampleContainsCatalogPages?'Os dados podem reunir preços de vitrines sem anúncios individuais confirmados.':''}</p></>:historicalEstimate?<div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
  <p className="text-xs font-bold uppercase tracking-wider text-indigo-800">Sem anúncios indexados · usando histórico de compras</p>
  <p className="mt-1 text-3xl font-black text-indigo-950">{money(historicalEstimate.target)}</p>
