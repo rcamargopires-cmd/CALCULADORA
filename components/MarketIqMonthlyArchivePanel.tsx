@@ -3,6 +3,7 @@ import {auth} from '../firebase';
 import type {User} from '../types';
 import {archiveMonthlyTotals,parseMonthlyArchive,
  type MonthlyArchiveRow} from '../services/marketIqMonthlyArchive';
+import {validPlate} from '../services/marketIqPlateHistory';
 
 type MonthMeta={month:string;count:number;chunks:number;sourceName:string;importedAt:string;
  withPurchaseDate:number;withWebReference:number;classDifference:number;importedBy:string};
@@ -39,7 +40,7 @@ async function archiveRequest(action:string,extra:Record<string,unknown>={},meth
  if(!response.ok)throw Error(String(payload.error||'Arquivo mensal indisponível.').slice(0,220));
  return payload;
 }
-export default function MarketIqMonthlyArchivePanel({user}:{user:User}){
+export default function MarketIqMonthlyArchivePanel({user,onOpenPlateHistory}:{user:User;onOpenPlateHistory?:(plate:string)=>void}){
  const fileRef=useRef<HTMLInputElement>(null);
  const [months,setMonths]=useState<MonthMeta[]>([]);
  const [month,setMonth]=useState('');
@@ -274,6 +275,9 @@ export default function MarketIqMonthlyArchivePanel({user}:{user:User}){
         <td className={cell+' text-right'}>{money(r.fipe)}</td>
         <td className={cell+' text-right'}>{money(r.webReference)}</td>
         <td className={cell}>
+         {onOpenPlateHistory&&validPlate(r.plate)&&<button type="button"
+          className="mb-2 w-full rounded-lg border border-sky-700 bg-sky-50 px-2 py-2 text-xs font-bold text-sky-950 hover:bg-sky-100"
+          onClick={()=>onOpenPlateHistory(r.plate)}>Histórico da placa</button>}
          <details className="group min-w-[75px]"><summary className="cursor-pointer rounded-lg border border-cyan-700 px-3 py-2 text-center text-xs font-bold text-cyan-900">Consultar</summary>
           <div className="mt-3 min-w-[245px] space-y-1 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-800">
            <p><strong>ID:</strong> {r.id}</p>
