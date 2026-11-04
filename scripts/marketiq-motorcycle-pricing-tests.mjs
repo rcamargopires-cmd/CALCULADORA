@@ -62,6 +62,6 @@ assert.ok(backend.includes("vehicleType==='motorcycle'?2500:15000"),'Motorcycle 
 assert.ok(backend.includes("site:webmotors.com.br/motos-usadas/"),'Motorcycle queries must use the real Webmotors moto catalog');
 assert.ok(backend.includes("search(queryBase + ' motocicleta '"));
 assert.ok(backend.includes("vehicleType+'|'"),'Market cache must not mix cars and motorcycles');
-assert.ok(ui.includes("vehicleType==='motorcycle'?1.60:1.05"),'Motorcycle index samples should not be discarded at the car FIPE cap');
+assert.ok(ui.includes("vehicleType==='motorcycle'?1.60:1.35"),'Motorcycle index samples should not be discarded at the car FIPE cap');
 assert.ok(backend.includes("Number(yearPair[1])!==year"),'Webmotors production year must not be mistaken for model year');
 console.log('Motyq IQ motorcycle valuation: sample means, FIPE comparison, motorcycle-only market search and UI tests passed.');
