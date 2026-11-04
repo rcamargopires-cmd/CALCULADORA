@@ -18,6 +18,8 @@ import {calculateMotorcycleMarketReference,loadMotorcyclesForUser} from '../serv
 import {chooseIndexedMarketSample} from '../services/marketIqIndexedSample';
 import {rankWebmotorsCandidates} from '../services/marketIqWebmotorsShortlist';
 import MarketIqWebmotorsShortlistPanel from './MarketIqWebmotorsShortlistPanel';
+import {buildWebmotorsBrowseLinks,WEBMOTORS_REGIONS,type WebmotorsRegion}
+ from '../services/marketIqWebmotorsBrowseLinks';
 type Ad={source?:'webmotors'|'olx'|'napista';price:string;km:string;url:string;status:'pending'|'valid'|'excluded';note:string;auto?:boolean;title?:string;catalog?:boolean};
 type CapturedAd=Ad & {year:number};
 const decodeExtensionTransfer=(hash:string):CapturedAd[]=>{
@@ -115,6 +117,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [autoSearchedAt,setAutoSearchedAt]=useState('');const [autoSearchKey,setAutoSearchKey]=useState('');
  const [searchDiagnostics,setSearchDiagnostics]=useState('');
  const [indexedBrowsePages,setIndexedBrowsePages]=useState<{title:string;url:string}[]>([]);
+ const regionKey='motyq-iq-webmotors-region-'+user.email.toLowerCase();
+ const [marketRegion,setMarketRegion]=useState<WebmotorsRegion>(()=>{
+   try{
+     const value=sessionStorage.getItem(regionKey);
+     return WEBMOTORS_REGIONS.some(r=>r.id===value)?value as WebmotorsRegion:'sp';
+   }catch{return 'sp';}
+ });
+ useEffect(()=>{try{sessionStorage.setItem(regionKey,marketRegion);}catch{}},[regionKey,marketRegion]);
  // A provider HTTP 429 is not a vehicle/FIPE failure. Remember a short
  // retry window in this browser tab to avoid hammering a shared free quota.
  const cooldownKey='motyq-iq-market-source-pause-v1';
@@ -141,6 +151,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const currentAds=adsVehicleKey===vehicleKey?ads:[];
  const marketYear=Number(fipe?.year||String(yearCode).match(/^(?:19|20)\d{2}/)?.[0]||String(year).match(/(?:19|20)\d{2}/)?.[0]||0);
  const searchReady=Boolean(brand&&model&&marketYear>=1990&&number(km)>0);
+ const webmotorsBrowse=useMemo(()=>buildWebmotorsBrowseLinks({
+   brand,model,year:marketYear,vehicleType
+ },marketRegion),[brand,model,marketYear,vehicleType,marketRegion]);
 
  const applyExtensionCapture=()=>{
    if(!searchReady){setExtensionNotice('Selecione marca, versão, ano e KM do veículo antes de importar.');return;}
@@ -672,6 +685,41 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <p className="mt-2 text-xs text-slate-700">Dados informados manualmente na extensão, não auditados. Nenhuma cotação de compra é aprovada automaticamente.</p>
  </section>}
  <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a extensão Motyq IQ para complementar anúncios que não apareceram no índice. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
+ <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-slate-950" aria-label="Busca Webmotors com localização e modelo">
+  <div className="flex flex-wrap items-end justify-between gap-3">
+   <div>
+    <p className="text-sm font-black">Abrir Webmotors com filtros do veículo</p>
+    <p className="mt-1 text-xs text-slate-700">
+     O endereço é montado com a localização escolhida, marca, modelo e ano-modelo da avaliação.
+     Não utiliza páginas de outras cidades encontradas por acaso no índice.
+    </p>
+   </div>
+   <label className="text-xs font-bold text-slate-700">Local da pesquisa
+    <select aria-label="Localização da pesquisa Webmotors" className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
+     value={marketRegion} onChange={e=>setMarketRegion(e.target.value as WebmotorsRegion)}>
+     {WEBMOTORS_REGIONS.map(region=><option key={region.id} value={region.id}>{region.label}</option>)}
+    </select>
+   </label>
+  </div>
+  <p className="mt-2 text-xs font-semibold text-slate-800">
+   {webmotorsBrowse.regionLabel} · {webmotorsBrowse.brandLabel||'Marca pendente'} · {webmotorsBrowse.modelLabel||'Modelo pendente'} · Ano-modelo {marketYear||'pendente'}
+  </p>
+  {webmotorsBrowse.modelUrl?<div className="mt-3 flex flex-wrap items-center gap-2">
+   <a href={webmotorsBrowse.modelUrl} target="_blank" rel="noopener noreferrer"
+    className="rounded-lg bg-cyan-800 px-4 py-2.5 text-xs font-black text-white hover:bg-cyan-900">
+    Ver {webmotorsBrowse.modelLabel} {marketYear} em {webmotorsBrowse.regionLabel}
+   </a>
+   {webmotorsBrowse.versionUrl&&<a href={webmotorsBrowse.versionUrl} target="_blank" rel="noopener noreferrer"
+    className="rounded-lg border border-cyan-700 bg-white px-3 py-2.5 text-xs font-bold text-cyan-900 hover:bg-cyan-100">
+    Filtrar versão {webmotorsBrowse.versionLabel}
+   </a>}
+   <p className="w-full text-[11px] text-slate-700">
+    {webmotorsBrowse.versionUrl?'O segundo link inclui uma versão com caminho confirmado na Webmotors.':
+    'A versão específica pode ter nome diferente na Webmotors. Confira o campo Versão no site antes de selecionar anúncios.'}
+    {' '}A ordenação por menor preço e a KM devem ser conferidas na Webmotors.
+   </p>
+  </div>:<p className="mt-2 text-xs font-semibold text-amber-900">Selecione marca, modelo e ano para habilitar a busca filtrada.</p>}
+ </div>
  {!searchReady&&<p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950">
    Para pesquisar, preencha: {missingMarketDetails}. A FIPE não precisa terminar de carregar para liberar a busca.
  </p>}
@@ -688,15 +736,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  </div>}
  {marketMessage&&<p role="status" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{marketMessage}</p>}{searchDiagnostics&&autoResultsVisible&&<p className="mb-2 text-xs text-slate-600">{searchDiagnostics}</p>}
  {autoResultsVisible&&autoSearchedAt&&<p className="mb-3 text-xs text-slate-600">Última pesquisa: {new Date(autoSearchedAt).toLocaleString('pt-BR')} · {indexed.length} resultado(s) Webmotors indexado(s). A busca não comprova que o anúncio esteja ativo ou que o veículo tenha procedência verificada.</p>}
-  {autoResultsVisible&&indexedBrowsePages.length>0&&<div className="mb-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
-    <strong>Encontramos páginas da Webmotors no índice.</strong> A extração de anúncios individuais pode falhar mesmo quando existem ofertas publicadas.
-    <div className="mt-2 flex flex-wrap gap-2">
-      {indexedBrowsePages.map(item=><a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"
-        className="rounded-md border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-900 underline">
-        Ver ofertas na Webmotors
-      </a>)}
-    </div>
-  </div>}
+  {autoResultsVisible&&indexedBrowsePages.length>0&&<p className="mb-3 text-xs text-slate-600">
+   O índice encontrou {indexedBrowsePages.length} página(s) da Webmotors, possivelmente de outras cidades.
+   Para evitar abrir ofertas fora da região escolhida, use a busca filtrada acima.
+  </p>}
   {autoResultsVisible&&indexed.some(item=>item.catalog)&&<details className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
     <summary className="cursor-pointer font-bold text-amber-950">Preços em vitrines indexadas, não confirmados</summary>
     <div className="mt-2 grid gap-2 sm:grid-cols-2">
