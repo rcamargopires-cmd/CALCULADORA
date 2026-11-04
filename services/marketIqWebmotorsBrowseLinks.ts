@@ -6,6 +6,21 @@
  * These are browse links, not a live Webmotors listing feed or a verified quote.
  * Supported routing patterns were confirmed against public Webmotors pages.
  */
+export type WebmotorsOrder='lowest-price'|'relevance';
+/** The Webmotors public search URL uses o=5 for "Menor preço".
+ * This helper modifies only a known Webmotors browse URL; it does not
+ * fetch the site or claim listings are verified or live. */
+export function withWebmotorsOrder(raw:string|null,order:WebmotorsOrder='lowest-price'):string|null{
+ if(!raw)return null;
+ try{
+  const url=new URL(raw);
+  if(url.protocol!=='https:'||url.hostname!=='www.webmotors.com.br')return null;
+  if(!/^\/(carros|motos)\//.test(url.pathname))return null;
+  if(order==='lowest-price')url.searchParams.set('o','5');
+  else url.searchParams.delete('o');
+  return url.toString();
+ }catch{return null;}
+}
 export type WebmotorsRegion='sp'|'sp-sorocaba'|'sp-sao-paulo'|'br';
 export type WebmotorsBrowseVehicle={
  brand:string;model:string;year:number;vehicleType:'car'|'motorcycle';

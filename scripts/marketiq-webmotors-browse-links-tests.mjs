@@ -50,8 +50,8 @@ assert.deepEqual(WEBMOTORS_REGIONS.map(x=>x.id),['sp','sp-sorocaba','sp-sao-paul
 assert.ok(!source.includes('fortaleza'),'No Fortaleza hardcoded defaults');
 assert.ok(!source.includes('querySelector'),'No scraping or browser automation on Webmotors');
 assert.ok(ui.includes("const webmotorsBrowse=useMemo(()=>buildWebmotorsBrowseLinks({"));
-assert.ok(ui.includes("href={webmotorsBrowse.modelUrl}"),'Outbound browse URL comes from selected model');
-assert.ok(ui.includes("href={webmotorsBrowse.versionUrl}"),'Optional verified version deep link');
+assert.ok(ui.includes("href={orderedWebmotorsModelUrl||webmotorsBrowse.modelUrl}"),'Outbound browse URL comes from selected model');
+assert.ok(ui.includes("href={orderedWebmotorsVersionUrl}"),'Optional verified version deep link');
 assert.ok(ui.includes('value={marketRegion} onChange={e=>setMarketRegion('));
 assert.ok(ui.includes('Selecionar versão da Webmotors'),'Operator can correct the version');
 assert.ok(ui.includes('setWebmotorsVersionOverride'),'Manual choice can override FIPE mapping');
