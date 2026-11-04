@@ -34,7 +34,7 @@ assert.ok(ui.includes('year:marketYear'),'Market request must use selected model
 assert.ok(ui.includes('const [ads,setAds]=useState<Ad[]>([])'),'Do not initialize false blank results');
 assert.ok(!ui.includes('window.setTimeout(()=>{if(!autoAttempted.current.has(vehicleKey))void searchMarket();},1700)'),'Do not automatically launch unreliable indexed searches');
 assert.ok(ui.includes('Busca indexada (opcional)'),'Index search must be labeled optional');
-assert.ok(ui.includes('Use a extensão Motyq IQ'),'Assisted manual research must be primary');
+assert.ok(ui.includes('Use a captura assistida para trazer ofertas da página da Webmotors'),'Assisted manual research must be primary');
 assert.ok(ui.includes('currentAds=adsVehicleKey===vehicleKey?ads:[]'),'Do not mix listings between vehicles');
 assert.ok(ui.includes('Sem anúncios indexados · usando histórico de compras'),'Show historical alternative transparently');
 assert.ok(!ui.includes('disabled={autoLoading||!fipe||number(km)<=0}'),'Old FIPE dependency must be removed');
