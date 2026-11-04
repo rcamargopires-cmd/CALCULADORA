@@ -445,7 +445,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     vehicleFromDesk={{plate,brand,model,year,km,fipe:fipe?.value||0}}
     onOpenApprovals={()=>switchDeskSection('approvals')}/>:
   deskSection==='approvals'?<MarketIqApprovalCenter user={user}/>:
-  deskSection==='learning'?<MarketIqLearningPanel user={user} history={saved} onRefresh={refreshHistory}/>:
+  deskSection==='learning'?<MarketIqLearningPanel user={user} history={saved} onRefresh={refreshHistory} onOpenArchive={()=>switchDeskSection('archive')}/>:
   deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}
    onOpenPlateHistory={selected=>{setSelectedPlateForHistory(selected);switchDeskSection('plateHistory');}}/>:
   deskSection==='plateHistory'?<MarketIqPlateHistoryPanel user={user}

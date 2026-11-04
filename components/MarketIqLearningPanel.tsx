@@ -3,6 +3,8 @@ import type {User} from '../types';
 import type {DashboardRow} from '../services/marketIqManagementData';
 import {buildMarketIqLearning,type LearningHistoryRecord} from '../services/marketIqLearning';
 import MarketIqAccuracyPanel from './MarketIqAccuracyPanel';
+import MarketIqLearningInsightsPanel from './MarketIqLearningInsightsPanel';
+import MarketIqOctoberAudit from './MarketIqOctoberAudit';
 
 const fmt=(n:number)=>n.toLocaleString('pt-BR');
 const money=(value:number|null)=>value===null?'Aguardando dados':value.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -20,10 +22,11 @@ const importRows=(email:string):DashboardRow[]=>{
 };
 
 export default function MarketIqLearningPanel({
- user,history,onRefresh
-}:{user:User;history:LearningHistoryRecord[];onRefresh:()=>Promise<void>}){
+ user,history,onRefresh,onOpenArchive
+}:{user:User;history:LearningHistoryRecord[];onRefresh:()=>Promise<void>;onOpenArchive:()=>void}){
  const [version,setVersion]=useState(0);
  const [busy,setBusy]=useState(false);
+ const [activeView,setActiveView]=useState<'overview'|'insights'|'october'>('insights');
  const records=useMemo(()=>importRows(user.email),[user.email,version]);
  const report=useMemo(()=>buildMarketIqLearning(records,history),[records,history,version]);
  const refresh=async()=>{
@@ -60,6 +63,15 @@ export default function MarketIqLearningPanel({
        <p className="mt-2 text-2xl font-black">{fmt(report.categories.reduce((n,c)=>n+c.cloudPaidCount,0))}</p>
      </div>
    </div>
+   <nav className="flex flex-wrap gap-2 border-b border-slate-200 pb-3" aria-label="Abas internas do aprendizado">
+    {([['insights','Padrões de acerto'],['overview','Indicadores gerais'],['october','Conferir outubro']] as const).map(([value,label])=>
+     <button type="button" key={value} onClick={()=>setActiveView(value)} aria-current={activeView===value?'page':undefined}
+      className={'rounded-lg px-4 py-2.5 text-sm font-bold '+(activeView===value?
+       'bg-[#153f51] text-white':'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50')}>
+      {label}
+     </button>)}
+   </nav>
+   {activeView==='overview'&&<>
    <MarketIqAccuracyPanel history={history}/>
    {records.length===0&&<p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
      Ainda não existe importação histórica neste navegador para esta conta.
@@ -121,5 +133,8 @@ export default function MarketIqLearningPanel({
      Registros anteriores de aprovação também entram nesses indicadores, sem nova digitação.
      Nenhum preço de compra é alterado automaticamente apenas pelo volume de avaliações.
    </p>
+   </>}
+   {activeView==='insights'&&<MarketIqLearningInsightsPanel history={history}/>}
+   {activeView==='october'&&<MarketIqOctoberAudit user={user} refreshKey={version} onOpenArchive={onOpenArchive}/>}
  </section>;
 }
