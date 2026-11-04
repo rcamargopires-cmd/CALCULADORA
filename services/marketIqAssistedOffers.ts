@@ -167,14 +167,14 @@ function readVisibleWebmotorsCards(){
  const seen=new Set(),ads=[];
  const links=[...document.querySelectorAll('a[href]')];
  for(const a of links){
-  const url=canonicalUrl(a.href||a.getAttribute('href'));
+  const url=canonicalUrl((a as HTMLAnchorElement).href||a.getAttribute('href'));
   if(!url||seen.has(url))continue;
   // Find the *smallest* enclosing card with year, km and price. Skip entire
   // search pages/filters to avoid joining unrelated cars into one record.
   let node=a;
   let matched=null;
   for(let depth=0;node&&depth<8;node=node.parentElement,depth++){
-   const content=String(node.innerText||node.textContent||'').replace(/\s+/g,' ').trim();
+   const content=String((node as HTMLElement).innerText||'').replace(/\s+/g,' ').trim();
    if(content.length>1900)break;
    const p=amount(content),km=mileage(content),year=modelYear(content);
    if(p&&km&&year){matched={p,km,year,text:content};break;}
