@@ -114,6 +114,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [autoLoading,setAutoLoading]=useState(false);const [autoError,setAutoError]=useState('');
  const [autoSearchedAt,setAutoSearchedAt]=useState('');const [autoSearchKey,setAutoSearchKey]=useState('');
  const [searchDiagnostics,setSearchDiagnostics]=useState('');
+ const [indexedBrowsePages,setIndexedBrowsePages]=useState<{title:string;url:string}[]>([]);
  // A provider HTTP 429 is not a vehicle/FIPE failure. Remember a short
  // retry window in this browser tab to avoid hammering a shared free quota.
  const cooldownKey='motyq-iq-market-source-pause-v1';
@@ -285,7 +286,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    autoAttempted.current.add(vehicleKey);
    setAdsVehicleKey(vehicleKey);
    setAutoSearchKey(vehicleKey);
-   setAutoLoading(true);setAutoError('');setAutoSearchedAt('');setSearchDiagnostics('');
+   setAutoLoading(true);setAutoError('');setAutoSearchedAt('');setSearchDiagnostics('');setIndexedBrowsePages([]);
    try{
      const currentUser=auth.currentUser;
      if(!currentUser)throw new Error('Faça login novamente para pesquisar o mercado.');
@@ -307,6 +308,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
        return;
      }
      if(!response.ok)throw new Error(payload.error||'Pesquisa automática indisponível.');
+     setIndexedBrowsePages((Array.isArray(payload.browsePages)?payload.browsePages:[]).filter((item:any)=>
+       item&&isWebmotors(String(item.url||''))).slice(0,4).map((item:any)=>({
+         title:String(item.title||'Ofertas Webmotors').slice(0,110),url:String(item.url||'')
+       })));
      const found:Ad[]=(Array.isArray(payload.ads)?payload.ads:[]).filter((item:any)=>
        item&&item.source==='webmotors'&&isWebmotors(item.url)&&
        Number(item.price)>0&&Number(item.km)>0&&Number(item.year)===marketYear
@@ -328,7 +333,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
        ' · '+parts.join(' · '));
      setAutoSearchedAt(String(payload.searchedAt||new Date().toISOString()));
      setAds(existing=>[...found,...(adsVehicleKey===vehicleKey?existing:[]).filter(a=>!a.auto&&(a.price||a.km||a.url||a.note))]);
-     if(!found.length)setAutoError('Pesquisa concluída, mas nenhum anúncio indexado com versão, ano, preço e KM suficientes foi localizado. Consulte a Webmotors ou cadastre anúncios conferidos. Nenhum valor foi inventado.');
+     if(!found.length)setAutoError('O índice localizou páginas da Webmotors, mas não conseguiu extrair ofertas individuais com ano, versão, preço e KM verificáveis. Isso NÃO significa ausência de veículos à venda. Confira as páginas indicadas ou registre anúncios conferidos.');
    }catch(error:any){
      setAutoSearchKey(vehicleKey);
      setAutoError((error?.name==='TimeoutError'?'A fonte de anúncios demorou demais.':error?.message||'Pesquisa automática indisponível.')+' Use anúncios individuais conferidos quando não houver dados automáticos.');
@@ -683,6 +688,26 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  </div>}
  {marketMessage&&<p role="status" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{marketMessage}</p>}{searchDiagnostics&&autoResultsVisible&&<p className="mb-2 text-xs text-slate-600">{searchDiagnostics}</p>}
  {autoResultsVisible&&autoSearchedAt&&<p className="mb-3 text-xs text-slate-600">Última pesquisa: {new Date(autoSearchedAt).toLocaleString('pt-BR')} · {indexed.length} resultado(s) Webmotors indexado(s). A busca não comprova que o anúncio esteja ativo ou que o veículo tenha procedência verificada.</p>}
+  {autoResultsVisible&&indexedBrowsePages.length>0&&<div className="mb-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+    <strong>Encontramos páginas da Webmotors no índice.</strong> A extração de anúncios individuais pode falhar mesmo quando existem ofertas publicadas.
+    <div className="mt-2 flex flex-wrap gap-2">
+      {indexedBrowsePages.map(item=><a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"
+        className="rounded-md border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-900 underline">
+        Ver ofertas na Webmotors
+      </a>)}
+    </div>
+  </div>}
+  {autoResultsVisible&&indexed.some(item=>item.catalog)&&<details className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+    <summary className="cursor-pointer font-bold text-amber-950">Preços em vitrines indexadas, não confirmados</summary>
+    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+      {indexed.filter(item=>item.catalog).sort((a,b)=>number(a.price)-number(b.price)).slice(0,5).map((item,i)=>
+        <div key={i} className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+          <p className="font-bold">{money(number(item.price))} · {number(item.km).toLocaleString('pt-BR')} km</p>
+          <p className="text-xs text-slate-700">Preço encontrado em uma página de resultados, sem anúncio individual confirmado. Não entra no teto da Mesa.</p>
+          {portalLink(item)&&<a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-sky-900 underline">Conferir página</a>}
+        </div>)}
+    </div>
+  </details>}
   {autoResultsVisible&&indexed.length>0&&<MarketIqWebmotorsShortlistPanel shortlist={webmotorsShortlist} vehicleKm={number(km)}/>}
  {indexed.length>0&&referenceAvg===0&&<p className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
  Foram encontrados {indexed.length} resultados, mas a Webmotors não forneceu uma amostra mínima aproveitável de dois anúncios individuais compatíveis em modelo, ano e KM. Não usamos outros portais para preencher a média. Uma única vitrine não define preço de compra.
