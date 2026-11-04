@@ -35,7 +35,9 @@ assert.equal(buildWebmotorsBrowseLinks(vehicle('HB20 1.0 TGDI FLEX PLATINUM AUTO
  'Do not guess unknown Webmotors trim routes');
 const tCross=buildWebmotorsBrowseLinks(vehicle('T-Cross Sense 200 TSI 1.0 FLEX 5P AUT.','VW - Volkswagen',2021),'sp');
 assert.equal(tCross.modelUrl,'https://www.webmotors.com.br/carros/sp/volkswagen/t-cross/de.2021/ate.2021');
-assert.equal(tCross.versionUrl,null,'T-Cross FIPE trim does not have a verified public Webmotors slug');
+assert.equal(tCross.versionUrl,
+ 'https://www.webmotors.com.br/carros/sp/volkswagen/t-cross/10-200-tsi-total-flex-sense-automatico/de.2021/ate.2021',
+ 'T-Cross Sense automatic path was verified against public Webmotors results');
 const hb20Sense=buildWebmotorsBrowseLinks(vehicle('HB20 1.0 12V FLEX SENSE MANUAL'),'sp');
 assert.equal(hb20Sense.versionUrl,'https://www.webmotors.com.br/carros/sp/hyundai/hb20/10-12v-flex-sense-manual/de.2025/ate.2025');
 const moto=buildWebmotorsBrowseLinks(vehicle('FZ25 FAZER ABS','Yamaha',2023,'motorcycle'),'sp');
@@ -51,6 +53,12 @@ assert.ok(ui.includes("const webmotorsBrowse=useMemo(()=>buildWebmotorsBrowseLin
 assert.ok(ui.includes("href={webmotorsBrowse.modelUrl}"),'Outbound browse URL comes from selected model');
 assert.ok(ui.includes("href={webmotorsBrowse.versionUrl}"),'Optional verified version deep link');
 assert.ok(ui.includes('value={marketRegion} onChange={e=>setMarketRegion('));
+assert.ok(ui.includes('Selecionar versão da Webmotors'),'Operator can correct the version');
+assert.ok(ui.includes('setWebmotorsVersionOverride'),'Manual choice can override FIPE mapping');
+assert.ok(ui.includes('signature:versionSignature'),'Override is scoped to the selected vehicle');
+assert.ok(ui.includes('webmotorsBrowse.versionOptions.length>0'),'Show only known versions');
+assert.ok(ui.includes('Pesquisar {webmotorsBrowse.modelLabel} {webmotorsBrowse.versionLabel}'),
+ 'Specific version is now the primary call to action');
 assert.ok(ui.includes("WEBMOTORS_REGIONS.map(region"),'User can choose geography');
 assert.ok(ui.includes("sessionStorage.setItem(regionKey,marketRegion)"),'Region choice persists in tab');
 assert.ok(!ui.includes('href={item.url} target="_blank" rel="noopener noreferrer"\\n        className="rounded-md border border-sky-300'),

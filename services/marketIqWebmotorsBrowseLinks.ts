@@ -10,8 +10,10 @@ export type WebmotorsRegion='sp'|'sp-sorocaba'|'sp-sao-paulo'|'br';
 export type WebmotorsBrowseVehicle={
  brand:string;model:string;year:number;vehicleType:'car'|'motorcycle';
 };
+export type WebmotorsVersion={slug:string;label:string};
 export type WebmotorsBrowseLinks={
  modelUrl:string|null;versionUrl:string|null;
+ versionOptions:WebmotorsVersion[];versionMatch:'automatic'|'manual'|'not-mapped';
  brandLabel:string;modelLabel:string;versionLabel:string|null;
  regionLabel:string;year:number;
 };
@@ -45,22 +47,71 @@ const splitCar=(name:string)=>{
  const family=parts[0];
  return {family:slug(family),rest:parts.slice(1).join(' ')};
 };
-// Webmotors has confirmed these canonical version paths. Use a narrow allowlist
-// rather than guessing an arbitrary FIPE nomenclature that might not be accepted.
-const knownVersion=(brand:string,family:string,rest:string):{slug:string;label:string}|null=>{
- const s=slug(rest);
+// Verified Webmotors URL paths, not guessed slugs. Each list item has been
+// checked against a public version-filter page for the corresponding model.
+// New brands/trims must be added after checking a live canonical route.
+const versionsFor=(brand:string,family:string):WebmotorsVersion[]=>{
+ if(brand==='hyundai'&&family==='hb20')return [
+  {slug:'10-12v-flex-sense-plus-manual',label:'1.0 12V Flex Sense Plus Manual'},
+  {slug:'10-12v-flex-sense-manual',label:'1.0 12V Flex Sense Manual'}
+ ];
+ if(brand==='jeep'&&family==='compass')return [
+  {slug:'13-t270-turbo-flex-longitude-at6',label:'1.3 T270 Turbo Flex Longitude AT6'},
+  {slug:'13-t270-turbo-flex-limited-at6',label:'1.3 T270 Turbo Flex Limited AT6'},
+  {slug:'13-t270-turbo-flex-sport-at6',label:'1.3 T270 Turbo Flex Sport AT6'},
+  {slug:'13-t270-turbo-flex-s-at6',label:'1.3 T270 Turbo Flex S AT6'},
+  {slug:'20-td350-turbo-diesel-longitude-at9',label:'2.0 TD350 Turbo Diesel Longitude AT9'},
+  {slug:'20-td350-turbo-diesel-limited-at9',label:'2.0 TD350 Turbo Diesel Limited AT9'},
+  {slug:'20-td350-turbo-diesel-trailhawk-at9',label:'2.0 TD350 Turbo Diesel Trailhawk AT9'}
+ ];
+ if(brand==='volkswagen'&&family==='t-cross')return [
+  {slug:'10-200-tsi-total-flex-sense-automatico',label:'1.0 200 TSI Total Flex Sense Automático'}
+ ];
+ return [];
+};
+const detectVersion=(brand:string,family:string,rest:string,choices:WebmotorsVersion[]):WebmotorsVersion|null=>{
+ const normalized=slug(rest);
+ const has=(token:string)=>new RegExp('(?:^|-)'+token+'(?:-|$)').test(normalized);
+ const find=(slug:string)=>choices.find(v=>v.slug===slug)||null;
  if(brand==='hyundai'&&family==='hb20'){
-  const candidates:Record<string,string>={
-   '1-0-12v-flex-sense-plus-manual':'10-12v-flex-sense-plus-manual',
-   '1-0-12v-flex-sense-manual':'10-12v-flex-sense-manual'
-  };
-  const value=candidates[s];
-  return value?{slug:value,label:rest.trim()}:null;
+  const isSensePlus=has('sense')&&has('plus');
+  const isSense=has('sense')&&!has('plus');
+  // Automatic HB20 variants must never be mistaken for the verified manual path.
+  const isManual=has('manual')||has('mec')||has('mt');
+  if(!isManual)return null;
+  if(isSensePlus&&has('12v'))return find('10-12v-flex-sense-plus-manual');
+  if(isSense&&has('12v'))return find('10-12v-flex-sense-manual');
+ }
+ if(brand==='jeep'&&family==='compass'){
+  const longitude=has('long')||has('longitude');
+  const limited=has('ltd')||has('limited')||has('limit');
+  const trailhawk=has('trail')||has('trailhawk')||has('trailh');
+  const sport=has('sport');
+  const seriesS=has('s')&&!longitude&&!limited&&!trailhawk&&!sport;
+  const matches=[longitude,limited,trailhawk,sport,seriesS].filter(Boolean).length;
+  if(matches!==1)return null;
+  // Only resolve when the engine type has a unique known Webmotors version.
+  // FIPE abbreviations: T270 / 1.3 TB; TD350 / 2.0 diesel.
+  const flex=has('t270')||(has('1')&&has('3')&&(has('tb')||has('turbo')));
+  const diesel=has('td350')||has('diesel')||(has('2')&&has('0')&&has('td'));
+  if(flex===diesel)return null;
+  const trim=longitude?'longitude':limited?'limited':trailhawk?'trailhawk':sport?'sport':'s';
+  if(diesel&&!['longitude','limited','trailhawk'].includes(trim))return null;
+  return find((diesel?'20-td350-turbo-diesel-':'13-t270-turbo-flex-')+trim+(diesel?'-at9':'-at6'));
+ }
+ if(brand==='volkswagen'&&family==='t-cross'){
+  const isSense=has('sense'),is200=has('200')||has('1')&&has('0');
+  const automatic=has('aut')||has('automatico')||has('at6');
+  if(isSense&&is200&&automatic)return find('10-200-tsi-total-flex-sense-automatico');
  }
  return null;
 };
+export const getWebmotorsVersionOptions=(brand:string,model:string):WebmotorsVersion[]=>{
+ const b=normalizeBrand(brand),c=splitCar(model);
+ return versionsFor(b,c.family);
+};
 export function buildWebmotorsBrowseLinks(
- vehicle:WebmotorsBrowseVehicle,region:WebmotorsRegion='sp'
+ vehicle:WebmotorsBrowseVehicle,region:WebmotorsRegion='sp',manualVersionSlug?:string|null
 ):WebmotorsBrowseLinks{
  const chosen=WEBMOTORS_REGIONS.find(x=>x.id===region)||WEBMOTORS_REGIONS[0];
  const brand=normalizeBrand(vehicle.brand);
@@ -72,7 +123,7 @@ export function buildWebmotorsBrowseLinks(
  const modelLabel=isCar?(car?.family||'').toUpperCase():String(vehicle.model||'').trim();
  const blank:WebmotorsBrowseLinks={
   modelUrl:null,versionUrl:null,brandLabel,modelLabel,versionLabel:null,
-  regionLabel:chosen.label,year
+  versionOptions:[],versionMatch:'not-mapped',regionLabel:chosen.label,year
  };
  if(!brand||!modelSlug||!Number.isInteger(year)||year<1990||year>2100)return blank;
  if(!/^[a-z0-9-]{2,70}$/.test(brand)||!/^[a-z0-9-]{2,85}$/.test(modelSlug))return blank;
@@ -80,9 +131,14 @@ export function buildWebmotorsBrowseLinks(
  const location=chosen.id==='br'?'estoque':chosen.id;
  const root='https://www.webmotors.com.br/'+[type,location,brand,modelSlug].join('/');
  const suffix='/de.'+year+'/ate.'+year;
- const version=isCar?knownVersion(brand,modelSlug,car?.rest||''):null;
+ const versionOptions=isCar?versionsFor(brand,modelSlug):[];
+ const detected=isCar?detectVersion(brand,modelSlug,car?.rest||'',versionOptions):null;
+ const chosenVersion=manualVersionSlug?
+   versionOptions.find(v=>v.slug===manualVersionSlug)||null:detected;
  return {
-  ...blank,modelUrl:root+suffix,versionUrl:version?root+'/'+version.slug+suffix:null,
-  versionLabel:version?.label||null
+  ...blank,modelUrl:root+suffix,
+  versionUrl:chosenVersion?root+'/'+chosenVersion.slug+suffix:null,
+  versionLabel:chosenVersion?.label||null,
+  versionOptions,versionMatch:chosenVersion?(manualVersionSlug?'manual':'automatic'):'not-mapped'
  };
 }

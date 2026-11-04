@@ -151,9 +151,15 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const currentAds=adsVehicleKey===vehicleKey?ads:[];
  const marketYear=Number(fipe?.year||String(yearCode).match(/^(?:19|20)\d{2}/)?.[0]||String(year).match(/(?:19|20)\d{2}/)?.[0]||0);
  const searchReady=Boolean(brand&&model&&marketYear>=1990&&number(km)>0);
+ // An operator's version choice is scoped to the current FIPE vehicle.
+ // Switching model/year cannot accidentally reuse a different trim.
+ const versionSignature=[vehicleType,brandCode,modelCode,yearCode,brand,model,marketYear].join('|');
+ const [webmotorsVersionOverride,setWebmotorsVersionOverride]=useState<{signature:string;slug:string}|null>(null);
+ const activeVersionSlug=webmotorsVersionOverride?.signature===versionSignature?
+   webmotorsVersionOverride.slug:null;
  const webmotorsBrowse=useMemo(()=>buildWebmotorsBrowseLinks({
    brand,model,year:marketYear,vehicleType
- },marketRegion),[brand,model,marketYear,vehicleType,marketRegion]);
+ },marketRegion,activeVersionSlug),[brand,model,marketYear,vehicleType,marketRegion,activeVersionSlug]);
 
  const applyExtensionCapture=()=>{
    if(!searchReady){setExtensionNotice('Selecione marca, versão, ano e KM do veículo antes de importar.');return;}
@@ -685,40 +691,59 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <p className="mt-2 text-xs text-slate-700">Dados informados manualmente na extensão, não auditados. Nenhuma cotação de compra é aprovada automaticamente.</p>
  </section>}
  <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a extensão Motyq IQ para complementar anúncios que não apareceram no índice. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
- <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-slate-950" aria-label="Busca Webmotors com localização e modelo">
+ <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-slate-950" aria-label="Busca Webmotors com localização, modelo e versão">
   <div className="flex flex-wrap items-end justify-between gap-3">
    <div>
-    <p className="text-sm font-black">Abrir Webmotors com filtros do veículo</p>
+    <p className="text-sm font-black">Busca Webmotors por versão</p>
     <p className="mt-1 text-xs text-slate-700">
-     O endereço é montado com a localização escolhida, marca, modelo e ano-modelo da avaliação.
-     Não utiliza páginas de outras cidades encontradas por acaso no índice.
+     O Motyq usa a versão da avaliação FIPE quando consegue identificá-la.
+     Revise a versão antes de abrir a busca, pois Longitude, Limited, Sport e diesel têm mercados diferentes.
     </p>
    </div>
    <label className="text-xs font-bold text-slate-700">Local da pesquisa
-    <select aria-label="Localização da pesquisa Webmotors" className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
+    <select aria-label="Localização da pesquisa Webmotors" className="mt-1 block w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
      value={marketRegion} onChange={e=>setMarketRegion(e.target.value as WebmotorsRegion)}>
      {WEBMOTORS_REGIONS.map(region=><option key={region.id} value={region.id}>{region.label}</option>)}
     </select>
    </label>
   </div>
   <p className="mt-2 text-xs font-semibold text-slate-800">
-   {webmotorsBrowse.regionLabel} · {webmotorsBrowse.brandLabel||'Marca pendente'} · {webmotorsBrowse.modelLabel||'Modelo pendente'} · Ano-modelo {marketYear||'pendente'}
+   {webmotorsBrowse.regionLabel} · {webmotorsBrowse.brandLabel||'Marca pendente'} · {webmotorsBrowse.modelLabel||'Modelo pendente'} · {marketYear||'Ano pendente'}
   </p>
-  {webmotorsBrowse.modelUrl?<div className="mt-3 flex flex-wrap items-center gap-2">
-   <a href={webmotorsBrowse.modelUrl} target="_blank" rel="noopener noreferrer"
-    className="rounded-lg bg-cyan-800 px-4 py-2.5 text-xs font-black text-white hover:bg-cyan-900">
-    Ver {webmotorsBrowse.modelLabel} {marketYear} em {webmotorsBrowse.regionLabel}
-   </a>
-   {webmotorsBrowse.versionUrl&&<a href={webmotorsBrowse.versionUrl} target="_blank" rel="noopener noreferrer"
-    className="rounded-lg border border-cyan-700 bg-white px-3 py-2.5 text-xs font-bold text-cyan-900 hover:bg-cyan-100">
-    Filtrar versão {webmotorsBrowse.versionLabel}
-   </a>}
-   <p className="w-full text-[11px] text-slate-700">
-    {webmotorsBrowse.versionUrl?'O segundo link inclui uma versão com caminho confirmado na Webmotors.':
-    'A versão específica pode ter nome diferente na Webmotors. Confira o campo Versão no site antes de selecionar anúncios.'}
-    {' '}A ordenação por menor preço e a KM devem ser conferidas na Webmotors.
+  {webmotorsBrowse.modelUrl?<div className="mt-3 space-y-3">
+   {webmotorsBrowse.versionOptions.length>0&&<label className="block max-w-xl text-xs font-bold text-slate-800">
+    Versão na Webmotors
+    <select aria-label="Selecionar versão da Webmotors" className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900"
+     value={activeVersionSlug||'auto'}
+     onChange={e=>setWebmotorsVersionOverride(e.target.value==='auto'?null:{
+       signature:versionSignature,slug:e.target.value
+     })}>
+     <option value="auto">{webmotorsBrowse.versionMatch==='automatic'?
+       'Identificada pela FIPE: '+webmotorsBrowse.versionLabel:'Selecione a versão correta'}</option>
+     {webmotorsBrowse.versionOptions.map(v=><option key={v.slug} value={v.slug}>{v.label}</option>)}
+    </select>
+   </label>}
+   {webmotorsBrowse.versionUrl?<a href={webmotorsBrowse.versionUrl} target="_blank" rel="noopener noreferrer"
+    className="inline-flex rounded-lg bg-cyan-800 px-4 py-3 text-xs font-black text-white hover:bg-cyan-900">
+    Pesquisar {webmotorsBrowse.modelLabel} {webmotorsBrowse.versionLabel} · {marketYear}
+   </a>:webmotorsBrowse.versionOptions.length>0?
+    <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-950">
+     A FIPE não identificou motor e versão com segurança. Escolha a versão acima antes de comparar preços.
+    </p>:
+    <p className="text-xs text-slate-700">Ainda não temos uma rota de versão confirmada para esta configuração.</p>}
+   <div>
+    <a href={webmotorsBrowse.modelUrl} target="_blank" rel="noopener noreferrer"
+     className="text-xs font-bold text-cyan-900 underline">
+     Abrir {webmotorsBrowse.modelLabel} {marketYear} com todas as versões
+    </a>
+   </div>
+   <p className="text-[11px] leading-5 text-slate-700">
+    {webmotorsBrowse.versionUrl?'O endereço específico inclui versão e ano-modelo.':
+     'O link genérico não restringe a versão: confirme-a no site antes de usar qualquer preço.'}
+    {' '}Os anúncios e a KM devem ser conferidos diretamente na Webmotors.
+    Nenhum preço é aprovado automaticamente.
    </p>
-  </div>:<p className="mt-2 text-xs font-semibold text-amber-900">Selecione marca, modelo e ano para habilitar a busca filtrada.</p>}
+  </div>:<p className="mt-2 text-xs font-semibold text-amber-900">Selecione marca, modelo e ano para habilitar a busca.</p>}
  </div>
  {!searchReady&&<p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950">
    Para pesquisar, preencha: {missingMarketDetails}. A FIPE não precisa terminar de carregar para liberar a busca.
