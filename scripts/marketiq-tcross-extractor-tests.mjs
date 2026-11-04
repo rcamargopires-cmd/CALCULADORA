@@ -76,7 +76,7 @@ assert.ok(backend.includes("normalizedText.replace(/[-\\s]+/g,'').includes(coreM
  'Individual indexed ad matching is hyphen safe');
 assert.ok(backend.includes('browsePages,vehicleType'),'Return real indexed Webmotors pages as fallback');
 assert.ok(ui.includes('setIndexedBrowsePages('));
-assert.ok(ui.includes('Encontramos páginas da Webmotors no índice'));
+assert.ok(ui.includes('O índice encontrou {indexedBrowsePages.length} página(s) da Webmotors'), 'Indexed pages are diagnosed but are not used as unsafe geographical deep links');
 assert.ok(ui.includes('Preços em vitrines indexadas, não confirmados'));
 assert.ok(ui.includes('Não entra no teto da Mesa'),'Vitrine observations never influence the approved ceiling');
 assert.ok(ui.includes('Isso NÃO significa ausência de veículos à venda'),'Avoid false no-supply statement');
