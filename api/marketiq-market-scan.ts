@@ -133,16 +133,19 @@ const normalizePayload=(input:any)=>{
    }];
  });
  const year=text(input.year,60);
+ const directRepasseReason=['sinistro','leilao','estrutura','cautelar'].includes(input.directRepasseReason)?
+  input.directRepasseReason:'none';
+ const historicalClass=['A','B','C','D','E','SEM CLASSE'].includes(input.historicalClass)?input.historicalClass:'';
  const payload={
    vehicleType:input.vehicleType==='motorcycle'?'motorcycle':'car',
    date,plate,model,brand,year,km:String(finite(input.km,1,999999)),
    cost:String(finite(input.cost,0,2000000)),
-   repasse:input.repasse===true,ads,
+   repasse:input.repasse===true||directRepasseReason!=='none'||['D','E'].includes(historicalClass),ads,
    value:finite(input.value,0,2000000),
    provisional:input.provisional!==false,
    referenceName:text(input.referenceName,110),
    historicalTarget:finite(input.historicalTarget,0,2000000),
-   historicalClass:['A','B','C','D','E','SEM CLASSE'].includes(input.historicalClass)?input.historicalClass:'',
+   historicalClass,classificationReason:text(input.classificationReason,280),directRepasseReason,goodLiquidity:input.goodLiquidity===true,
    brandCode:text(input.brandCode,90),modelCode:text(input.modelCode,90),yearCode:text(input.yearCode,90),
    fipe:input.fipe&&typeof input.fipe==='object'?{
      value:finite(input.fipe.value,0,2000000),brand:text(input.fipe.brand,100),
