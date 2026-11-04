@@ -29,7 +29,7 @@ assert.equal(priceOf('R$ 0'),0);
 assert.equal(kmOf('2022/2022 96.000 Km Campinas'),96000);
 assert.equal(kmOf('48.900 quilômetros'),48900);
 assert.equal(kmOf('com 42 mil km rodados'),42000);
-assert.ok(ui.includes('disabled={autoLoading||!searchReady}'),'Market search must not wait for FIPE');
+assert.ok(ui.includes('disabled={autoLoading||!searchReady||marketCooldownActive}'),'Market search must not wait for FIPE');
 assert.ok(ui.includes('year:marketYear'),'Market request must use selected model year');
 assert.ok(ui.includes('const [ads,setAds]=useState<Ad[]>([])'),'Do not initialize false blank results');
 assert.ok(!ui.includes('window.setTimeout(()=>{if(!autoAttempted.current.has(vehicleKey))void searchMarket();},1700)'),'Do not automatically launch unreliable indexed searches');

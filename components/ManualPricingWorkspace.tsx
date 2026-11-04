@@ -114,6 +114,23 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [autoLoading,setAutoLoading]=useState(false);const [autoError,setAutoError]=useState('');
  const [autoSearchedAt,setAutoSearchedAt]=useState('');const [autoSearchKey,setAutoSearchKey]=useState('');
  const [searchDiagnostics,setSearchDiagnostics]=useState('');
+ // A provider HTTP 429 is not a vehicle/FIPE failure. Remember a short
+ // retry window in this browser tab to avoid hammering a shared free quota.
+ const cooldownKey='motyq-iq-market-source-pause-v1';
+ const [marketCooldownUntil,setMarketCooldownUntil]=useState<number>(()=>{
+   try{
+     const value=Number(sessionStorage.getItem(cooldownKey)||0);
+     return Number.isFinite(value)&&value>Date.now()?value:0;
+   }catch{return 0;}
+ });
+ const [marketClock,setMarketClock]=useState(()=>Date.now());
+ useEffect(()=>{
+   if(marketCooldownUntil<=Date.now())return;
+   const timer=window.setInterval(()=>setMarketClock(Date.now()),30000);
+   return ()=>window.clearInterval(timer);
+ },[marketCooldownUntil]);
+ const marketCooldownActive=marketCooldownUntil>marketClock;
+ const marketCooldownMinutes=marketCooldownActive?Math.ceil((marketCooldownUntil-marketClock)/60000):0;
  const autoAttempted=useRef<Set<string>>(new Set());
  useEffect(()=>{
    try{sessionStorage.setItem(formKey,JSON.stringify({vehicleType,plate,brand,brandCode,model,modelCode,year,yearCode,km,cost,repasse,classification,manualClassification,classificationReason,destinationOverride,directRepasseReason,goodLiquidity}));}catch{}
@@ -260,6 +277,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const searchMarket=async()=>{
    if(!searchReady){setAutoError('Informe '+missingMarketDetails+' para pesquisar anúncios.');setAutoSearchKey(vehicleKey);return;}
    if(autoLoading)return;
+   if(marketCooldownUntil>Date.now()){
+     setAutoError('A fonte gratuita ainda está em pausa por limite de consultas. Use a referência histórica ou anúncios Webmotors conferidos.');
+     setAutoSearchKey(vehicleKey);
+     return;
+   }
    autoAttempted.current.add(vehicleKey);
    setAdsVehicleKey(vehicleKey);
    setAutoSearchKey(vehicleKey);
@@ -274,6 +296,16 @@ export default function ManualPricingWorkspace({user}:{user:User}){
        signal:AbortSignal.timeout(55000)
      });
      const payload=await response.json().catch(()=>({}));
+     if(response.status===429&&payload?.code==='MARKET_SOURCE_RATE_LIMIT'){
+       const seconds=Math.min(3600,Math.max(60,Number(payload.retryAfterSeconds)||900));
+       const until=Date.now()+seconds*1000;
+       setMarketCooldownUntil(until);
+       setMarketClock(Date.now());
+       try{sessionStorage.setItem(cooldownKey,String(until));}catch{}
+       setAutoSearchKey(vehicleKey);
+       setAutoError('A fonte gratuita atingiu o limite de consultas (HTTP 429). A busca foi pausada para evitar novas tentativas sem resultado. FIPE, classificação e referência histórica continuam disponíveis.');
+       return;
+     }
      if(!response.ok)throw new Error(payload.error||'Pesquisa automática indisponível.');
      const found:Ad[]=(Array.isArray(payload.ads)?payload.ads:[]).filter((item:any)=>
        item&&item.source==='webmotors'&&isWebmotors(item.url)&&
@@ -634,12 +666,21 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    {extensionNotice&&<p role="status" className="mt-2 text-sm font-semibold text-amber-900">{extensionNotice}</p>}
    <p className="mt-2 text-xs text-slate-700">Dados informados manualmente na extensão, não auditados. Nenhuma cotação de compra é aprovada automaticamente.</p>
  </section>}
- <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a extensão Motyq IQ para complementar anúncios que não apareceram no índice. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady}>{autoLoading?'Pesquisando ofertas...':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
+ <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a extensão Motyq IQ para complementar anúncios que não apareceram no índice. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
  {!searchReady&&<p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950">
    Para pesquisar, preencha: {missingMarketDetails}. A FIPE não precisa terminar de carregar para liberar a busca.
  </p>}
  {searchReady&&!autoAttempted.current.has(vehicleKey)&&!autoLoading&&<p className="mb-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-medium text-cyan-950">A busca usa exclusivamente resultados indexados da Webmotors. O sistema organiza as ofertas por preço, ano/modelo e KM, mas anúncios indexados precisam de conferência antes de influenciar o teto definitivo.</p>}
  {autoLoading&&<p role="status" className="mb-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm font-semibold text-cyan-950">Pesquisando anúncios e verificando preço, ano e KM. Esta consulta pode demorar alguns segundos.</p>}
+ {marketCooldownActive&&<div role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+   <strong>Pesquisa indexada temporariamente pausada.</strong> O provedor atingiu o limite gratuito de consultas.
+   Evitaremos novas solicitações por aproximadamente {marketCooldownMinutes} minuto(s). Isso não significa que o veículo esteja sem anúncios.
+   A busca pode continuar indisponível após esse período, dependendo da cota do provedor.
+   <div className="mt-2 flex flex-wrap items-center gap-3">
+     <a href="https://www.webmotors.com.br" target="_blank" rel="noopener noreferrer" className="font-bold text-cyan-900 underline">Abrir Webmotors para conferência manual</a>
+     <span className="text-xs">Use o botão + Anúncio para registrar preços e KM conferidos.</span>
+   </div>
+ </div>}
  {marketMessage&&<p role="status" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{marketMessage}</p>}{searchDiagnostics&&autoResultsVisible&&<p className="mb-2 text-xs text-slate-600">{searchDiagnostics}</p>}
  {autoResultsVisible&&autoSearchedAt&&<p className="mb-3 text-xs text-slate-600">Última pesquisa: {new Date(autoSearchedAt).toLocaleString('pt-BR')} · {indexed.length} resultado(s) Webmotors indexado(s). A busca não comprova que o anúncio esteja ativo ou que o veículo tenha procedência verificada.</p>}
   {autoResultsVisible&&indexed.length>0&&<MarketIqWebmotorsShortlistPanel shortlist={webmotorsShortlist} vehicleKm={number(km)}/>}

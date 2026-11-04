@@ -1354,6 +1354,25 @@ const kmOf = (text: string) => {
   return thousands ? Number(thousands[1]) * 1000 + Number(thousands[2] || 0) * 100 : 0;
 };
 const riskWords = /leil[aã]o|sinistr|recuperad|batid|salvado|sucata|cons[oó]rcio/i;
+// Provider rate limits are respected, never bypassed. Cache/circuit breaker
+// apply only to warm serverless instances; the browser adds a per-session guard.
+const MARKET_INDEX_PAUSE_SECONDS=15*60;
+let marketIndexPausedUntil=0;
+type MarketIndexError=Error&{rateLimited?:boolean;retryAfterSeconds?:number};
+const retryAfterSeconds=(raw:string|null):number=>{
+  if(!raw)return MARKET_INDEX_PAUSE_SECONDS;
+  const n=Number(raw);
+  const seconds=Number.isFinite(n)?n:(new Date(raw).getTime()-Date.now())/1000;
+  return Number.isFinite(seconds)?Math.min(3600,Math.max(60,Math.ceil(seconds))):
+    MARKET_INDEX_PAUSE_SECONDS;
+};
+const indexPausedResponse=(res:any)=>{
+ const seconds=Math.max(60,Math.ceil((marketIndexPausedUntil-Date.now())/1000));
+ return res.status(429).setHeader('Retry-After',String(seconds)).json({
+  code:'MARKET_SOURCE_RATE_LIMIT',retryAfterSeconds:seconds,
+  error:'A pesquisa automática está pausada porque o serviço gratuito atingiu o limite de consultas. Use anúncios Webmotors conferidos ou a referência histórica enquanto isso.'
+ });
+};
 const search = async (query: string, domain: string) => {
   const response = await fetch('https://api.tavily.com/search', {
     method: 'POST',
@@ -1367,8 +1386,15 @@ const search = async (query: string, domain: string) => {
     body: JSON.stringify({ query, search_depth: 'basic', topic: 'general', max_results: 8, include_domains: [domain], include_raw_content: 'markdown' }),
     signal: AbortSignal.timeout(16000),
   });
-  if (response.status === 401 || response.status === 402 || response.status === 429) {
-    throw new Error('Cota gratuita de pesquisa temporariamente indisponível (HTTP ' + response.status + ').');
+  if(response.status===429){
+    const seconds=retryAfterSeconds(response.headers.get('Retry-After'));
+    marketIndexPausedUntil=Math.max(marketIndexPausedUntil,Date.now()+seconds*1000);
+    throw Object.assign(new Error('Limite do serviço de indexação atingido.'),{
+      rateLimited:true,retryAfterSeconds:seconds
+    } satisfies Partial<MarketIndexError>);
+  }
+  if(response.status===401||response.status===402){
+    throw new Error('O provedor de pesquisa não está autorizado no momento (HTTP '+response.status+').');
   }
   if (!response.ok) throw new Error('Pesquisa web falhou (HTTP ' + response.status + ').');
   const data = await response.json() as any;
@@ -1458,28 +1484,52 @@ async function marketIqDeskSearchServer(req: any, res: any) {
   const cached=marketSearchCache.get(cacheKey);
   const cacheHit=Boolean(cached&&cached.expiresAt>Date.now());
   let lookups:PromiseSettledResult<any[]>[];
-  if(cacheHit) {
+  let rateLimited=false;
+  if(cacheHit){
     lookups=cached!.lookups;
-  } else {
-    lookups=await Promise.allSettled(vehicleType==='motorcycle'?[
-      search(queryBase + ' moto ' + year + ' site:webmotors.com.br/motos-usadas/ preço km', 'webmotors.com.br'),
-      search(queryBase + ' motocicleta ' + year + ' site:webmotors.com.br/comprar/ preço km', 'webmotors.com.br'),
-      search(queryBase + ' moto ' + year + ' site:webmotors.com.br/motos/ preço km', 'webmotors.com.br'),
+  }else{
+    if(marketIndexPausedUntil>Date.now())return indexPausedResponse(res);
+    // Sequential queries avoid wasting three free requests simultaneously
+    // when the shared source is exhausted. Do not retry on provider HTTP 429.
+    const queries:[string,string][]=vehicleType==='motorcycle'?[
+      [queryBase+' moto '+year+' site:webmotors.com.br/motos-usadas/ preço km','webmotors.com.br'],
+      [queryBase+' motocicleta '+year+' site:webmotors.com.br/comprar/ preço km','webmotors.com.br'],
+      [queryBase+' moto '+year+' site:webmotors.com.br/motos/ preço km','webmotors.com.br'],
     ]:[
-      search(queryBase + ' ' + year + '/' + year + ' site:webmotors.com.br/carros-usados preço km', 'webmotors.com.br'),
-      search(queryBase + ' site:webmotors.com.br/comprar/ preço km', 'webmotors.com.br'),
-      search(queryBase + ' ' + year + ' Webmotors menores valores individuais preço quilometragem anúncios site:webmotors.com.br/comprar/', 'webmotors.com.br'),
-    ]);
-    if(lookups.some(result=>result.status==='fulfilled'&&result.value.length>0)) {
+      [queryBase+' '+year+'/'+year+' site:webmotors.com.br/carros-usados preço km','webmotors.com.br'],
+      [queryBase+' site:webmotors.com.br/comprar/ preço km','webmotors.com.br'],
+      [queryBase+' '+year+' Webmotors menores valores individuais preço quilometragem anúncios site:webmotors.com.br/comprar/','webmotors.com.br'],
+    ];
+    lookups=[];
+    for(const [query,domain] of queries){
+      if(marketIndexPausedUntil>Date.now()){rateLimited=true;break;}
+      try{
+        const results=await search(query,domain);
+        lookups.push({status:'fulfilled',value:results});
+        // Enough index pages to try building a sample; no need for more
+        // provider calls just to increase volume.
+        if(results.length>=5)break;
+      }catch(error:any){
+        lookups.push({status:'rejected',reason:error});
+        if((error as MarketIndexError)?.rateLimited){
+          rateLimited=true;
+          break;
+        }
+      }
+    }
+    if(lookups.some(result=>result.status==='fulfilled'&&result.value.length>0)){
       if(marketSearchCache.size>=60)marketSearchCache.delete(marketSearchCache.keys().next().value!);
       marketSearchCache.set(cacheKey,{expiresAt:Date.now()+15*60*1000,lookups});
     }
   }
-  const complete = lookups.flatMap(result => result.status === 'fulfilled' ? result.value : []);
-  const failed = lookups.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
-  if (!complete.length && failed.length === lookups.length) {
-    const detail = failed.map(x => String(x.reason?.message || '')).filter(Boolean).join(' / ');
-    return res.status(503).json({ error: 'A pesquisa gratuita está indisponível. ' + detail.slice(0, 240) });
+  const complete=lookups.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+  const failed=lookups.filter(result=>result.status==='rejected') as PromiseRejectedResult[];
+  if(!complete.length&&rateLimited)return indexPausedResponse(res);
+  if(!complete.length&&failed.length===lookups.length){
+    return res.status(503).json({
+      code:'MARKET_SOURCE_UNAVAILABLE',
+      error:'A consulta automática da Webmotors não respondeu. Use anúncios Webmotors conferidos ou o histórico de compras, sem presumir preços de mercado.'
+    });
   }
   const modelTokens = normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
   const coreModel = modelTokens[0] || '';
