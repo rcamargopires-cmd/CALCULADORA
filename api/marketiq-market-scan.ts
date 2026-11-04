@@ -1319,6 +1319,16 @@ const marketBrand = (value: string) => {
   const last = parts.length > 1 ? parts[parts.length - 1] : string(value);
   return last.replace(/^vw\s+/i,'').replace(/^gm\s+/i,'').trim();
 };
+// Preserve hyphenated vehicle families (e.g. T-Cross) when building index
+// queries. The next significant token is the trim (Sense/Highline), not "Cross".
+const marketModelParts=(model:string)=>{
+ const tokens=normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
+ const hyphenFamily=tokens[0]?.length===1&&Boolean(tokens[1]&&/^[a-z]{3,}$/.test(tokens[1]));
+ const family=hyphenFamily?tokens[0]+'-'+tokens[1]:(tokens[0]||'');
+ const stop=new Set(['flex','auto','automatico','manual','turbo','diesel','gasolina','motor','hibrido','eletrico','gas','aut','sedan','hatch','tsi','tdi','cv','cvts','cvtt']);
+ const trim=tokens.slice(hyphenFamily?2:1).find(t=>t.length>=4&&!stop.has(t))||'';
+ return {family,trim};
+};
 type Source = 'webmotors' | 'olx' | 'napista';
 const portal = (raw: string): Source | null => {
   try {
@@ -1406,10 +1416,8 @@ const search = async (query: string, domain: string) => {
 // Each candidate is explicitly provisional and must not be classified as a verified ad.
 const listingPageCandidates = (pages: any[], brand: string, model: string, year: number, targetKm: number, vehicleType:'car'|'motorcycle'='car') => {
   const canonical = (s:string) => normalize(s).replace(/[^a-z0-9]+/g,' ');
-  const tokens = canonical(model).split(/\s+/).filter(Boolean);
-  const core = tokens[0] || '';
-  const variant = tokens.slice(1).find(token => token.length >= 4 &&
-    !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor','hibrido','eletrico','gas','aut'].includes(token)) || '';
+  const {family:core,trim:variant}=marketModelParts(model);
+  const tokens=normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
   const engine = tokens.find(token => /^t\d{3,4}$/.test(token)) || '';
   const normalizedBrand=marketBrand(brand);
   const firstPart = canonical(normalizedBrand+' '+core).trim();
@@ -1421,14 +1429,15 @@ const listingPageCandidates = (pages: any[], brand: string, model: string, year:
     if (!source || isIndividualAdUrl(source,url)) continue;
     // Public index snippets often contain price/KM where full-page extraction only has navigation.
     // Inspect both representations separately so the latter cannot mask the former.
-    const texts = [string(page.content).slice(0,5500),string(page.raw_content).slice(0,100000)]
+    const texts = [string(page.raw_content).slice(0,100000),string(page.content).slice(0,5500)]
       .filter(Boolean);
     for (const content of texts) {
-      const normalized=content.replace(/\u00a0/g,' ').replace(/\s+/g,' ');
-      const heading = /(?:JEEP\s+COMMANDER|HYUNDAI\s+CRETA|FIAT\s+STRADA)/ig;
-      // General matching for other makes/models, with space/markup-separated words.
-      const pattern = new RegExp(normalizedBrand.replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'\\s+')+
-        '[\\s*#:_\\-]+'+core.replace(/[^a-z0-9]/g,''),'gi');
+      const normalized=content.replace(/[\u00a0\u202f]/g,' ').replace(/\s+/g,' ');
+      // Exact family matching supports T-Cross, rather than treating "T" as
+      // a model. Indexed text can separate the hyphen as whitespace.
+      const familyPattern=core.replace(/[^a-z0-9-]/g,'').replace(/-/g,'[-\\s]+');
+      const pattern=new RegExp(normalizedBrand.replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'\\s+')+
+        '[\\s*#:_\\-]+'+familyPattern,'gi');
       const hits = [...normalized.matchAll(pattern)].slice(0,60);
       for(let i=0;i<hits.length;i++){
         const from=hits[i].index||0;
@@ -1477,9 +1486,8 @@ async function marketIqDeskSearchServer(req: any, res: any) {
   const km = Number(req.body?.km);
   if (!brand || !model || !Number.isInteger(year) || year < 1990 || year > 2100 || !Number.isFinite(km) || km <= 0)
     return res.status(400).json({ error: 'Selecione marca, versão, ano e quilometragem antes da pesquisa.' });
-  const tokens = normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
-  const variant = tokens.slice(1).find(t => t.length >= 4 && !['flex','auto','automatico','manual','turbo','diesel','gasolina','motor'].includes(t)) || '';
-  const queryBase = [marketBrand(brand),tokens[0],variant,year].filter(Boolean).join(' ');
+  const {family,trim:variant}=marketModelParts(model);
+  const queryBase=[marketBrand(brand),family,variant,year].filter(Boolean).join(' ');
   const cacheKey=vehicleType+'|'+normalize(queryBase).replace(/\s+/g,' ');
   const cached=marketSearchCache.get(cacheKey);
   const cacheHit=Boolean(cached&&cached.expiresAt>Date.now());
@@ -1531,10 +1539,7 @@ async function marketIqDeskSearchServer(req: any, res: any) {
       error:'A consulta automática da Webmotors não respondeu. Use anúncios Webmotors conferidos ou o histórico de compras, sem presumir preços de mercado.'
     });
   }
-  const modelTokens = normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
-  const coreModel = modelTokens[0] || '';
-  const trimToken = modelTokens.slice(1).find(token =>
-    token.length >= 4 && !['flex','auto','automatico','manual','turbo','diesel','gasolina','hibrido','eletrico','motor','sedan','hatch'].includes(token));
+  const {family:coreModel,trim:trimToken}=marketModelParts(model);
   const seen = new Set<string>();
   const individualAds = complete.map((item: any) => {
     const url = string(item?.url);
@@ -1549,7 +1554,8 @@ async function marketIqDeskSearchServer(req: any, res: any) {
     const yearPair=(source==='webmotors'?new URL(url).pathname.match(/\/(?:19|20)\d{2}-((?:19|20)\d{2})\//):null);
     if(yearPair&&Number(yearPair[1])!==year)return null;
     const price = priceOf(text,vehicleType==='motorcycle'?2500:15000), adKm = kmOf(text);
-    if (source!=='webmotors' || !isIndividualAdUrl(source,url) || !coreModel || !normalizedText.includes(coreModel)) return null;
+    if (source!=='webmotors' || !isIndividualAdUrl(source,url) || !coreModel ||
+      !normalizedText.replace(/[-\s]+/g,'').includes(coreModel.replace(/-/g,''))) return null;
     if (trimToken && !normalizedText.includes(trimToken)) return null;
     if (!normalizedText.includes(String(year))) return null;
     if (!price || !adKm || Math.abs(adKm - km) > (vehicleType==='motorcycle'?12000:60000) || riskWords.test(title + ' ' + snippet.slice(0, 250))) return null;
@@ -1560,6 +1566,10 @@ async function marketIqDeskSearchServer(req: any, res: any) {
       evidence: snippet.slice(0, 220), confidence: 'candidate' };
   }).filter(Boolean).sort((a: any, b: any) => a.price - b.price).slice(0, 20);
   const listingAds = listingPageCandidates(complete.filter((item:any)=>portal(string(item?.url))==='webmotors'), marketBrand(brand), model, year, km, vehicleType).filter((item:any)=>item.source==='webmotors');
+  const browsePages=complete.filter((item:any)=>portal(string(item?.url))==='webmotors'&&
+    !isIndividualAdUrl('webmotors',string(item?.url))&&
+    normalize(string(item?.title)+' '+string(item?.content)).includes('t-cross'===family?'t-cross':family))
+    .slice(0,4).map((item:any)=>({title:string(item.title).slice(0,110),url:string(item.url).split('?')[0]}));
   const ads = [...individualAds, ...listingAds].filter((item:any,index:number,items:any[])=>items.findIndex((other:any)=>
     other.source===item.source&&other.url===item.url&&other.price===item.price&&other.km===item.km&&other.year===item.year)===index)
     .sort((a:any,b:any)=>a.price-b.price).slice(0,24);
@@ -1581,7 +1591,7 @@ async function marketIqDeskSearchServer(req: any, res: any) {
     evidence:searchEvidence,
   }));
   return res.status(200).json({
-    ads, vehicleType, searchedAt: new Date().toISOString(), cached:cacheHit, provider: 'Índice público · Webmotors exclusiva (sem API oficial de busca aberta)',
+    ads,browsePages,vehicleType,searchedAt:new Date().toISOString(),cached:cacheHit,provider:'Índice público · Webmotors exclusiva (sem API oficial de busca aberta)',
     warning: 'Resultados indexados da Webmotors, não confirmados em tempo real. Conferir preço, ano, versão, KM e procedência antes de usar anúncio como referência definitiva.',
     pagesFound: complete.length,
     evidenceSummary: {
