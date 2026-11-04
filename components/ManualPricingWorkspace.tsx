@@ -18,7 +18,7 @@ import {calculateMotorcycleMarketReference,loadMotorcyclesForUser} from '../serv
 import {chooseIndexedMarketSample} from '../services/marketIqIndexedSample';
 import {rankWebmotorsCandidates} from '../services/marketIqWebmotorsShortlist';
 import MarketIqWebmotorsShortlistPanel from './MarketIqWebmotorsShortlistPanel';
-import {buildWebmotorsBrowseLinks,WEBMOTORS_REGIONS,type WebmotorsRegion}
+import {buildWebmotorsBrowseLinks,withWebmotorsOrder,WEBMOTORS_REGIONS,type WebmotorsRegion,type WebmotorsOrder}
  from '../services/marketIqWebmotorsBrowseLinks';
 type Ad={source?:'webmotors'|'olx'|'napista';price:string;km:string;url:string;status:'pending'|'valid'|'excluded';note:string;auto?:boolean;title?:string;catalog?:boolean};
 type CapturedAd=Ad & {year:number};
@@ -117,6 +117,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [autoSearchedAt,setAutoSearchedAt]=useState('');const [autoSearchKey,setAutoSearchKey]=useState('');
  const [searchDiagnostics,setSearchDiagnostics]=useState('');
  const [indexedBrowsePages,setIndexedBrowsePages]=useState<{title:string;url:string}[]>([]);
+ const [webmotorsOrder,setWebmotorsOrder]=useState<WebmotorsOrder>('lowest-price');
  const regionKey='motyq-iq-webmotors-region-'+user.email.toLowerCase();
  const [marketRegion,setMarketRegion]=useState<WebmotorsRegion>(()=>{
    try{
@@ -160,6 +161,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const webmotorsBrowse=useMemo(()=>buildWebmotorsBrowseLinks({
    brand,model,year:marketYear,vehicleType
  },marketRegion,activeVersionSlug),[brand,model,marketYear,vehicleType,marketRegion,activeVersionSlug]);
+ const orderedWebmotorsVersionUrl=useMemo(()=>withWebmotorsOrder(webmotorsBrowse.versionUrl,webmotorsOrder),
+   [webmotorsBrowse.versionUrl,webmotorsOrder]);
+ const orderedWebmotorsModelUrl=useMemo(()=>withWebmotorsOrder(webmotorsBrowse.modelUrl,webmotorsOrder),
+   [webmotorsBrowse.modelUrl,webmotorsOrder]);
 
  const applyExtensionCapture=()=>{
    if(!searchReady){setExtensionNotice('Selecione marca, versão, ano e KM do veículo antes de importar.');return;}
@@ -700,12 +705,22 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      Revise a versão antes de abrir a busca, pois Longitude, Limited, Sport e diesel têm mercados diferentes.
     </p>
    </div>
+   <div className="flex flex-wrap items-end gap-3">
    <label className="text-xs font-bold text-slate-700">Local da pesquisa
     <select aria-label="Localização da pesquisa Webmotors" className="mt-1 block w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
      value={marketRegion} onChange={e=>setMarketRegion(e.target.value as WebmotorsRegion)}>
      {WEBMOTORS_REGIONS.map(region=><option key={region.id} value={region.id}>{region.label}</option>)}
     </select>
    </label>
+   <label className="text-xs font-bold text-slate-700">Ordenar anúncios
+    <select aria-label="Ordenação da pesquisa Webmotors"
+     className="mt-1 block w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
+     value={webmotorsOrder} onChange={e=>setWebmotorsOrder(e.target.value as WebmotorsOrder)}>
+     <option value="lowest-price">Menor preço (padrão)</option>
+     <option value="relevance">Mais relevantes</option>
+    </select>
+   </label>
+   </div>
   </div>
   <p className="mt-2 text-xs font-semibold text-slate-800">
    {webmotorsBrowse.regionLabel} · {webmotorsBrowse.brandLabel||'Marca pendente'} · {webmotorsBrowse.modelLabel||'Modelo pendente'} · {marketYear||'Ano pendente'}
@@ -723,7 +738,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      {webmotorsBrowse.versionOptions.map(v=><option key={v.slug} value={v.slug}>{v.label}</option>)}
     </select>
    </label>}
-   {webmotorsBrowse.versionUrl?<a href={webmotorsBrowse.versionUrl} target="_blank" rel="noopener noreferrer"
+   {orderedWebmotorsVersionUrl?<a href={orderedWebmotorsVersionUrl} target="_blank" rel="noopener noreferrer"
     className="inline-flex rounded-lg bg-cyan-800 px-4 py-3 text-xs font-black text-white hover:bg-cyan-900">
     Pesquisar {webmotorsBrowse.modelLabel} {webmotorsBrowse.versionLabel} · {marketYear}
    </a>:webmotorsBrowse.versionOptions.length>0?
@@ -732,7 +747,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     </p>:
     <p className="text-xs text-slate-700">Ainda não temos uma rota de versão confirmada para esta configuração.</p>}
    <div>
-    <a href={webmotorsBrowse.modelUrl} target="_blank" rel="noopener noreferrer"
+    <a href={orderedWebmotorsModelUrl||webmotorsBrowse.modelUrl} target="_blank" rel="noopener noreferrer"
      className="text-xs font-bold text-cyan-900 underline">
      Abrir {webmotorsBrowse.modelLabel} {marketYear} com todas as versões
     </a>
@@ -740,7 +755,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <p className="text-[11px] leading-5 text-slate-700">
     {webmotorsBrowse.versionUrl?'O endereço específico inclui versão e ano-modelo.':
      'O link genérico não restringe a versão: confirme-a no site antes de usar qualquer preço.'}
-    {' '}Os anúncios e a KM devem ser conferidos diretamente na Webmotors.
+    {' '}Ordem solicitada: {webmotorsOrder==='lowest-price'?'Menor preço':'Mais relevantes'}.
+    Confira na Webmotors se a ordenação foi aplicada corretamente.
+    Os anúncios e a KM devem ser conferidos diretamente na Webmotors.
     Nenhum preço é aprovado automaticamente.
    </p>
   </div>:<p className="mt-2 text-xs font-semibold text-amber-900">Selecione marca, modelo e ano para habilitar a busca.</p>}
