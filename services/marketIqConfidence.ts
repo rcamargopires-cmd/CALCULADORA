@@ -32,7 +32,7 @@ const finite=(n:unknown)=>typeof n==='number'&&Number.isFinite(n)?n:0;
 const amount=(v:unknown)=>{
  if(typeof v==='number')return finite(v);
  if(typeof v!=='string')return 0;
- const raw=v.trim().replace(/\s/g,'');
+ const raw=v.trim().replace(/\s/g,'').replace(/^R\$/i,'');
  if(!/^[\d.,]+$/.test(raw))return 0;
  const normalized=raw.includes(',')?raw.replace(/\./g,'').replace(',','.'):/^\d{1,3}(?:\.\d{3})+$/.test(raw)?raw.replace(/\./g,''):raw;
  const n=Number(normalized);

@@ -40,6 +40,7 @@ const indexed=assessMarketIqEvidence(base({ads:[
 assert.equal(indexed.verifiedCount,0,'Indexed/catalog pages do not count as verified listings');
 assert.equal(indexed.ignoredIndexedCount,2);
 assert.equal(indexed.level,'low');
+assert.equal(assessMarketIqEvidence(base({ads:[ad('12345678','45.000',{price:'R$ 55.000'})]})).verifiedCount,1,'Brazilian BRL formatted ad prices count like the Mesa parser');
 const one=assessMarketIqEvidence(base({ads:[ad('12345678')]}));
 assert.equal(one.verifiedCount,1);
 assert.equal(one.level,'low');
