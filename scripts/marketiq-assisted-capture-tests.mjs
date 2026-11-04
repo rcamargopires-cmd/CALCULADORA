@@ -112,7 +112,7 @@ runInNewContext(bookmarklet.slice('javascript:'.length),{
  alert:(msg)=>messages.push(msg)
 });
 assert.equal(messages.length,1,'Only Webmotors site is allowed');
-assert.ok(panel.includes('Opção 1 · Capturar com um favorito do navegador'));
+assert.ok(panel.includes('Opção 1 · Capturar anúncios com um favorito do navegador'));
 assert.ok(panel.includes('Opção 2 · Colar lista de ofertas'));
 assert.ok(panel.includes('onImport(report.offers)'));
 assert.ok(panel.includes('não é possível confirmar'));
