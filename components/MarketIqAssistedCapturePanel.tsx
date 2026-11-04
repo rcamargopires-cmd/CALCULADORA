@@ -1,6 +1,6 @@
 import React,{useMemo,useState} from 'react';
 import {
- getWebmotorsCaptureBookmarklet,parseVisibleWebmotorsText,
+ getWebmotorsCaptureBookmarklet,parseVisibleWebmotorsText,inspectWebmotorsPaste,
  type VisibleOffer,type OfferTarget
 } from '../services/marketIqAssistedOffers';
 
@@ -12,6 +12,8 @@ export default function MarketIqAssistedCapturePanel({
  const [text,setText]=useState('');
  const [hasAnalyzed,setHasAnalyzed]=useState(false);
  const [notice,setNotice]=useState('');
+ const pasteKind=useMemo(()=>inspectWebmotorsPaste(text),[text]);
+ const pastedOnlyAddress=pasteKind==='search-url-only';
  const report=useMemo(()=>hasAnalyzed?parseVisibleWebmotorsText(text,target):null,[hasAnalyzed,text,target.brand,target.model,target.year,target.km,target.vehicleType,target.versionLabel]);
  const enabled=Boolean(target.brand&&target.model&&target.year>=1990&&target.km>0);
  const copyShortcut=async()=>{
@@ -35,32 +37,43 @@ export default function MarketIqAssistedCapturePanel({
   </summary>
   <div className="space-y-4 border-t border-slate-200 p-4">
    <p className="text-sm leading-6 text-slate-700">
-    Use a página de resultados já filtrada por versão, ano, região e menor preço.
-    Aqui, os anúncios entram para conferência, não como compras ou preços aprovados.
+    A versão, o ano, a região e a ordem por menor preço já vêm da pesquisa.
+    Para trazer preço e KM, o Motyq precisa ler os cartões dos anúncios, não apenas o endereço da página.
+    As ofertas entram pendentes de conferência, nunca como compra aprovada.
    </p>
    <div className="grid gap-3 lg:grid-cols-2">
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-     <p className="text-sm font-bold">Opção 1 · Capturar com um favorito do navegador</p>
+     <p className="text-sm font-bold">Opção 1 · Capturar anúncios com um favorito do navegador</p>
      <p className="mt-1 text-xs leading-5 text-slate-700">
-      Configure uma vez: copie o atalho, crie um favorito no navegador e cole o código copiado no
-      campo de endereço do favorito. Quando estiver vendo os carros na Webmotors, clique nesse favorito.
-      Ele tentará transferir até 12 anúncios visíveis, incluindo link, preço, KM e ano.
+      Mais confiável quando o site só permite copiar o link da pesquisa.
+      Configure o atalho uma única vez e, com os anúncios abertos na Webmotors, clique no favorito.
+      Ele tentará transferir até 12 anúncios visíveis com link individual, preço, KM e ano.
      </p>
      <button type="button" onClick={()=>void copyShortcut()}
       className="mt-3 rounded-lg border border-cyan-700 bg-white px-4 py-2.5 text-xs font-bold text-cyan-900 hover:bg-cyan-50">
       Copiar atalho de captura
      </button>
+     <details className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-800">
+      <summary className="cursor-pointer font-bold text-cyan-900">Como criar o favorito no Chrome (uma vez)</summary>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 leading-5">
+       <li>Clique em <strong>Copiar atalho de captura</strong> aqui no Motyq.</li>
+       <li>Pressione <strong>Ctrl+D</strong> e salve um favorito chamado Capturar Webmotors.</li>
+       <li>Abra o gerenciador de favoritos com <strong>Ctrl+Shift+O</strong>, localize o favorito e escolha <strong>Editar</strong>.</li>
+       <li>No campo URL/endereço do favorito, substitua o endereço pelo código copiado e salve.</li>
+       <li>Volte à página dos anúncios na Webmotors e clique no favorito.</li>
+      </ol>
+     </details>
      <p className="mt-2 text-[11px] text-slate-600">
-      Somente página pública da Webmotors, ativação manual e confirmação antes de enviar.
-      Se o site não expuser os links individuais, use a opção 2.
+      Funciona somente após seu clique e sua confirmação, sem consulta oculta.
+      Se a Webmotors não expuser anúncios individuais, a captura pode retornar zero.
      </p>
     </div>
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
      <p className="text-sm font-bold">Opção 2 · Colar lista de ofertas</p>
      <p className="mt-1 text-xs leading-5 text-slate-700">
-      Na lista da Webmotors pressione <strong>Ctrl+A, Ctrl+C</strong>. Volte ao Motyq
-      e use <strong>Ctrl+V</strong> abaixo. O Motyq separará preço, KM, ano e versão,
-      sem precisar cadastrar cada linha.
+      Na Webmotors, clique <strong>dentro da página, sobre a área dos veículos</strong>, não na barra de endereços.
+      Selecione o texto dos anúncios e copie com <strong>Ctrl+C</strong>. Cole com <strong>Ctrl+V</strong> abaixo.
+      A cópia precisa conter valores em R$, quilometragem e ano, não apenas um link.
      </p>
      <label className="mt-3 block text-xs font-bold text-slate-800">
       Texto copiado da página
@@ -69,10 +82,18 @@ export default function MarketIqAssistedCapturePanel({
        placeholder="Cole aqui a lista copiada da Webmotors"
        className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-3 text-xs text-slate-900"/>
      </label>
-     <button type="button" disabled={!enabled||!text.trim()}
+     {pastedOnlyAddress&&<div role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+      <strong>Você colou somente o endereço da Webmotors.</strong> O link abre a pesquisa, mas não contém os preços e KM
+      dos carros. Volte à Webmotors e selecione os cartões dos anúncios com o mouse, copie o texto e cole aqui.
+      Se o navegador continuar copiando só o endereço, use a opção 1 para capturar os cartões visíveis.
+     </div>}
+     {pasteKind==='other-text'&&text.trim()&&<p role="status" className="mt-2 text-xs font-semibold text-amber-900">
+      Ainda não há preço em R$ e KM suficientes no texto copiado. Confira se você selecionou os anúncios.
+     </p>}
+     <button type="button" disabled={!enabled||!text.trim()||pastedOnlyAddress}
       onClick={()=>{setHasAnalyzed(true);setNotice('');}}
       className="mt-2 rounded-lg bg-cyan-800 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">
-      Identificar ofertas
+      {pastedOnlyAddress?'Cole os anúncios, não o link':'Identificar ofertas'}
      </button>
     </div>
    </div>
