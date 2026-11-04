@@ -410,27 +410,36 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  setClassificationReason(r.classificationReason||'');setDirectRepasseReason(r.directRepasseReason||'none');setGoodLiquidity(r.goodLiquidity===true);
  setDestinationOverride(r.repasse&&['A','B','C'].includes(String(r.historicalClass||classifyByMileage(r.km)?.classification||''))&&(!r.directRepasseReason||r.directRepasseReason==='none')?'repasse':'auto');setAds(r.ads);const restoredKey=[r.vehicleType==='motorcycle'?'motorcycle':'car',r.brandCode||'',r.modelCode||'',r.yearCode||'',r.km].join('|');setAdsVehicleKey(restoredKey);setAutoSearchKey(restoredKey);autoAttempted.current.add(restoredKey);setAutoSearchedAt(r.date);switchDeskSection('pricing');setNewApprovedValue('');setNewApprovedDate(localDate());setNotice('Avaliação reaberta. Salvar novamente no mesmo dia atualiza o registro existente e mantém as alterações anteriores para auditoria.');window.scrollTo({top:0,behavior:'smooth'})};
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
+ const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
  return <main className="mx-auto max-w-7xl space-y-5 p-5 text-slate-900">
- <nav className="motyq-iq-tabs flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Áreas do Motyq IQ">
+ <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+  <nav className="motyq-iq-tabs flex flex-wrap items-center gap-1.5 p-2" aria-label="Áreas principais do Motyq IQ">
   <button type="button" onClick={()=>switchDeskSection('dashboard')} aria-current={deskSection==='dashboard'?'page':undefined}
-    className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='dashboard'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Painel gerencial</button>
-  <button type="button" onClick={()=>switchDeskSection('pricing')} aria-current={deskSection==='pricing'?'page':undefined}
-    className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='pricing'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Mesa de precificação</button>
+   className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='dashboard'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Painel gerencial</button>
+  <button type="button" onClick={()=>switchDeskSection('pricing')} aria-expanded={mesaActive} aria-controls="motyq-iq-mesa-tools"
+   className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(mesaActive?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Mesa de precificação</button>
   <button type="button" onClick={()=>switchDeskSection('consulted')} aria-current={deskSection==='consulted'?'page':undefined}
-    className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='consulted'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Repasse Sob Consulta</button>
+   className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='consulted'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Repasse Sob Consulta</button>
   <button type="button" onClick={()=>switchDeskSection('approvals')} aria-current={deskSection==='approvals'?'page':undefined}
-    className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='approvals'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Solicitações e aprovações</button>
-  <button type="button" onClick={()=>switchDeskSection('history')} aria-current={deskSection==='history'?'page':undefined}
-    className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='history'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Histórico de avaliações ({saved.length})</button>
+   className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='approvals'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Solicitações e aprovações</button>
   <button type="button" onClick={()=>switchDeskSection('learning')} aria-current={deskSection==='learning'?'page':undefined}
-    className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='learning'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Aprendizado IQ</button>
-  <button type="button" onClick={()=>switchDeskSection('archive')} aria-current={deskSection==='archive'?'page':undefined}
-    className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='archive'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Arquivo mensal</button>
-  <button type="button" onClick={()=>switchDeskSection('plateHistory')}
-   aria-current={deskSection==='plateHistory'?'page':undefined}
-   className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='plateHistory'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Histórico por placa</button>
-  <span className="motyq-iq-tabs-caption ml-auto px-2 text-[11px] font-semibold text-slate-500">Motyq IQ · histórico online</span>
- </nav>
+   className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='learning'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Aprendizado IQ</button>
+  </nav>
+  {mesaActive&&<nav id="motyq-iq-mesa-tools" aria-label="Ferramentas da Mesa de precificação"
+   className="flex flex-wrap items-center gap-1.5 border-t border-slate-200 bg-slate-50/70 px-3 py-2">
+   <span className="mr-2 hidden text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:inline">Mesa</span>
+   <button type="button" onClick={()=>switchDeskSection('pricing')} aria-current={deskSection==='pricing'?'page':undefined}
+    className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='pricing'?'bg-white text-[#153f51] shadow-sm ring-1 ring-slate-200':'text-slate-600 hover:bg-white hover:text-slate-900')}>Nova avaliação</button>
+   <button type="button" onClick={()=>switchDeskSection('history')} aria-current={deskSection==='history'?'page':undefined}
+    className={'inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='history'?'bg-white text-[#153f51] shadow-sm ring-1 ring-slate-200':'text-slate-600 hover:bg-white hover:text-slate-900')}>
+    Histórico <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-700">{saved.length}</span>
+   </button>
+   <button type="button" onClick={()=>switchDeskSection('archive')} aria-current={deskSection==='archive'?'page':undefined}
+    className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='archive'?'bg-white text-[#153f51] shadow-sm ring-1 ring-slate-200':'text-slate-600 hover:bg-white hover:text-slate-900')}>Arquivo mensal</button>
+   <button type="button" onClick={()=>switchDeskSection('plateHistory')} aria-current={deskSection==='plateHistory'?'page':undefined}
+    className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='plateHistory'?'bg-white text-[#153f51] shadow-sm ring-1 ring-slate-200':'text-slate-600 hover:bg-white hover:text-slate-900')}>Histórico por placa</button>
+  </nav>}
+ </div>
  {deskSection==='dashboard'?<MarketIqManagementDashboard user={user}/>:
   deskSection==='consulted'?<MarketIqConsultedRepasse user={user}
     vehicleFromDesk={{plate,brand,model,year,km,fipe:fipe?.value||0}}
