@@ -106,7 +106,7 @@ export default function MarketIqFleetClassificationPanel(props:Props){
    <label className="mt-3 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
     <input type="checkbox" checked={props.goodLiquidity} onChange={e=>props.onGoodLiquidity(e.target.checked)}
      className="mt-1 h-4 w-4"/>
-    <span><strong>Classe C: boa liquidez confirmada.</strong> A diretoria prevê showroom para a classe C somente com boa liquidez. {!props.goodLiquidity&&'Confirme a liquidez antes da decisão ou selecione repasse.'}</span>
+    <span><strong>Classe C: Boa liquidez confirmada.</strong> A diretoria prevê showroom para a classe C somente com boa liquidez. {!props.goodLiquidity&&'Confirme a liquidez antes da decisão ou selecione repasse.'}</span>
    </label>}
   <p className="mt-4 text-xs leading-5 text-slate-600">
    Faixas: A até 20.000 km; B de 20.001 a 50.000; C de 50.001 a 70.000;
