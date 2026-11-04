@@ -40,9 +40,16 @@ export type OfferTarget={
  * Classify it before displaying an inaccurate "zero listings" result.
  * Deliberately does not retrieve the URL or claim access to its contents.
  */
-export function inspectWebmotorsPaste(value:string):'empty'|'search-url-only'|'offer-text'|'other-text'{
+export function inspectWebmotorsPaste(value:string):'empty'|'search-url-only'|'bookmarklet-code'|'offer-text'|'other-text'{
  const raw=String(value||'').trim();
  if(!raw)return 'empty';
+ // An operator may copy the capture code and mistakenly paste it into the
+ // listing text field. This is a UI mix-up, not a market with zero offers.
+ // Some browsers strip "javascript:" when copying, so detect its signature too.
+ const isBookmarklet=/^javascript\s*:/i.test(raw)||
+  (/motyq-import=/i.test(raw)&&
+   /(?:TextEncoder|querySelectorAll|confirm\s*\(|location\.href)/i.test(raw));
+ if(isBookmarklet)return 'bookmarklet-code';
  const startsWithWebmotors=/^https?:\/\/(?:www\.)?webmotors\.com\.br\/(?:carros|motos|comprar)\//i.test(raw);
  const evidence=/R\$\s*[\d.]+/i.test(raw)&&/\b\d{1,3}(?:\.\d{3}){0,2}\s*km\b/i.test(raw);
  if(startsWithWebmotors&&!evidence&&raw.length<2500)return 'search-url-only';
