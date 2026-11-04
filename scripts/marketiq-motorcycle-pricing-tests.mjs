@@ -60,7 +60,7 @@ assert.ok(!ui.includes("if(vehicleType==='motorcycle'){setAutoError('Para motos"
 assert.ok(backend.includes("path.startsWith('/motos-usadas/')"));
 assert.ok(backend.includes("vehicleType==='motorcycle'?2500:15000"),'Motorcycle asking prices below R$ 15k must be eligible');
 assert.ok(backend.includes("site:webmotors.com.br/motos-usadas/"),'Motorcycle queries must use the real Webmotors moto catalog');
-assert.ok(backend.includes("search(queryBase + ' motocicleta '"));
+assert.ok(backend.includes("queryBase+' motocicleta '+year")&&backend.includes("for(const [query,domain] of queries)"),'Motorcycle Webmotors searches remain available sequentially');
 assert.ok(backend.includes("vehicleType+'|'"),'Market cache must not mix cars and motorcycles');
 assert.ok(ui.includes("vehicleType==='motorcycle'?1.60:1.35"),'Motorcycle index samples should not be discarded at the car FIPE cap');
 assert.ok(backend.includes("Number(yearPair[1])!==year"),'Webmotors production year must not be mistaken for model year');
