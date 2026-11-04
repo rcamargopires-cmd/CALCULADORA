@@ -5,6 +5,8 @@ import {User} from '../types';
 import {auth} from '../firebase';
 import MarketIqManagementDashboard from './MarketIqManagementDashboard';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
+import MarketIqConfidencePanel from './MarketIqConfidencePanel';
+import {assessMarketIqEvidence} from '../services/marketIqConfidence';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import MarketIqApprovalCenter from './MarketIqApprovalCenter';
 import {calculateHistoricalPrice, MOTYQ_HISTORY_MODEL, HistoricalClass} from '../services/marketIqHistoricalPricing';
@@ -330,6 +332,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      classification,destination:repasse?'REPASSE':'SHOWROOM'
    });
  },[vehicleType,fipe,classification,km,cost,repasse]);
+ const confidence=useMemo(()=>assessMarketIqEvidence({
+  vehicleType,plate,brand,model,brandCode,modelCode,modelYear:marketYear,
+  km:number(km),fipe,ads:currentAds,history:saved
+ }),[vehicleType,plate,brand,model,brandCode,modelCode,marketYear,km,fipe,currentAds,saved]);
  const save=async()=>{
    const hasVehicle=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)&&brandCode&&modelCode&&yearCode&&number(km)>0;
    if(!hasVehicle){
@@ -489,6 +495,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    O preço-alvo pode mudar quando a FIPE atualizar. Confira antes de aprovar a compra.
  </p>}
  {fipe.referenceSource==='tabelafipe.info'&&<p className="mt-1 text-xs text-slate-700">Dados via tabelafipe.info (Tabela FIPE). Fonte independente, conferida por código e ano-modelo.</p>}</>:<p className="text-sm text-slate-600">Selecione marca, modelo/versão e ano para consultar o valor automaticamente.</p>}{catalogError&&<div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-red-700">{catalogError}</p><button type="button" onClick={()=>{setCatalogError("");setRetryCatalog(x=>x+1);if(brandCode){const current=brandCode;setBrandCode('');window.setTimeout(()=>setBrandCode(current),0);}}} className="rounded-lg border border-cyan-700 px-3 py-1 text-sm font-semibold text-cyan-900">Tentar novamente</button></div>}</div></section>
+ <MarketIqConfidencePanel result={confidence}/>
  {vehicleType==='car'? <section className="rounded-xl border border-indigo-100 bg-white p-5">
   <div className="flex flex-wrap items-start justify-between gap-2">
     <div><h2 className="text-xl font-semibold">Preço-alvo histórico · Motyq IQ</h2>
