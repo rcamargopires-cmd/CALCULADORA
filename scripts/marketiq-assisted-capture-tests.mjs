@@ -21,10 +21,20 @@ assert.equal(inspectWebmotorsPaste(screenshotPasted+'\n'), 'search-url-only');
 assert.equal(inspectWebmotorsPaste(''),'empty');
 assert.equal(inspectWebmotorsPaste('JEEP COMPASS\n2022/2022\n73.000 Km\nR$ 89.900'),'offer-text');
 assert.equal(inspectWebmotorsPaste('JEEP COMPASS\n2022/2022'),'other-text');
+assert.equal(inspectWebmotorsPaste('javascript:(function(){location.href="https://app.motyq.com.br/#motyq-import="+x})()'),'bookmarklet-code');
+assert.equal(inspectWebmotorsPaste('const data=JSON.stringify({kind:"motyq-assisted-v1"});document.querySelectorAll("a");location.href="https://app.motyq.com.br/#motyq-import="+data'),'bookmarklet-code');
+assert.equal(inspectWebmotorsPaste('javascript:alert("teste")'),'bookmarklet-code');
+assert.ok(panel.includes('Você colou o código de captura, não os anúncios.'),
+ 'Immediately explain a bookmarklet pasted into the offer-text field');
+assert.ok(panel.includes('Limpar o código colado'), 'Provide an easy recovery action');
+assert.ok(panel.includes('O código copiado vai no endereço de um FAVORITO'),
+ 'Clarify capture setup before user copies the shortcut');
 assert.ok(panel.includes('Você colou somente o endereço da Webmotors.'),
  'Display immediate specific diagnosis for URL-only content');
-assert.ok(panel.includes('disabled={!enabled||!text.trim()||pastedOnlyAddress}'),
- 'Do not run extraction when only a URL was pasted');
+assert.ok(panel.includes('disabled={!enabled||!text.trim()||invalidPaste}'),
+ 'Do not run extraction when a URL or bookmarklet code was pasted');
+assert.ok(panel.includes('const invalidPaste=pastedOnlyAddress||pastedCaptureCode'),
+ 'Both mistaken paste types are safely ignored');
 assert.ok(panel.includes('Copiar atalho de captura'));
 assert.ok(panel.includes('Como criar o favorito no Chrome (uma vez)'));
 assert.ok(panel.includes('Ctrl+Shift+O'));
@@ -75,6 +85,8 @@ const alternative={...target,versionLabel:'2.0 TD350 Turbo Diesel Trailhawk AT9'
 const alt=parseVisibleWebmotorsText(card('2.0 TD350 Turbo Diesel Trailhawk At9','2022','62.000','96.000'),alternative);
 assert.equal(alt.offers.length,1,'Allows correctly selected diesel trim');
 const bookmarklet=getWebmotorsCaptureBookmarklet();
+assert.equal(inspectWebmotorsPaste(bookmarklet),'bookmarklet-code',
+ 'A real generated bookmarklet must be detected from its JavaScript prefix');
 assert.ok(bookmarklet.startsWith('javascript:('));
 assert.ok(bookmarklet.length>500);
 assert.ok(!bookmarklet.includes('fetch('),'Bookmarklet must never make a background Webmotors request');

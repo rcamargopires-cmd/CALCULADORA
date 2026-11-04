@@ -14,13 +14,15 @@ export default function MarketIqAssistedCapturePanel({
  const [notice,setNotice]=useState('');
  const pasteKind=useMemo(()=>inspectWebmotorsPaste(text),[text]);
  const pastedOnlyAddress=pasteKind==='search-url-only';
+ const pastedCaptureCode=pasteKind==='bookmarklet-code';
+ const invalidPaste=pastedOnlyAddress||pastedCaptureCode;
  const report=useMemo(()=>hasAnalyzed?parseVisibleWebmotorsText(text,target):null,[hasAnalyzed,text,target.brand,target.model,target.year,target.km,target.vehicleType,target.versionLabel]);
  const enabled=Boolean(target.brand&&target.model&&target.year>=1990&&target.km>0);
  const copyShortcut=async()=>{
   try{
    if(!navigator.clipboard?.writeText)throw new Error('Clipboard indisponível');
    await navigator.clipboard.writeText(getWebmotorsCaptureBookmarklet());
-   setNotice('Código do atalho copiado. Crie um favorito chamado “Capturar Webmotors” e cole o código no endereço desse favorito.');
+   setNotice('Atalho copiado! Ele NÃO deve ser colado no campo da opção 2. No Chrome, crie um favorito chamado Capturar Webmotors, edite o endereço desse favorito, cole o código e clique nele quando estiver na página da Webmotors.');
   }catch{
    setNotice('Seu navegador impediu a cópia automática. Use a opção Colar lista logo abaixo, que não precisa de extensão nem atalho.');
   }
@@ -44,6 +46,7 @@ export default function MarketIqAssistedCapturePanel({
    <div className="grid gap-3 lg:grid-cols-2">
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
      <p className="text-sm font-bold">Opção 1 · Capturar anúncios com um favorito do navegador</p>
+     <p className="mt-1 text-xs font-black text-cyan-900">O código copiado vai no endereço de um FAVORITO do Chrome, não no formulário do Motyq.</p>
      <p className="mt-1 text-xs leading-5 text-slate-700">
       Mais confiável quando o site só permite copiar o link da pesquisa.
       Configure o atalho uma única vez e, com os anúncios abertos na Webmotors, clique no favorito.
@@ -87,13 +90,25 @@ export default function MarketIqAssistedCapturePanel({
       dos carros. Volte à Webmotors e selecione os cartões dos anúncios com o mouse, copie o texto e cole aqui.
       Se o navegador continuar copiando só o endereço, use a opção 1 para capturar os cartões visíveis.
      </div>}
+     {pastedCaptureCode&&<div role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+      <strong>Você colou o código de captura, não os anúncios.</strong>
+      Esse texto começa com JavaScript ou contém instruções do atalho.
+      O lugar dele é no campo <strong>URL/endereço do favorito do Chrome</strong> (opção 1).
+      Depois, abra os resultados na Webmotors e clique no favorito para capturar os anúncios visíveis.
+      <div className="mt-2">
+       <button type="button" onClick={()=>{setText('');setHasAnalyzed(false);setNotice('');}}
+        className="rounded-md border border-amber-500 bg-white px-3 py-1.5 text-xs font-bold text-amber-950">
+        Limpar o código colado
+       </button>
+      </div>
+     </div>}
      {pasteKind==='other-text'&&text.trim()&&<p role="status" className="mt-2 text-xs font-semibold text-amber-900">
       Ainda não há preço em R$ e KM suficientes no texto copiado. Confira se você selecionou os anúncios.
      </p>}
-     <button type="button" disabled={!enabled||!text.trim()||pastedOnlyAddress}
+     <button type="button" disabled={!enabled||!text.trim()||invalidPaste}
       onClick={()=>{setHasAnalyzed(true);setNotice('');}}
       className="mt-2 rounded-lg bg-cyan-800 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">
-      {pastedOnlyAddress?'Cole os anúncios, não o link':'Identificar ofertas'}
+      {pastedCaptureCode?'Código do favorito não é anúncio':pastedOnlyAddress?'Cole os anúncios, não o link':'Identificar ofertas'}
      </button>
     </div>
    </div>
