@@ -1417,6 +1417,7 @@ const search = async (query: string, domain: string) => {
 const listingPageCandidates = (pages: any[], brand: string, model: string, year: number, targetKm: number, vehicleType:'car'|'motorcycle'='car') => {
   const canonical = (s:string) => normalize(s).replace(/[^a-z0-9]+/g,' ');
   const {family:core,trim:variant}=marketModelParts(model);
+  const tokens=normalize(model).split(/[^a-z0-9]+/).filter(Boolean);
   const engine = tokens.find(token => /^t\d{3,4}$/.test(token)) || '';
   const normalizedBrand=marketBrand(brand);
   const firstPart = canonical(normalizedBrand+' '+core).trim();
