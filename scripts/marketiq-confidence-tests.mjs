@@ -92,7 +92,10 @@ const moto=assessMarketIqEvidence(base({
 }));
 assert.equal(moto.verifiedCount,2,'Motorcycles must use stricter KM limit');
 assert.equal(moto.paidSampleCount,0,'Car payments never count toward motorcycle evidence');
-assert.equal(moto.level,'medium');
+assert.equal(moto.flaggedCount,1,'Motorcycle comparables outside 10,000 km are flagged');
+assert.equal(moto.level,'low','A flagged far-km motorcycle listing requires operator review');
+const motoClean=assessMarketIqEvidence(base({vehicleType:'motorcycle',brand:'Yamaha',model:'FZ25',brandCode:'11',modelCode:'222',modelYear:2023,km:12000,ads:[ad('12345678','16.000'),ad('12345679','20.000')]}));
+assert.equal(motoClean.level,'medium','Two clean nearby motorcycle listings can give a moderate evidence rating');
 assert.ok(panel.includes('Confiança das evidências'),'The new panel must label evidence correctly');
 assert.ok(panel.includes('não probabilidade de acerto'),'Must not imply predicted buy success');
 assert.ok(panel.includes('não substitui laudo cautelar'),'Must not imply vehicle-history validation');
