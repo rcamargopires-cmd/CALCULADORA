@@ -5,6 +5,7 @@ import {User} from '../types';
 import {auth} from '../firebase';
 import MarketIqManagementDashboard from './MarketIqManagementDashboard';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
+import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
 import MarketIqConfidencePanel from './MarketIqConfidencePanel';
 import MarketIqFleetClassificationPanel from './MarketIqFleetClassificationPanel';
 import {classifyByMileage,resolveFleetPolicy,type FleetClass,type DestinationOverride,type DirectRepasseReason} from '../services/marketIqFleetClassification';
@@ -64,12 +65,12 @@ const validSource=(a:Ad)=>{try{
 }catch{return false;}};
 export default function ManualPricingWorkspace({user}:{user:User}){
  const key='motyq-iq-local-test-'+user.email.toLowerCase();
- const [deskSection,setDeskSection]=useState<'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'>(()=>{
+ const [deskSection,setDeskSection]=useState<'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'>(()=>{
    if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import'))return 'pricing';
    const previous=sessionStorage.getItem('motyq-iq-active-desk-tab');
-   return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'?previous:'dashboard';
+   return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'?previous:'dashboard';
  });
- const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning')=>{
+ const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive')=>{
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
  };
  const formKey='motyq-iq-preview-inputs-'+user.email.toLowerCase();
@@ -421,6 +422,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='history'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Histórico de avaliações ({saved.length})</button>
   <button type="button" onClick={()=>switchDeskSection('learning')} aria-current={deskSection==='learning'?'page':undefined}
     className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='learning'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Aprendizado IQ</button>
+  <button type="button" onClick={()=>switchDeskSection('archive')} aria-current={deskSection==='archive'?'page':undefined}
+    className={'rounded-xl px-5 py-3 text-sm font-black transition '+(deskSection==='archive'?'bg-[#153f51] text-white shadow-sm':'text-slate-600 hover:bg-slate-100')}>Arquivo mensal</button>
   <span className="motyq-iq-tabs-caption ml-auto px-2 text-[11px] font-semibold text-slate-500">Motyq IQ · histórico online</span>
  </nav>
  {deskSection==='dashboard'?<MarketIqManagementDashboard user={user}/>:
@@ -429,6 +432,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     onOpenApprovals={()=>switchDeskSection('approvals')}/>:
   deskSection==='approvals'?<MarketIqApprovalCenter user={user}/>:
   deskSection==='learning'?<MarketIqLearningPanel user={user} history={saved} onRefresh={refreshHistory}/>:
+  deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}/>:
   deskSection==='history'?<section className="space-y-4 rounded-xl bg-white p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 className="text-xl font-bold text-slate-900">Histórico de avaliações</h2>
