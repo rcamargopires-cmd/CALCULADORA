@@ -11,8 +11,25 @@ const compiled=ts.transpileModule(service,{
  reportDiagnostics:true
 });
 assert.equal((compiled.diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error).length,0);
-const {parseVisibleWebmotorsText,getWebmotorsCaptureBookmarklet}=await import(
+const {parseVisibleWebmotorsText,getWebmotorsCaptureBookmarklet,inspectWebmotorsPaste}=await import(
  'data:text/javascript;base64,'+Buffer.from(compiled.outputText).toString('base64'));
+
+const screenshotPasted='https://www.webmotors.com.br/carros/sp/jeep/compass/13-t270-turbo-flex-longitude-at6/de.2025/ate.2025?tipoveiculo=carros&estadocidade=S%C3%A3o%20Paulo&marca1=jeep&modelo1=compass&versao1=13-t270-turbo-flex-longitude';
+assert.equal(inspectWebmotorsPaste(screenshotPasted),'search-url-only',
+ 'A Webmotors search URL is not evidence of zero cars');
+assert.equal(inspectWebmotorsPaste(screenshotPasted+'\n'), 'search-url-only');
+assert.equal(inspectWebmotorsPaste(''),'empty');
+assert.equal(inspectWebmotorsPaste('JEEP COMPASS\n2022/2022\n73.000 Km\nR$ 89.900'),'offer-text');
+assert.equal(inspectWebmotorsPaste('JEEP COMPASS\n2022/2022'),'other-text');
+assert.ok(panel.includes('Você colou somente o endereço da Webmotors.'),
+ 'Display immediate specific diagnosis for URL-only content');
+assert.ok(panel.includes('disabled={!enabled||!text.trim()||pastedOnlyAddress}'),
+ 'Do not run extraction when only a URL was pasted');
+assert.ok(panel.includes('Copiar atalho de captura'));
+assert.ok(panel.includes('Como criar o favorito no Chrome (uma vez)'));
+assert.ok(panel.includes('Ctrl+Shift+O'));
+assert.ok(!panel.includes('Na lista da Webmotors pressione <strong>Ctrl+A, Ctrl+C</strong>'),
+ 'Avoid misleading instructions which caused address-bar copying');
 
 const target={
  brand:'Jeep',model:'COMPASS LONG. T270 1.3 TB 4x2 Flex Aut.',
@@ -95,7 +112,7 @@ runInNewContext(bookmarklet.slice('javascript:'.length),{
  alert:(msg)=>messages.push(msg)
 });
 assert.equal(messages.length,1,'Only Webmotors site is allowed');
-assert.ok(panel.includes('Opção 1 · Capturar com um favorito do navegador'));
+assert.ok(panel.includes('Opção 1 · Capturar anúncios com um favorito do navegador'));
 assert.ok(panel.includes('Opção 2 · Colar lista de ofertas'));
 assert.ok(panel.includes('onImport(report.offers)'));
 assert.ok(panel.includes('não é possível confirmar'));

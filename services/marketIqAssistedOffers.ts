@@ -34,6 +34,21 @@ export type OfferTarget={
  versionLabel?:string|null;
 };
 
+/**
+ * A copied Webmotors search URL is NOT the list of visible offers.
+ * Some browsers copy the address bar rather than the rendered card text.
+ * Classify it before displaying an inaccurate "zero listings" result.
+ * Deliberately does not retrieve the URL or claim access to its contents.
+ */
+export function inspectWebmotorsPaste(value:string):'empty'|'search-url-only'|'offer-text'|'other-text'{
+ const raw=String(value||'').trim();
+ if(!raw)return 'empty';
+ const startsWithWebmotors=/^https?:\/\/(?:www\.)?webmotors\.com\.br\/(?:carros|motos|comprar)\//i.test(raw);
+ const evidence=/R\$\s*[\d.]+/i.test(raw)&&/\b\d{1,3}(?:\.\d{3}){0,2}\s*km\b/i.test(raw);
+ if(startsWithWebmotors&&!evidence&&raw.length<2500)return 'search-url-only';
+ return evidence?'offer-text':'other-text';
+}
+
 const normalize=(s:unknown)=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
  .toLowerCase().replace(/\s+/g,' ').trim();
 const simplify=(s:unknown)=>normalize(s).replace(/[^a-z0-9]+/g,'');
