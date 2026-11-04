@@ -84,7 +84,7 @@ assert.ok(ui.includes('Arquivo mensal de avaliações'));
 assert.ok(ui.includes('classRecorded')&&ui.includes('classSuggested'),'Display original and modern KM class');
 assert.ok(ui.includes('Resumo')===false||ui.includes('Avaliações encontradas'));
 assert.ok(workspace.includes(">Arquivo mensal</button>"));
-assert.ok(workspace.includes("deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}/>"));
+assert.ok(workspace.includes("deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}"),'Archive tab remains routed with optional plate-history navigation');
 assert.ok(panel.includes('parseDashboardData'),'Existing dashboard import flow remains intact');
 assert.ok(api.includes('FIREBASE_SERVICE_ACCOUNT_JSON'),'Server reads existing service credential');
 assert.ok(api.includes('accounts:lookup'),'Firebase ID token must be verified server-side');
