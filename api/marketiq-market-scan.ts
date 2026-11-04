@@ -737,9 +737,12 @@ const getManifest=async(monthPath:string,token:string)=>{
  const doc=await firestoreRead(monthPath,token);
  return unpack(doc);
 };
-const readChunks=async(monthPath:string,token:string,batchId:string,count:number,month:string)=>{
+const readChunks=async(monthPath:string,token:string,batchId:string,count:number,month:string,selectedIndices?:number[])=>{
  if(!batchValid(batchId)||!Number.isInteger(count)||count<1||count>100)throw new Error('INVALID_MANIFEST');
- const jobs=Array.from({length:count},(_,i)=>i);
+ if(selectedIndices!==undefined&&(!Array.isArray(selectedIndices)||
+  selectedIndices.some(i=>!Number.isInteger(i)||i<0||i>=count)))throw new Error('INVALID_MANIFEST');
+ const jobs=selectedIndices===undefined?Array.from({length:count},(_,i)=>i):
+  [...new Set(selectedIndices)].sort((a,b)=>a-b);
  const output:any[]=[];
  for(let i=0;i<jobs.length;i+=10){
   const subset=jobs.slice(i,i+10);
@@ -770,7 +773,41 @@ return async function handler(req:any,res:any){
      x&&monthValid(x.month)&&Number.isInteger(x.count)&&x.count>=0);
    if(doc?.nextPageToken)throw new Error('ARCHIVE_MONTH_LIST_TOO_LARGE');
    months.sort((a:any,b:any)=>String(b.month).localeCompare(String(a.month)));
-   return response(res,200,{months});
+   // Index is server-private. The list picker receives summaries, not all plates.
+   return response(res,200,{months:months.map((item:any)=>{
+    const {plateIndex,...summary}=item;
+    return summary;
+   })});
+  }
+  if(req.method==='POST'&&action==='plate_history'){
+   const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
+   if(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate))
+    return response(res,400,{error:'Informe uma placa válida.'});
+   const doc=await firestoreRead(root+'?pageSize=100',token);
+   if(doc?.nextPageToken)throw new Error('ARCHIVE_MONTH_LIST_TOO_LARGE');
+   const manifests=(doc?.documents||[]).map((x:any)=>unpack(x)).filter((x:any)=>
+    x&&monthValid(x.month)&&Number.isInteger(x.chunks)&&x.chunks>0&&x.chunks<=100&&batchValid(x.batchId));
+   const results:any[]=[];
+   // Newly imported snapshots have a per-plate chunk index. Older snapshots
+   // remain searchable through a read-only scan of their original chunks.
+   for(let start=0;start<manifests.length;start+=4){
+    const group=await Promise.all(manifests.slice(start,start+4).map(async (manifest:any)=>{
+     const indexed=manifest.plateIndex&&typeof manifest.plateIndex==='object'&&!Array.isArray(manifest.plateIndex);
+     const selected:number[]|undefined=indexed?
+      (Array.isArray(manifest.plateIndex[plate])?manifest.plateIndex[plate]:[]):undefined;
+     if(selected!==undefined&&!selected.length)return [];
+     const path=pathFor(dbBase(sa),user.companyId,manifest.month);
+     const records=await readChunks(path,token,manifest.batchId,manifest.chunks,manifest.month,selected);
+     return records.filter((record:any)=>record.plate===plate);
+    }));
+    results.push(...group.flat());
+   }
+   results.sort((a:any,b:any)=>String(b.evaluationDate).localeCompare(String(a.evaluationDate))||
+    String(b.month).localeCompare(String(a.month))||String(b.id).localeCompare(String(a.id)));
+   return response(res,200,{
+    plate,records:results,monthsScanned:manifests.length,
+    monthsMatched:new Set(results.map(r=>r.month)).size
+   });
   }
   const month=String(req.method==='GET'?req.query?.month:req.body?.month||'');
   if(!monthValid(month))return response(res,400,{error:'Informe um mês válido (AAAA-MM).'});
@@ -811,15 +848,25 @@ return async function handler(req:any,res:any){
    const ids=new Set(records.map(r=>r.id));
    if(records.length!==expectedCount||ids.size!==records.length)
       return response(res,409,{error:'Lotes incompletos ou IDs repetidos. Nenhum mês foi substituído.'});
+   // The index holds chunk numbers only, never financial data or other PII.
+   const plateIndex:Record<string,number[]>={};
+   for(let i=0;i<records.length;i++){
+    const plate=String(records[i].plate||'');
+    if(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate))continue;
+    const chunk=Math.floor(i/150);
+    const list=plateIndex[plate]||(plateIndex[plate]=[]);
+    if(!list.includes(chunk))list.push(chunk);
+   }
    const manifest={
-    month,count:records.length,chunks,batchId,sourceName:trim(req.body?.sourceName,120),
+    month,count:records.length,chunks,batchId,plateIndex,
+    sourceName:trim(req.body?.sourceName,120),
     importedAt:new Date().toISOString(),importedBy:user.email,
     withPurchaseDate:records.filter(r=>r.purchaseDate).length,
     withWebReference:records.filter(r=>r.webReference!==null).length,
     withAssessedValue:records.filter(r=>r.assessedValue!==null).length,
     classDifference:records.filter(r=>r.classRecorded&&r.classSuggested&&r.classRecorded!==r.classSuggested).length,
     // No real paid amount is inferred from the source's "Valor avaliado".
-    paidAmountCoverage:0,version:1
+    paidAmountCoverage:0,version:2
    };
    await firestoreWrite(monthPath,token,manifest);
    return response(res,200,{saved:true,manifest});
@@ -843,7 +890,7 @@ return async function handler(req:any,res:any){
 
 export default async function handler(req: any, res: any) {
   const monthlyAction=String(req.method==='GET'?req.query?.action||'':req.body?.action||'');
-  if(['monthly_archive_months','monthly_archive_load','monthly_archive_chunk','monthly_archive_commit'].includes(monthlyAction))
+  if(['monthly_archive_months','monthly_archive_load','monthly_archive_chunk','monthly_archive_commit','monthly_archive_plate_history'].includes(monthlyAction))
     return monthlyArchiveHandler(req,res);
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
