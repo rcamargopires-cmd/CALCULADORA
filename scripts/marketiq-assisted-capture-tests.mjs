@@ -70,7 +70,7 @@ const pageCard={innerText:card('1.3 T270 Turbo Flex Longitude At6','2022','73.00
 const link={href:'https://www.webmotors.com.br/comprar/jeep/compass/13-t270/2021-2022/12345678',
  innerText:'',parentElement:pageCard,getAttribute:()=>null};
 const malicious={...link,href:'https://fake-webmotors.com.br/comprar/jeep/compass/13-t270/2021-2022/12345678'};
-const page={href:'https://www.webmotors.com.br/carros/sp/jeep/compass'};
+const page={href:'https://www.webmotors.com.br/carros/sp/jeep/compass',hostname:'www.webmotors.com.br'};
 let confirmations=0;
 const messages=[];
 runInNewContext(bookmarklet.slice('javascript:'.length),{
