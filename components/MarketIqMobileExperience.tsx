@@ -10,6 +10,8 @@ import {dmsPermissions} from '../services/dmsPermissions';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import {mobileHistorySearch,mobileModelYearFromCode,mobilePriceSource,mobileYearOptions,type MobileFuel,type MobileFipeOption} from '../services/marketIqMobileFlow';
 import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
+import {parseVoiceAppraisal,findVoiceBrand,suggestVoiceModels,type VoiceDraft}
+ from '../services/marketIqVoiceAppraisal';
 import {canPromptMotyqInstall,isStandaloneMotyq,promptMotyqInstall,subscribeMotyqInstall}
  from '../services/marketIqPwaInstall';
 type Vehicle='car'|'motorcycle';
@@ -54,6 +56,8 @@ export default function MarketIqMobileExperience(p:Props){
  const speechRef=useRef<any>(null);
  const [voiceState,setVoiceState]=useState<'idle'|'listening'|'fallback'|'heard'>('idle');
  const [voiceHint,setVoiceHint]=useState('');
+ const [voiceDraft,setVoiceDraft]=useState<VoiceDraft|null>(null);
+ const [voiceAssistActive,setVoiceAssistActive]=useState(false);
  const [pwaInstallAvailable,setPwaInstallAvailable]=useState(canPromptMotyqInstall);
  const [pwaInstalled,setPwaInstalled]=useState(isStandaloneMotyq);
  const [pwaInstallInfo,setPwaInstallInfo]=useState('');
@@ -87,6 +91,10 @@ export default function MarketIqMobileExperience(p:Props){
   });
  },[p.brands,brandSearch]);
  const models=useMemo(()=>p.models.filter(v=>clean(v.name).includes(clean(modelSearch))),[p.models,modelSearch]);
+ const suggestedModels=useMemo(()=>voiceAssistActive&&modelSearch?
+  suggestVoiceModels(modelSearch,p.models):models,[voiceAssistActive,modelSearch,p.models,models]);
+ const typedCommand=useMemo(()=>parseVoiceAppraisal(query),[query]);
+ const suggestedBrand=voiceDraft?findVoiceBrand(voiceDraft,p.brands):null;
  const mileage=Number(p.km.replace(/\D/g,''))||0;
  const validPlate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(p.plate);
  const selectedPrice=mobilePriceSource({fipe:p.fipe?.value||0,verifiedCount:p.verifiedCount,
@@ -106,7 +114,28 @@ export default function MarketIqMobileExperience(p:Props){
   setVoiceState('idle');setVoiceHint('');
   setTab(v);setMessage('');window.scrollTo({top:0,behavior:'smooth'});
  };
- const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
+ const newValuation=()=>{
+  if(!p.onStartNew())return;
+  setResult(false);setStep(1);setPickedYear(0);setPickedFuel('');
+  setBrandSearch('');setModelSearch('');setVoiceDraft(null);setVoiceAssistActive(false);
+  changeTab('pricing');
+ };
+ const applySpokenAppraisal=()=>{
+  if(!voiceDraft||!p.onStartNew())return;
+  const draft=voiceDraft;
+  const found=draft.vehicleType===p.vehicleType?findVoiceBrand(draft,p.brands):null;
+  p.onVehicleType(draft.vehicleType);
+  if(found)p.onBrand(found.code);
+  if(draft.km!==null)p.onKm(String(draft.km));
+  if(draft.plate)p.onPlate(draft.plate);
+  setPickedYear(draft.year||0);
+  setPickedFuel(draft.fuel);
+  setBrandSearch(draft.brandHint||'');
+  setModelSearch(draft.modelHint);
+  setResult(false);setVoiceAssistActive(true);
+  setStep(!found?2:!draft.year?3:!draft.fuel?4:5);
+  setVoiceDraft(null);changeTab('pricing');
+ };
  const restore=(r:MobileHistoryRecord)=>{p.onRestoreHistory(r);setPickedYear(mobileModelYearFromCode('',r.year));setStep(5);setResult(true);changeTab('pricing');};
  const useKeyboardDictation=()=>{
   setVoiceState('fallback');
@@ -147,9 +176,15 @@ export default function MarketIqMobileExperience(p:Props){
      return;
     }
     heard=true;
-    setQuery(transcript);
+    const intent=parseVoiceAppraisal(transcript);
+    if(intent.kind==='appraisal'){
+     setVoiceDraft(intent);setQuery('');
+     setVoiceHint('Entendi um pedido de avaliação. Confira os campos antes de continuar.');
+    }else{
+     setVoiceDraft(null);setQuery(transcript);
+     setVoiceHint('Entendi: '+transcript+'. Resultados do histórico exibidos acima.');
+    }
     setVoiceState('heard');
-    setVoiceHint('Entendi: '+transcript+'. Resultados do histórico exibidos acima.');
    };
    r.onerror=(e:any)=>{
     if(speechRef.current!==r)return;
@@ -208,6 +243,11 @@ export default function MarketIqMobileExperience(p:Props){
      {query.trim()&&<div className="mt-2">{historyMatches.slice(0,5).map(r=><button key={r.id} className={row} onClick={()=>restore(r)}>
       <span className="text-sm font-semibold">{r.brand} {r.model} <small className="block text-xs text-slate-500">{r.plate||'Sem placa'} · {r.year}</small></span><ChevronRight size={17}/></button>)}
       {!historyMatches.length&&<p className="py-3 text-xs text-slate-500">Não encontramos essa avaliação no histórico.</p>}</div>}
+     {typedCommand.kind==='appraisal'&&!voiceDraft&&<button type="button"
+      onClick={()=>{setVoiceDraft(typedCommand);setVoiceHint('Confira o que identifiquei antes de continuar.');setVoiceState('heard');}}
+      className="mt-3 w-full rounded-xl border border-sky-300 bg-sky-50 p-3 text-left text-sm font-bold text-sky-900">
+      <Mic size={16} className="mr-2 inline"/>Interpretar como nova avaliação
+     </button>}
      <button className={action+' mt-4'} onClick={newValuation}><CarFront size={20}/> Nova precificação <ArrowRight size={18}/></button>
     </div>
     <div className="grid grid-cols-3 gap-2">
@@ -220,6 +260,46 @@ export default function MarketIqMobileExperience(p:Props){
      <button className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'} onClick={newValuation}>
       <CarFront size={25} color="#008bd0"/> Escolher na lista</button>
     </div>
+    {voiceDraft&&<section aria-label="Confirmar dados da avaliação por voz"
+      className={card+' space-y-3 border-sky-300 p-4'}>
+      <div className="flex items-center gap-2 text-sky-800"><Mic size={20}/>
+       <h3 className="text-lg font-extrabold">Avaliação por voz</h3></div>
+      <p className="text-xs leading-5 text-slate-600">Você disse: “{voiceDraft.transcript}”.
+       Confira os campos. A FIPE e a versão exata serão escolhidas no catálogo oficial.</p>
+      <label className="block text-xs font-bold text-slate-700">Tipo de veículo
+       <select className={input+' mt-1'} value={voiceDraft.vehicleType}
+        onChange={e=>setVoiceDraft({...voiceDraft,vehicleType:e.target.value as 'car'|'motorcycle'})}>
+        <option value="car">Carro</option><option value="motorcycle">Moto</option>
+       </select></label>
+      <label className="block text-xs font-bold text-slate-700">Marca sugerida
+       <input className={input+' mt-1'} value={voiceDraft.brandHint}
+        onChange={e=>setVoiceDraft({...voiceDraft,brandHint:e.target.value})}
+        placeholder="Ex.: Chevrolet"/></label>
+      <label className="block text-xs font-bold text-slate-700">Modelo ou versão reconhecida
+       <input className={input+' mt-1'} value={voiceDraft.modelHint}
+        onChange={e=>setVoiceDraft({...voiceDraft,modelHint:e.target.value})}
+        placeholder="Ex.: Onix Premier"/></label>
+      <div className="grid grid-cols-2 gap-2">
+       <label className="block text-xs font-bold text-slate-700">Ano-modelo
+        <input className={input+' mt-1'} type="number" inputMode="numeric"
+         min="1990" max={thisYear+2} value={voiceDraft.year??''}
+         onChange={e=>setVoiceDraft({...voiceDraft,year:e.target.value?Number(e.target.value):null})}
+         placeholder="2023"/></label>
+       <label className="block text-xs font-bold text-slate-700">Quilometragem
+        <input className={input+' mt-1'} type="number" inputMode="numeric"
+         min="1" max="999999" value={voiceDraft.km??''}
+         onChange={e=>setVoiceDraft({...voiceDraft,km:e.target.value?Number(e.target.value):null})}
+         placeholder="45000"/></label>
+      </div>
+      <p className="text-xs text-slate-600">Marca {suggestedBrand?'localizada no catálogo':'a confirmar na lista FIPE'}.
+       {voiceDraft.fuel?' Combustível reconhecido: '+voiceDraft.fuel+'.':' Combustível será confirmado em seguida.'}</p>
+      <button type="button" className={action}
+       disabled={!voiceDraft.modelHint.trim()||!voiceDraft.year||voiceDraft.year<1990||
+        voiceDraft.year>thisYear+2||!voiceDraft.km||voiceDraft.km<1||voiceDraft.km>999999}
+       onClick={applySpokenAppraisal}>Usar dados na avaliação <ArrowRight size={18}/></button>
+      <button type="button" onClick={()=>{setVoiceDraft(null);setVoiceState('idle');setVoiceHint('');}}
+       className="w-full py-2 text-sm font-bold text-slate-500">Cancelar</button>
+     </section>}
     {voiceState!=='idle'&&<section aria-live="polite" role="status"
       className={card+' space-y-2 border-sky-200 bg-sky-50 p-4'}>
      <p className="text-sm font-bold text-sky-900">{voiceHint}</p>
@@ -266,7 +346,8 @@ export default function MarketIqMobileExperience(p:Props){
      <p className="text-xs text-slate-400">Marcas disponíveis na FIPE</p>
      {p.catalogLoading&&!p.brands.length&&<p className="text-sm text-slate-500">Carregando marcas...</p>}
      <div className={card+' max-h-[58dvh] overflow-y-auto px-4'}>{brands.slice(0,55).map(brand=>
-      <button key={brand.code} className={row} onClick={()=>{p.onBrand(brand.code);setStep(3);}}>
+      <button key={brand.code} className={row} onClick={()=>{p.onBrand(brand.code);setStep(voiceAssistActive?
+       (!pickedYear?3:!pickedFuel?4:5):3);}}>
        <span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 font-black text-[#008bd0]">{brand.name.slice(0,2).toUpperCase()}</span>
         <strong className="text-base">{brand.name}</strong></span><ChevronRight size={18}/></button>)}</div></>}
     {step===3&&<><h2 className="text-[26px] font-extrabold">Qual o ano-modelo?</h2>
@@ -284,11 +365,14 @@ export default function MarketIqMobileExperience(p:Props){
      <div className={card+' px-4'}>{fuels.map(f=><button key={f} className={row}
       onClick={()=>{setPickedFuel(f);setStep(5);}}><strong className="text-lg">{f}</strong><ChevronRight size={18}/></button>)}</div></>}
     {step===5&&<><h2 className="text-[26px] font-extrabold">Qual é o modelo e a versão?</h2>
+     {voiceAssistActive&&<p role="status" className="rounded-xl bg-sky-50 p-3 text-sm font-semibold text-sky-900">
+      Dados sugeridos pela voz. Selecione o modelo exato e confirme ano e combustível na FIPE.
+     </p>}
      <p className="text-sm text-slate-500">A seleção abaixo utiliza o mesmo catálogo FIPE da Mesa.</p>
      <input className={input} value={modelSearch} onChange={e=>setModelSearch(e.target.value)}
       placeholder="Buscar modelo e versão"/>
-     <div className={card+' max-h-52 overflow-y-auto px-4'}>{models.slice(0,50).map(m=><button
-      key={m.code} className={row} onClick={()=>p.onModel(m.code)}>
+     <div className={card+' max-h-52 overflow-y-auto px-4'}>{suggestedModels.slice(0,50).map(m=><button
+      key={m.code} className={row} onClick={()=>{p.onModel(m.code);setModelSearch(m.name);}}>
        <span className="pr-2 text-sm font-semibold">{m.name}</span>{p.modelCode===m.code?<CheckCircle2 size={20} color="#008bd0"/>:<ChevronRight size={18}/>}</button>)}
       {!p.models.length&&<p className="py-4 text-xs text-slate-500">Carregando modelos desta marca...</p>}</div>
      {p.modelCode&&<div className={card+' space-y-2 p-4'}>
