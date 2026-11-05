@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {ArrowLeft,ArrowRight,Bike,CarFront,CheckCircle2,ChevronRight,History,Home,Info,LogOut,Mic,RefreshCw,Save,Search,Settings2,Share2,Wallet,ExternalLink,ShieldCheck} from 'lucide-react';
 import {signOut} from 'firebase/auth';
 import type {User,OperationalStockItem} from '../types';
@@ -9,6 +9,7 @@ import {currentStockService} from '../services/currentStockService';
 import {dmsPermissions} from '../services/dmsPermissions';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import {mobileHistorySearch,mobileModelYearFromCode,mobilePriceSource,mobileYearOptions,type MobileFuel,type MobileFipeOption} from '../services/marketIqMobileFlow';
+import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
 type Vehicle='car'|'motorcycle';
 type Fipe={value:number;brand:string;model:string;year:number;fuel:string;referenceMonth:string;referenceStatus?:'current'|'outdated'|'unverified'};
 export type MobileHistoryRecord={id:string;model:string;year:string;km:string;value:number;date:string;plate?:string;brand?:string;provisional?:boolean;approvedValue?:number;paidValue?:number;vehicleType?:Vehicle};
@@ -47,6 +48,11 @@ export default function MarketIqMobileExperience(p:Props){
  const [query,setQuery]=useState(''),[brandSearch,setBrandSearch]=useState(''),[modelSearch,setModelSearch]=useState('');
  const [stockQuery,setStockQuery]=useState(''),[message,setMessage]=useState('');
  const [stock,setStock]=useState<OperationalStockItem[]>([]),[stockBusy,setStockBusy]=useState(false),[stockError,setStockError]=useState('');
+ const searchInputRef=useRef<HTMLInputElement|null>(null);
+ const speechRef=useRef<any>(null);
+ const [voiceState,setVoiceState]=useState<'idle'|'listening'|'fallback'|'heard'>('idle');
+ const [voiceHint,setVoiceHint]=useState('');
+ useEffect(()=>()=>{try{speechRef.current?.abort?.();}catch{} speechRef.current=null;},[]);
  const canStock=dmsPermissions(p.user).stockView;
  const matchingYears=useMemo(()=>mobileYearOptions(p.years,pickedYear,pickedFuel),[p.years,pickedYear,pickedFuel]);
  const historyMatches=useMemo(()=>mobileHistorySearch(p.history,query),[p.history,query]);
@@ -73,17 +79,79 @@ export default function MarketIqMobileExperience(p:Props){
    .finally(()=>{if(live)setStockBusy(false);});
   return()=>{live=false;};
  },[tab,canStock,p.user.companyId,p.user.storeId,p.user.email]);
- const changeTab=(v:Tab)=>{setTab(v);setMessage('');window.scrollTo({top:0,behavior:'smooth'});};
+ const changeTab=(v:Tab)=>{
+  if(speechRef.current){const active=speechRef.current;speechRef.current=null;try{active.abort();}catch{}}
+  setVoiceState('idle');setVoiceHint('');
+  setTab(v);setMessage('');window.scrollTo({top:0,behavior:'smooth'});
+ };
  const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
  const restore=(r:MobileHistoryRecord)=>{p.onRestoreHistory(r);setPickedYear(mobileModelYearFromCode('',r.year));setStep(5);setResult(true);changeTab('pricing');};
+ const useKeyboardDictation=()=>{
+  setVoiceState('fallback');
+  setVoiceHint('O campo está pronto. No teclado do celular, toque no microfone e diga o modelo ou a placa.');
+  searchInputRef.current?.focus();
+ };
  const voice=()=>{
+  if(speechRef.current){
+   const active=speechRef.current;speechRef.current=null;
+   try{active.stop();}catch{}
+   setVoiceState('idle');setVoiceHint('Escuta encerrada. Você pode tentar novamente.');
+   return;
+  }
   const Recognizer=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
-  if(!Recognizer){setMessage('Busca por voz indisponível neste navegador. Digite a placa ou modelo.');return;}
-  try{const r=new Recognizer();r.lang='pt-BR';r.interimResults=false;
-   r.onresult=(e:any)=>setQuery(String(e?.results?.[0]?.[0]?.transcript||''));
-   r.onerror=()=>setMessage('Não foi possível ouvir. Use o campo de pesquisa.');
-   r.start();setMessage('Ouvindo... diga o modelo ou a placa para pesquisar no histórico.');
-  }catch{setMessage('Permita o acesso ao microfone ou digite o modelo.');}
+  if(!window.isSecureContext||!Recognizer){
+   setVoiceState('fallback');
+   setVoiceHint('Este navegador não permite reconhecimento direto. Use o microfone do teclado, ou abra a prévia no Chrome.');
+   searchInputRef.current?.focus();
+   return;
+  }
+  try{
+   const r=new Recognizer();
+   let heard=false,failed=false;
+   r.lang='pt-BR';
+   r.continuous=false;
+   r.interimResults=false;
+   r.maxAlternatives=1;
+   r.onstart=()=>{
+    if(speechRef.current!==r)return;
+    setVoiceState('listening');setVoiceHint('Ouvindo... diga o modelo ou a placa. Toque novamente para encerrar.');
+   };
+   r.onresult=(e:any)=>{
+    if(speechRef.current!==r)return;
+    const transcript=mobileSpeechToSearch(e?.results?.[0]?.[0]?.transcript);
+    if(!transcript){
+     failed=true;setVoiceState('fallback');
+     setVoiceHint('Não consegui identificar as palavras. Use o microfone do teclado ou tente novamente.');
+     return;
+    }
+    heard=true;
+    setQuery(transcript);
+    setVoiceState('heard');
+    setVoiceHint('Entendi: '+transcript+'. Resultados do histórico exibidos acima.');
+   };
+   r.onerror=(e:any)=>{
+    if(speechRef.current!==r)return;
+    failed=true;
+    const feedback=speechErrorFeedback(e?.error);
+    setVoiceState('fallback');setVoiceHint(feedback.message);
+   };
+   r.onend=()=>{
+    if(speechRef.current!==r)return;
+    speechRef.current=null;
+    if(!heard&&!failed){
+     setVoiceState('fallback');
+     setVoiceHint('A escuta terminou sem texto. Use o microfone do teclado ou tente novamente.');
+    }
+   };
+   speechRef.current=r;
+   setVoiceState('listening');
+   setVoiceHint('Ativando o microfone... autorize o acesso quando o navegador solicitar.');
+   r.start();
+  }catch{
+   speechRef.current=null;
+   setVoiceState('fallback');
+   setVoiceHint('Não foi possível iniciar a busca por voz. Abra no Chrome ou use o microfone do teclado.');
+  }
  };
  const share=async()=>{
   const info=['Motyq IQ · Prévia de avaliação',p.brand+' '+p.model+' '+(p.fipe?.year||pickedYear),
@@ -113,7 +181,7 @@ export default function MarketIqMobileExperience(p:Props){
     <div className={card+' p-4'}>
      <label htmlFor="mobile-history-search" className="block pb-2 text-xs font-bold text-slate-600">Buscar no histórico</label>
      <div className="relative"><Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#008bd0]"/>
-      <input id="mobile-history-search" className={input+' pl-11'} value={query} onChange={e=>setQuery(e.target.value)}
+      <input id="mobile-history-search" ref={searchInputRef} className={input+' pl-11'} value={query} onChange={e=>setQuery(e.target.value)}
        placeholder="Ex.: Tracker 2023 ou ABC1D23"/></div>
      {query.trim()&&<div className="mt-2">{historyMatches.slice(0,5).map(r=><button key={r.id} className={row} onClick={()=>restore(r)}>
       <span className="text-sm font-semibold">{r.brand} {r.model} <small className="block text-xs text-slate-500">{r.plate||'Sem placa'} · {r.year}</small></span><ChevronRight size={17}/></button>)}
@@ -123,11 +191,24 @@ export default function MarketIqMobileExperience(p:Props){
     <div className="grid grid-cols-3 gap-2">
      <button className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'} onClick={()=>changeTab('history')}>
       <History size={25} color="#008bd0"/> Buscar por placa</button>
-     <button className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'} onClick={voice}>
-      <Mic size={25} color="#008bd0"/> Buscar por voz</button>
+     <button type="button" aria-pressed={voiceState==='listening'}
+      className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'+(voiceState==='listening'?' ring-2 ring-sky-400':'')} onClick={voice}>
+      <Mic size={25} color={voiceState==='listening'?'#dc2626':'#008bd0'}/>
+      {voiceState==='listening'?'Parar escuta':'Buscar por voz'}</button>
      <button className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'} onClick={newValuation}>
       <CarFront size={25} color="#008bd0"/> Escolher na lista</button>
     </div>
+    {voiceState!=='idle'&&<section aria-live="polite" role="status"
+      className={card+' space-y-2 border-sky-200 bg-sky-50 p-4'}>
+     <p className="text-sm font-bold text-sky-900">{voiceHint}</p>
+     {voiceState==='listening'&&<p className="text-xs text-sky-700">Reconhecimento de voz em português (Brasil).</p>}
+     {voiceState==='fallback'&&<>
+      <button type="button" className="rounded-xl bg-[#008bd0] px-4 py-3 text-xs font-bold text-white"
+       onClick={useKeyboardDictation}>Usar microfone do teclado</button>
+      <p className="text-xs leading-5 text-slate-600">Se estiver dentro de outro aplicativo, abra o endereço no Chrome.
+      Se o acesso foi bloqueado, confira a permissão de microfone do site no Chrome.</p>
+     </>}
+    </section>}
     <div><div className="mb-2 flex justify-between"><h2 className="text-base font-extrabold">Últimas avaliações</h2>
       <button className="text-xs font-bold text-[#008bd0]" onClick={()=>changeTab('history')}>Ver todas</button></div>
      {p.historyLoading&&<p className="text-sm text-slate-500">Carregando histórico...</p>}
