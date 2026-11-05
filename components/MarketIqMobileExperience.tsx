@@ -10,6 +10,8 @@ import {dmsPermissions} from '../services/dmsPermissions';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import {mobileHistorySearch,mobileModelYearFromCode,mobilePriceSource,mobileYearOptions,type MobileFuel,type MobileFipeOption} from '../services/marketIqMobileFlow';
 import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
+import {canPromptMotyqInstall,isStandaloneMotyq,promptMotyqInstall,subscribeMotyqInstall}
+ from '../services/marketIqPwaInstall';
 type Vehicle='car'|'motorcycle';
 type Fipe={value:number;brand:string;model:string;year:number;fuel:string;referenceMonth:string;referenceStatus?:'current'|'outdated'|'unverified'};
 export type MobileHistoryRecord={id:string;model:string;year:string;km:string;value:number;date:string;plate?:string;brand?:string;provisional?:boolean;approvedValue?:number;paidValue?:number;vehicleType?:Vehicle};
@@ -52,6 +54,26 @@ export default function MarketIqMobileExperience(p:Props){
  const speechRef=useRef<any>(null);
  const [voiceState,setVoiceState]=useState<'idle'|'listening'|'fallback'|'heard'>('idle');
  const [voiceHint,setVoiceHint]=useState('');
+ const [pwaInstallAvailable,setPwaInstallAvailable]=useState(canPromptMotyqInstall);
+ const [pwaInstalled,setPwaInstalled]=useState(isStandaloneMotyq);
+ const [pwaInstallInfo,setPwaInstallInfo]=useState('');
+ useEffect(()=>subscribeMotyqInstall(()=>{
+  setPwaInstallAvailable(canPromptMotyqInstall());
+  setPwaInstalled(isStandaloneMotyq());
+ }),[]);
+ const installMotyq=async()=>{
+  if(isStandaloneMotyq()){setPwaInstallInfo('O Motyq IQ já está instalado neste aparelho.');return;}
+  if(!canPromptMotyqInstall()){
+   setPwaInstallInfo('No Google Chrome do Android, abra o menu ⋮ e escolha Instalar aplicativo ou Adicionar à tela inicial. Se estiver dentro de outro app, abra este endereço diretamente no Chrome.');
+   return;
+  }
+  const outcome=await promptMotyqInstall();
+  setPwaInstallInfo(outcome==='accepted'?
+   'Instalação solicitada. Confirme no Android e procure o ícone Motyq IQ na tela inicial.':
+   outcome==='dismissed'?
+    'Instalação cancelada. Você pode tentar novamente pelo menu ⋮ do Chrome.':
+    'Não foi possível exibir a instalação automática. Use o menu ⋮ do Chrome e escolha Instalar aplicativo.');
+ };
  useEffect(()=>()=>{try{speechRef.current?.abort?.();}catch{} speechRef.current=null;},[]);
  const canStock=dmsPermissions(p.user).stockView;
  const matchingYears=useMemo(()=>mobileYearOptions(p.years,pickedYear,pickedFuel),[p.years,pickedYear,pickedFuel]);
@@ -369,6 +391,22 @@ export default function MarketIqMobileExperience(p:Props){
    {tab==='settings'&&<div className="space-y-4">
     <div className={card+' p-5'}><strong className="block text-lg">{p.user.name}</strong>
      <p className="text-sm text-slate-500">{p.user.email}</p><p className="mt-2 text-xs text-[#008bd0]">Motyq IQ · {p.user.role}</p></div>
+    <div className={card+' p-5'}>
+     <p className="flex items-center gap-2 text-base font-extrabold">
+      <CarFront size={21} color="#008bd0"/> Motyq IQ no seu celular
+     </p>
+     <p className="mt-2 text-xs leading-5 text-slate-600">
+      Instale um ícone na tela inicial e abra o Motyq IQ em tela própria, sem a barra do navegador.
+      O aplicativo usa sua conta atual e precisa de internet para trabalhar com dados atualizados.
+     </p>
+     {pwaInstalled?<p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
+      Motyq IQ já está aberto como aplicativo instalado.
+     </p>:<button type="button" className={action+' mt-4'} onClick={()=>void installMotyq()}>
+      <CarFront size={18}/>{pwaInstallAvailable?'Instalar Motyq IQ':'Como instalar Motyq IQ'}
+     </button>}
+     {pwaInstallInfo&&<p role="status" className="mt-3 rounded-xl bg-sky-50 p-3 text-xs leading-5 text-slate-700">{pwaInstallInfo}</p>}
+     <p className="mt-3 text-[11px] text-slate-500">No Android: Chrome → menu ⋮ → Instalar aplicativo ou Adicionar à tela inicial.</p>
+    </div>
     <div className={card+' px-4'}>
      <button className={row} onClick={p.onOpenFullDesk}><span className="font-bold">Abrir Mesa completa</span><ChevronRight size={18}/></button>
      <button className={row} onClick={()=>changeTab('history')}><span className="font-bold">Histórico e consultas</span><ChevronRight size={18}/></button>
