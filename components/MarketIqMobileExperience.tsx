@@ -294,8 +294,8 @@ export default function MarketIqMobileExperience(p:Props){
       <p className="text-xs text-slate-600">Marca {suggestedBrand?'localizada no catálogo':'a confirmar na lista FIPE'}.
        {voiceDraft.fuel?' Combustível reconhecido: '+voiceDraft.fuel+'.':' Combustível será confirmado em seguida.'}</p>
       <button type="button" className={action}
-       disabled={!voiceDraft.modelHint.trim()||!voiceDraft.year||voiceDraft.year<1990||
-        voiceDraft.year>thisYear+2||!voiceDraft.km||voiceDraft.km<1||voiceDraft.km>999999}
+       disabled={(voiceDraft.year!==null&&(voiceDraft.year<1990||voiceDraft.year>thisYear+2))||
+        (voiceDraft.km!==null&&(voiceDraft.km<1||voiceDraft.km>999999))}
        onClick={applySpokenAppraisal}>Usar dados na avaliação <ArrowRight size={18}/></button>
       <button type="button" onClick={()=>{setVoiceDraft(null);setVoiceState('idle');setVoiceHint('');}}
        className="w-full py-2 text-sm font-bold text-slate-500">Cancelar</button>
