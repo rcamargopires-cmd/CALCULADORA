@@ -63,10 +63,14 @@ const safeIds=(raw:unknown,cap=12)=>
 const draftFrom=(raw:any,now:number):CaptureDraft|null=>{
  if(!raw||!Number.isFinite(raw.updatedAt)||raw.updatedAt>now+60*1000||
   now-raw.updatedAt>TTL)return null;
- const captured=dedup((Array.isArray(raw.captured)?raw.captured:[]).map(safeCaptured)
-   .filter((x):x is DraftCapturedAd=>Boolean(x)),12);
- const imported=dedup((Array.isArray(raw.imported)?raw.imported:[]).map(safeImported)
-   .filter((x):x is DraftImportedAd=>Boolean(x)),50);
+ const captureRows:unknown[]=Array.isArray(raw.captured)?raw.captured:[];
+ const importedRows:unknown[]=Array.isArray(raw.imported)?raw.imported:[];
+ const parsedCaptured:DraftCapturedAd[]=captureRows.map(safeCaptured)
+  .filter((item):item is DraftCapturedAd=>item!==null);
+ const parsedImported:DraftImportedAd[]=importedRows.map(safeImported)
+  .filter((item):item is DraftImportedAd=>item!==null);
+ const captured=dedup<DraftCapturedAd>(parsedCaptured,12);
+ const imported=dedup<DraftImportedAd>(parsedImported,50);
  const validIds=new Set(captured.map(a=>a.url));
  const selected=raw.review?.selectedIds===null?null:
   safeIds(raw.review?.selectedIds).filter(id=>validIds.has(id));
