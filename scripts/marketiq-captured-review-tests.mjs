@@ -64,9 +64,9 @@ const moto=reviewCapturedWebmotors([
 assert.equal(moto.eligibleCount,1,'Motorcycles use 10,000 KM tolerance');
 assert.equal(moto.reviewCount,1);
 assert.ok(panel.includes('Conferência dos anúncios capturados'));
-assert.ok(panel.includes('Média dos 5 menores selecionados'));
+assert.ok(panel.includes('Média dos {activeTopFive.length} menores selecionados'));
 assert.ok(panel.includes("r.reviewState==='blocked'"));
-assert.ok(panel.includes('onImport(selectedRows.map(r=>r.item as T))'));
+assert.ok(panel.includes('onImport(yetToImport.map(r=>r.item as T))'));
 assert.ok(panel.includes('pendentes'), 'Review UI explicitly describes pending outcomes');
 assert.ok(ui.includes('<MarketIqCapturedReviewPanel'));
 assert.ok(ui.includes('const applyExtensionCapture=(selectedAds:CapturedAd[])=>'));

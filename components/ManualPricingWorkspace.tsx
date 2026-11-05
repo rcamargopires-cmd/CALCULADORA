@@ -20,6 +20,10 @@ import {rankWebmotorsCandidates} from '../services/marketIqWebmotorsShortlist';
 import MarketIqWebmotorsShortlistPanel from './MarketIqWebmotorsShortlistPanel';
 import MarketIqAssistedCapturePanel from './MarketIqAssistedCapturePanel';
 import MarketIqCapturedReviewPanel from './MarketIqCapturedReviewPanel';
+import {
+ captureDraftKey,readCaptureDraft,writeCaptureDraft,clearCaptureDraft,CAPTURE_DRAFT_DAYS,
+ type CaptureReviewSelections
+} from '../services/marketIqCapturedDraftStorage';
 import type {VisibleOffer} from '../services/marketIqAssistedOffers';
 import {buildWebmotorsBrowseLinks,withWebmotorsOrder,WEBMOTORS_REGIONS,type WebmotorsRegion,type WebmotorsOrder}
  from '../services/marketIqWebmotorsBrowseLinks';
@@ -95,7 +99,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  savedForm.destinationOverride==='repasse'?'repasse':savedForm.destinationOverride==='auto'?'auto':
  savedForm.repasse===true&&['A','B','C'].includes(String(savedForm.classification||classifyByMileage(savedForm.km)?.classification||''))?'repasse':'auto');
  const [ads,setAds]=useState<Ad[]>([]);const [adsVehicleKey,setAdsVehicleKey]=useState('');const [notice,setNotice]=useState('');
- const [extensionInbox,setExtensionInbox]=useState<CapturedAd[]>(()=>decodeExtensionTransfer(window.location.hash));
+ const freshCaptureRef=useRef<CapturedAd[]|null>(decodeExtensionTransfer(window.location.hash));
+ const [extensionInbox,setExtensionInbox]=useState<CapturedAd[]>(()=>freshCaptureRef.current||[]);
+ const [captureReview,setCaptureReview]=useState<CaptureReviewSelections>({selectedIds:null,checkedIds:[]});
+ const [captureHydrated,setCaptureHydrated]=useState('');
+ const hydratedIdentityRef=useRef('');
+ const [captureSavedLocally,setCaptureSavedLocally]=useState(false);
  const [extensionNotice,setExtensionNotice]=useState('');
  useEffect(()=>{
    if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import')){
@@ -169,6 +178,67 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const orderedWebmotorsModelUrl=useMemo(()=>withWebmotorsOrder(webmotorsBrowse.modelUrl,webmotorsOrder),
    [webmotorsBrowse.modelUrl,webmotorsOrder]);
 
+ // Browser-only draft, scoped by current user, company, store, FIPE entry, KM and plate.
+ const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join('|');
+ const captureKey=captureDraftKey({vehicleType,brandCode,modelCode,yearCode,km,plate});
+ const captureIdentity=captureScope+'|'+captureKey;
+ useEffect(()=>{
+  if(!searchReady||hydratedIdentityRef.current===captureIdentity)return;
+  hydratedIdentityRef.current=captureIdentity;
+  const draft=readCaptureDraft(window.localStorage,captureScope,captureKey);
+  const incoming=freshCaptureRef.current;
+  freshCaptureRef.current=null;
+  if(incoming?.length){
+   const previous=new Map((draft?.captured||[]).map(ad=>[ad.url,ad]));
+   const unchanged=new Set(incoming.filter(ad=>{
+    const old=previous.get(ad.url);
+    return Boolean(old&&old.price===ad.price&&old.km===ad.km&&old.year===ad.year);
+   }).map(ad=>ad.url));
+   setExtensionInbox(incoming);
+   setCaptureReview({
+    checkedIds:(draft?.review.checkedIds||[]).filter(id=>unchanged.has(id)),
+    selectedIds:draft?.review.selectedIds===null?null:
+     (draft?.review.selectedIds||[]).filter(id=>unchanged.has(id))
+   });
+  }else{
+   setExtensionInbox((draft?.captured||[]) as CapturedAd[]);
+   setCaptureReview(draft?.review||{selectedIds:null,checkedIds:[]});
+  }
+  if(draft?.imported.length){
+   setAdsVehicleKey(vehicleKey);
+   setAds(existing=>{
+    const previous=adsVehicleKey===vehicleKey?existing:[];
+    const urls=new Set(previous.map(ad=>ad.url));
+    return [...previous,...draft.imported.filter(ad=>!urls.has(ad.url))].slice(0,50);
+   });
+  }
+  setCaptureSavedLocally(Boolean(draft));
+  setCaptureHydrated(captureIdentity);
+ },[captureIdentity,searchReady]);
+ useEffect(()=>{
+  if(!searchReady||captureHydrated!==captureIdentity)return;
+  const capturedUrls=new Set(extensionInbox.map(ad=>ad.url));
+  const imported=(adsVehicleKey===vehicleKey?ads:[]).filter(ad=>
+   !ad.auto&&ad.source==='webmotors'&&capturedUrls.has(ad.url)&&validSource(ad));
+  const ok=writeCaptureDraft(window.localStorage,captureScope,captureKey,{
+   captured:extensionInbox,imported,review:captureReview
+  });
+  setCaptureSavedLocally(ok);
+ },[captureIdentity,captureHydrated,searchReady,captureScope,captureKey,
+    extensionInbox,ads,adsVehicleKey,vehicleKey,captureReview]);
+ const clearLocalCapture=()=>{
+  if(!window.confirm('Apagar a captura e os anúncios locais desta avaliação? O histórico online não será alterado.'))return;
+  clearCaptureDraft(window.localStorage,captureScope,captureKey);
+  const urls=new Set(extensionInbox.map(ad=>ad.url));
+  setAds(existing=>existing.filter(ad=>!urls.has(ad.url)));
+  hydratedIdentityRef.current='';
+  setCaptureHydrated('');
+  setCaptureSavedLocally(false);
+  setExtensionInbox([]);
+  setCaptureReview({selectedIds:null,checkedIds:[]});
+  setExtensionNotice('Rascunho local descartado. O histórico online não foi alterado.');
+ };
+
  const applyExtensionCapture=(selectedAds:CapturedAd[])=>{
    if(!searchReady){setExtensionNotice('Selecione marca, versão, ano e KM do veículo antes de importar.');return;}
    if(selectedAds.some(x=>x.year!==marketYear)){
@@ -194,7 +264,6 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      const existingUrls=new Set(prior.map(ad=>ad.url));
      return [...prior,...validIncoming.filter(ad=>!existingUrls.has(ad.url))];
    });
-   setExtensionInbox([]);
    setExtensionNotice(validIncoming.length+' anúncio(s) incluído(s) como PENDENTES. Confira cada um e marque Válido, conferido antes do cálculo definitivo.');
  };
  const importTextOffers=(offers:VisibleOffer[])=>{
@@ -716,15 +785,31 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    {historyError&&<p role="alert" className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-900">{historyError}</p>}
    {notice&&<p role="status" className="mt-2 text-sm font-semibold text-slate-800">{notice}</p>}
  </section>
- {extensionInbox.length>0&&<MarketIqCapturedReviewPanel
+ {extensionInbox.length>0&&<div className="space-y-2">
+  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3">
+   <p className="text-xs font-semibold text-slate-700">
+    {captureSavedLocally?
+      'Rascunho salvo neste navegador por até '+CAPTURE_DRAFT_DAYS+' dias, vinculado à avaliação e à placa.':
+      'Rascunho ainda não salvo. Complete a avaliação ou habilite o armazenamento local do navegador.'}
+    {' '}Não é backup na nuvem nem valor aprovado.
+   </p>
+   <button type="button" onClick={clearLocalCapture}
+    className="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-rose-800">
+    Descartar captura local
+   </button>
+  </div>
+  <MarketIqCapturedReviewPanel
    ads={extensionInbox} onImport={applyExtensionCapture} notice={extensionNotice} readyToImport={searchReady}
+   review={captureReview} onReviewChange={setCaptureReview}
+   importedIds={(adsVehicleKey===vehicleKey?ads:[]).filter(ad=>!ad.auto&&ad.source==='webmotors').map(ad=>ad.url)}
    target={{
-     brand,model,year:marketYear,km:number(km),vehicleType,
-     expectedModelUrl:webmotorsBrowse.modelUrl,
-     expectedVersionUrl:webmotorsBrowse.versionUrl,
-     fipeValue:fipe?.value||null
+    brand,model,year:marketYear,km:number(km),vehicleType,
+    expectedModelUrl:webmotorsBrowse.modelUrl,
+    expectedVersionUrl:webmotorsBrowse.versionUrl,
+    fipeValue:fipe?.value||null
    }}
- />}
+  />
+ </div>}
  <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a captura assistida para trazer ofertas da página da Webmotors sem depender do índice gratuito. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
  <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-slate-950" aria-label="Busca Webmotors com localização, modelo e versão">
   <div className="flex flex-wrap items-end justify-between gap-3">
