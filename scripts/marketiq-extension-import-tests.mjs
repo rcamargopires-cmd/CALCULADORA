@@ -22,6 +22,6 @@ assert.equal(decodeExtensionTransfer(wrap([{...valid,price:0}])).length,0);
 assert.equal(decodeExtensionTransfer(wrap([{...valid,year:1900}])).length,0);
 assert.equal(decodeExtensionTransfer(wrap([valid],'unexpected-kind')).length,0);
 assert.equal(decodeExtensionTransfer(wrap(Array(13).fill(valid))).length,0);
-assert.ok(ui.includes('Adicionar anúncios à comparação'));
+assert.ok(ui.includes('<MarketIqCapturedReviewPanel'), 'Captured listings are reviewed before import');
 assert.ok(ui.includes('Os anúncios importados têm ano diferente do veículo selecionado'));
 console.log('MarketIQ assisted extension import: schema, origin, duplicates and pending-state tests passed.');
