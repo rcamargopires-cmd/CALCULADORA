@@ -54,7 +54,7 @@ assert.ok(ui.includes('Qual o ano-modelo?'));
 assert.ok(ui.includes('Qual é o combustível?'));
 assert.ok(ui.includes('Qual é o modelo e a versão?'));
 assert.ok(ui.includes('mobileYearOptions(p.years,pickedYear,pickedFuel)'));
-assert.ok(ui.includes('onClick={()=>p.onModel(m.code)}'));
+assert.ok(ui.includes('p.onModel(m.code)'), 'Model selection must still use the real FIPE catalog');
 assert.ok(ui.includes('onChange={e=>p.onYear(e.target.value)}'));
 assert.ok(ui.includes('historyMatches'));
 assert.ok(ui.includes('p.onRestoreHistory(r)'), 'Recent and old history use the real restore workflow');
