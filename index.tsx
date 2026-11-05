@@ -27,3 +27,9 @@ root.render(
     {isPublicCatalogRoute() ? <PublicCatalogPage /> : <RoleAwareRoot />}
   </React.StrictMode>
 );
+if('serviceWorker' in navigator && window.isSecureContext){
+ window.addEventListener('load',()=>{
+  navigator.serviceWorker.register('/motyq-iq-sw.js',{scope:'/'})
+   .catch(()=>{ /* Chrome menu still supports manual Add to Home Screen. */ });
+ },{once:true});
+}
