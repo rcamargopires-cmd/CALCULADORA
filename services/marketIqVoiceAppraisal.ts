@@ -45,7 +45,8 @@ export function parseVoiceAppraisal(raw:unknown,currentYear=new Date().getFullYe
  if(!transcript)return {kind:'empty',transcript:''};
  const text=norm(transcript);
  const spokenBrand=brands.find(([alias])=>has(text,alias));
- const inferred=known.find(([name])=>has(text,name));
+ const inferred=known.find(([name])=>has(text,name)&&
+  !(name==='fazer'&&!/\b(yamaha|moto|motocicleta|fazer\s*\d{2,3})\b/.test(text)));
  const brandHint=spokenBrand?.[1]||inferred?.[1]||'';
  const explicitMotorcycle=/\b(moto|motocicleta|scooter)\b/.test(text);
  const vehicleType=explicitMotorcycle||inferred?.[2]==='motorcycle'?'motorcycle':'car';
@@ -81,7 +82,10 @@ export function findVoiceBrand(draft:VoiceDraft,options:CatalogOption[]):Catalog
  const hint=norm(draft.brandHint);
  if(!hint)return null;
  const exact=options.filter(b=>norm(b.name)===hint);
- return exact.length===1?exact[0]:null;
+ if(exact.length===1)return exact[0];
+ if(exact.length>1)return null;
+ const containing=options.filter(b=>has(norm(b.name),hint));
+ return containing.length===1?containing[0]:null;
 }
 export function suggestVoiceModels(modelHint:string,models:CatalogOption[]):CatalogOption[]{
  const words=norm(modelHint).split(' ').filter(w=>w.length>0&&!['de','do','da'].includes(w));
