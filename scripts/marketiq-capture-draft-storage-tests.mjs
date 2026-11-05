@@ -87,7 +87,7 @@ assert.ok(panel.includes('Média dos {activeTopFive.length} menores selecionados
  'The mean label must say 3 when only 3 ads are selected, not 5');
 assert.ok(panel.includes('Conferidos por você'));
 assert.ok(panel.includes('Conferi os dados'));
-assert.ok(panel.includes("r.reviewState==='review'&&!checked.has(id)"),
+assert.ok(panel.includes("row.reviewState==='review'&&!checked.has(id)"),
  'Flagged offers are not selectable before the user explicitly checks them');
 assert.ok(panel.includes('checkedCount'),'Operator verification must be visibly counted');
 assert.ok(panel.includes("onImport(yetToImport.map(r=>r.item as T))"),
