@@ -19,6 +19,7 @@ import {chooseIndexedMarketSample} from '../services/marketIqIndexedSample';
 import {rankWebmotorsCandidates} from '../services/marketIqWebmotorsShortlist';
 import MarketIqWebmotorsShortlistPanel from './MarketIqWebmotorsShortlistPanel';
 import MarketIqAssistedCapturePanel from './MarketIqAssistedCapturePanel';
+import MarketIqCapturedReviewPanel from './MarketIqCapturedReviewPanel';
 import type {VisibleOffer} from '../services/marketIqAssistedOffers';
 import {buildWebmotorsBrowseLinks,withWebmotorsOrder,WEBMOTORS_REGIONS,type WebmotorsRegion,type WebmotorsOrder}
  from '../services/marketIqWebmotorsBrowseLinks';
@@ -168,16 +169,16 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const orderedWebmotorsModelUrl=useMemo(()=>withWebmotorsOrder(webmotorsBrowse.modelUrl,webmotorsOrder),
    [webmotorsBrowse.modelUrl,webmotorsOrder]);
 
- const applyExtensionCapture=()=>{
+ const applyExtensionCapture=(selectedAds:CapturedAd[])=>{
    if(!searchReady){setExtensionNotice('Selecione marca, versão, ano e KM do veículo antes de importar.');return;}
-   if(extensionInbox.some(x=>x.year!==marketYear)){
+   if(selectedAds.some(x=>x.year!==marketYear)){
      setExtensionNotice('Os anúncios importados têm ano diferente do veículo selecionado. Confira o ano antes de continuar.');
      return;
    }
    const browseParts=webmotorsBrowse.modelUrl?
     new URL(webmotorsBrowse.modelUrl).pathname.split('/').filter(Boolean):[];
    const expectedBrand=browseParts[2],expectedModel=browseParts[3];
-   const validIncoming=extensionInbox.filter(x=>{
+   const validIncoming=selectedAds.filter(x=>{
     if(!validSource(x)||!expectedBrand||!expectedModel)return false;
     try{
       const segments=new URL(x.url).pathname.split('/').filter(Boolean);
@@ -715,17 +716,15 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    {historyError&&<p role="alert" className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-900">{historyError}</p>}
    {notice&&<p role="status" className="mt-2 text-sm font-semibold text-slate-800">{notice}</p>}
  </section>
- {extensionInbox.length>0&&<section className="rounded-xl border-2 border-cyan-300 bg-cyan-50 p-5">
-   <h2 className="text-lg font-bold text-cyan-950">Anúncios capturados da Webmotors</h2>
-   <p className="mt-1 text-sm text-slate-800">{extensionInbox.length} anúncio(s) aguardando importação. Selecione acima a versão, o ano e a KM do veículo que você está avaliando.</p>
-   <div className="mt-3 space-y-2">{extensionInbox.map((ad,i)=><div key={ad.url} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cyan-200 bg-white p-3 text-sm">
-     <div><p className="font-semibold text-slate-900">{i+1}. {ad.title||'Anúncio Webmotors'}</p><p className="text-slate-700">{money(number(ad.price))} · {number(ad.km).toLocaleString('pt-BR')} km · {ad.year}</p></div>
-     <a href={ad.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-cyan-800 underline">Conferir anúncio</a>
-   </div>)}</div>
-   <button type="button" disabled={!searchReady} onClick={applyExtensionCapture} className="mt-4 rounded-lg bg-cyan-800 px-5 py-3 text-sm font-bold text-white disabled:opacity-40">Adicionar anúncios à comparação</button>
-   {extensionNotice&&<p role="status" className="mt-2 text-sm font-semibold text-amber-900">{extensionNotice}</p>}
-   <p className="mt-2 text-xs text-slate-700">Dados obtidos da página aberta pelo operador, ainda não auditados. Nenhuma cotação de compra é aprovada automaticamente.</p>
- </section>}
+ {extensionInbox.length>0&&<MarketIqCapturedReviewPanel
+   ads={extensionInbox} onImport={applyExtensionCapture} notice={extensionNotice} readyToImport={searchReady}
+   target={{
+     brand,model,year:marketYear,km:number(km),vehicleType,
+     expectedModelUrl:webmotorsBrowse.modelUrl,
+     expectedVersionUrl:webmotorsBrowse.versionUrl,
+     fipeValue:fipe?.value||null
+   }}
+ />}
  <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a captura assistida para trazer ofertas da página da Webmotors sem depender do índice gratuito. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
  <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-slate-950" aria-label="Busca Webmotors com localização, modelo e versão">
   <div className="flex flex-wrap items-end justify-between gap-3">
