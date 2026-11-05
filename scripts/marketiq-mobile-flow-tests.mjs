@@ -64,7 +64,8 @@ assert.ok(ui.includes('currentStockService.getCurrent(companyIdForUser(p.user),s
 assert.ok(ui.includes('MarketIqConsultedRepasse'), 'Repasse view reuses current workflow');
 assert.ok(ui.includes('selectedPrice.disclaimer'), 'Verified and historical values remain differentiated');
 assert.ok(ui.includes('p.verifiedCount>=2?cash(p.verifiedAverage)'), 'Only a verified market sample is shown as Webmotors mean');
-assert.ok(ui.includes('p.plate.length!==7||!p.fipe?.value'), 'Prevent incomplete saves');
+assert.ok(ui.includes('!validPlate||!p.fipe?.value'), 'Prevent incomplete saves');
+assert.ok(ui.includes('/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(p.plate)'), 'Do not enable save for invalid 7-character plates');
 assert.ok(ui.includes('navigator.share'), 'Native phone sharing, with browser fallback');
 assert.ok(ui.includes('SpeechRecognition'), 'Speech recognition must be feature detected');
 assert.ok(ui.includes('onOpenFullDesk'), 'User can always access the complete existing desk');

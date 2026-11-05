@@ -60,6 +60,7 @@ export default function MarketIqMobileExperience(p:Props){
  },[p.brands,brandSearch]);
  const models=useMemo(()=>p.models.filter(v=>clean(v.name).includes(clean(modelSearch))),[p.models,modelSearch]);
  const mileage=Number(p.km.replace(/\D/g,''))||0;
+ const validPlate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(p.plate);
  const selectedPrice=mobilePriceSource({fipe:p.fipe?.value||0,verifiedCount:p.verifiedCount,
   verifiedCeiling:p.verifiedCeiling,historicalTarget:p.vehicleType==='motorcycle'?p.motorcycleReference:p.historicalTarget,
   indexedReference:p.indexedAverage});
@@ -252,9 +253,9 @@ export default function MarketIqMobileExperience(p:Props){
      <RefreshCw size={16}/>{p.marketBusy?'Pesquisando...':'Busca indexada'}</button>
      <button onClick={()=>void share()} className={card+' flex items-center justify-center gap-2 px-2 py-4 text-xs font-bold text-[#008bd0]'}>
       <Share2 size={16}/> Compartilhar</button></div>
-    <button className={action} onClick={p.onSave} disabled={p.saveBusy||p.plate.length!==7||!p.fipe?.value}>
+    <button className={action} onClick={p.onSave} disabled={p.saveBusy||!validPlate||!p.fipe?.value}>
      <Save size={18}/>{p.saveBusy?'Salvando...':'Salvar avaliação no histórico'}</button>
-    {p.plate.length!==7&&<p className="text-xs text-amber-800">Preencha uma placa válida para salvar.</p>}
+    {!validPlate&&<p className="text-xs text-amber-800">Preencha uma placa válida para salvar.</p>}
     {p.saveError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs text-rose-800">{p.saveError}</p>}
     {p.saveNotice&&<p role="status" className="rounded-xl bg-sky-50 p-3 text-xs text-sky-900">{p.saveNotice}</p>}
    </div>}
