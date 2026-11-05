@@ -87,14 +87,14 @@ assert.ok(panel.includes('Média dos {activeTopFive.length} menores selecionados
  'The mean label must say 3 when only 3 ads are selected, not 5');
 assert.ok(panel.includes('Conferidos por você'));
 assert.ok(panel.includes('Conferi os dados'));
-assert.ok(panel.includes('r.reviewState===\\'review\\'&&!checked.has(id)'),
+assert.ok(panel.includes("r.reviewState==='review'&&!checked.has(id)"),
  'Flagged offers are not selectable before the user explicitly checks them');
 assert.ok(panel.includes('checkedCount'),'Operator verification must be visibly counted');
 assert.ok(panel.includes("onImport(yetToImport.map(r=>r.item as T))"),
  'Already imported listings should not be sent again');
 assert.ok(panel.includes('nunca como compra aprovada'));
 assert.ok(workspace.includes('captureDraftKey({vehicleType,brandCode,modelCode,yearCode,km,plate})'));
-assert.ok(workspace.includes('const captureScope=[user.companyId||\\'\\',user.storeId||\\'\\',user.email.toLowerCase()].join'));
+assert.ok(workspace.includes("const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join"),
 assert.ok(workspace.includes('readCaptureDraft(window.localStorage'));
 assert.ok(workspace.includes('writeCaptureDraft(window.localStorage'));
 assert.ok(workspace.includes('clearCaptureDraft(window.localStorage'));
