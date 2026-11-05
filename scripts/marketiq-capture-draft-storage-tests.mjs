@@ -94,7 +94,7 @@ assert.ok(panel.includes("onImport(yetToImport.map(r=>r.item as T))"),
  'Already imported listings should not be sent again');
 assert.ok(panel.includes('nunca como compra aprovada'));
 assert.ok(workspace.includes('captureDraftKey({vehicleType,brandCode,modelCode,yearCode,km,plate})'));
-assert.ok(workspace.includes("const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join"),
+assert.ok(workspace.includes("const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join"));
 assert.ok(workspace.includes('readCaptureDraft(window.localStorage'));
 assert.ok(workspace.includes('writeCaptureDraft(window.localStorage'));
 assert.ok(workspace.includes('clearCaptureDraft(window.localStorage'));
