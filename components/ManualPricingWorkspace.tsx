@@ -20,6 +20,8 @@ import {rankWebmotorsCandidates} from '../services/marketIqWebmotorsShortlist';
 import MarketIqWebmotorsShortlistPanel from './MarketIqWebmotorsShortlistPanel';
 import MarketIqAssistedCapturePanel from './MarketIqAssistedCapturePanel';
 import MarketIqCapturedReviewPanel from './MarketIqCapturedReviewPanel';
+import {readCaptureReturnContext,writeCaptureReturnContext,capturedOffersFitReturnContext}
+ from '../services/marketIqCaptureReturnContext';
 import {
  captureDraftKey,readCaptureDraft,writeCaptureDraft,clearCaptureDraft,CAPTURE_DRAFT_DAYS,
  type CaptureReviewSelections
@@ -87,6 +89,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
  };
  const formKey='motyq-iq-preview-inputs-'+user.email.toLowerCase();
+ const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join('|');
+ const pendingCaptureKey='__captured_in_another_tab__';
+ const [returnSuggestion]=useState(()=>readCaptureReturnContext(window.localStorage,captureScope));
  const savedForm=useMemo(()=>{
    try {const item=sessionStorage.getItem(formKey);return item?JSON.parse(item):{};} catch{return {};}
  },[formKey]);
@@ -100,7 +105,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  savedForm.repasse===true&&['A','B','C'].includes(String(savedForm.classification||classifyByMileage(savedForm.km)?.classification||''))?'repasse':'auto');
  const [ads,setAds]=useState<Ad[]>([]);const [adsVehicleKey,setAdsVehicleKey]=useState('');const [notice,setNotice]=useState('');
  const freshCaptureRef=useRef<CapturedAd[]|null>(decodeExtensionTransfer(window.location.hash));
- const [extensionInbox,setExtensionInbox]=useState<CapturedAd[]>(()=>freshCaptureRef.current||[]);
+ const [extensionInbox,setExtensionInbox]=useState<CapturedAd[]>(()=>{
+   const fresh=freshCaptureRef.current||[];
+   if(fresh.length)return fresh;
+   return (readCaptureDraft(window.localStorage,captureScope,pendingCaptureKey)?.captured||[]) as CapturedAd[];
+ });
  const [captureReview,setCaptureReview]=useState<CaptureReviewSelections>({selectedIds:null,checkedIds:[]});
  const [captureHydrated,setCaptureHydrated]=useState('');
  const hydratedIdentityRef=useRef('');
@@ -179,44 +188,87 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    [webmotorsBrowse.modelUrl,webmotorsOrder]);
 
  // Browser-only draft, scoped by current user, company, store, FIPE entry, KM and plate.
- const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join('|');
  const captureKey=captureDraftKey({vehicleType,brandCode,modelCode,yearCode,km,plate});
  const captureIdentity=captureScope+'|'+captureKey;
+ const captureFitsCurrent=searchReady&&capturedOffersFitReturnContext(
+  extensionInbox,webmotorsBrowse.modelUrl,marketYear
+ );
+ const returnBrowse=returnSuggestion?buildWebmotorsBrowseLinks({
+  brand:returnSuggestion.brand,model:returnSuggestion.model,year:returnSuggestion.marketYear,
+  vehicleType:returnSuggestion.vehicleType
+ },'sp').modelUrl:null;
+ const canRestoreReturn=Boolean(!searchReady&&returnSuggestion&&
+  capturedOffersFitReturnContext(extensionInbox,returnBrowse,returnSuggestion.marketYear));
+ const restoreCaptureContext=()=>{
+  if(!returnSuggestion||!canRestoreReturn)return;
+  setVehicleType(returnSuggestion.vehicleType);
+  setPlate(returnSuggestion.plate);
+  setBrand(returnSuggestion.brand);setBrandCode(returnSuggestion.brandCode);
+  setModel(returnSuggestion.model);setModelCode(returnSuggestion.modelCode);
+  setYear(returnSuggestion.year);setYearCode(returnSuggestion.yearCode);
+  setKm(returnSuggestion.km);setCost(returnSuggestion.cost);
+  setFipe(null);
+  setExtensionNotice('Avaliação recuperada. Confira placa, KM e versão antes de importar.');
+ };
+ // Keep the last complete form available to other tabs. Reuse requires
+ // an explicit click and matching captured make, model and year.
+ useEffect(()=>{
+  if(!searchReady||!brandCode||!modelCode||!yearCode)return;
+  writeCaptureReturnContext(window.localStorage,captureScope,{
+   vehicleType,plate,brand,brandCode,model,modelCode,year,yearCode,marketYear,km,cost
+  });
+ },[captureScope,searchReady,vehicleType,plate,brand,brandCode,model,modelCode,year,
+    yearCode,marketYear,km,cost]);
+ // Store the inbox independently when returning in a tab without the form.
+ useEffect(()=>{
+  if(!extensionInbox.length)return;
+  if(!searchReady||!captureFitsCurrent){
+   writeCaptureDraft(window.localStorage,captureScope,pendingCaptureKey,{
+    captured:extensionInbox,imported:[],review:{selectedIds:null,checkedIds:[]}
+   });
+  }
+ },[captureScope,searchReady,captureFitsCurrent,extensionInbox]);
+
  useEffect(()=>{
   if(!searchReady||hydratedIdentityRef.current===captureIdentity)return;
   hydratedIdentityRef.current=captureIdentity;
   const draft=readCaptureDraft(window.localStorage,captureScope,captureKey);
-  const incoming=freshCaptureRef.current;
+  const pending=readCaptureDraft(window.localStorage,captureScope,pendingCaptureKey);
+  const latest=freshCaptureRef.current?.length?freshCaptureRef.current:
+   extensionInbox.length?extensionInbox:(pending?.captured||[]) as CapturedAd[];
   freshCaptureRef.current=null;
-  if(incoming?.length){
-   const previous=new Map((draft?.captured||[]).map(ad=>[ad.url,ad]));
-   const unchanged=new Set(incoming.filter(ad=>{
-    const old=previous.get(ad.url);
-    return Boolean(old&&old.price===ad.price&&old.km===ad.km&&old.year===ad.year);
+  const matches=capturedOffersFitReturnContext(latest,webmotorsBrowse.modelUrl,marketYear);
+  if(matches){
+   const old=new Map((draft?.captured||[]).map(ad=>[ad.url,ad]));
+   const unchanged=new Set(latest.filter(ad=>{
+    const previous=old.get(ad.url);
+    return Boolean(previous&&previous.price===ad.price&&previous.km===ad.km&&previous.year===ad.year);
    }).map(ad=>ad.url));
-   setExtensionInbox(incoming);
+   setExtensionInbox(latest);
    setCaptureReview({
     checkedIds:(draft?.review.checkedIds||[]).filter(id=>unchanged.has(id)),
     selectedIds:draft?.review.selectedIds===null?null:
      (draft?.review.selectedIds||[]).filter(id=>unchanged.has(id))
    });
   }else{
-   setExtensionInbox((draft?.captured||[]) as CapturedAd[]);
+   setExtensionInbox((draft?.captured?.length?draft.captured:latest) as CapturedAd[]);
    setCaptureReview(draft?.review||{selectedIds:null,checkedIds:[]});
+   if(latest.length&&!draft?.captured?.length)
+    setExtensionNotice('Captura guardada, mas marca, modelo ou ano não correspondem à avaliação selecionada.');
   }
   if(draft?.imported.length){
    setAdsVehicleKey(vehicleKey);
    setAds(existing=>{
-    const previous=adsVehicleKey===vehicleKey?existing:[];
-    const urls=new Set(previous.map(ad=>ad.url));
-    return [...previous,...draft.imported.filter(ad=>!urls.has(ad.url))].slice(0,50);
+    const prior=adsVehicleKey===vehicleKey?existing:[];
+    const urls=new Set(prior.map(ad=>ad.url));
+    return [...prior,...draft.imported.filter(ad=>!urls.has(ad.url))].slice(0,50);
    });
   }
   setCaptureSavedLocally(Boolean(draft));
   setCaptureHydrated(captureIdentity);
  },[captureIdentity,searchReady]);
  useEffect(()=>{
-  if(!searchReady||captureHydrated!==captureIdentity)return;
+  if(!searchReady||!captureFitsCurrent||captureHydrated!==captureIdentity)return;
   const capturedUrls=new Set(extensionInbox.map(ad=>ad.url));
   const imported=(adsVehicleKey===vehicleKey?ads:[]).filter(ad=>
    !ad.auto&&ad.source==='webmotors'&&capturedUrls.has(ad.url)&&validSource(ad));
@@ -224,11 +276,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    captured:extensionInbox,imported,review:captureReview
   });
   setCaptureSavedLocally(ok);
- },[captureIdentity,captureHydrated,searchReady,captureScope,captureKey,
+  if(ok)clearCaptureDraft(window.localStorage,captureScope,pendingCaptureKey);
+ },[captureIdentity,captureHydrated,searchReady,captureFitsCurrent,captureScope,captureKey,
     extensionInbox,ads,adsVehicleKey,vehicleKey,captureReview]);
  const clearLocalCapture=()=>{
   if(!window.confirm('Apagar a captura e os anúncios locais desta avaliação? O histórico online não será alterado.'))return;
   clearCaptureDraft(window.localStorage,captureScope,captureKey);
+  clearCaptureDraft(window.localStorage,captureScope,pendingCaptureKey);
   const urls=new Set(extensionInbox.map(ad=>ad.url));
   setAds(existing=>existing.filter(ad=>!urls.has(ad.url)));
   hydratedIdentityRef.current='';
@@ -240,7 +294,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
 
  const applyExtensionCapture=(selectedAds:CapturedAd[])=>{
-   if(!searchReady){setExtensionNotice('Selecione marca, versão, ano e KM do veículo antes de importar.');return;}
+   if(!searchReady||!captureFitsCurrent){setExtensionNotice('Complete a ficha correta (marca, modelo, ano e KM) antes de importar.');return;}
    if(selectedAds.some(x=>x.year!==marketYear)){
      setExtensionNotice('Os anúncios importados têm ano diferente do veículo selecionado. Confira o ano antes de continuar.');
      return;
@@ -691,7 +745,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   </section>:
   <>
  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><strong>Piloto oficial:</strong> a busca automática usa páginas indexadas e pode ficar sem anúncios quando a fonte gratuita falhar. A estimativa histórica é independente da Webmotors e recalcula com FIPE, KM, classificação, preparo e destino. Anúncios não auditados não autorizam compras. As avaliações salvas no histórico online podem ser reabertas por perfis autorizados da mesma unidade.</div>
- <section className="rounded-xl bg-white p-5"><h2 className="mb-3 text-xl font-semibold">Nova precificação</h2><div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="ABC1D23" maxLength={7}/></label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">Selecione modelo e versão</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Ano/modelo e combustível<select className={input} value={yearCode} disabled={!modelCode} onChange={e=>selectYear(e.target.value)}><option value="">Selecione ano</option>{years.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>KM do veículo<input className={input} value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" placeholder="Ex.: 45000"/></label></div><div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Tabela FIPE · {vehicleType==='motorcycle'?'motocicletas':'automóveis'} · consulta gratuita</p>{catalogLoading?<p>Consultando catálogo FIPE...</p>:fipe?<><p className="text-2xl font-bold text-slate-900">{money(fipe.value)}</p><p className="text-sm text-slate-700">{fipe.brand} · {fipe.model} · {fipe.year} · {fipe.fuel}</p><p className="text-xs text-slate-700">Código FIPE: {fipe.fipeCode} · Referência: <strong>{fipe.referenceMonth}</strong>{fipe.referenceSource?' · Fonte: '+fipe.referenceSource:''}</p>
+ <section id="motyq-iq-valuation-form" className="rounded-xl bg-white p-5"><h2 className="mb-3 text-xl font-semibold">Nova precificação</h2><div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="ABC1D23" maxLength={7}/></label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">Selecione modelo e versão</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Ano/modelo e combustível<select className={input} value={yearCode} disabled={!modelCode} onChange={e=>selectYear(e.target.value)}><option value="">Selecione ano</option>{years.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>KM do veículo<input className={input} value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" placeholder="Ex.: 45000"/></label></div><div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Tabela FIPE · {vehicleType==='motorcycle'?'motocicletas':'automóveis'} · consulta gratuita</p>{catalogLoading?<p>Consultando catálogo FIPE...</p>:fipe?<><p className="text-2xl font-bold text-slate-900">{money(fipe.value)}</p><p className="text-sm text-slate-700">{fipe.brand} · {fipe.model} · {fipe.year} · {fipe.fuel}</p><p className="text-xs text-slate-700">Código FIPE: {fipe.fipeCode} · Referência: <strong>{fipe.referenceMonth}</strong>{fipe.referenceSource?' · Fonte: '+fipe.referenceSource:''}</p>
  <div className="mt-2 flex flex-wrap items-center gap-2">
    {fipe.referenceStatus==='current'?<span className="rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900">Referência do mês atual</span>:
     <span className="rounded-lg border border-amber-400 bg-amber-100 px-2 py-1 text-xs font-bold text-amber-950">{fipe.referenceStatus==='outdated'?'Referência desatualizada':'Referência não confirmada'}</span>}
@@ -798,7 +852,28 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     Descartar captura local
    </button>
   </div>
-  <MarketIqCapturedReviewPanel
+  {(!searchReady||!captureFitsCurrent)?<section role="status"
+   aria-label="Captura aguardando avaliação correta"
+   className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+   <p className="font-black">{extensionInbox.length} anúncios capturados e guardados para conferência.</p>
+   <p className="mt-2">
+    {!searchReady?
+     'Esta guia ainda não tem marca, modelo, ano ou KM completos. Isso pode acontecer ao voltar da Webmotors em outra guia. Nenhum anúncio foi reprovado por falta desses dados.':
+     'Os anúncios não correspondem à marca, modelo ou ano desta avaliação. A captura não será associada ao veículo errado.'}
+   </p>
+   {canRestoreReturn&&<button type="button" onClick={restoreCaptureContext}
+    className="mt-3 rounded-lg bg-cyan-800 px-4 py-2.5 text-sm font-bold text-white">
+    Restaurar avaliação: {returnSuggestion?.brand} {returnSuggestion?.model} {returnSuggestion?.marketYear} · {returnSuggestion?.km} km · {returnSuggestion?.plate||'sem placa'}
+   </button>}
+   <p className="mt-2 text-xs">
+    {canRestoreReturn?'Confira os dados recuperados antes de importar.':
+     'Selecione a avaliação correspondente em Nova precificação ou reabra-a no Histórico.'}
+   </p>
+   <button type="button" onClick={()=>document.getElementById('motyq-iq-valuation-form')?.scrollIntoView({behavior:'smooth'})}
+    className="mt-2 rounded-lg border border-amber-600 bg-white px-3 py-2 text-xs font-bold text-amber-950">
+    Ir para os dados da avaliação
+   </button>
+  </section>:  <MarketIqCapturedReviewPanel
    ads={extensionInbox} onImport={applyExtensionCapture} notice={extensionNotice} readyToImport={searchReady}
    review={captureReview} onReviewChange={setCaptureReview}
    importedIds={(adsVehicleKey===vehicleKey?ads:[]).filter(ad=>!ad.auto&&ad.source==='webmotors').map(ad=>ad.url)}
@@ -809,6 +884,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     fipeValue:fipe?.value||null
    }}
   />
+}
  </div>}
  <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a captura assistida para trazer ofertas da página da Webmotors sem depender do índice gratuito. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
  <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-slate-950" aria-label="Busca Webmotors com localização, modelo e versão">

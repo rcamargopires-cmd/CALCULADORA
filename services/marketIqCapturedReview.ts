@@ -58,6 +58,9 @@ export function reviewCapturedWebmotors(
  const expectedVersion=locationOfModel(target.expectedVersionUrl)?.version||null;
  const used=new Set<string>();
  const kmTolerance=target.vehicleType==='motorcycle'?10000:30000;
+ const hasYear=Number.isInteger(target.year)&&target.year>=1990;
+ const hasMileage=Number.isFinite(target.km)&&target.km>0;
+ const hasVehicleContext=Boolean(expected?.brand&&expected.model&&hasYear&&hasMileage);
  const rows=(list||[]).slice(0,60).map((item,i):CapturedReviewRow=>{
   const price=safeNumber(item.price),km=safeNumber(item.km),year=Number(item.year);
   const reasons:string[]=[];
@@ -71,12 +74,17 @@ export function reviewCapturedWebmotors(
   if(expected&&parts.length>=3&&(parts[1]!==expected.brand||parts[2]!==expected.model)){
    blocked=true;reasons.push('Marca ou modelo diferente');
   }
-  if(!Number.isInteger(year)||year!==target.year){blocked=true;reasons.push('Ano-modelo diferente');}
+  if(!Number.isInteger(year)||year<1990||year>2100){
+   blocked=true;reasons.push('Ano-modelo inválido no anúncio');
+  }else if(hasYear&&year!==target.year){
+   blocked=true;reasons.push('Ano-modelo diferente');
+  }
   if(price<1000||price>2000000||!Number.isInteger(km)||km<1||km>999999){
    blocked=true;reasons.push('Preço ou KM inválidos');
   }
-  const kmDifference=Number.isFinite(target.km)?Math.abs(km-target.km):0;
-  if(!blocked&&kmDifference>kmTolerance)reasons.push('Quilometragem distante');
+  const kmDifference=hasMileage?Math.abs(km-target.km):0;
+  if(!blocked&&!hasVehicleContext)reasons.push('Complete a avaliação para comparar');
+  if(!blocked&&hasMileage&&kmDifference>kmTolerance)reasons.push('Quilometragem distante');
   // The exact family and engine/trim slug are necessary when the user has
   // chosen a verified Webmotors version. Don't silently mix diesel/flex.
   if(!blocked&&expectedVersion&&parts[3]!==expectedVersion)
