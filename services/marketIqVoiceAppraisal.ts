@@ -9,7 +9,7 @@ export type CatalogOption={code:string;name:string};
 const norm=(s:string)=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
  .toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
 const has=(s:string,t:string)=>(' '+s+' ').includes(' '+t+' ');
-const known:Array<[string,string,'car'|'motorcycle'?]>=[
+const known:Array<[string,string,('car'|'motorcycle')?]>=[
  ['onix','Chevrolet'],['tracker','Chevrolet'],['spin','Chevrolet'],['montana','Chevrolet'],
  ['creta','Hyundai'],['hb20','Hyundai'],['t cross','Volkswagen'],['nivus','Volkswagen'],
  ['polo','Volkswagen'],['jetta','Volkswagen'],['strada','Fiat'],['argo','Fiat'],
