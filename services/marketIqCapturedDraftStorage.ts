@@ -101,7 +101,7 @@ export function readCaptureDraft(storage:StoragePort|undefined,scope:string,key:
  if(!storage||!key)return null;
  try{return indexFrom(storage.getItem(location(scope)),now).entries[key]||null;}catch{return null;}
 }
-export function writeCaptureDraft(storage:StoragePort|undefined,scope:string,key:string,data:Omit<CaptureDraft,'updatedAt'>,now=Date.now()):boolean{
+export function writeCaptureDraft(storage:StoragePort|undefined,scope:string,key:string,data:{captured:unknown[];imported:unknown[];review:CaptureReviewSelections},now=Date.now()):boolean{
  if(!storage||!key)return false;
  try{
   const current=indexFrom(storage.getItem(location(scope)),now);
