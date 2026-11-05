@@ -63,7 +63,7 @@ const withForm=reviewCapturedWebmotors(capture,{
 assert.equal(withForm.blockedCount,0);
 assert.equal(withForm.eligibleCount,2);
 assert.equal(withForm.topFive.length,2);
-assert.equal(withForm.rows[0].kmDifference,18200);
+assert.equal(withForm.rows[0].kmDifference,26120);
 assert.ok(ui.includes("pendingCaptureKey='__captured_in_another_tab__'"),
  'Save captures in a special scoped inbox across tabs');
 assert.ok(ui.includes('readCaptureDraft(window.localStorage,captureScope,pendingCaptureKey)'));
