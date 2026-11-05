@@ -260,6 +260,10 @@ export default function MarketIqMobileExperience(p:Props){
      <button className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'} onClick={newValuation}>
       <CarFront size={25} color="#008bd0"/> Escolher na lista</button>
     </div>
+    <p className="rounded-xl bg-[#e9f5fd] p-3 text-xs leading-5 text-sky-900">
+     Experimente dizer: <strong>“Avaliar um Onix Premier 2023 com 45 mil km.”</strong>
+     O Motyq sugere os campos, e você confirma a versão na FIPE.
+    </p>
     {voiceDraft&&<section aria-label="Confirmar dados da avaliação por voz"
       className={card+' space-y-3 border-sky-300 p-4'}>
       <div className="flex items-center gap-2 text-sky-800"><Mic size={20}/>
@@ -291,6 +295,17 @@ export default function MarketIqMobileExperience(p:Props){
          onChange={e=>setVoiceDraft({...voiceDraft,km:e.target.value?Number(e.target.value):null})}
          placeholder="45000"/></label>
       </div>
+      <label className="block text-xs font-bold text-slate-700">Combustível
+       <select className={input+' mt-1'} value={voiceDraft.fuel}
+        onChange={e=>setVoiceDraft({...voiceDraft,fuel:e.target.value as VoiceDraft['fuel']})}>
+        <option value="">Confirmar depois</option>
+        {fuels.map(f=><option key={f} value={f}>{f}</option>)}
+       </select></label>
+      {voiceDraft.plate&&<label className="block text-xs font-bold text-slate-700">Placa reconhecida
+       <input className={input+' mt-1 uppercase'} value={voiceDraft.plate}
+        maxLength={7} onChange={e=>setVoiceDraft({...voiceDraft,
+         plate:e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7)})}/>
+      </label>}
       <p className="text-xs text-slate-600">Marca {suggestedBrand?'localizada no catálogo':'a confirmar na lista FIPE'}.
        {voiceDraft.fuel?' Combustível reconhecido: '+voiceDraft.fuel+'.':' Combustível será confirmado em seguida.'}</p>
       <button type="button" className={action}
