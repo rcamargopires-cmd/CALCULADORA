@@ -68,6 +68,11 @@ assert.ok(ui.includes('p.plate.length!==7||!p.fipe?.value'), 'Prevent incomplete
 assert.ok(ui.includes('navigator.share'), 'Native phone sharing, with browser fallback');
 assert.ok(ui.includes('SpeechRecognition'), 'Speech recognition must be feature detected');
 assert.ok(ui.includes('onOpenFullDesk'), 'User can always access the complete existing desk');
+assert.ok(ui.includes('if(!p.onStartNew())return;'), 'New valuation explicitly checks whether to abandon unsaved form');
+assert.ok(ui.includes('onOpenApprovals={p.onOpenApprovals}'), 'Repasse approval action must open the real approvals center');
+assert.ok(mesa.includes('const beginNewMobileValuation=():boolean=>'));
+assert.ok(mesa.includes("window.confirm('Iniciar nova avaliação?"), 'No accidental loss of incomplete appraisal');
+assert.ok(mesa.includes("onOpenApprovals={()=>{setMobileFullDesk(true);switchDeskSection('approvals');}}"));
 assert.ok(mesa.includes('<MarketIqMobileExperience'));
 assert.ok(mesa.includes('history={saved}'), 'Mobile uses exact same cloud history');
 assert.ok(mesa.includes('onRestoreHistory={record=>restore(record as Saved)}'));

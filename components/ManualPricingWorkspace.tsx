@@ -631,6 +631,18 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const restore=(r:Saved)=>{setVehicleType(r.vehicleType==='motorcycle'?'motorcycle':'car');setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setManualClassification((r.historicalClass&&r.historicalClass!=='SEM CLASSE'&&r.historicalClass!==classifyByMileage(r.km)?.classification?r.historicalClass:'') as FleetClass|'');
  setClassificationReason(r.classificationReason||'');setDirectRepasseReason(r.directRepasseReason||'none');setGoodLiquidity(r.goodLiquidity===true);
  setDestinationOverride(r.repasse&&['A','B','C'].includes(String(r.historicalClass||classifyByMileage(r.km)?.classification||''))&&(!r.directRepasseReason||r.directRepasseReason==='none')?'repasse':'auto');setAds(r.ads);const restoredKey=[r.vehicleType==='motorcycle'?'motorcycle':'car',r.brandCode||'',r.modelCode||'',r.yearCode||'',r.km].join('|');setAdsVehicleKey(restoredKey);setAutoSearchKey(restoredKey);autoAttempted.current.add(restoredKey);setAutoSearchedAt(r.date);switchDeskSection('pricing');setNewApprovedValue('');setNewApprovedDate(localDate());setNotice('Avaliação reaberta. Salvar novamente no mesmo dia atualiza o registro existente e mantém as alterações anteriores para auditoria.');window.scrollTo({top:0,behavior:'smooth'})};
+ const beginNewMobileValuation=():boolean=>{
+  if((plate||brandCode||modelCode||yearCode||number(km)>0)&&
+    !window.confirm('Iniciar nova avaliação? Dados não salvos da ficha atual serão substituídos; o histórico oficial permanece intacto.'))return false;
+  setPlate('');setBrand('');setBrandCode('');setModel('');setModelCode('');
+  setYear('');setYearCode('');setKm('');setCost('0');setFipe(null);
+  setManualClassification('');setClassificationReason('');
+  setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);
+  setAds([]);setAdsVehicleKey('');setAutoSearchKey('');setNewApprovedValue('');
+  setHistoryError('');setNotice('');setCatalogError('');
+  switchDeskSection('pricing');
+  return true;
+ };
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
  return <>
@@ -658,6 +670,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onSearchMarket={()=>void searchMarket()} marketBusy={autoLoading} marketNotice={marketMessage}
    onSave={()=>void save()} saveBusy={historyBusy} saveNotice={notice} saveError={historyError}
    onOpenFullDesk={()=>setMobileFullDesk(true)}
+   onStartNew={beginNewMobileValuation}
+   onOpenApprovals={()=>{setMobileFullDesk(true);switchDeskSection('approvals');}}
   />
  </div>
  {mobileFullDesk&&<button type="button" className="mx-4 mt-4 rounded-lg bg-[#008bd0] px-4 py-3 text-sm font-bold text-white lg:hidden"

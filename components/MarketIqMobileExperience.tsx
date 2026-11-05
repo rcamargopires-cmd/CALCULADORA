@@ -27,6 +27,7 @@ export type Props={
  historicalTarget:number;historicalMin:number;historicalMax:number;motorcycleReference:number;
  marketBrowseUrl:string|null;onSearchMarket:()=>void;marketBusy:boolean;marketNotice:string;
  onSave:()=>void;saveBusy:boolean;saveNotice:string;saveError:string;onOpenFullDesk:()=>void;
+ onStartNew:()=>boolean;onOpenApprovals:()=>void;
 };
 type Tab='home'|'pricing'|'history'|'stock'|'repasse'|'settings';
 const cash=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -72,7 +73,7 @@ export default function MarketIqMobileExperience(p:Props){
   return()=>{live=false;};
  },[tab,canStock,p.user.companyId,p.user.storeId,p.user.email]);
  const changeTab=(v:Tab)=>{setTab(v);setMessage('');window.scrollTo({top:0,behavior:'smooth'});};
- const newValuation=()=>{setResult(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
+ const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
  const restore=(r:MobileHistoryRecord)=>{p.onRestoreHistory(r);setPickedYear(mobileModelYearFromCode('',r.year));setStep(5);setResult(true);changeTab('pricing');};
  const voice=()=>{
   const Recognizer=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
@@ -282,7 +283,7 @@ export default function MarketIqMobileExperience(p:Props){
    {tab==='repasse'&&<div><p className="mb-4 text-sm text-slate-500">Consultas e repasses já existentes na Mesa.</p>
     <MarketIqConsultedRepasse user={p.user} vehicleFromDesk={{
      plate:p.plate,brand:p.brand,model:p.model,year:p.year,km:p.km,fipe:p.fipe?.value||0}}
-     onOpenApprovals={()=>{setMessage('Para aprovações completas, abra a Mesa no computador.');changeTab('settings');}}/></div>}
+     onOpenApprovals={p.onOpenApprovals}/></div>}
    {tab==='settings'&&<div className="space-y-4">
     <div className={card+' p-5'}><strong className="block text-lg">{p.user.name}</strong>
      <p className="text-sm text-slate-500">{p.user.email}</p><p className="mt-2 text-xs text-[#008bd0]">Motyq IQ · {p.user.role}</p></div>
