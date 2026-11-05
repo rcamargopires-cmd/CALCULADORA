@@ -103,6 +103,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [extensionInbox,setExtensionInbox]=useState<CapturedAd[]>(()=>freshCaptureRef.current||[]);
  const [captureReview,setCaptureReview]=useState<CaptureReviewSelections>({selectedIds:null,checkedIds:[]});
  const [captureHydrated,setCaptureHydrated]=useState('');
+ const hydratedIdentityRef=useRef('');
  const [captureSavedLocally,setCaptureSavedLocally]=useState(false);
  const [extensionNotice,setExtensionNotice]=useState('');
  useEffect(()=>{
@@ -182,7 +183,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const captureKey=captureDraftKey({vehicleType,brandCode,modelCode,yearCode,km,plate});
  const captureIdentity=captureScope+'|'+captureKey;
  useEffect(()=>{
-  if(!searchReady)return;
+  if(!searchReady||hydratedIdentityRef.current===captureIdentity)return;
+  hydratedIdentityRef.current=captureIdentity;
   const draft=readCaptureDraft(window.localStorage,captureScope,captureKey);
   const incoming=freshCaptureRef.current;
   freshCaptureRef.current=null;
@@ -229,6 +231,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   clearCaptureDraft(window.localStorage,captureScope,captureKey);
   const urls=new Set(extensionInbox.map(ad=>ad.url));
   setAds(existing=>existing.filter(ad=>!urls.has(ad.url)));
+  hydratedIdentityRef.current='';
   setCaptureHydrated('');
   setCaptureSavedLocally(false);
   setExtensionInbox([]);
