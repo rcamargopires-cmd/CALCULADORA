@@ -17,7 +17,9 @@ assert.ok(!ui.includes('Valor realmente pago na compra (R$, opcional)'),'No redu
 assert.ok(!ui.includes('recordPaid(r)'),'No second paid action can be required from the operator');
 assert.ok(api.includes("'pricing_history_approved'"),'Approval events must continue through existing authenticated route');
 assert.ok(source.includes("paidFromApproval:paidSource.kind==='valuation_approved'"),'Old approval events must feed actual outcomes on history read');
-assert.ok(ui.includes("referenceName:provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas'"),'Motorcycle history must stay explicitly preliminary');
+assert.ok(ui.includes("mobileReferenceKind==='mesa'?'Mesa · valor recorrente de avaliações'")&&
+ ui.includes("vehicleType==='motorcycle'?'Histórico preliminar de motocicletas'"),
+ 'Manager-adjusted mobile value is separate; motorcycles retain explicit preliminary fallback');
 
 const js=ts.transpileModule(source.replace(/^import .+;\s*$/gm,'')
   .replace('export default async function handler','async function handler')+'\nresult=handler;',{
