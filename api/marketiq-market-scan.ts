@@ -731,13 +731,20 @@ const normalizeRow=(raw:any,month:string)=>{
 };
 const comparableNorm=(v:unknown)=>trim(v,160).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
  .toUpperCase().replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+const comparableBrand=(v:unknown)=>{
+ const n=comparableNorm(v);
+ if(['VW','VW VOLKSWAGEN','VOLKSWAGEN'].includes(n))return 'VOLKSWAGEN';
+ if(['GM','GM CHEVROLET','CHEVROLET','GENERAL MOTORS'].includes(n))return 'CHEVROLET';
+ if(['MERCEDES','M BENZ','MERCEDES BENZ'].includes(n))return 'MERCEDES BENZ';
+ return n;
+};
 const comparableModel=(archiveModel:string,currentModel:string)=>{
  const a=comparableNorm(archiveModel),b=comparableNorm(currentModel);
  if(!a||!b)return false;
  if(a===b)return true;
  // Trims/engines may follow a model. Never merge ONIX and ONIX PLUS,
  // or other distinct body styles when the next token is a model qualifier.
- const forbidden=new Set(['PLUS','SEDAN','HATCH','SW','SPORT','CROSS','S']);
+ const forbidden=new Set(['PLUS','SEDAN','HATCH','SW','SW4','RAPTOR','SPORT','CROSS','S']);
  const prefix=a.length<b.length?a:b,extra=a.length<b.length?b:a;
  if(!extra.startsWith(prefix+' '))return false;
  const next=extra.slice(prefix.length+1).split(' ')[0];
@@ -807,7 +814,7 @@ return async function handler(req:any,res:any){
   if(req.method==='POST'&&action==='comparables'){
    const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
    const validPlate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate);
-   const brand=comparableNorm(req.body?.brand),model=comparableNorm(req.body?.model);
+   const brand=comparableBrand(req.body?.brand),model=comparableNorm(req.body?.model);
    const year=int(req.body?.modelYear,1900,2100);
    const km=int(req.body?.km,0,999999);
    const kind=req.body?.vehicleType==='motorcycle'?'motorcycle':'car';
@@ -840,7 +847,7 @@ return async function handler(req:any,res:any){
      seen.add(key);
      if(validPlate&&row.plate===plate)samePlate.push(row);
      if(brand&&model&&year&&row.vehicleType===kind&&
-      comparableNorm(row.brand)===brand&&comparableModel(row.model,model)&&
+      comparableBrand(row.brand)===brand&&comparableModel(row.model,model)&&
       typeof row.modelYear==='number'&&Math.abs(row.modelYear-year)<=2&&
       !(validPlate&&row.plate===plate))comparable.push(row);
     }
@@ -927,7 +934,7 @@ return async function handler(req:any,res:any){
    const plateIndex:Record<string,number[]>={};
    const brandIndex:Record<string,number[]>={};
    for(let i=0;i<records.length;i++){
-    const b=comparableNorm(records[i].brand);
+    const b=comparableBrand(records[i].brand);
     if(b){
      const brandChunks=brandIndex[b]||(brandIndex[b]=[]);
      const position=Math.floor(i/150);
