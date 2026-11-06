@@ -1,6 +1,7 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {History,Layers,RefreshCw,ShieldCheck,AlertTriangle} from 'lucide-react';
 import {auth} from '../firebase';
+import {alignPurchaseReference} from '../services/marketIqPurchaseAlignment';
 import type {MonthlyArchiveRow} from '../services/marketIqMonthlyArchive';
 import {
  buildComparableHistory,plateComparable,type ComparableCurrent,type ComparableCloud,
@@ -72,14 +73,15 @@ export default function MarketIqIntelligentHistoryPanel({
  },[identity,ready,reload]);
  const report=useMemo(()=>buildComparableHistory(current,data.plateRecords,data.records,
   cloudHistory,companyId,data.truncated),[identity,current.fipe,data,cloudHistory,companyId]);
- // The verified Webmotors ceiling remains the primary decision. History is a
- // cross-check, never a way to promote an unverified indexed offer.
- const historicalCap=report.paidCount>=3?report.historicalAdjustedMedian:null;
- const base=verifiedMarketCeiling>0?verifiedMarketCeiling:
-  historicalModelTarget>0?historicalModelTarget:null;
- const suggestion=base!==null&&historicalCap!==null?Math.min(base,historicalCap):base;
- const sources=verifiedMarketCeiling>0?'Webmotors validada + histórico':
-  historicalModelTarget>0?'Modelo estatístico histórico':'Histórico insuficiente';
+ // Never display a statistical value as a reliable buying offer when confirmed
+ // same-version purchases diverge materially. Small samples trigger review,
+ // not an unreviewed automatic reduction or an inflated offer.
+ const priceSignal=alignPurchaseReference({
+  verifiedMarketCeiling,statisticalTarget:historicalModelTarget,
+  paidCount:report.paidCount,paidMedian:report.paidMedian,
+  paidAdjustedMedian:report.historicalAdjustedMedian,
+  incompleteHistory:report.limited,historyUnavailable:Boolean(error)
+ });
  const matching=report.comparables.filter(r=>r.grade==='exato');
  const otherVersions=report.comparables.filter(r=>r.grade!=='exato');
  const rows=selected==='plate'?report.samePlate:selected==='paid'?
@@ -124,14 +126,49 @@ export default function MarketIqIntelligentHistoryPanel({
     </p>}
     <p className="mt-2 text-[11px] text-slate-600">A mediana utiliza apenas compras confirmadas da mesma versão e ano/modelo, com KM até 20 mil da atual. Compras do Motyq têm valor aprovado/pago; outubro/2026 utiliza a regra operacional confirmada da Mesa para status UTILIZADO. Cotações e outros meses não viram valores pagos automaticamente.</p>
    </div>}
-   <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3">
-    <div className="flex flex-wrap items-center gap-2"><ShieldCheck size={17} className="text-sky-800"/>
-     <p className="text-xs font-bold uppercase tracking-wide text-sky-900">Referência para decisão</p></div>
-    <strong className="mt-1 block text-2xl text-sky-950">{fmt(suggestion)}</strong>
-    <p className="mt-1 text-xs text-sky-950">{suggestion===null?
-     'Ainda não há mercado verificado nem modelo histórico suficiente para sugerir compra.':
-     historicalCap!==null?'Teto conservador entre '+sources+'.':'Base: '+sources+'. Histórico local ainda não calibra este valor.'}</p>
-    <p className="mt-1 text-[11px] text-sky-900">Não substitui laudo, custos, pesquisa Webmotors nem aprovação da Mesa. A sugestão não altera o valor salvo automaticamente.</p>
+   <div className={'mt-3 rounded-xl border p-3 '+(priceSignal.status==='review_required'?
+    'border-amber-300 bg-amber-50':'border-sky-200 bg-sky-50')}>
+    <div className="flex flex-wrap items-center gap-2"><ShieldCheck size={17} className={priceSignal.status==='review_required'?'text-amber-900':'text-sky-800'}/>
+     <p className={'text-xs font-bold uppercase tracking-wide '+(priceSignal.status==='review_required'?'text-amber-950':'text-sky-900')}>
+      {priceSignal.status==='review_required'?'Atenção · referência acima das compras':priceSignal.status==='unverified'&&priceSignal.evidence==='statistical_model'?'Estimativa estatística não calibrada':'Referência para decisão'}</p></div>
+    {priceSignal.status==='review_required'?<>
+      <p className="mt-2 text-sm font-bold text-amber-950">Revisão obrigatória antes de definir o valor de compra.</p>
+      <div className="mt-2 grid grid-cols-2 gap-3">
+       <div><p className="text-xs text-amber-950">Modelo / Webmotors</p>
+        <p className="text-lg font-black text-amber-950">{fmt(priceSignal.reference)}</p></div>
+       <div><p className="text-xs text-amber-950">Mediana de compras iguais</p>
+        <p className="text-lg font-black text-amber-950">{fmt(report.paidMedian)}</p></div>
+      </div>
+      {priceSignal.difference!==null&&<p className="mt-2 text-sm font-bold text-amber-950">
+       Diferença: {fmt(priceSignal.difference)} ({priceSignal.differencePercent?.toLocaleString('pt-BR',{maximumFractionDigits:1})}% acima
+       {priceSignal.historyIsFipeAdjusted?' da mediana ajustada à FIPE atual':' da mediana histórica'}).
+      </p>}
+      <p className="mt-2 text-xs leading-5 text-amber-950">
+       Foram identificadas {report.paidCount} compras comparáveis, mas a amostra é pequena. O valor do modelo
+       não deve ser tratado como oferta recomendada sem conferir Webmotors, estado do veículo e custos.
+       Valores apenas avaliados não foram usados como compras.
+      </p>
+     </>:<>
+      <strong className="mt-1 block text-2xl text-sky-950">
+       {priceSignal.suggested!==null?fmt(priceSignal.suggested):'A confirmar'}
+      </strong>
+      <p className="mt-1 text-xs text-sky-950">
+       {priceSignal.status==='history_capped'?
+        'Teto conservador calculado com compras da mesma versão e ano/modelo.':
+        priceSignal.status==='partial'||priceSignal.status==='unverified'&&Boolean(error)?
+         'O histórico não foi confirmado. Não use este painel para definir a oferta.':
+         priceSignal.evidence==='statistical_model'?
+          'Estimativa do modelo estatístico, ainda sem amostra suficiente de compras para validação.':
+          priceSignal.evidence==='verified_webmotors'?
+           'Referência baseada em anúncios Webmotors conferidos, sujeita à aprovação da Mesa.':
+           'Referência insuficiente. Confira o veículo antes de negociar.'}
+      </p>
+      {priceSignal.reference!==null&&priceSignal.suggested===null&&
+       <p className="mt-1 text-xs text-sky-900">Estimativa não validada: {fmt(priceSignal.reference)}</p>}
+     </>}
+    <p className={'mt-2 text-[11px] '+(priceSignal.status==='review_required'?'text-amber-950':'text-sky-900')}>
+     Não substitui laudo, custos, pesquisa Webmotors nem aprovação da Mesa. A sugestão não altera o valor salvo automaticamente.
+    </p>
    </div>
    {!error&&<div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Tipo de histórico">
     {([
