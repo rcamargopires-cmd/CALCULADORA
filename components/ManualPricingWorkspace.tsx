@@ -8,6 +8,7 @@ import MarketIqMobileExperience from './MarketIqMobileExperience';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
+import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
 import MarketIqConfidencePanel from './MarketIqConfidencePanel';
 import MarketIqFleetClassificationPanel from './MarketIqFleetClassificationPanel';
 import {classifyByMileage,resolveFleetPolicy,type FleetClass,type DestinationOverride,type DirectRepasseReason} from '../services/marketIqFleetClassification';
@@ -670,6 +671,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onSearchMarket={()=>void searchMarket()} marketBusy={autoLoading} marketNotice={marketMessage}
    onSave={()=>void save()} saveBusy={historyBusy} saveNotice={notice} saveError={historyError}
    onOpenFullDesk={()=>setMobileFullDesk(true)}
+   onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');setMobileFullDesk(true);}}
    onStartNew={beginNewMobileValuation}
    onOpenApprovals={()=>{setMobileFullDesk(true);switchDeskSection('approvals');}}
   />
@@ -802,6 +804,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    O preço-alvo pode mudar quando a FIPE atualizar. Confira antes de aprovar a compra.
  </p>}
  {fipe.referenceSource==='tabelafipe.info'&&<p className="mt-1 text-xs text-slate-700">Dados via tabelafipe.info (Tabela FIPE). Fonte independente, conferida por código e ano-modelo.</p>}</>:<p className="text-sm text-slate-600">Selecione marca, modelo/versão e ano para consultar o valor automaticamente.</p>}{catalogError&&<div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-red-700">{catalogError}</p><button type="button" onClick={()=>{setCatalogError("");setRetryCatalog(x=>x+1);if(brandCode){const current=brandCode;setBrandCode('');window.setTimeout(()=>setBrandCode(current),0);}}} className="rounded-lg border border-cyan-700 px-3 py-1 text-sm font-semibold text-cyan-900">Tentar novamente</button></div>}</div></section>
+ <MarketIqIntelligentHistoryPanel
+  companyId={user.companyId||'abrao-reze'}
+  current={{plate,brand,model,modelYear:marketYear,km:number(km),fipe:fipe?.value||0,
+   fipeCode:fipe?.fipeCode,vehicleType}}
+  cloudHistory={saved}
+  verifiedMarketCeiling={marketReady?ceiling:0}
+  historicalModelTarget={vehicleType==='motorcycle'?motorcycleReference?.medianIndication||0:historicalEstimate?.target||0}
+  onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');}}/>
  <MarketIqFleetClassificationPanel km={km} guideline={fleetPolicy.guideline}
   classification={fleetPolicy.classification} destination={fleetPolicy.destination}
   direct={fleetPolicy.direct} outOfRange={fleetPolicy.outOfRange}
