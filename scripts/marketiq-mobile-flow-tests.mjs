@@ -9,7 +9,7 @@ const compiled=ts.transpileModule(source,{compilerOptions:{
  target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext
 },reportDiagnostics:true});
 assert.equal(compiled.diagnostics?.filter(d=>d.category===ts.DiagnosticCategory.Error).length||0,0);
-const {mobileYearOptions,mobilePriceSource,mobileHistorySearch,mobileModelYearFromCode}
+const {mobileYearOptions,mobilePriceSource,mobileHistorySearch,mobileModelYearFromCode,mobileQuickIntent,mobileFilterModels,mobileFuelFromModel,mobileAutoYearChoice}
  =await import('data:text/javascript;base64,'+Buffer.from(compiled.outputText).toString('base64'));
 const options=[
  {code:'2023-1',name:'2023 Gasolina'},
@@ -64,15 +64,47 @@ const missing=mobilePriceSource({fipe:102497,verifiedCount:1,verifiedCeiling:100
 assert.equal(missing.kind,'missing');
 assert.equal(missing.value,0,'FIPE or indexed ad must never impersonate an actual B2B purchase');
 assert.ok(!ui.includes('Resta 1 precificação'),'Do not invent a weekly pricing quota');
-assert.ok(ui.includes('Passo {step} de 5'));
+assert.ok(ui.includes("'Passo '+step+' de 5"),'Guided five-step progress preserved');
+assert.ok(ui.includes("quickMode?'Busca rápida':'Nova avaliação'"),'Quick mode has distinct navigation');
 assert.ok(ui.includes('É carro ou moto?'));
 assert.ok(ui.includes('Qual a marca?'));
 assert.ok(ui.includes('Qual o ano-modelo?'));
 assert.ok(ui.includes('Qual é o combustível?'));
 assert.ok(ui.includes('Qual é o modelo e a versão?'));
 assert.ok(ui.includes('mobileYearOptions(p.years,pickedYear,pickedFuel)'));
-assert.ok(ui.includes('onClick={()=>p.onModel(m.code)}'));
-assert.ok(ui.includes('onChange={e=>p.onYear(e.target.value)}'));
+assert.ok(ui.includes('onClick={()=>selectMobileModel(m)}'),'Selecting a FIPE model starts automatic year resolution');
+assert.ok(ui.includes('onClick={()=>p.onYear(y.code)}'),'Only ambiguous FIPE year/fuel options require a tap');
+
+const makes=[{code:'13',name:'Jeep'},{code:'2',name:'Chevrolet'},{code:'11',name:'Volkswagen'}];
+const intent=mobileQuickIntent('Compass Longitude 2025',makes);
+assert.equal(intent.brand.code,'13','Model name may infer an unambiguous FIPE brand');
+assert.equal(intent.year,2025);
+assert.equal(intent.modelSearch,'compass longitude');
+assert.equal(mobileQuickIntent('Jeep Compass Limited 2024',makes).brand.code,'13');
+assert.equal(mobileQuickIntent('Carro desconhecido 2020',makes).needsBrand,true,
+ 'Unknown model needs explicit brand selection rather than fabricated make');
+const jeep=[
+ {code:'a',name:'COMPASS LONG. T270 1.3 TB 4x2 Flex Aut.'},
+ {code:'b',name:'COMPASS LIMITED TD 350 2.0 4x4 Die. Aut.'},
+ {code:'c',name:'COMPASS LONGITUDE T270 1.3 FLEX'},
+ {code:'d',name:'RENEGADE T270 1.3 FLEX'}
+];
+assert.deepEqual(mobileFilterModels(jeep,'Compass Longitude','Flex').map(x=>x.code),['a','c'],
+ 'Search hides diesel and other models while accepting LONG. abbreviation');
+assert.equal(mobileFuelFromModel('COMPASS TD 350 Diesel Automático'),'Diesel');
+assert.equal(mobileFuelFromModel('COMPASS 4xe Híbrido'),'Híbrido');
+assert.equal(mobileAutoYearChoice([{code:'2025-1',name:'2025 Gasolina'}],2025,'Flex')?.code,'2025-1',
+ 'Compatible single year/fuel choice must resolve automatically');
+assert.equal(mobileAutoYearChoice([{code:'2025-1',name:'2025 Gasolina'}],2025,'Diesel'),null,
+ 'Fuel mismatch must never be silently auto-selected');
+assert.equal(mobileAutoYearChoice([
+ {code:'2025-1',name:'2025 Gasolina'},{code:'2025-3',name:'2025 Diesel'}
+],2025,''),null,'Ambiguous FIPE fuel choices require explicit selection');
+assert.ok(ui.includes('Busca rápida de veículo'));
+assert.ok(ui.includes('Prefiro escolher passo a passo'));
+assert.ok(ui.includes("mobileFilterModels(p.models,quickMode?quickIntent.modelSearch:modelSearch,pickedFuel)"));
+assert.ok(ui.includes('mobileAutoYearChoice(p.years,pickedYear,pickedFuel)'));
+assert.ok(!ui.includes('Ano/combustível da versão na FIPE'),'Redundant FIPE dropdown removed');
 assert.ok(ui.includes('historyMatches'));
 assert.ok(ui.includes('p.onRestoreHistory(r)'), 'Recent and old history use the real restore workflow');
 assert.ok(ui.includes('p.onSave'), 'Mobile save must call existing authenticated history backend');
@@ -105,4 +137,4 @@ assert.ok(app.includes('lg:flex'), 'Hide old desktop IQ masthead on phones');
 assert.ok(app.includes('hidden max-w-7xl px-5 pt-6 lg:block'), 'Avoid duplicate dashboard heading on phones');
 assert.ok(mesa.includes('referenceAvg*.86*(repasse?.95:1)'),'Existing indexed price formula unchanged');
 assert.ok(mesa.includes('avg*.86*(repasse?.95:1)'),'Existing confirmed price formula unchanged');
-console.log('Motyq IQ Mobile: 5-step onboarding, FIPE year/fuel constraints, safe price source, live stock permissions, authenticated history and desktop compatibility passed.');
+console.log('Motyq IQ Mobile: quick and guided routes, matching FIPE version/year/fuel, safe pricing and desktop compatibility passed.');
