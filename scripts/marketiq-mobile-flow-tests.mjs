@@ -161,7 +161,7 @@ assert.ok(ui.includes('Ajustar proposta'), 'Mobile offers an explicit change-of-
 assert.ok(mesa.includes('onSearchMarket={()=>void searchMarket()}'));
 assert.ok(mesa.includes("mobileFullDesk?'block':'hidden lg:block'"),'Preserve desktop desk on wide screens');
 assert.ok(app.includes('lg:flex'), 'Hide old desktop IQ masthead on phones');
-assert.ok(app.includes('hidden max-w-7xl px-5 pt-6 lg:block'), 'Avoid duplicate dashboard heading on phones');
+assert.ok(app.includes("desktopDevice?'block':'hidden lg:block'"), 'Avoid duplicate dashboard heading on phones, but show desktop heading in narrow Windows PWA');
 assert.ok(mesa.includes('referenceAvg*.86*(repasse?.95:1)'),'Existing indexed price formula unchanged');
 assert.ok(mesa.includes('avg*.86*(repasse?.95:1)'),'Existing confirmed price formula unchanged');
 console.log('Motyq IQ Mobile: quick and guided routes, matching FIPE version/year/fuel, safe pricing and desktop compatibility passed.');

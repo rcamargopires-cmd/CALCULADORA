@@ -5,6 +5,7 @@ import {User} from '../types';
 import {auth} from '../firebase';
 import MarketIqManagementDashboard from './MarketIqManagementDashboard';
 import MarketIqMobileExperience from './MarketIqMobileExperience';
+import {isDesktopMotyqDevice} from '../services/marketIqPwaInstall';
 import MarketIqDesktopVoiceSearch from './MarketIqDesktopVoiceSearch';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
@@ -91,6 +92,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  });
  const [selectedPlateForHistory,setSelectedPlateForHistory]=useState('');
  const [mobileFullDesk,setMobileFullDesk]=useState(false);
+ // An installed Windows app is desktop even if its initial window is below lg (1024px).
+ const desktopDevice=isDesktopMotyqDevice();
  const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory')=>{
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
  };
@@ -691,7 +694,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
  return <>
- <div className={mobileFullDesk?'hidden':'lg:hidden'}>
+ <div className={desktopDevice||mobileFullDesk?'hidden':'lg:hidden'}>
   <MarketIqMobileExperience
    user={user}
    vehicleType={vehicleType} onVehicleType={selectVehicleType}
@@ -720,9 +723,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onOpenApprovals={()=>{setMobileFullDesk(true);switchDeskSection('approvals');}}
   />
  </div>
- {mobileFullDesk&&<button type="button" className="mx-4 mt-4 rounded-lg bg-[#008bd0] px-4 py-3 text-sm font-bold text-white lg:hidden"
+ {!desktopDevice&&mobileFullDesk&&<button type="button" className="mx-4 mt-4 rounded-lg bg-[#008bd0] px-4 py-3 text-sm font-bold text-white lg:hidden"
    onClick={()=>setMobileFullDesk(false)}>Voltar ao Motyq IQ Mobile</button>}
- <main className={'mx-auto max-w-7xl space-y-5 p-5 text-slate-900 '+(mobileFullDesk?'block':'hidden lg:block')}>
+ <main className={'mx-auto max-w-7xl space-y-5 p-5 text-slate-900 '+(desktopDevice||mobileFullDesk?'block':'hidden lg:block')}>
  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
   <nav className="motyq-iq-tabs flex flex-wrap items-center gap-1.5 p-2" aria-label="Áreas principais do Motyq IQ">
   <button type="button" onClick={()=>switchDeskSection('dashboard')} aria-current={deskSection==='dashboard'?'page':undefined}

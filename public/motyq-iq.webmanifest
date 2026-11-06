@@ -1,8 +1,8 @@
 {
   "id": "/motyq-iq",
-  "name": "Motyq IQ Mobile",
+  "name": "Motyq IQ",
   "short_name": "Motyq IQ",
-  "description": "Precificação, avaliações e histórico de veículos com a inteligência do Motyq IQ.",
+  "description": "Precificação e avaliações de veículos no celular e no computador.",
   "lang": "pt-BR",
   "start_url": "/",
   "scope": "/",
@@ -13,7 +13,7 @@
   ],
   "background_color": "#f6f9fc",
   "theme_color": "#0089cd",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "categories": [
     "business",
     "productivity"

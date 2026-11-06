@@ -7,8 +7,11 @@ const entry=readFileSync('index.tsx','utf8');
 const sw=readFileSync('public/motyq-iq-sw.js','utf8');
 const ui=readFileSync('components/MarketIqMobileExperience.tsx','utf8');
 const install=readFileSync('services/marketIqPwaInstall.ts','utf8');
+const workspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
+const app=readFileSync('App.tsx','utf8');
 const pkg=JSON.parse(readFileSync('package.json','utf8'));
-assert.equal(manifest.name,'Motyq IQ Mobile');
+assert.equal(manifest.name,'Motyq IQ');
+assert.equal(manifest.orientation,'any','Installed Windows app must not be locked to portrait');
 assert.equal(manifest.short_name,'Motyq IQ');
 assert.equal(manifest.display,'standalone');
 assert.equal(manifest.start_url,'/');
@@ -45,6 +48,23 @@ assert.ok(install.includes('e.preventDefault()'));
 assert.ok(install.includes("window.addEventListener('appinstalled'"));
 assert.ok(install.includes("window.matchMedia?.('(display-mode: standalone)')"));
 assert.ok(install.includes('await event.prompt()'),'Native prompt requires operator tap');
+assert.ok(install.includes('motyqDesktopDeviceFromAgent')&&
+ install.includes('isDesktopMotyqDevice'),'Installed app must identify physical desktop');
+assert.ok(install.includes('Windows NT|Macintosh|CrOS|X11|Linux x86_64'),
+ 'Desktop operating systems must be identified regardless of standalone window width');
+assert.ok(install.includes("if(mobileFlag||/Android|iPhone|iPad|iPod|Mobile/"),
+ 'Phones must continue to receive the responsive mobile experience');
+assert.ok(!install.includes('isDesktopMotyqDevice():boolean{\n if(typeof window'),
+ 'Desktop detection must not depend on window dimensions');
+assert.ok(workspace.includes('desktopDevice||mobileFullDesk'),
+ 'Desktop PWA must render full pricing workspace even below lg breakpoint');
+assert.ok(workspace.includes("desktopDevice||mobileFullDesk?'hidden':'lg:hidden'"),
+ 'Desktop PWA must not show mobile pricing UI when the installed window is narrow');
+assert.ok(app.includes("desktopDevice?'flex':'hidden lg:flex'"),
+ 'Desktop PWA header must remain available for logout and navigation');
+assert.ok(app.includes("desktopDevice?'block':'hidden lg:block'"),
+ 'Desktop PWA heading should not disappear when window is narrower than 1024px');
+
 assert.ok(ui.includes('onClick={()=>void installMotyq()}'));
 assert.ok(ui.includes('Instalar Motyq IQ'));
 assert.ok(ui.includes('Como instalar Motyq IQ'));
