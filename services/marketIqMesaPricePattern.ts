@@ -1,4 +1,6 @@
-import {normComparable,plateComparable,type ComparableCurrent,type ComparableEntry} from './marketIqComparableHistory';
+import type {ComparableCurrent,ComparableEntry} from './marketIqComparableHistory';
+const normComparable=(v:unknown)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+const plateComparable=(v:unknown)=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 
 export type MesaPriceReference={key:string;value:number;count:number};
 export const mesaReferenceKey=(current:ComparableCurrent,companyId:string)=>[
@@ -35,7 +37,7 @@ const median=(numbers:number[])=>{
   (s[s.length/2-1]+s[s.length/2])/2:null;
 };
 // A matching valuation must be the same actual amount, not just a shared R$1k bucket.
-const moneyBucket=(v:number)=>Math.round(v);
+const moneyBucket=(v:number)=>Math.round(v*100)/100;
 const mostRecent=(a:ComparableEntry,b:ComparableEntry)=>b.date.localeCompare(a.date);
 export function deriveMesaPricePattern(records:ComparableEntry[],currentKm:number):MesaPricePattern{
  const exact=records.filter(r=>r.grade==='exato'&&
