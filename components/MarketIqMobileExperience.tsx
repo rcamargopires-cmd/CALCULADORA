@@ -16,7 +16,8 @@ import {canPromptMotyqInstall,isStandaloneMotyq,promptMotyqInstall,subscribeMoty
  from '../services/marketIqPwaInstall';
 type Vehicle='car'|'motorcycle';
 type Fipe={value:number;brand:string;model:string;year:number;fuel:string;referenceMonth:string;referenceStatus?:'current'|'outdated'|'unverified'};
-export type MobileHistoryRecord={id:string;model:string;year:string;km:string;value:number;date:string;plate?:string;brand?:string;provisional?:boolean;approvedValue?:number;paidValue?:number;vehicleType?:Vehicle};
+type NegotiatedProposal={negotiatedOffer:number;baseSuggestion:number;requestedByManager:string;negotiationReason:string};
+export type MobileHistoryRecord={negotiatedOffer?:number|null;baseSuggestion?:number|null;requestedByManager?:string;negotiationReason?:string;negotiationStatus?:string;id:string;model:string;year:string;km:string;value:number;date:string;plate?:string;brand?:string;provisional?:boolean;approvedValue?:number;paidValue?:number;vehicleType?:Vehicle};
 export type Props={
  user:User;vehicleType:Vehicle;onVehicleType:(v:Vehicle)=>void;
  brands:MobileFipeOption[];brand:string;brandCode:string;onBrand:(v:string)=>void;
@@ -31,12 +32,13 @@ export type Props={
  verifiedCount:number;verifiedAverage:number;verifiedCeiling:number;indexedAverage:number;
  historicalTarget:number;historicalMin:number;historicalMax:number;motorcycleReference:number;
  marketBrowseUrl:string|null;onSearchMarket:()=>void;marketBusy:boolean;marketNotice:string;
- onSave:()=>void;saveBusy:boolean;saveNotice:string;saveError:string;onOpenFullDesk:()=>void;
+ onSave:(proposal?:NegotiatedProposal)=>void;saveBusy:boolean;saveNotice:string;saveError:string;onOpenFullDesk:()=>void;
  onStartNew:()=>boolean;onOpenApprovals:()=>void;onOpenPlateHistory?:()=>void;
 };
 type Tab='home'|'pricing'|'history'|'stock'|'repasse'|'settings';
 const cash=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const number=(v:number)=>v.toLocaleString('pt-BR');
+const parseOffer=(v:string)=>Number(v.replace(/R\$|\s/g,'').replace(/\./g,'').replace(',','.'));
 const clean=(v:string)=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const input='w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100';
 const card='rounded-[24px] border border-slate-200 bg-white shadow-sm';
@@ -51,6 +53,9 @@ export default function MarketIqMobileExperience(p:Props){
  const [pickedFuel,setPickedFuel]=useState<MobileFuel|''>('');
  const [query,setQuery]=useState(''),[brandSearch,setBrandSearch]=useState(''),[modelSearch,setModelSearch]=useState('');
  const [stockQuery,setStockQuery]=useState(''),[message,setMessage]=useState('');
+ const [offerEdit,setOfferEdit]=useState(false),[offerAmount,setOfferAmount]=useState('');
+ const [offerManager,setOfferManager]=useState(''),[offerReason,setOfferReason]=useState('');
+ const [offerVehicleKey,setOfferVehicleKey]=useState(''),[offerError,setOfferError]=useState('');
  const [stock,setStock]=useState<OperationalStockItem[]>([]),[stockBusy,setStockBusy]=useState(false),[stockError,setStockError]=useState('');
  const searchInputRef=useRef<HTMLInputElement|null>(null);
  const speechRef=useRef<any>(null);
@@ -104,6 +109,31 @@ export default function MarketIqMobileExperience(p:Props){
  const selectedPrice=mobilePriceSource({fipe:p.fipe?.value||0,verifiedCount:p.verifiedCount,
   verifiedCeiling:p.verifiedCeiling,historicalTarget:p.vehicleType==='motorcycle'?p.motorcycleReference:p.historicalTarget,
   indexedReference:p.indexedAverage,mesaReference:scopedMesa?.value||0,mesaCount:scopedMesa?.count||0});
+ const baseOfferKey=mesaReferenceKey(currentVehicle,p.user.companyId||'abrao-reze')+'|'+selectedPrice.value;
+ const offerActive=offerEdit&&offerVehicleKey===baseOfferKey;
+ const proposedAmount=offerActive?parseOffer(offerAmount):selectedPrice.value;
+ const startOfferEdit=()=>{
+  if(offerActive){setOfferEdit(false);setOfferError('');return;}
+  setOfferVehicleKey(baseOfferKey);setOfferAmount(selectedPrice.value.toFixed(2).replace('.',','));
+  setOfferManager('');setOfferReason('');setOfferError('');setOfferEdit(true);
+ };
+ const adjustOfferBy=(difference:number)=>{
+  const updated=Math.max(0,Math.round(((Number.isFinite(proposedAmount)?proposedAmount:selectedPrice.value)+difference)*100)/100);
+  setOfferAmount(updated.toFixed(2).replace('.',','));setOfferError('');
+ };
+ const saveProposal=()=>{
+  if(!offerActive||proposedAmount===selectedPrice.value){p.onSave();return;}
+  if(!Number.isFinite(proposedAmount)||proposedAmount<1500||proposedAmount>2000000){
+   setOfferError('Informe um valor válido, de R$ 1.500 até R$ 2 milhões.');return;
+  }
+  if(offerManager.trim().length<2||offerReason.trim().length<6){
+   setOfferError('Informe o gerente solicitante e o motivo do ajuste (mínimo 6 caracteres).');return;
+  }
+  setOfferError('');
+  p.onSave({negotiatedOffer:Math.round(proposedAmount*100)/100,
+   baseSuggestion:selectedPrice.value,requestedByManager:offerManager.trim(),
+   negotiationReason:offerReason.trim()});
+ };
  useEffect(()=>{
   if(tab!=='stock'||!canStock)return;
   let live=true;setStockBusy(true);setStockError('');
@@ -384,8 +414,51 @@ export default function MarketIqMobileExperience(p:Props){
      <RefreshCw size={16}/>{p.marketBusy?'Pesquisando...':'Busca indexada'}</button>
      <button onClick={()=>void share()} className={card+' flex items-center justify-center gap-2 px-2 py-4 text-xs font-bold text-[#008bd0]'}>
       <Share2 size={16}/> Compartilhar</button></div>
-    <button className={action} style={{color:'#ffffff'}} onClick={p.onSave} disabled={p.saveBusy||!validPlate||!p.fipe?.value}>
-     <Save size={18}/>{p.saveBusy?'Salvando...':'Salvar avaliação no histórico'}</button>
+    {selectedPrice.value>0&&<div className={card+' p-4'}>
+     <div className="flex flex-wrap items-center justify-between gap-2">
+      <div><p className="text-sm font-bold text-slate-950">Proposta de compra</p>
+       <p className="mt-1 text-xs text-slate-600">Sugestão original: {cash(selectedPrice.value)}</p></div>
+      <button type="button" onClick={startOfferEdit}
+       className="rounded-xl border border-sky-600 bg-white px-3 py-2 text-sm font-bold text-sky-800">
+       {offerActive?'Cancelar ajuste':'Ajustar proposta'}
+      </button>
+     </div>
+     {offerActive&&<>
+      <label className="mt-3 block text-sm font-bold text-slate-800">Nova proposta (R$)
+       <input className={input+' mt-1'} inputMode="decimal" type="text" value={offerAmount}
+        onChange={e=>{setOfferAmount(e.target.value);setOfferError('');}}
+        placeholder="Ex.: 99.000,00"/>
+      </label>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+       <button type="button" onClick={()=>adjustOfferBy(-1000)}
+        className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-slate-800">− R$ 1.000</button>
+       <button type="button" onClick={()=>adjustOfferBy(1000)}
+        className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-slate-800">+ R$ 1.000</button>
+      </div>
+      <p className="mt-2 text-sm font-semibold text-slate-800">Diferença: {Number.isFinite(proposedAmount)?
+       (proposedAmount>=selectedPrice.value?'+ ':'− ')+cash(Math.abs(proposedAmount-selectedPrice.value)):
+       'Informe um valor válido'}</p>
+      {proposedAmount!==selectedPrice.value&&<>
+       <label className="mt-3 block text-xs font-semibold text-slate-700">Gerente solicitante
+        <input className={input+' mt-1'} value={offerManager}
+         onChange={e=>setOfferManager(e.target.value)} maxLength={100}
+         placeholder="Nome do gerente"/>
+       </label>
+       <label className="mt-3 block text-xs font-semibold text-slate-700">Motivo do ajuste
+        <textarea className={input+' mt-1'} value={offerReason}
+         onChange={e=>setOfferReason(e.target.value)} maxLength={280} rows={2}
+         placeholder="Ex.: Gerente solicitou + R$ 1.000 para viabilizar a negociação."/>
+       </label>
+       <p className="mt-2 text-xs leading-5 text-amber-900">
+        Será salva uma proposta ajustada, não uma compra. O nome do gerente é informado pelo operador,
+        sem comprovação de aprovação digital.
+       </p>
+      </>}
+      {offerError&&<p role="alert" className="mt-2 rounded-lg bg-rose-50 p-3 text-xs font-semibold text-rose-800">{offerError}</p>}
+     </>}
+    </div>}
+    <button className={action} style={{color:'#ffffff'}} onClick={saveProposal} disabled={p.saveBusy||!validPlate||!p.fipe?.value}>
+     <Save size={18}/>{p.saveBusy?'Salvando...':offerActive&&proposedAmount!==selectedPrice.value?'Salvar proposta ajustada':'Salvar avaliação no histórico'}</button>
     {!validPlate&&<p className="text-xs text-amber-800">Preencha uma placa válida para salvar.</p>}
     {p.saveError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs text-rose-800">{p.saveError}</p>}
     {p.saveNotice&&<p role="status" className="rounded-xl bg-sky-50 p-3 text-xs text-sky-900">{p.saveNotice}</p>}
@@ -397,8 +470,13 @@ export default function MarketIqMobileExperience(p:Props){
     {p.historyLoading&&<p className="text-sm text-slate-500">Carregando avaliações autorizadas...</p>}
     <div className={card+' px-4'}>{historyMatches.slice(0,100).map(r=><button key={r.id} className={row} onClick={()=>restore(r)}>
      <span><strong className="block text-sm">{r.brand} {r.model}</strong><small className="text-slate-500">{r.year} · {r.km} km · {r.plate||'Sem placa'}</small>
-     <small className="block text-slate-500">{r.provisional?'Preliminar':'Avaliação'}{Number(r.paidValue||r.approvedValue)>0?' · compra registrada':''}</small></span>
-     <span className="flex items-center gap-1 text-xs font-bold text-[#008bd0]">{r.value?cash(r.value):'—'}<ChevronRight size={15}/></span>
+     <small className="block text-slate-500">
+      {r.negotiatedOffer?'Proposta gerencial · base '+cash(Number(r.baseSuggestion||r.value)):(r.provisional?'Preliminar':'Avaliação')}
+      {r.negotiatedOffer?' · '+String(r.requestedByManager||'Gerente não informado'):''}
+      {Number(r.paidValue||r.approvedValue)>0?' · compra registrada':''}
+     </small></span>
+     <span className="flex items-center gap-1 text-xs font-bold text-[#008bd0]">
+      {(r.negotiatedOffer||r.value)?cash(Number(r.negotiatedOffer||r.value)):'—'}<ChevronRight size={15}/></span>
     </button>)}</div>
    </div>}
    {tab==='stock'&&<div className="space-y-4">
