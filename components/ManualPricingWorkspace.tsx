@@ -784,6 +784,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
         <div className="min-w-[200px] text-right">
           <p className="text-xs text-slate-600">Valor estimado pelo Motyq</p>
           <p className="text-lg font-bold text-slate-950">{money(r.value)}</p>
+          {Number(r.negotiatedOffer)>0&&<div className="mt-2 rounded-lg border border-sky-300 bg-sky-50 p-3">
+            <p className="text-xs font-bold uppercase text-sky-900">Proposta ajustada a pedido do gerente</p>
+            <p className="text-xl font-black text-sky-950">{money(Number(r.negotiatedOffer))}</p>
+            <p className="mt-1 text-xs text-sky-900">Base original: {money(Number(r.baseSuggestion||r.value))}</p>
+            <p className="mt-1 text-xs text-sky-900">Gerente informado: {r.requestedByManager||'Não informado'}</p>
+            <p className="mt-1 text-xs text-sky-900">Motivo: {r.negotiationReason||'Não informado'}</p>
+            <p className="mt-1 text-xs font-semibold text-amber-900">Proposta registrada, não equivale a compra confirmada.</p>
+          </div>}
           {Number(r.approvedValue)>0?
             <div className="mt-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3">
               <p className="text-xs font-bold uppercase text-emerald-900">Valor aprovado e pago pela loja</p>
