@@ -208,6 +208,20 @@ assert.ok(api.includes("Homologação somente leitura: salve ou aprove avaliaç�
  'Preview pricing history mutations must be forbidden');
 assert.ok(api.includes("authorization:'Bearer '+idToken"),
  'Official read must use the authenticated operator token, not service account credentials');
+assert.ok(api.includes("msg==='FIRESTORE_READ_FAILED_429'"),
+ 'Official archive must recognize Firestore HTTP429 quota exhaustion');
+assert.ok(api.includes("code:'ARCHIVE_RATE_LIMIT'")&&api.includes("Retry-After"),
+ 'Official and preview archive must send typed 429 responses with Retry-After');
+assert.ok(api.includes("const limited=e?.status===429"),
+ 'Preview must forward official rate-limit status instead of generic 503');
+assert.ok(panel.includes("archiveCooldownFromSession()")&&panel.includes("sessionStorage.setItem(archiveCooldownKey"),
+ 'Client must persist only a local rate-limit deadline, not vehicle data');
+assert.ok(panel.includes("if(response.status===429)")&&
+ panel.includes("disabled={!ready||loading||cooldownActive}"),
+ 'Client must stop repeated archive requests while Firestore is overloaded');
+assert.ok(panel.includes("setCooldownClock(Date.now())")&&
+ panel.includes("Aguarde '+Math.ceil"),
+ 'Cooldown must be visible and expire without reissuing a request automatically');
 assert.ok(!api.includes('FIREBASE_SERVICE_ACCOUNT_JSON_PREVIEW'),
  'Never distribute service credential to preview');
 assert.ok(panel.includes("action:'monthly_archive_comparables'"));
