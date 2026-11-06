@@ -24,6 +24,13 @@ export type ComparableResult={
 };
 export const normComparable=(v:unknown)=>String(v??'').normalize('NFD')
  .replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+const comparableBrand=(v:unknown)=>{
+ const n=normComparable(v);
+ if(['VW','VW VOLKSWAGEN','VOLKSWAGEN'].includes(n))return 'VOLKSWAGEN';
+ if(['GM','GM CHEVROLET','CHEVROLET','GENERAL MOTORS'].includes(n))return 'CHEVROLET';
+ if(['MERCEDES','M BENZ','MERCEDES BENZ'].includes(n))return 'MERCEDES BENZ';
+ return n;
+};
 export const plateComparable=(v:unknown)=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 const readKm=(raw:unknown)=>{
  const s=String(raw??'').trim();
@@ -45,7 +52,7 @@ const sameModel=(a:string,b:string)=>{
  const shorter=left.length<right.length?left:right,larger=left.length<right.length?right:left;
  if(!larger.startsWith(shorter+' '))return false;
  const qualifier=larger.slice(shorter.length+1).split(' ')[0];
- return !['PLUS','SEDAN','HATCH','SPORT','CROSS','SW','S'].includes(qualifier);
+ return !['PLUS','SEDAN','HATCH','SPORT','CROSS','SW','SW4','RAPTOR','S'].includes(qualifier);
 };
 const transmission=(v:string)=>{
  const s=normComparable(v);
@@ -67,7 +74,7 @@ const versionEquivalent=(current:ComparableCurrent,row:MonthlyArchiveRow)=>{
 };
 const gradeFor=(current:ComparableCurrent,row:MonthlyArchiveRow):ComparableEntry['grade']=>{
  if(plateComparable(current.plate)&&plateComparable(current.plate)===plateComparable(row.plate))return 'placa';
- if(row.vehicleType!==current.vehicleType||normComparable(row.brand)!==normComparable(current.brand)||
+ if(row.vehicleType!==current.vehicleType||comparableBrand(row.brand)!==comparableBrand(current.brand)||
     !sameModel(row.model,current.model)||!row.modelYear)return 'relacionado';
  const gap=Math.abs(row.modelYear-current.modelYear);
  const trimMatch=versionEquivalent(current,row);
@@ -90,7 +97,7 @@ export function buildComparableHistory(
   const grade=gradeFor(current,r);
   const same=grade==='placa';
   if(!same&&(r.vehicleType!==current.vehicleType||
-   normComparable(r.brand)!==normComparable(current.brand)||
+   comparableBrand(r.brand)!==comparableBrand(current.brand)||
    !sameModel(r.model,current.model)||!r.modelYear||
    Math.abs(r.modelYear-current.modelYear)>2))continue;
   const status=normComparable(r.status);
@@ -115,7 +122,7 @@ export function buildComparableHistory(
   const cloudPlate=plateComparable(r.plate);
   const same=Boolean(cloudPlate&&cloudPlate===plateComparable(current.plate));
   const isKind=(r.vehicleType||'car')===current.vehicleType;
-  if(!same&&(!isKind||normComparable(r.brand)!==normComparable(current.brand)||
+  if(!same&&(!isKind||comparableBrand(r.brand)!==comparableBrand(current.brand)||
    !sameModel(r.model,current.model)))continue;
   const year=Number(String(r.year||'').match(/(?:19|20)\d{2}/)?.[0]||0);
   if(!same&&(!year||Math.abs(year-current.modelYear)>2))continue;
