@@ -2,6 +2,7 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {History,Layers,RefreshCw,ShieldCheck,AlertTriangle} from 'lucide-react';
 import {auth} from '../firebase';
 import {alignPurchaseReference} from '../services/marketIqPurchaseAlignment';
+import {deriveMesaPricePattern} from '../services/marketIqMesaPricePattern';
 import type {MonthlyArchiveRow} from '../services/marketIqMonthlyArchive';
 import {
  buildComparableHistory,plateComparable,type ComparableCurrent,type ComparableCloud,
@@ -76,6 +77,7 @@ export default function MarketIqIntelligentHistoryPanel({
  // Never display a statistical value as a reliable buying offer when confirmed
  // same-version purchases diverge materially. Small samples trigger review,
  // not an unreviewed automatic reduction or an inflated offer.
+ const pattern=deriveMesaPricePattern(report.comparables,current.km);
  const priceSignal=alignPurchaseReference({
   verifiedMarketCeiling,statisticalTarget:historicalModelTarget,
   paidCount:report.paidCount,paidMedian:report.paidMedian,
@@ -87,7 +89,8 @@ export default function MarketIqIntelligentHistoryPanel({
  const rows=selected==='plate'?report.samePlate:selected==='paid'?
   matching.filter(r=>r.paid!==null):selected==='other'?otherVersions:matching;
  const heading=report.samePlate.length+' passagem(ns) desta placa · '+
-  matching.length+' da versão e ano corretos · '+otherVersions.length+' outras versões/anos';
+  matching.length+' avaliações da mesma versão/ano ('+pattern.uniqueVehicles+
+  ' veículos distintos) · '+otherVersions.length+' outras versões/anos';
  return <section className={'rounded-2xl border border-sky-200 bg-white text-slate-950 '+(compact?'p-4':'p-5')}
   aria-label="Histórico Inteligente de Avaliações">
   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -126,7 +129,39 @@ export default function MarketIqIntelligentHistoryPanel({
     </p>}
     <p className="mt-2 text-[11px] text-slate-600">A mediana utiliza apenas compras confirmadas da mesma versão e ano/modelo, com KM até 20 mil da atual. Compras do Motyq têm valor aprovado/pago; outubro/2026 utiliza a regra operacional confirmada da Mesa para status UTILIZADO. Cotações e outros meses não viram valores pagos automaticamente.</p>
    </div>}
-   <div className={'mt-3 rounded-xl border p-3 '+(priceSignal.status==='review_required'?
+   {!error&&pattern.operationalSuggestion!==null&&<div className="mt-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
+    <p className="text-xs font-black uppercase tracking-wide text-emerald-900">Padrão de negociação da Mesa · mesma versão e ano</p>
+    <p className="mt-1 text-3xl font-black text-emerald-950">{fmt(pattern.operationalSuggestion)}</p>
+    <p className="mt-1 text-sm font-bold text-emerald-950">
+     {pattern.confidence==='baixa'?'Indicação inicial, amostra pequena':'Referência operacional sugerida, sujeita à aprovação'}
+    </p>
+    <p className="mt-1 text-xs leading-5 text-emerald-950">
+     {pattern.quoteVehicles} veículo(s) com preço registrado, em {pattern.assessmentEvents} avaliação(ões).
+     {pattern.repeatedPlateEvents>0?' '+pattern.repeatedPlateEvents+' passagem(ns) repetida(s) da mesma placa foram desconsideradas no cálculo.':''}
+     {pattern.typicalQuote!==null?' Valor mais recorrente: '+fmt(pattern.typicalQuote)+' em '+pattern.typicalCount+' veículo(s) diferente(s).':''}
+    </p>
+    <div className="mt-3 grid grid-cols-2 gap-2">
+     <div className="rounded-lg bg-white p-2">
+      <p className="text-[11px] font-semibold text-slate-700">Mediana efetivamente paga</p>
+      <p className="text-lg font-black text-slate-950">{fmt(pattern.confirmedPaidMedian)}</p>
+      <p className="text-[11px] text-slate-700">{pattern.paidVehicles} compra(s) de placas distintas</p>
+     </div>
+     <div className="rounded-lg bg-white p-2">
+      <p className="text-[11px] font-semibold text-slate-700">Maior compra confirmada</p>
+      <p className="text-lg font-black text-slate-950">{fmt(pattern.maxPaid)}</p>
+      <p className="text-[11px] text-slate-700">Máximo observado, não limite automático</p>
+     </div>
+    </div>
+    {pattern.maxPaid!==null&&pattern.maxPaid>pattern.operationalSuggestion*1.05&&
+     <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-bold text-amber-950">
+      Valor(es) acima do padrão podem ser exceções comerciais. Antes de usar o máximo como teto, confirme a justificativa e a aprovação da direção.
+     </p>}
+    <p className="mt-2 text-[11px] leading-5 text-emerald-950">
+     O padrão combina preços avaliados e pagos sem confundi-los com compras realizadas. Veículos de mesma placa contam somente uma vez;
+     custos, preparação, condição, FIPE, Webmotors e decisões excepcionais precisam ser analisados à parte.
+    </p>
+   </div>}
+      <div className={'mt-3 rounded-xl border p-3 '+(priceSignal.status==='review_required'?
     'border-amber-300 bg-amber-50':'border-sky-200 bg-sky-50')}>
     <div className="flex flex-wrap items-center gap-2"><ShieldCheck size={17} className={priceSignal.status==='review_required'?'text-amber-900':'text-sky-800'}/>
      <p className={'text-xs font-bold uppercase tracking-wide '+(priceSignal.status==='review_required'?'text-amber-950':'text-sky-900')}>
