@@ -68,7 +68,7 @@ assert.ok(api.includes('const {brandIndex,...safeSummary}=summary'),'New index m
 assert.ok(api.includes('const user=await scopedUser(req,sa,token)'),'Server authorization required');
 assert.ok(api.includes('user.companyId'),'Tenant scoped archive path');
 assert.ok(panel.includes("action:'monthly_archive_comparables'"));
-assert.ok(panel.includes('approved')&&panel.includes('october_confirmed'));
+assert.ok(source.includes("paidBasis:'approved'")&&panel.includes('october_confirmed'));
 assert.ok(desktop.includes('<MarketIqIntelligentHistoryPanel'));
 assert.ok(mobile.includes('<MarketIqIntelligentHistoryPanel'));
 assert.ok(desktop.includes('onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate)'));
