@@ -70,6 +70,7 @@ export default function MarketIqMobileExperience(p:Props){
  const [voiceTranscript,setVoiceTranscript]=useState('');
  const [voiceState,setVoiceState]=useState<'idle'|'listening'|'processing'|'fallback'|'heard'>('idle');
  const [voiceHint,setVoiceHint]=useState('');
+ const [voiceSpeechDetected,setVoiceSpeechDetected]=useState(false);
  const [pwaInstallAvailable,setPwaInstallAvailable]=useState(canPromptMotyqInstall);
  const [pwaInstalled,setPwaInstalled]=useState(isStandaloneMotyq);
  const [pwaInstallInfo,setPwaInstallInfo]=useState('');
@@ -170,7 +171,7 @@ export default function MarketIqMobileExperience(p:Props){
  const changeTab=(v:Tab)=>{
   if(speechRef.current){const active=speechRef.current;speechRef.current=null;try{active.abort();}catch{}}
   voiceManualStopRef.current=false;speechTranscriptRef.current='';
-  setVoiceOpen(false);setVoiceTranscript('');setVoiceState('idle');setVoiceHint('');
+  setVoiceOpen(false);setVoiceTranscript('');setVoiceState('idle');setVoiceSpeechDetected(false);setVoiceHint('');
   setTab(v);setMessage('');window.scrollTo({top:0,behavior:'smooth'});
  };
  const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setQuickMode(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
@@ -195,7 +196,7 @@ export default function MarketIqMobileExperience(p:Props){
   const active=speechRef.current;speechRef.current=null;
   try{active?.abort?.();}catch{}
   voiceManualStopRef.current=false;speechTranscriptRef.current='';
-  setVoiceOpen(false);setVoiceState('idle');setVoiceHint('');setVoiceTranscript('');
+  setVoiceOpen(false);setVoiceState('idle');setVoiceSpeechDetected(false);setVoiceHint('');setVoiceTranscript('');
  };
  const useKeyboardDictation=()=>{
   closeVoice();
@@ -223,7 +224,7 @@ export default function MarketIqMobileExperience(p:Props){
    }
    return;
   }
-  setVoiceOpen(true);setVoiceTranscript('');speechTranscriptRef.current='';voiceManualStopRef.current=false;
+  setVoiceOpen(true);setVoiceTranscript('');setVoiceSpeechDetected(false);speechTranscriptRef.current='';voiceManualStopRef.current=false;
   const Recognizer=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
   if(!window.isSecureContext||!Recognizer){
    setVoiceState('fallback');
@@ -238,13 +239,22 @@ export default function MarketIqMobileExperience(p:Props){
     if(speechRef.current!==r)return;
     setVoiceState('listening');setVoiceHint('Estou ouvindo. Fale o veículo e toque no círculo para buscar.');
    };
+   r.onspeechstart=()=>{
+    if(speechRef.current!==r)return;
+    setVoiceSpeechDetected(true);
+    setVoiceHint('Detectei sua fala. Toque no círculo para fazer a busca.');
+   };
+   r.onspeechend=()=>{
+    if(speechRef.current!==r)return;
+    setVoiceSpeechDetected(false);
+   };
    r.onresult=(event:any)=>{
     if(speechRef.current!==r)return;
     const results=event?.results;
     if(!results?.length)return;
     const transcript=mobileSpeechToSearch(results[results.length-1]?.[0]?.transcript);
     if(!transcript)return;
-    speechTranscriptRef.current=transcript;setVoiceTranscript(transcript);
+    speechTranscriptRef.current=transcript;setVoiceTranscript(transcript);setVoiceSpeechDetected(true);
     if(!voiceManualStopRef.current){
      setVoiceState('listening');setVoiceHint('Entendi. Toque no círculo para buscar.');
     }
@@ -252,16 +262,19 @@ export default function MarketIqMobileExperience(p:Props){
    r.onerror=(event:any)=>{
     if(speechRef.current!==r)return;
     failed=true;
+    // Release the recognition session promptly, so Retry starts a fresh attempt.
+    speechRef.current=null;setVoiceSpeechDetected(false);
+    try{r.abort();}catch{}
     const feedback=speechErrorFeedback(event?.error);
     setVoiceState('fallback');setVoiceHint(feedback.message);
    };
    r.onend=()=>{
     if(speechRef.current!==r)return;
-    speechRef.current=null;
+    speechRef.current=null;setVoiceSpeechDetected(false);
     if(failed)return;
     const transcript=speechTranscriptRef.current;
     if(!transcript){
-     setVoiceState('fallback');setVoiceHint('Não consegui ouvir o veículo. Tente novamente ou use o microfone do teclado.');
+     setVoiceState('fallback');setVoiceHint('O reconhecimento terminou sem retornar palavras. Tente novamente falando mais perto do celular ou use o microfone do teclado.');
     }else if(voiceManualStopRef.current){
      runVoiceSearch(transcript);
     }else{
@@ -275,7 +288,7 @@ export default function MarketIqMobileExperience(p:Props){
    setVoiceHint('Ativando o microfone. Autorize o acesso quando o navegador solicitar.');
    r.start();
   }catch{
-   speechRef.current=null;
+   speechRef.current=null;setVoiceSpeechDetected(false);
    setVoiceState('fallback');
    setVoiceHint('Não foi possível iniciar. Tente no Chrome ou use o microfone do teclado.');
   }
@@ -697,7 +710,7 @@ export default function MarketIqMobileExperience(p:Props){
     <div className="mt-8 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.27em] text-cyan-300">
      <Volume2 size={16}/> MOTYQ IQ · VOZ
     </div>
-    <h2 className="text-2xl font-extrabold">
+    <h2 className="text-2xl font-extrabold text-white">
      {voiceState==='listening'?'Estou ouvindo...':
       voiceState==='processing'?'Analisando sua fala...':
       voiceState==='heard'?'Entendi sua busca':'Busca por voz'}
@@ -712,7 +725,7 @@ export default function MarketIqMobileExperience(p:Props){
      disabled={voiceState==='processing'}
      className="relative my-1 flex w-full max-w-[360px] items-center justify-center rounded-[38px] outline-none focus-visible:ring-4 focus-visible:ring-cyan-300 disabled:opacity-70">
      <MarketIqVoiceHologram listening={voiceState==='listening'}
-      processing={voiceState==='processing'} heard={voiceState==='heard'}/>
+      processing={voiceState==='processing'} heard={voiceState==='heard'} speechDetected={voiceSpeechDetected}/>
     </button>
     <p className="max-w-[340px] text-sm leading-6 text-cyan-100" role="status" aria-live="polite">{voiceHint}</p>
     {voiceTranscript&&<div className="w-full rounded-2xl border border-cyan-400/30 bg-white/10 p-4">
@@ -725,15 +738,15 @@ export default function MarketIqMobileExperience(p:Props){
     {voiceState==='heard'&&<div className="w-full space-y-3">
      <button type="button" className="w-full rounded-2xl bg-cyan-500 px-4 py-4 font-bold text-slate-950"
       onClick={()=>runVoiceSearch(voiceTranscript)}>Buscar versões FIPE <ArrowRight size={18} className="ml-1 inline"/></button>
-     <button type="button" className="w-full rounded-2xl border border-cyan-300/40 px-4 py-3 font-semibold"
+     <button type="button" className="w-full rounded-2xl border border-cyan-300/40 px-4 py-3 font-semibold text-cyan-50"
       onClick={voice}>Falar novamente</button>
     </div>}
     {voiceState==='fallback'&&<div className="w-full space-y-3">
      <button type="button" className="w-full rounded-2xl bg-cyan-500 px-4 py-4 font-bold text-slate-950"
       onClick={useKeyboardDictation}>Usar microfone do teclado</button>
-     <button type="button" className="w-full rounded-2xl border border-cyan-300/40 px-4 py-3 font-semibold"
+     <button type="button" className="w-full rounded-2xl border border-cyan-300/40 px-4 py-3 font-semibold text-cyan-50"
       onClick={voice}>Tentar novamente</button>
-     <p className="text-xs leading-5 text-slate-300">
+     <p className="text-xs leading-5 text-slate-100">
       Se estiver em navegador integrado, abra o Motyq no Chrome e permita o microfone.
      </p>
     </div>}
