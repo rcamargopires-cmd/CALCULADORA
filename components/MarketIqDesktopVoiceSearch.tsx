@@ -6,6 +6,7 @@ import {
  type MobileFipeOption
 } from '../services/marketIqMobileFlow';
 import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
+import {desktopSpeechInterpretations,desktopFuzzyFipeSuggestions} from '../services/marketIqDesktopVoiceAssist';
 
 type Props={
  vehicleType:'car'|'motorcycle';onVehicleType:(type:'car'|'motorcycle')=>void;
@@ -24,6 +25,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
  const [speechDetected,setSpeechDetected]=useState(false);
  const [hint,setHint]=useState('');
  const [transcript,setTranscript]=useState('');
+ const [speechAlternatives,setSpeechAlternatives]=useState<string[]>([]);
  const [searchText,setSearchText]=useState('');
  const [searching,setSearching]=useState(false);
  const [modelFilter,setModelFilter]=useState('');
@@ -40,6 +42,10 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
  const showBrandPicker=!p.brandCode||(!intent.brand&&!brandConfirmed);
  const matchedModels=useMemo(()=>mobileFilterModels(p.models,modelFilter,''),
   [p.models,modelFilter]);
+ const fuzzyModels=useMemo(()=>
+  matchedModels.length===0&&!p.catalogLoading
+   ?desktopFuzzyFipeSuggestions(modelFilter,p.models):[],
+  [matchedModels.length,p.catalogLoading,modelFilter,p.models]);
  const yearOptions=useMemo(()=>{
   if(!yearFilter)return p.years;
   return mobileYearOptions(p.years,yearFilter,'').choices;
@@ -52,7 +58,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
  };
  const close=()=>{
   stopRecognition();setOpen(false);setPhase('idle');setHint('');
-  setSearching(false);setTranscript('');setBrandFilter('');setBrandConfirmed(false);
+  setSearching(false);setTranscript('');setSpeechAlternatives([]);setBrandFilter('');setBrandConfirmed(false);
  };
  useEffect(()=>()=>{
   const active=recognitionRef.current;recognitionRef.current=null;
@@ -96,7 +102,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
  const startListening=()=>{
   stopRecognition();
   transcriptRef.current='';manualStopRef.current=false;startedRef.current=false;
-  setSearching(false);setTranscript('');setSpeechDetected(false);setHint('');
+  setSearching(false);setTranscript('');setSpeechAlternatives([]);setSpeechDetected(false);setHint('');
   setOpen(true);
   const Recognizer=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
   if(!window.isSecureContext||!Recognizer){
@@ -106,7 +112,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
   }
   try{
    const r=new Recognizer();r.lang='pt-BR';r.continuous=false;
-   r.interimResults=true;r.maxAlternatives=1;
+   r.interimResults=true;r.maxAlternatives=3;
    r.onstart=()=>{
     if(recognitionRef.current!==r)return;
     startedRef.current=true;setPhase('listening');
@@ -116,13 +122,15 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
    r.onspeechend=()=>{if(recognitionRef.current===r)setSpeechDetected(false);};
    r.onresult=(event:any)=>{
     if(recognitionRef.current!==r)return;
-    let phrase='';
-    for(let i=0;i<(event.results?.length||0);i++)phrase+=' '+String(event.results[i]?.[0]?.transcript||'');
-    const normalized=mobileSpeechToSearch(phrase.trim());
-    if(!normalized)return;
-    transcriptRef.current=normalized;setTranscript(normalized);setSearchText(normalized);
+    const alternatives=desktopSpeechInterpretations(event,p.brands,p.models);
+    const recognized=alternatives[0];
+    if(!recognized)return;
+    transcriptRef.current=recognized;setTranscript(recognized);setSearchText(recognized);
+    setSpeechAlternatives(alternatives);
     setSpeechDetected(true);
-    setHint('Reconhecido. Toque no holograma para buscar as versões FIPE.');
+    setHint(alternatives.length>1?
+     'Encontrei alternativas de transcrição. Confira o nome antes de escolher a versão FIPE.':
+     'Reconhecido. Toque no holograma para buscar as versões FIPE.');
    };
    r.onerror=(event:any)=>{
     if(recognitionRef.current!==r)return;
@@ -223,11 +231,25 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
      <div className="space-y-3">
       <label className="block text-sm font-semibold text-white">Veículo reconhecido ou digitado
        <input ref={editingRef} value={searchText}
-        onChange={e=>{setSearchText(e.target.value);setSearching(false);}}
+        onChange={e=>{setSearchText(e.target.value);setSearching(false);setSpeechAlternatives([]);}}
         onKeyDown={e=>{if(e.key==='Enter')prepareSearch(searchText);}}
         placeholder="Ex.: Compass Longitude 2025 ou ABC1D23"
         className="mt-2 w-full rounded-xl border border-cyan-400/40 bg-white px-4 py-3 text-base text-slate-950 placeholder:text-slate-500"/>
       </label>
+      {speechAlternatives.length>1&&<div className="rounded-xl border border-cyan-500/35 bg-cyan-900/20 p-3">
+       <p className="mb-2 text-xs font-bold text-cyan-100">
+        O Chrome ouviu mais de uma possibilidade. Escolha o texto correto:
+       </p>
+       <div className="flex flex-wrap gap-2">
+        {speechAlternatives.map((candidate,i)=><button key={i} type="button"
+         onClick={()=>{setSearchText(candidate);setTranscript(candidate);prepareSearch(candidate);}}
+         className={'rounded-lg border px-3 py-2 text-sm font-semibold '+
+          (searchText===candidate?'border-cyan-300 bg-cyan-800 text-white':
+           'border-white/30 bg-white/10 text-white hover:bg-cyan-900')}>
+         {candidate}
+        </button>)}
+       </div>
+      </div>}
       <div className="flex flex-wrap items-center gap-2">
        <label className="text-xs font-semibold text-cyan-100">Tipo de veículo
         <select className="ml-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-900"
@@ -265,8 +287,21 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
            (p.modelCode===m.code?'bg-cyan-900 text-cyan-100':'text-white')}>
           {m.name}{p.modelCode===m.code?' ✓':''}</button>)}
          {p.catalogLoading&&!p.models.length&&<p className="py-2 text-sm text-cyan-100">Consultando catálogo FIPE...</p>}
-         {!p.catalogLoading&&matchedModels.length===0&&<p className="py-2 text-sm text-cyan-100">
-          Nenhuma versão corresponde. Ajuste a busca ou tente novamente.</p>}
+         {!p.catalogLoading&&matchedModels.length===0&&<>
+          <p className="py-2 text-sm text-cyan-100">
+           Não houve correspondência exata. Você pode corrigir o texto acima.
+          </p>
+          {fuzzyModels.length>0&&<div className="rounded-xl border border-amber-300/40 bg-amber-900/20 p-2">
+           <p className="mb-1 text-xs font-bold text-amber-100">
+            Talvez você tenha dito uma destas versões. Confirme antes de continuar:
+           </p>
+           {fuzzyModels.map(m=><button type="button" key={m.code}
+            onClick={()=>p.onModel(m.code)}
+            className="block w-full border-b border-white/10 p-2 text-left text-sm text-white hover:bg-cyan-900">
+            {m.name}
+           </button>)}
+          </div>}
+         </>}
         </div>
        </div>}
        {!showBrandPicker&&p.modelCode&&<div className="rounded-xl border border-cyan-500/30 bg-white/10 p-3">
