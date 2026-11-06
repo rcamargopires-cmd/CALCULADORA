@@ -102,6 +102,6 @@ assert.ok(panel.includes('não probabilidade de acerto'),'Must not imply predict
 assert.ok(panel.includes('não substitui laudo cautelar'),'Must not imply vehicle-history validation');
 assert.ok(workspace.includes('<MarketIqConfidencePanel result={confidence}/>'),'Confidence panel integrated in Mesa');
 assert.ok(workspace.includes('history:saved'),'Authenticated saved paid history is the only purchase evidence');
-assert.ok(workspace.includes('value:provisional?'),'Existing pricing formula untouched');
+assert.ok(workspace.includes('value:selectedMobile??(provisional?'),'Existing pricing formula remains the fallback, while mobile Mesa proposal is stored separately');
 assert.ok(!source.includes('localStorage'),'Indexed or local Excel proxies must not be treated as paid history');
 console.log('Motyq IQ confidence: FIPE, verified Webmotors, KM, distinct real paid purchases, duplicate/fraud guards and UI wiring passed.');

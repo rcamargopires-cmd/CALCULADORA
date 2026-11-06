@@ -17,7 +17,9 @@ assert.ok(!ui.includes('Valor realmente pago na compra (R$, opcional)'),'No redu
 assert.ok(!ui.includes('recordPaid(r)'),'No second paid action can be required from the operator');
 assert.ok(api.includes("'pricing_history_approved'"),'Approval events must continue through existing authenticated route');
 assert.ok(source.includes("paidFromApproval:paidSource.kind==='valuation_approved'"),'Old approval events must feed actual outcomes on history read');
-assert.ok(ui.includes("referenceName:provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas'"),'Motorcycle history must stay explicitly preliminary');
+assert.ok(ui.includes("mobileReferenceKind==='mesa'?'Mesa · valor recorrente de avaliações'")&&
+ ui.includes("vehicleType==='motorcycle'?'Histórico preliminar de motocicletas'"),
+ 'Manager-adjusted mobile value is separate; motorcycles retain explicit preliminary fallback');
 
 const js=ts.transpileModule(source.replace(/^import .+;\s*$/gm,'')
   .replace('export default async function handler','async function handler')+'\nresult=handler;',{
@@ -196,3 +198,32 @@ assert.equal(allWithMoto.body.records.find(r=>r.id===motoId).paidValue,9200);
 assert.equal(db.size,beforeCorrection+1,'Correction must append an audit event, not overwrite the prior value');
 assert.equal(allWithMoto.body.records.length,2,'A paid-from-approval event must not double-count the valuation');
 console.log('Motyq IQ historic approved-only migration: 1 purchase counted from 1 approval, without modifying old records.');
+
+const proposal=await send('pricing_history_save',{evaluation:{
+ ...base,plate:'ABD1E23',value:98000,
+ negotiatedOffer:99000,baseSuggestion:98000,
+ requestedByManager:'Evandro',negotiationReason:'Gerente solicitou mil reais adicionais para concluir a negociação.'
+}});
+assert.equal(proposal.statusCode,200,'Manager-adjusted proposal must save through authenticated pricing history');
+const proposalId=proposal.body.record.id;
+assert.equal(proposal.body.record.value,98000,'Original Mesa suggestion must remain unchanged');
+assert.equal(proposal.body.record.negotiatedOffer,99000);
+assert.equal(proposal.body.record.baseSuggestion,98000);
+assert.equal(proposal.body.record.negotiationStatus,'manager_requested');
+list=await send('pricing_history_list');
+const presented=list.body.records.find(x=>x.id===proposalId);
+assert.equal(presented.negotiatedOffer,99000,'Negotiated offer is readable in mobile and desktop history');
+assert.equal(presented.value,98000,'Base suggestion is auditable');
+assert.equal(presented.paidValue,undefined,'Proposed offer is never counted as paid');
+assert.equal(presented.approvedValue,undefined,'Manager name is not digital purchase approval');
+const badManager=await send('pricing_history_save',{evaluation:{
+ ...base,plate:'XYZ2J33',value:98000,negotiatedOffer:99000,baseSuggestion:98000,
+ requestedByManager:'',negotiationReason:'Gerente solicitou ajuste para negociação.'
+}});
+assert.equal(badManager.statusCode,400,'Unattributed manager adjustment must be rejected');
+const badReason=await send('pricing_history_save',{evaluation:{
+ ...base,plate:'XYZ2J34',value:98000,negotiatedOffer:99000,baseSuggestion:98000,
+ requestedByManager:'Evandro',negotiationReason:''
+}});
+assert.equal(badReason.statusCode,400,'Reason is mandatory for changes');
+console.log('Motyq IQ manager proposal: independent quoted and negotiated values, audit and paid separation passed.');

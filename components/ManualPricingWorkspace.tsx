@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useRef,useState} from 'react';
+import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 type Item={code:string;name:string};
 type FipeDetail={value:number;brand:string;model:string;year:number;fuel:string;referenceMonth:string;fipeCode:string;referenceStatus?:'current'|'outdated'|'unverified';referenceSource?:string;expectedReference?:string};
 import {User} from '../types';
@@ -8,6 +8,8 @@ import MarketIqMobileExperience from './MarketIqMobileExperience';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
+import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
+import {mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
 import MarketIqConfidencePanel from './MarketIqConfidencePanel';
 import MarketIqFleetClassificationPanel from './MarketIqFleetClassificationPanel';
 import {classifyByMileage,resolveFleetPolicy,type FleetClass,type DestinationOverride,type DirectRepasseReason} from '../services/marketIqFleetClassification';
@@ -61,7 +63,8 @@ const decodeExtensionTransfer=(hash:string):CapturedAd[]=>{
  }catch{return [];}
 };
 
-type Saved={classificationReason?:string;directRepasseReason?:DirectRepasseReason;goodLiquidity?:boolean;vehicleType?:'car'|'motorcycle';approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;paidFromApproval?:boolean;groupedRecords?:number;valuationVersions?:number;revisionCount?:number;revisedAt?:string;revisedBy?:string;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
+type NegotiatedProposal={negotiatedOffer:number;baseSuggestion:number;requestedByManager:string;negotiationReason:string};
+type Saved={negotiatedOffer?:number|null;baseSuggestion?:number|null;requestedByManager?:string;negotiationReason?:string;negotiationStatus?:string;classificationReason?:string;directRepasseReason?:DirectRepasseReason;goodLiquidity?:boolean;vehicleType?:'car'|'motorcycle';approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;paidFromApproval?:boolean;groupedRecords?:number;valuationVersions?:number;revisionCount?:number;revisedAt?:string;revisedBy?:string;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
 const number=(v:string)=>Number(v.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
 const money=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const localDate=()=>{const now=new Date();return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);};
@@ -448,12 +451,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  useEffect(()=>{setFipe(null);if(!brandCode||!modelCode||!yearCode)return;const controller=new AbortController();setCatalogLoading(true);setCatalogError('');catalog('detail',{brandCode,modelCode,yearCode},controller.signal).then(v=>{if(Number(v.value)>0)setFipe(v);else setCatalogError('Valor FIPE indisponível para esta versão.');}).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível consultar o valor FIPE. Tente novamente em alguns instantes.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[brandCode,modelCode,yearCode,vehicleType,fipeRefreshKey]);
  const selectVehicleType=(next:'car'|'motorcycle')=>{
    if(next===vehicleType)return;
-   setVehicleType(next);setBrandCode('');setBrand('');setModelCode('');setModel('');
+   setVehicleType(next);setBrands([]);setModels([]);setYears([]);setBrandCode('');setBrand('');setModelCode('');setModel('');
    setYearCode('');setYear('');setFipe(null);setAds([]);setAutoSearchKey('');setKm('');setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);
    setNotice('Tipo de veículo alterado. Selecione a marca, o modelo e o ano novamente.');
  };
- const selectBrand=(code:string)=>{setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);setBrandCode(code);setBrand(brands.find(x=>x.code===code)?.name||'');setModelCode('');setModel('');setYearCode('');setYear('');setFipe(null);};
- const selectModel=(code:string)=>{setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);setModelCode(code);setModel(models.find(x=>x.code===code)?.name||'');setYearCode('');setYear('');setFipe(null);};
+ const selectBrand=(code:string)=>{setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);setBrandCode(code);setBrand(brands.find(x=>x.code===code)?.name||'');setModelCode('');setModel('');setModels([]);setYears([]);setYearCode('');setYear('');setFipe(null);};
+ const selectModel=(code:string)=>{setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);setModelCode(code);setModel(models.find(x=>x.code===code)?.name||'');setYears([]);setYearCode('');setYear('');setFipe(null);};
  const selectYear=(code:string)=>{setYearCode(code);setYear(years.find(x=>x.code===code)?.name||'');setFipe(null);};
  const change=(index:number,patch:Partial<Ad>)=>setAds(a=>a.map((x,i)=>i===index?{...x,...patch}:x));
  const searchMarket=async()=>{
@@ -573,17 +576,34 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      classification,destination:repasse?'REPASSE':'SHOWROOM'
    });
  },[vehicleType,fipe,classification,km,cost,repasse]);
+ const [desktopMesaReference,setDesktopMesaReference]=useState<MesaPriceReference|null>(null);
+ const onDesktopMesaReference=useCallback((next:MesaPriceReference|null)=>{
+  setDesktopMesaReference(previous=>previous?.key===next?.key&&previous?.value===next?.value&&
+   previous?.count===next?.count?previous:next);
+ },[]);
+ const desktopReferenceKey=mesaReferenceKey({
+  plate,brand,model,modelYear:marketYear,km:number(km),
+  fipe:fipe?.value||0,vehicleType
+ },user.companyId||'abrao-reze');
+ const currentDesktopMesa=desktopMesaReference?.key===desktopReferenceKey?desktopMesaReference:null;
  const confidence=useMemo(()=>assessMarketIqEvidence({
   vehicleType,plate,brand,model,brandCode,modelCode,modelYear:marketYear,
   km:number(km),fipe,ads:currentAds,history:saved
  }),[vehicleType,plate,brand,model,brandCode,modelCode,marketYear,km,fipe,currentAds,saved]);
- const save=async()=>{
+ const save=async(proposal?:NegotiatedProposal,selectedMobileReference?:number,mobileReferenceKind?:'mesa'|'verified'|'historical'|'missing')=>{
    const hasVehicle=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)&&brandCode&&modelCode&&yearCode&&number(km)>0;
    if(!hasVehicle){
      setNotice('Para salvar, preencha placa, marca, modelo, versão, ano e quilometragem.');
      return;
    }
    if(historyBusy)return;
+   if(proposal&&(!Number.isFinite(proposal.negotiatedOffer)||proposal.negotiatedOffer<1500||
+      proposal.negotiatedOffer>2000000||!Number.isFinite(proposal.baseSuggestion)||proposal.baseSuggestion<1500||
+      proposal.negotiatedOffer===proposal.baseSuggestion||proposal.requestedByManager.trim().length<2||
+      proposal.negotiationReason.trim().length<6)){
+     setHistoryError('Revise o valor ajustado, o nome do gerente e a justificativa antes de salvar.');
+     return;
+   }
    if(fleetPolicy.outOfRange&&classificationReason.trim().length<6){
      setHistoryError('Justifique a classe diferente da faixa de quilometragem antes de salvar.');return;
    }
@@ -593,12 +613,18 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    if(newApprovedValue.trim()&&(!newApprovedDate||newApprovedDate>localDate())){
      setHistoryError('Informe uma data de aprovação válida, até hoje.');return;
    }
-   const provisional=!marketReady;
+   const selectedMobile=Number.isFinite(selectedMobileReference)&&Number(selectedMobileReference)>0?
+     Number(selectedMobileReference):null;
+   const provisional=mobileReferenceKind==='mesa'?true:!marketReady;
    const record:Saved={id:String(Date.now()),date:new Date().toISOString(),vehicleType,plate,model,year,km,cost,repasse,classificationReason:fleetPolicy.outOfRange?classificationReason.trim():'',directRepasseReason,goodLiquidity,
-     ads:currentAds,value:provisional?(vehicleType==='motorcycle'?(motorcycleReference?.medianIndication||0):referenceAvg>0?referenceCeiling:historicalEstimate?.target||0):ceiling,provisional,
-     referenceName:provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas':referenceAvg>0?referenceName:'Histórico de compras'):'Webmotors verificada',
+     ads:currentAds,value:selectedMobile??(provisional?(vehicleType==='motorcycle'?(motorcycleReference?.medianIndication||0):referenceAvg>0?referenceCeiling:historicalEstimate?.target||0):ceiling),provisional,
+     referenceName:mobileReferenceKind==='mesa'?'Mesa · valor recorrente de avaliações':
+      provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas':referenceAvg>0?referenceName:'Histórico de compras'):'Webmotors verificada',
      historicalTarget:vehicleType==='motorcycle'?motorcycleReference?.medianIndication:historicalEstimate?.target,historicalClass:classification||undefined,
-     brand,brandCode,modelCode,yearCode,fipe};
+     brand,brandCode,modelCode,yearCode,fipe,
+     ...(proposal?{negotiatedOffer:proposal.negotiatedOffer,baseSuggestion:proposal.baseSuggestion,
+      requestedByManager:proposal.requestedByManager.trim(),negotiationReason:proposal.negotiationReason.trim(),
+      negotiationStatus:'manager_requested'}:{})};
    setHistoryBusy(true);setHistoryError('');
    try{
      const result=await historyRequest('save',record);
@@ -622,7 +648,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      if(failures.length){
        setHistoryError('A avaliação foi salva, mas '+failures.join(' · ')+'. Não salve novamente: complemente no Histórico.');
        setNotice('Avaliação salva. Confirme os eventos pendentes no Histórico de avaliações.');
-     }else setNotice((result.updated?'Avaliação de hoje atualizada sem criar duplicidade.':'Avaliação salva no histórico.')+(recorded.length?' Valor aprovado/pago confirmado.':'')+' O histórico mantém as versões anteriores para auditoria.');
+     }else setNotice((result.updated?'Avaliação de hoje atualizada sem criar duplicidade.':'Avaliação salva no histórico.')+
+      (proposal?' Proposta ajustada registrada, ainda não é compra confirmada.':'')+
+      (recorded.length?' Valor aprovado/pago confirmado.':'')+' O histórico mantém as versões anteriores para auditoria.');
    }catch(error:any){
      setHistoryError(error?.message||'Não foi possível salvar no histórico online.');
      setNotice('Não foi salva. Seus dados continuam nesta tela. Verifique a mensagem do histórico e tente novamente.');
@@ -668,8 +696,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    motorcycleReference={motorcycleReference?.medianIndication||0}
    marketBrowseUrl={orderedWebmotorsVersionUrl||orderedWebmotorsModelUrl}
    onSearchMarket={()=>void searchMarket()} marketBusy={autoLoading} marketNotice={marketMessage}
-   onSave={()=>void save()} saveBusy={historyBusy} saveNotice={notice} saveError={historyError}
+   onSave={(proposal,suggested,source)=>void save(proposal,suggested,source)} saveBusy={historyBusy} saveNotice={notice} saveError={historyError}
    onOpenFullDesk={()=>setMobileFullDesk(true)}
+   onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');setMobileFullDesk(true);}}
    onStartNew={beginNewMobileValuation}
    onOpenApprovals={()=>{setMobileFullDesk(true);switchDeskSection('approvals');}}
   />
@@ -755,6 +784,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
         <div className="min-w-[200px] text-right">
           <p className="text-xs text-slate-600">Valor estimado pelo Motyq</p>
           <p className="text-lg font-bold text-slate-950">{money(r.value)}</p>
+          {Number(r.negotiatedOffer)>0&&<div className="mt-2 rounded-lg border border-sky-300 bg-sky-50 p-3">
+            <p className="text-xs font-bold uppercase text-sky-900">Proposta ajustada a pedido do gerente</p>
+            <p className="text-xl font-black text-sky-950">{money(Number(r.negotiatedOffer))}</p>
+            <p className="mt-1 text-xs text-sky-900">Base original: {money(Number(r.baseSuggestion||r.value))}</p>
+            <p className="mt-1 text-xs text-sky-900">Gerente informado: {r.requestedByManager||'Não informado'}</p>
+            <p className="mt-1 text-xs text-sky-900">Motivo: {r.negotiationReason||'Não informado'}</p>
+            <p className="mt-1 text-xs font-semibold text-amber-900">Proposta registrada, não equivale a compra confirmada.</p>
+          </div>}
           {Number(r.approvedValue)>0?
             <div className="mt-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3">
               <p className="text-xs font-bold uppercase text-emerald-900">Valor aprovado e pago pela loja</p>
@@ -802,6 +839,15 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    O preço-alvo pode mudar quando a FIPE atualizar. Confira antes de aprovar a compra.
  </p>}
  {fipe.referenceSource==='tabelafipe.info'&&<p className="mt-1 text-xs text-slate-700">Dados via tabelafipe.info (Tabela FIPE). Fonte independente, conferida por código e ano-modelo.</p>}</>:<p className="text-sm text-slate-600">Selecione marca, modelo/versão e ano para consultar o valor automaticamente.</p>}{catalogError&&<div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-red-700">{catalogError}</p><button type="button" onClick={()=>{setCatalogError("");setRetryCatalog(x=>x+1);if(brandCode){const current=brandCode;setBrandCode('');window.setTimeout(()=>setBrandCode(current),0);}}} className="rounded-lg border border-cyan-700 px-3 py-1 text-sm font-semibold text-cyan-900">Tentar novamente</button></div>}</div></section>
+ <MarketIqIntelligentHistoryPanel
+  companyId={user.companyId||'abrao-reze'}
+  current={{plate,brand,model,modelYear:marketYear,km:number(km),fipe:fipe?.value||0,
+   fipeCode:fipe?.fipeCode,vehicleType}}
+  cloudHistory={saved}
+  verifiedMarketCeiling={marketReady?ceiling:0}
+  historicalModelTarget={vehicleType==='motorcycle'?motorcycleReference?.medianIndication||0:historicalEstimate?.target||0}
+  onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');}}
+  onMesaReference={onDesktopMesaReference}/>
  <MarketIqFleetClassificationPanel km={km} guideline={fleetPolicy.guideline}
   classification={fleetPolicy.classification} destination={fleetPolicy.destination}
   direct={fleetPolicy.direct} outOfRange={fleetPolicy.outOfRange}
@@ -830,10 +876,16 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     </div>
   </div>
   {historicalEstimate?<div className="mt-4 grid gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4 md:grid-cols-2">
-    <div><p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">Preço-alvo estimado · compras reais</p>
-      <p className="mt-2 text-3xl font-bold text-indigo-950">{money(historicalEstimate.target)}</p>
-      <p className="mt-1 text-sm text-indigo-900">Faixa de incerteza: {money(historicalEstimate.rangeMin)} a {money(historicalEstimate.rangeMax)}</p>
-      <p className="mt-1 text-xs text-indigo-700">Equivale a {(historicalEstimate.fipeFraction*100).toFixed(1).replace('.',',')}% da FIPE · estimativa, não compra aprovada.</p>
+    <div><p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">{currentDesktopMesa?'Sugestão da Mesa · repetida em veículos distintos':'Modelo estatístico · referência preliminar'}</p>
+      <p className="mt-2 text-3xl font-bold text-indigo-950">{money(currentDesktopMesa?.value||historicalEstimate.target)}</p>
+      {currentDesktopMesa?<p className="mt-1 text-sm text-indigo-900">
+       Encontrado em {currentDesktopMesa.count} avaliações de veículos diferentes da mesma versão, ano e KM próximo.
+       Modelo estatístico anterior: {money(historicalEstimate.target)}.
+       Preço interno de negociação, não pagamento confirmado nem autorização de compra.
+      </p>:<>
+       <p className="mt-1 text-sm text-indigo-900">Faixa de incerteza: {money(historicalEstimate.rangeMin)} a {money(historicalEstimate.rangeMax)}</p>
+       <p className="mt-1 text-xs text-indigo-700">Equivale a {(historicalEstimate.fipeFraction*100).toFixed(1).replace('.',',')}% da FIPE · estimativa, não compra aprovada.</p>
+      </>}
     </div>
     <div><p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">Qualidade do histórico</p>
       <p className="mt-2 text-sm text-indigo-950">Amostra: {historicalEstimate.sampleSize} compras · classe {classification}: {historicalEstimate.classSampleSize} compras.</p>

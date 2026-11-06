@@ -140,6 +140,17 @@ const normalizePayload=(input:any)=>{
  const directRepasseReason=['sinistro','leilao','estrutura','cautelar'].includes(input.directRepasseReason)?
   input.directRepasseReason:'none';
  const historicalClass=['A','B','C','D','E','SEM CLASSE'].includes(input.historicalClass)?input.historicalClass:'';
+ const rawNegotiation=input.negotiatedOffer;
+ const hasNegotiated=rawNegotiation!==null&&rawNegotiation!==undefined&&rawNegotiation!=='';
+ const negotiatedOffer=hasNegotiated?Number(rawNegotiation):0;
+ const baseSuggestion=hasNegotiated?Number(input.baseSuggestion):0;
+ const requestedByManager=text(input.requestedByManager,100);
+ const negotiationReason=text(input.negotiationReason,280);
+ if(hasNegotiated&&(!Number.isFinite(negotiatedOffer)||negotiatedOffer<1500||negotiatedOffer>2000000||
+   !Number.isFinite(baseSuggestion)||baseSuggestion<1500||baseSuggestion>2000000||
+   negotiatedOffer===baseSuggestion||requestedByManager.trim().length<2||
+   negotiationReason.trim().length<6))
+  throw new Error('HISTORY_INVALID_NEGOTIATION');
  const payload={
    vehicleType:input.vehicleType==='motorcycle'?'motorcycle':'car',
    date,plate,model,brand,year,km:String(finite(input.km,1,999999)),
@@ -149,6 +160,11 @@ const normalizePayload=(input:any)=>{
    provisional:input.provisional!==false,
    referenceName:text(input.referenceName,110),
    historicalTarget:finite(input.historicalTarget,0,2000000),
+   negotiatedOffer:hasNegotiated?Math.round(negotiatedOffer*100)/100:null,
+   baseSuggestion:hasNegotiated?Math.round(baseSuggestion*100)/100:null,
+   requestedByManager:hasNegotiated?requestedByManager:'',
+   negotiationReason:hasNegotiated?negotiationReason:'',
+   negotiationStatus:hasNegotiated?'manager_requested':'',
    historicalClass,classificationReason:text(input.classificationReason,280),directRepasseReason,goodLiquidity:input.goodLiquidity===true,
    brandCode:text(input.brandCode,90),modelCode:text(input.modelCode,90),yearCode:text(input.yearCode,90),
    fipe:input.fipe&&typeof input.fipe==='object'?{
@@ -424,7 +440,7 @@ export default async function handler(req:any,res:any){
  }catch(error:any){
    const name=String(error?.message||'');
    if(name==='HISTORY_PERMISSION_DENIED')return respond(res,403,{error:'Seu perfil não tem permissão para acessar o histórico da mesa.'});
-   if(name==='HISTORY_INVALID_PAYLOAD'||name==='HISTORY_INVALID_VEHICLE'||name==='HISTORY_PAYLOAD_TOO_LARGE')
+   if(name==='HISTORY_INVALID_PAYLOAD'||name==='HISTORY_INVALID_VEHICLE'||name==='HISTORY_INVALID_NEGOTIATION'||name==='HISTORY_PAYLOAD_TOO_LARGE')
      return respond(res,400,{error:'Confira placa, veículo, valor e anúncios antes de salvar.'});
    // Do not expose service account errors or infrastructure details to the browser.
    console.error('Motyq IQ history:',name.slice(0,80));

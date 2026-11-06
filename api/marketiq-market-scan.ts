@@ -136,6 +136,17 @@ const normalizePayload=(input:any)=>{
  const directRepasseReason=['sinistro','leilao','estrutura','cautelar'].includes(input.directRepasseReason)?
   input.directRepasseReason:'none';
  const historicalClass=['A','B','C','D','E','SEM CLASSE'].includes(input.historicalClass)?input.historicalClass:'';
+ const rawNegotiation=input.negotiatedOffer;
+ const hasNegotiated=rawNegotiation!==null&&rawNegotiation!==undefined&&rawNegotiation!=='';
+ const negotiatedOffer=hasNegotiated?Number(rawNegotiation):0;
+ const baseSuggestion=hasNegotiated?Number(input.baseSuggestion):0;
+ const requestedByManager=text(input.requestedByManager,100);
+ const negotiationReason=text(input.negotiationReason,280);
+ if(hasNegotiated&&(!Number.isFinite(negotiatedOffer)||negotiatedOffer<1500||negotiatedOffer>2000000||
+   !Number.isFinite(baseSuggestion)||baseSuggestion<1500||baseSuggestion>2000000||
+   negotiatedOffer===baseSuggestion||requestedByManager.trim().length<2||
+   negotiationReason.trim().length<6))
+  throw new Error('HISTORY_INVALID_NEGOTIATION');
  const payload={
    vehicleType:input.vehicleType==='motorcycle'?'motorcycle':'car',
    date,plate,model,brand,year,km:String(finite(input.km,1,999999)),
@@ -145,6 +156,11 @@ const normalizePayload=(input:any)=>{
    provisional:input.provisional!==false,
    referenceName:text(input.referenceName,110),
    historicalTarget:finite(input.historicalTarget,0,2000000),
+   negotiatedOffer:hasNegotiated?Math.round(negotiatedOffer*100)/100:null,
+   baseSuggestion:hasNegotiated?Math.round(baseSuggestion*100)/100:null,
+   requestedByManager:hasNegotiated?requestedByManager:'',
+   negotiationReason:hasNegotiated?negotiationReason:'',
+   negotiationStatus:hasNegotiated?'manager_requested':'',
    historicalClass,classificationReason:text(input.classificationReason,280),directRepasseReason,goodLiquidity:input.goodLiquidity===true,
    brandCode:text(input.brandCode,90),modelCode:text(input.modelCode,90),yearCode:text(input.yearCode,90),
    fipe:input.fipe&&typeof input.fipe==='object'?{
@@ -293,6 +309,25 @@ return async function handler(req:any,res:any){
  const idToken=idTokenFrom(req);
  if(!idToken||idToken.length>8000)return respond(res,401,{error:'Entre no Motyq novamente.'});
  try{
+
+   // Preview deployments intentionally have no production service account.
+   // Read-only history is proxied to the official, authenticated production API.
+   // Never forward mutation actions, and never copy production credentials into preview.
+   if(process.env.VERCEL_ENV==='preview'&&!process.env.FIREBASE_SERVICE_ACCOUNT_JSON){
+    if(req.body.action!=='pricing_history_list')
+      return respond(res,403,{error:'Homologação somente leitura: salve ou aprove avaliações na versão oficial do Motyq.'});
+    try{
+     const upstream=await fetch('https://app.motyq.com.br/api/marketiq-market-scan',{
+      method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+idToken},
+      body:JSON.stringify({action:'pricing_history_list'}),
+      signal:AbortSignal.timeout(22000),cache:'no-store'
+     });
+     const result=await upstream.json().catch(()=>({error:'A API oficial não retornou os dados do histórico.'}));
+     return respond(res,upstream.status,result);
+    }catch{
+     return respond(res,503,{error:'Histórico oficial indisponível na homologação. Tente novamente.'});
+    }
+   }
    const fb=await accountFromToken(idToken);
    if(!fb?.email)return respond(res,401,{error:'Sessão inválida. Entre novamente.'});
    const sa=serviceCredential();
@@ -420,7 +455,7 @@ return async function handler(req:any,res:any){
  }catch(error:any){
    const name=String(error?.message||'');
    if(name==='HISTORY_PERMISSION_DENIED')return respond(res,403,{error:'Seu perfil não tem permissão para acessar o histórico da mesa.'});
-   if(name==='HISTORY_INVALID_PAYLOAD'||name==='HISTORY_INVALID_VEHICLE'||name==='HISTORY_PAYLOAD_TOO_LARGE')
+   if(name==='HISTORY_INVALID_PAYLOAD'||name==='HISTORY_INVALID_VEHICLE'||name==='HISTORY_INVALID_NEGOTIATION'||name==='HISTORY_PAYLOAD_TOO_LARGE')
      return respond(res,400,{error:'Confira placa, veículo, valor e anúncios antes de salvar.'});
    // Do not expose service account errors or infrastructure details to the browser.
    console.error('Motyq IQ history:',name.slice(0,80));
@@ -729,6 +764,37 @@ const normalizeRow=(raw:any,month:string)=>{
  };
  return row;
 };
+const comparableNorm=(v:unknown)=>trim(v,160).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+ .toUpperCase().replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+const comparableBrand=(v:unknown)=>{
+ const n=comparableNorm(v);
+ if(['VW','VW VOLKSWAGEN','VOLKSWAGEN'].includes(n))return 'VOLKSWAGEN';
+ if(['GM','GM CHEVROLET','CHEVROLET','GENERAL MOTORS'].includes(n))return 'CHEVROLET';
+ if(['MERCEDES','M BENZ','MERCEDES BENZ'].includes(n))return 'MERCEDES BENZ';
+ return n;
+};
+const comparableModel=(archiveModel:string,currentModel:string)=>{
+ const a=comparableNorm(archiveModel),b=comparableNorm(currentModel);
+ if(!a||!b)return false;
+ if(a===b)return true;
+ // Trims/engines may follow a model. Never merge ONIX and ONIX PLUS,
+ // or other distinct body styles when the next token is a model qualifier.
+ const forbidden=new Set(['PLUS','SEDAN','HATCH','SW','SW4','RAPTOR','SPORT','CROSS','S']);
+ const prefix=a.length<b.length?a:b,extra=a.length<b.length?b:a;
+ if(!extra.startsWith(prefix+' '))return false;
+ const next=extra.slice(prefix.length+1).split(' ')[0];
+ return Boolean(next)&&!forbidden.has(next);
+};
+const comparableRank=(r:any,year:number,version:string,km:number)=>{
+ const sameYear=r.modelYear===year;
+ const exactVersion=Boolean(version&&comparableNorm(r.version)===version);
+ const versionText=comparableNorm(r.version);
+ const compatibleVersion=exactVersion||(!version&&!versionText);
+ const kmGap=Number.isFinite(km)&&km>0&&typeof r.km==='number'?Math.abs(r.km-km):999999;
+ return (sameYear?10000:0)+(exactVersion?6000:compatibleVersion?1000:0)
+   +Math.max(0,2500-Math.floor(kmGap/10))
+   -Math.abs((r.modelYear||0)-year)*1500;
+};
 const pathFor=(base:string,company:string,month:string)=>
  base+'/marketiq_monthly_archive_v1/'+encodeURIComponent(company)+'/months/'+encodeURIComponent(month);
 const batchPath=(monthPath:string,batchId:string,index:number)=>
@@ -758,14 +824,106 @@ const readChunks=async(monthPath:string,token:string,batchId:string,count:number
  }
  return output;
 };
+
+const officialArchiveRequest=async(idToken:string,action:'months'|'load'|'plate_history',month='',plate='')=>{
+ const host='https://app.motyq.com.br/api/marketiq-market-scan';
+ const method=action==='plate_history'?'POST':'GET';
+ const url=action==='months'?host+'?action=monthly_archive_months':
+  action==='load'?host+'?action=monthly_archive_load&month='+encodeURIComponent(month):host;
+ const resp=await fetch(url,{method,headers:{
+  authorization:'Bearer '+idToken,...(method==='POST'?{'content-type':'application/json'}:{})
+ },...(method==='POST'?{body:JSON.stringify({action:'monthly_archive_plate_history',plate})}:{}),
+ cache:'no-store',signal:AbortSignal.timeout(24000)});
+ const data=await resp.json().catch(()=>({error:'Resposta inválida da API oficial.'}));
+ if(!resp.ok){
+  const error:any=new Error(String(data?.error||'Consulta oficial indisponível.'));
+  error.status=resp.status;
+  throw error;
+ }
+ return data;
+};
+const archivePreviewReader=async(req:any,res:any,action:string)=>{
+ const idToken=getBearer(req);
+ if(!idToken||idToken.length>8000)return response(res,401,{error:'Entre novamente no Motyq.'});
+ if(!['months','load','plate_history','comparables'].includes(action)){
+  return response(res,403,{error:'Homologação somente leitura. Faça importações na versão oficial do Motyq.'});
+ }
+ try{
+  if(action==='months'){
+   const result=await officialArchiveRequest(idToken,'months');
+   return response(res,200,{...result,readOnlyPreview:true});
+  }
+  if(action==='load'){
+   const month=String(req.query?.month||'');
+   if(!monthValid(month))return response(res,400,{error:'Informe um mês válido.'});
+   const result=await officialArchiveRequest(idToken,'load',month);
+   return response(res,200,{...result,readOnlyPreview:true});
+  }
+  if(action==='plate_history'){
+   const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
+   if(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate))
+    return response(res,400,{error:'Informe uma placa válida.'});
+   const result=await officialArchiveRequest(idToken,'plate_history','',plate);
+   return response(res,200,{...result,readOnlyPreview:true});
+  }
+  const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const validPlate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate);
+  const brand=comparableBrand(req.body?.brand),model=comparableNorm(req.body?.model);
+  const year=int(req.body?.modelYear,1900,2100);
+  const km=int(req.body?.km,0,999999);
+  const kind=req.body?.vehicleType==='motorcycle'?'motorcycle':'car';
+  const version=comparableNorm(req.body?.version);
+  if(!validPlate&&(!brand||!model||!year))
+   return response(res,400,{error:'Informe uma placa válida ou marca, modelo e ano.'});
+  const meta=await officialArchiveRequest(idToken,'months');
+  const months=(Array.isArray(meta.months)?meta.months:[]).filter((m:any)=>monthValid(m.month));
+  const samePlate:any[]=[],comparable:any[]=[],seen=new Set<string>();
+  // Production retains its service credential, authorization and tenant scope.
+  // Preview reads its filtered monthly archive via the official authenticated API.
+  for(let offset=0;offset<months.length;offset+=3){
+   const part=await Promise.all(months.slice(offset,offset+3)
+    .map((m:any)=>officialArchiveRequest(idToken,'load',m.month)));
+   for(const monthData of part)for(const row of Array.isArray(monthData.records)?monthData.records:[]){
+    const key=String(row.month)+'|'+String(row.id);
+    if(seen.has(key))continue;
+    seen.add(key);
+    if(validPlate&&row.plate===plate)samePlate.push(row);
+    if(brand&&model&&year&&row.vehicleType===kind&&
+     comparableBrand(row.brand)===brand&&comparableModel(row.model,model)&&
+     typeof row.modelYear==='number'&&Math.abs(row.modelYear-year)<=2&&
+     !(validPlate&&row.plate===plate))comparable.push(row);
+   }
+  }
+  samePlate.sort((a,b)=>String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
+  comparable.sort((a,b)=>
+   comparableRank(b,year||0,version,km||0)-comparableRank(a,year||0,version,km||0)||
+   String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
+  return response(res,200,{
+   plateRecords:samePlate,records:comparable.slice(0,120),
+   comparableTotal:comparable.length,truncated:comparable.length>120,
+   monthsScanned:months.length,readOnlyPreview:true
+  });
+ }catch(e:any){
+  const status=[401,403,404].includes(e?.status)?e.status:503;
+  // No authenticated data is cached or logged in preview.
+  console.error('Motyq IQ preview archive read-only proxy:',status);
+  return response(res,status,{
+   error:status===401?'Sua sessão expirou. Entre novamente.':
+    status===403?'Sem permissão para consultar o arquivo oficial.':
+    'Não foi possível consultar o arquivo oficial nesta homologação.'
+  });
+ }
+};
 return async function handler(req:any,res:any){
  res.setHeader('Cache-Control','no-store');
  if(!['GET','POST'].includes(req.method))return response(res,405,{error:'Método não permitido.'});
  try{
+  const action=String(req.method==='GET'?req.query?.action:req.body?.action||'').replace(/^monthly_archive_/,'');
+  if(process.env.VERCEL_ENV==='preview'&&!process.env.FIREBASE_SERVICE_ACCOUNT_JSON)
+   return archivePreviewReader(req,res,action);
   const sa=serviceAccount();
   const token=await accessToken(sa);
   const user=await scopedUser(req,sa,token);
-  const action=String(req.method==='GET'?req.query?.action:req.body?.action||'').replace(/^monthly_archive_/,'');
   const root=dbBase(sa)+'/marketiq_monthly_archive_v1/'+encodeURIComponent(user.companyId)+'/months';
   if(req.method==='GET'&&action==='months'){
    const doc=await firestoreRead(root+'?pageSize=100',token);
@@ -776,8 +934,59 @@ return async function handler(req:any,res:any){
    // Index is server-private. The list picker receives summaries, not all plates.
    return response(res,200,{months:months.map((item:any)=>{
     const {plateIndex,...summary}=item;
-    return summary;
+    const {brandIndex,...safeSummary}=summary;
+    return safeSummary;
    })});
+  }
+  if(req.method==='POST'&&action==='comparables'){
+   const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
+   const validPlate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate);
+   const brand=comparableBrand(req.body?.brand),model=comparableNorm(req.body?.model);
+   const year=int(req.body?.modelYear,1900,2100);
+   const km=int(req.body?.km,0,999999);
+   const kind=req.body?.vehicleType==='motorcycle'?'motorcycle':'car';
+   const version=comparableNorm(req.body?.version);
+   if(!validPlate&&(!brand||!model||!year))
+    return response(res,400,{error:'Informe uma placa válida ou marca, modelo e ano.'});
+   const doc=await firestoreRead(root+'?pageSize=100',token);
+   if(doc?.nextPageToken)throw new Error('ARCHIVE_MONTH_LIST_TOO_LARGE');
+   const manifests=(doc?.documents||[]).map((x:any)=>unpack(x)).filter((x:any)=>
+    x&&monthValid(x.month)&&Number.isInteger(x.chunks)&&x.chunks>0&&x.chunks<=100&&batchValid(x.batchId));
+   const samePlate:any[]=[],comparable:any[]=[];
+   const seen=new Set<string>();
+   for(let start=0;start<manifests.length;start+=4){
+    const group=await Promise.all(manifests.slice(start,start+4).map(async(manifest:any)=>{
+     const indices=new Set<number>();
+     const plateIndexed=manifest.plateIndex&&typeof manifest.plateIndex==='object'&&!Array.isArray(manifest.plateIndex);
+     const brandIndexed=manifest.brandIndex&&typeof manifest.brandIndex==='object'&&!Array.isArray(manifest.brandIndex);
+     if(validPlate&&plateIndexed)for(const idx of manifest.plateIndex[plate]||[])indices.add(idx);
+     if(brand&&model&&year&&brandIndexed)for(const idx of manifest.brandIndex[brand]||[])indices.add(idx);
+     // Legacy manifests without indexes need a full read for correctness.
+     const needFull=(validPlate&&!plateIndexed)||(brand&&model&&year&&!brandIndexed);
+     if(!needFull&&!indices.size)return [];
+     const archivePath=pathFor(dbBase(sa),user.companyId,manifest.month);
+     return readChunks(archivePath,token,manifest.batchId,manifest.chunks,manifest.month,
+      needFull?undefined:[...indices]);
+    }));
+    for(const row of group.flat()){
+     const key=row.month+'|'+row.id;
+     if(seen.has(key))continue;
+     seen.add(key);
+     if(validPlate&&row.plate===plate)samePlate.push(row);
+     if(brand&&model&&year&&row.vehicleType===kind&&
+      comparableBrand(row.brand)===brand&&comparableModel(row.model,model)&&
+      typeof row.modelYear==='number'&&Math.abs(row.modelYear-year)<=2&&
+      !(validPlate&&row.plate===plate))comparable.push(row);
+    }
+   }
+   samePlate.sort((a,b)=>String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
+   comparable.sort((a,b)=>
+    comparableRank(b,year||0,version,km||0)-comparableRank(a,year||0,version,km||0)||
+    String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
+   return response(res,200,{
+    plateRecords:samePlate,records:comparable.slice(0,120),comparableTotal:comparable.length,
+    truncated:comparable.length>120,monthsScanned:manifests.length
+   });
   }
   if(req.method==='POST'&&action==='plate_history'){
    const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -850,7 +1059,14 @@ return async function handler(req:any,res:any){
       return response(res,409,{error:'Lotes incompletos ou IDs repetidos. Nenhum mês foi substituído.'});
    // The index holds chunk numbers only, never financial data or other PII.
    const plateIndex:Record<string,number[]>={};
+   const brandIndex:Record<string,number[]>={};
    for(let i=0;i<records.length;i++){
+    const b=comparableBrand(records[i].brand);
+    if(b){
+     const brandChunks=brandIndex[b]||(brandIndex[b]=[]);
+     const position=Math.floor(i/150);
+     if(!brandChunks.includes(position))brandChunks.push(position);
+    }
     const plate=String(records[i].plate||'');
     if(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate))continue;
     const chunk=Math.floor(i/150);
@@ -858,7 +1074,7 @@ return async function handler(req:any,res:any){
     if(!list.includes(chunk))list.push(chunk);
    }
    const manifest={
-    month,count:records.length,chunks,batchId,plateIndex,
+    month,count:records.length,chunks,batchId,plateIndex,brandIndex,
     sourceName:trim(req.body?.sourceName,120),
     importedAt:new Date().toISOString(),importedBy:user.email,
     withPurchaseDate:records.filter(r=>r.purchaseDate).length,
@@ -866,7 +1082,7 @@ return async function handler(req:any,res:any){
     withAssessedValue:records.filter(r=>r.assessedValue!==null).length,
     classDifference:records.filter(r=>r.classRecorded&&r.classSuggested&&r.classRecorded!==r.classSuggested).length,
     // No real paid amount is inferred from the source's "Valor avaliado".
-    paidAmountCoverage:0,version:2
+    paidAmountCoverage:0,version:3
    };
    await firestoreWrite(monthPath,token,manifest);
    return response(res,200,{saved:true,manifest});
@@ -890,7 +1106,7 @@ return async function handler(req:any,res:any){
 
 export default async function handler(req: any, res: any) {
   const monthlyAction=String(req.method==='GET'?req.query?.action||'':req.body?.action||'');
-  if(['monthly_archive_months','monthly_archive_load','monthly_archive_chunk','monthly_archive_commit','monthly_archive_plate_history'].includes(monthlyAction))
+  if(['monthly_archive_months','monthly_archive_load','monthly_archive_chunk','monthly_archive_commit','monthly_archive_plate_history','monthly_archive_comparables'].includes(monthlyAction))
     return monthlyArchiveHandler(req,res);
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
