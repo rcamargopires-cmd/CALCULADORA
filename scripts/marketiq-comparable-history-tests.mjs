@@ -192,8 +192,14 @@ assert.ok(api.includes('const {plateIndex,...summary}=item'),'Old index privacy 
 assert.ok(api.includes('const {brandIndex,...safeSummary}=summary'),'New index must remain private');
 assert.ok(api.includes('const user=await scopedUser(req,sa,token)'),'Server authorization required');
 assert.ok(api.includes('user.companyId'),'Tenant scoped archive path');
-assert.ok(api.includes("process.env.VERCEL_ENV==='preview'&&!process.env.FIREBASE_SERVICE_ACCOUNT_JSON"),
- 'Preview must not require production service credentials');
+assert.ok(api.includes("if(process.env.VERCEL_ENV==='preview')"),
+ 'Preview must always use read-only official archive proxy, regardless of preview environment configuration');
+assert.ok(api.includes("action:'monthly_archive_comparables',"),
+ 'Preview comparison must call the official indexed comparable route directly');
+assert.ok(api.includes("OFFICIAL_COMPARABLES_INVALID")&&api.includes("readOnlyPreview:true"),
+ 'Preview must validate upstream response and mark it read-only');
+assert.ok(!api.includes("const meta=await officialArchiveRequest(idToken,'months');"),
+ 'Preview should not download and scan all monthly snapshots');
 assert.ok(api.includes("archivePreviewReader(req,res,action)"),
  'Preview must use read-only authenticated production archive endpoint');
 assert.ok(api.includes("['months','load','plate_history','comparables'].includes(action)"),
