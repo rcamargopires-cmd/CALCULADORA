@@ -107,7 +107,7 @@ export default function MarketIqIntelligentHistoryPanel({
     <div className="rounded-xl bg-slate-50 p-3 text-center"><strong className="text-xl">{fmtN(report.samePlate.length)}</strong><p className="text-[10px] text-slate-600">Mesma placa</p></div>
     <div className="rounded-xl bg-sky-50 p-3 text-center"><strong className="text-xl">{fmtN(report.exactCount)}</strong><p className="text-[10px] text-sky-900">Mesmo ano/versão</p></div>
     <div className="rounded-xl bg-emerald-50 p-3 text-center"><strong className="text-xl">{fmtN(report.paidCount)}</strong><p className="text-[10px] text-emerald-950">Compras comparáveis</p></div>
-   </div>
+   </div>}
    {!error&&<div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
     <div className="flex flex-wrap items-end justify-between gap-2">
      <div><p className="text-xs font-bold text-slate-700">Mediana de compras comparáveis</p>
@@ -120,7 +120,7 @@ export default function MarketIqIntelligentHistoryPanel({
       ' · faixa central '+fmt(report.historicalLow)+' a '+fmt(report.historicalHigh):''}
     </p>}
     <p className="mt-2 text-[11px] text-slate-600">A mediana utiliza apenas compras reconhecidas, com versão equivalente e KM até 20 mil da atual. Compras do Motyq têm valor aprovado/pago; outubro/2026 utiliza a regra operacional confirmada da Mesa para status UTILIZADO. Cotações e outros meses não viram valores pagos automaticamente.</p>
-   </div>
+   </div>}
    <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3">
     <div className="flex flex-wrap items-center gap-2"><ShieldCheck size={17} className="text-sky-800"/>
      <p className="text-xs font-bold uppercase tracking-wide text-sky-900">Referência para decisão</p></div>
@@ -139,7 +139,7 @@ export default function MarketIqIntelligentHistoryPanel({
       onClick={()=>setSelected(k)} style={{color:selected===k?'#ffffff':'#334155'}}
       className={'rounded-full border px-3 py-2 text-xs font-bold '+(selected===k?
        'border-sky-700 bg-sky-800 text-white':'border-slate-300 bg-white text-slate-700')}>{title}</button>)}
-   </div>
+   </div>}
    {!error&&<div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
     {!rows.length?<p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
      {loading?'Buscando avaliações...':'Nenhum registro nesta categoria. Importe os meses no Arquivo Mensal ou registre uma avaliação no Motyq.'}</p>:
@@ -159,7 +159,7 @@ export default function MarketIqIntelligentHistoryPanel({
       {e.date||'Data indisponível'} · {e.plate||'Sem placa'} · {e.source} · {tag(e)}
      </p>
     </article>)}
-   </div>
+   </div>}
    {!error&&(report.comparables.length>35||report.limited)&&<p className="mt-2 text-xs font-semibold text-amber-900">
     Exibindo parte dos comparáveis. Refine a consulta para avaliar o conjunto completo.</p>}
    {!error&&onOpenPlateHistory&&plateReady&&<button type="button" onClick={onOpenPlateHistory}
