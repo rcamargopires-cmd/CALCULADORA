@@ -8,6 +8,7 @@ import {storeIdForUser} from '../services/storeService';
 import {currentStockService} from '../services/currentStockService';
 import {dmsPermissions} from '../services/dmsPermissions';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
+import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
 import {mobileHistorySearch,mobileModelYearFromCode,mobilePriceSource,mobileYearOptions,type MobileFuel,type MobileFipeOption} from '../services/marketIqMobileFlow';
 import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
 import {canPromptMotyqInstall,isStandaloneMotyq,promptMotyqInstall,subscribeMotyqInstall}
@@ -30,7 +31,7 @@ export type Props={
  historicalTarget:number;historicalMin:number;historicalMax:number;motorcycleReference:number;
  marketBrowseUrl:string|null;onSearchMarket:()=>void;marketBusy:boolean;marketNotice:string;
  onSave:()=>void;saveBusy:boolean;saveNotice:string;saveError:string;onOpenFullDesk:()=>void;
- onStartNew:()=>boolean;onOpenApprovals:()=>void;
+ onStartNew:()=>boolean;onOpenApprovals:()=>void;onOpenPlateHistory?:()=>void;
 };
 type Tab='home'|'pricing'|'history'|'stock'|'repasse'|'settings';
 const cash=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -347,6 +348,15 @@ export default function MarketIqMobileExperience(p:Props){
       <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-[#008bd0]">{p.destination}</span></div>
       <p className="mt-2 text-xs text-slate-500">Classe {p.classification||'a definir'} por KM, sujeita a laudo, conservação e custos.</p></div>
     </div>
+    <MarketIqIntelligentHistoryPanel compact
+      companyId={p.user.companyId||'abrao-reze'}
+      current={{plate:p.plate,brand:p.brand,model:p.model,
+       modelYear:Number(p.fipe?.year||String(p.year).match(/(?:19|20)\d{2}/)?.[0]||0),
+       km:mileage,fipe:p.fipe?.value||0,vehicleType:p.vehicleType}}
+      cloudHistory={p.history}
+      verifiedMarketCeiling={p.verifiedCeiling}
+      historicalModelTarget={p.vehicleType==='motorcycle'?p.motorcycleReference:p.historicalTarget}
+      onOpenPlateHistory={p.onOpenPlateHistory}/>
     <div className={card+' p-4'}><h3 className="text-sm font-bold">Como calculamos?</h3>
      <p className="mt-2 text-xs leading-5 text-slate-600">Tabela FIPE, anúncios individuais conferidos, custos, 14% de desconto e 5% adicionais para repasse.
      Sem amostra validada, mostramos o histórico identificado como estimativa, nunca como oferta real de lojistas.</p></div>
