@@ -1,4 +1,4 @@
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useEffect,useState} from 'react';
 import './MarketIqVoiceHologram.css';
 
 type Props={
@@ -15,7 +15,6 @@ type Props={
 export default function MarketIqVoiceHologram({listening,processing,heard}:Props){
  const [level,setLevel]=useState(0);
  const [meterAvailable,setMeterAvailable]=useState(false);
- const meterRef=useRef<number|null>(null);
  useEffect(()=>{
   let disposed=false;
   let audioStream:MediaStream|null=null;
