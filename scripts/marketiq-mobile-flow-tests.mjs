@@ -100,6 +100,20 @@ assert.equal(mobileAutoYearChoice([{code:'2025-1',name:'2025 Gasolina'}],2025,'D
 assert.equal(mobileAutoYearChoice([
  {code:'2025-1',name:'2025 Gasolina'},{code:'2025-3',name:'2025 Diesel'}
 ],2025,''),null,'Ambiguous FIPE fuel choices require explicit selection');
+// Regression: after choosing Jeep twice, React batches reset('') and set('Jeep').
+// brandCode therefore does not change, so an explicit revision must refetch models.
+assert.ok(mesa.includes('const [modelCatalogRevision,setModelCatalogRevision]=useState(0)'),
+ 'Repeated same-brand search must own an explicit catalog reload revision');
+assert.ok(mesa.includes('setModelCatalogRevision(n=>n+1);setModelCode('),
+ 'Re-selecting the same brand must trigger models reload');
+assert.ok(mesa.includes('},[brandCode,vehicleType,modelCatalogRevision,retryCatalog])'),
+ 'Models fetch must respond to both repeated brand choices and manual FIPE retry');
+assert.ok(mesa.includes("sessionStorage.removeItem(cacheKey)"),
+ 'Stale empty FIPE catalog cache must be discarded');
+assert.ok(ui.includes('Atualizar catálogo FIPE'),
+ 'Mobile must offer a visible retry instead of an unexplained zero-result list');
+assert.ok(ui.includes('Consultando versões da FIPE...'),
+ 'Mobile loading state must not imply that the searched vehicle has zero models');
 assert.ok(ui.includes('Busca rápida de veículo'));
 assert.ok(ui.includes('Prefiro escolher passo a passo'));
 assert.ok(ui.includes('Tipo de veículo para busca rápida'),'Quick search must support cars and motorcycles');
