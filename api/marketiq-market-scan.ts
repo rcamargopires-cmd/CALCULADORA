@@ -729,6 +729,30 @@ const normalizeRow=(raw:any,month:string)=>{
  };
  return row;
 };
+const comparableNorm=(v:unknown)=>trim(v,160).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+ .toUpperCase().replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+const comparableModel=(archiveModel:string,currentModel:string)=>{
+ const a=comparableNorm(archiveModel),b=comparableNorm(currentModel);
+ if(!a||!b)return false;
+ if(a===b)return true;
+ // Trims/engines may follow a model. Never merge ONIX and ONIX PLUS,
+ // or other distinct body styles when the next token is a model qualifier.
+ const forbidden=new Set(['PLUS','SEDAN','HATCH','SW','SPORT','CROSS','S']);
+ const prefix=a.length<b.length?a:b,extra=a.length<b.length?b:a;
+ if(!extra.startsWith(prefix+' '))return false;
+ const next=extra.slice(prefix.length+1).split(' ')[0];
+ return Boolean(next)&&!forbidden.has(next);
+};
+const comparableRank=(r:any,year:number,version:string,km:number)=>{
+ const sameYear=r.modelYear===year;
+ const exactVersion=Boolean(version&&comparableNorm(r.version)===version);
+ const versionText=comparableNorm(r.version);
+ const compatibleVersion=exactVersion||(!version&&!versionText);
+ const kmGap=Number.isFinite(km)&&km>0&&typeof r.km==='number'?Math.abs(r.km-km):999999;
+ return (sameYear?10000:0)+(exactVersion?6000:compatibleVersion?1000:0)
+   +Math.max(0,2500-Math.floor(kmGap/10))
+   -Math.abs((r.modelYear||0)-year)*1500;
+};
 const pathFor=(base:string,company:string,month:string)=>
  base+'/marketiq_monthly_archive_v1/'+encodeURIComponent(company)+'/months/'+encodeURIComponent(month);
 const batchPath=(monthPath:string,batchId:string,index:number)=>
@@ -778,6 +802,56 @@ return async function handler(req:any,res:any){
     const {plateIndex,...summary}=item;
     return summary;
    })});
+  }
+  if(req.method==='POST'&&action==='comparables'){
+   const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
+   const validPlate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate);
+   const brand=comparableNorm(req.body?.brand),model=comparableNorm(req.body?.model);
+   const year=int(req.body?.modelYear,1900,2100);
+   const km=int(req.body?.km,0,999999);
+   const kind=req.body?.vehicleType==='motorcycle'?'motorcycle':'car';
+   const version=comparableNorm(req.body?.version);
+   if(!validPlate&&(!brand||!model||!year))
+    return response(res,400,{error:'Informe uma placa válida ou marca, modelo e ano.'});
+   const doc=await firestoreRead(root+'?pageSize=100',token);
+   if(doc?.nextPageToken)throw new Error('ARCHIVE_MONTH_LIST_TOO_LARGE');
+   const manifests=(doc?.documents||[]).map((x:any)=>unpack(x)).filter((x:any)=>
+    x&&monthValid(x.month)&&Number.isInteger(x.chunks)&&x.chunks>0&&x.chunks<=100&&batchValid(x.batchId));
+   const samePlate:any[]=[],comparable:any[]=[];
+   const seen=new Set<string>();
+   for(let start=0;start<manifests.length;start+=4){
+    const group=await Promise.all(manifests.slice(start,start+4).map(async(manifest:any)=>{
+     const indices=new Set<number>();
+     const plateIndexed=manifest.plateIndex&&typeof manifest.plateIndex==='object'&&!Array.isArray(manifest.plateIndex);
+     const brandIndexed=manifest.brandIndex&&typeof manifest.brandIndex==='object'&&!Array.isArray(manifest.brandIndex);
+     if(validPlate&&plateIndexed)for(const idx of manifest.plateIndex[plate]||[])indices.add(idx);
+     if(brand&&model&&year&&brandIndexed)for(const idx of manifest.brandIndex[brand]||[])indices.add(idx);
+     // Legacy manifests without indexes need a full read for correctness.
+     const needFull=(validPlate&&!plateIndexed)||(brand&&model&&year&&!brandIndexed);
+     if(!needFull&&!indices.size)return [];
+     const archivePath=pathFor(dbBase(sa),user.companyId,manifest.month);
+     return readChunks(archivePath,token,manifest.batchId,manifest.chunks,manifest.month,
+      needFull?undefined:[...indices]);
+    }));
+    for(const row of group.flat()){
+     const key=row.month+'|'+row.id;
+     if(seen.has(key))continue;
+     seen.add(key);
+     if(validPlate&&row.plate===plate)samePlate.push(row);
+     if(brand&&model&&year&&row.vehicleType===kind&&
+      comparableNorm(row.brand)===brand&&comparableModel(row.model,model)&&
+      typeof row.modelYear==='number'&&Math.abs(row.modelYear-year)<=2&&
+      !(validPlate&&row.plate===plate))comparable.push(row);
+    }
+   }
+   samePlate.sort((a,b)=>String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
+   comparable.sort((a,b)=>
+    comparableRank(b,year||0,version,km||0)-comparableRank(a,year||0,version,km||0)||
+    String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
+   return response(res,200,{
+    plateRecords:samePlate,records:comparable.slice(0,120),comparableTotal:comparable.length,
+    truncated:comparable.length>120,monthsScanned:manifests.length
+   });
   }
   if(req.method==='POST'&&action==='plate_history'){
    const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -850,7 +924,14 @@ return async function handler(req:any,res:any){
       return response(res,409,{error:'Lotes incompletos ou IDs repetidos. Nenhum mês foi substituído.'});
    // The index holds chunk numbers only, never financial data or other PII.
    const plateIndex:Record<string,number[]>={};
+   const brandIndex:Record<string,number[]>={};
    for(let i=0;i<records.length;i++){
+    const b=comparableNorm(records[i].brand);
+    if(b){
+     const brandChunks=brandIndex[b]||(brandIndex[b]=[]);
+     const position=Math.floor(i/150);
+     if(!brandChunks.includes(position))brandChunks.push(position);
+    }
     const plate=String(records[i].plate||'');
     if(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate))continue;
     const chunk=Math.floor(i/150);
@@ -858,7 +939,7 @@ return async function handler(req:any,res:any){
     if(!list.includes(chunk))list.push(chunk);
    }
    const manifest={
-    month,count:records.length,chunks,batchId,plateIndex,
+    month,count:records.length,chunks,batchId,plateIndex,brandIndex,
     sourceName:trim(req.body?.sourceName,120),
     importedAt:new Date().toISOString(),importedBy:user.email,
     withPurchaseDate:records.filter(r=>r.purchaseDate).length,
@@ -866,7 +947,7 @@ return async function handler(req:any,res:any){
     withAssessedValue:records.filter(r=>r.assessedValue!==null).length,
     classDifference:records.filter(r=>r.classRecorded&&r.classSuggested&&r.classRecorded!==r.classSuggested).length,
     // No real paid amount is inferred from the source's "Valor avaliado".
-    paidAmountCoverage:0,version:2
+    paidAmountCoverage:0,version:3
    };
    await firestoreWrite(monthPath,token,manifest);
    return response(res,200,{saved:true,manifest});
@@ -890,7 +971,7 @@ return async function handler(req:any,res:any){
 
 export default async function handler(req: any, res: any) {
   const monthlyAction=String(req.method==='GET'?req.query?.action||'':req.body?.action||'');
-  if(['monthly_archive_months','monthly_archive_load','monthly_archive_chunk','monthly_archive_commit','monthly_archive_plate_history'].includes(monthlyAction))
+  if(['monthly_archive_months','monthly_archive_load','monthly_archive_chunk','monthly_archive_commit','monthly_archive_plate_history','monthly_archive_comparables'].includes(monthlyAction))
     return monthlyArchiveHandler(req,res);
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
