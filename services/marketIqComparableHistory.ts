@@ -83,6 +83,10 @@ export function buildComparableHistory(
   const key='archive|'+r.month+'|'+r.id;if(unique.has(key))continue;unique.add(key);
   const grade=gradeFor(current,r);
   const same=grade==='placa';
+  if(!same&&(r.vehicleType!==current.vehicleType||
+   normComparable(r.brand)!==normComparable(current.brand)||
+   !sameModel(r.model,current.model)||!r.modelYear||
+   Math.abs(r.modelYear-current.modelYear)>2))continue;
   const status=normComparable(r.status);
   // October 2026 AutoAvaliar rule confirmed by this Mesa: on UTILIZADO,
   // Valor avaliado is the effective purchase value. Other months remain
