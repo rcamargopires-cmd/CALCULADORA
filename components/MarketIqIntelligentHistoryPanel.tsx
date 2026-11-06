@@ -125,6 +125,11 @@ export default function MarketIqIntelligentHistoryPanel({
    {error&&<p role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-950">
     <AlertTriangle size={14} className="mr-1 inline"/>{error} Os registros salvos no Motyq continuam disponíveis.</p>}
    {!error&&<p className="mt-3 text-xs text-slate-600">{heading} · {fmtN(data.monthsScanned)} mês(es) de arquivo consultados.</p>}
+   {!error&&<p className="mt-1 text-[11px] leading-5 text-slate-600">
+    O arquivo do AutoAvaliar usa somente meses já importados. Avaliações novas não entram automaticamente.
+    A aba Mesma placa mostra passagens anteriores, separadas das comparações entre veículos distintos.
+    Para trazer avaliações de novembro, importe o relatório desse mês em Arquivo mensal.
+   </p>}
    {!error&&data.readOnlyPreview&&<p className="mt-1 text-xs font-semibold text-emerald-800">Consultado na base oficial da empresa · homologação somente leitura.</p>}
    {error&&<p className="mt-3 text-sm font-bold text-amber-900">Consulta incompleta: a quantidade de avaliações e compras não pôde ser confirmada. Não considere zero como resultado.</p>}
    {!error&&<div className="mt-3 grid grid-cols-3 gap-2">
