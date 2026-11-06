@@ -177,7 +177,17 @@ export default function MarketIqIntelligentHistoryPanel({
      custos, preparação, condição, FIPE, Webmotors e decisões excepcionais precisam ser analisados à parte.
     </p>
    </div>}
-      <div className={'mt-3 rounded-xl border p-3 '+(priceSignal.status==='review_required'?
+   {!error&&isCurrentArchive&&pattern.operationalSuggestion!==null&&<div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+    <p className="text-xs font-bold uppercase text-slate-700">Modelo estatístico · apenas comparação</p>
+    <p className="mt-1 text-lg font-black text-slate-800">{fmt(priceSignal.reference)}</p>
+    <p className="mt-1 text-xs text-slate-700">
+     A referência recorrente da Mesa de {fmt(pattern.operationalSuggestion)} é a sugestão principal.
+     O modelo estatístico não aumenta automaticamente esse valor.
+     {priceSignal.reference!==null&&priceSignal.reference>pattern.operationalSuggestion?
+      ' Diferença para o modelo: '+fmt(priceSignal.reference-pattern.operationalSuggestion)+'.':''}
+    </p>
+   </div>}
+   {!(isCurrentArchive&&pattern.operationalSuggestion!==null&&!error)&&<div className={'mt-3 rounded-xl border p-3 '+(priceSignal.status==='review_required'?
     'border-amber-300 bg-amber-50':'border-sky-200 bg-sky-50')}>
     <div className="flex flex-wrap items-center gap-2"><ShieldCheck size={17} className={priceSignal.status==='review_required'?'text-amber-900':'text-sky-800'}/>
      <p className={'text-xs font-bold uppercase tracking-wide '+(priceSignal.status==='review_required'?'text-amber-950':'text-sky-900')}>
@@ -220,7 +230,7 @@ export default function MarketIqIntelligentHistoryPanel({
     <p className={'mt-2 text-[11px] '+(priceSignal.status==='review_required'?'text-amber-950':'text-sky-900')}>
      Não substitui laudo, custos, pesquisa Webmotors nem aprovação da Mesa. A sugestão não altera o valor salvo automaticamente.
     </p>
-   </div>
+   </div>}
    {!error&&<div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Tipo de histórico">
     {([
      ['plate','Mesma placa ('+report.samePlate.length+')'],
