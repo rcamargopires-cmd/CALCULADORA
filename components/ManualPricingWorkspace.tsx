@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useRef,useState} from 'react';
+import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 type Item={code:string;name:string};
 type FipeDetail={value:number;brand:string;model:string;year:number;fuel:string;referenceMonth:string;fipeCode:string;referenceStatus?:'current'|'outdated'|'unverified';referenceSource?:string;expectedReference?:string};
 import {User} from '../types';
@@ -9,6 +9,7 @@ import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
 import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
+import {mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
 import MarketIqConfidencePanel from './MarketIqConfidencePanel';
 import MarketIqFleetClassificationPanel from './MarketIqFleetClassificationPanel';
 import {classifyByMileage,resolveFleetPolicy,type FleetClass,type DestinationOverride,type DirectRepasseReason} from '../services/marketIqFleetClassification';
@@ -574,6 +575,16 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      classification,destination:repasse?'REPASSE':'SHOWROOM'
    });
  },[vehicleType,fipe,classification,km,cost,repasse]);
+ const [desktopMesaReference,setDesktopMesaReference]=useState<MesaPriceReference|null>(null);
+ const onDesktopMesaReference=useCallback((next:MesaPriceReference|null)=>{
+  setDesktopMesaReference(previous=>previous?.key===next?.key&&previous?.value===next?.value&&
+   previous?.count===next?.count?previous:next);
+ },[]);
+ const desktopReferenceKey=mesaReferenceKey({
+  plate,brand,model,modelYear:marketYear,km:number(km),
+  fipe:fipe?.value||0,vehicleType
+ },user.companyId||'abrao-reze');
+ const currentDesktopMesa=desktopMesaReference?.key===desktopReferenceKey?desktopMesaReference:null;
  const confidence=useMemo(()=>assessMarketIqEvidence({
   vehicleType,plate,brand,model,brandCode,modelCode,modelYear:marketYear,
   km:number(km),fipe,ads:currentAds,history:saved
@@ -811,7 +822,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   cloudHistory={saved}
   verifiedMarketCeiling={marketReady?ceiling:0}
   historicalModelTarget={vehicleType==='motorcycle'?motorcycleReference?.medianIndication||0:historicalEstimate?.target||0}
-  onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');}}/>
+  onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');}}
+  onMesaReference={onDesktopMesaReference}/>
  <MarketIqFleetClassificationPanel km={km} guideline={fleetPolicy.guideline}
   classification={fleetPolicy.classification} destination={fleetPolicy.destination}
   direct={fleetPolicy.direct} outOfRange={fleetPolicy.outOfRange}
@@ -840,10 +852,16 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     </div>
   </div>
   {historicalEstimate?<div className="mt-4 grid gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4 md:grid-cols-2">
-    <div><p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">Preço-alvo estimado · compras reais</p>
-      <p className="mt-2 text-3xl font-bold text-indigo-950">{money(historicalEstimate.target)}</p>
-      <p className="mt-1 text-sm text-indigo-900">Faixa de incerteza: {money(historicalEstimate.rangeMin)} a {money(historicalEstimate.rangeMax)}</p>
-      <p className="mt-1 text-xs text-indigo-700">Equivale a {(historicalEstimate.fipeFraction*100).toFixed(1).replace('.',',')}% da FIPE · estimativa, não compra aprovada.</p>
+    <div><p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">{currentDesktopMesa?'Sugestão da Mesa · repetida em veículos distintos':'Modelo estatístico · referência preliminar'}</p>
+      <p className="mt-2 text-3xl font-bold text-indigo-950">{money(currentDesktopMesa?.value||historicalEstimate.target)}</p>
+      {currentDesktopMesa?<p className="mt-1 text-sm text-indigo-900">
+       Encontrado em {currentDesktopMesa.count} avaliações de veículos diferentes da mesma versão, ano e KM próximo.
+       Modelo estatístico anterior: {money(historicalEstimate.target)}.
+       Preço interno de negociação, não pagamento confirmado nem autorização de compra.
+      </p>:<>
+       <p className="mt-1 text-sm text-indigo-900">Faixa de incerteza: {money(historicalEstimate.rangeMin)} a {money(historicalEstimate.rangeMax)}</p>
+       <p className="mt-1 text-xs text-indigo-700">Equivale a {(historicalEstimate.fipeFraction*100).toFixed(1).replace('.',',')}% da FIPE · estimativa, não compra aprovada.</p>
+      </>}
     </div>
     <div><p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">Qualidade do histórico</p>
       <p className="mt-2 text-sm text-indigo-950">Amostra: {historicalEstimate.sampleSize} compras · classe {classification}: {historicalEstimate.classSampleSize} compras.</p>
