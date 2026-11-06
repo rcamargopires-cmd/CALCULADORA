@@ -52,16 +52,28 @@ assert.ok(hologram.includes('motyq-holo-projection')&&hologram.includes('motyq-h
  'Lower blue projection and floor rings give the volumetric Jarvis look');
 assert.ok(hologram.includes('Array.from({length:88}')&&hologram.includes('Array.from({length:48}'),
  'Voice-responsive radial bars and particles surround M.O.T.Y.Q');
-assert.ok(hologram.includes('navigator.mediaDevices.getUserMedia'),
- 'Real local microphone amplitude enables the particles to expand with speech');
-assert.ok(hologram.includes('analyser.getByteTimeDomainData(samples)'),
- 'Real RMS microphone signal drives holographic intensity');
-assert.ok(hologram.includes('setLevel(Math.round(smoothed*100)/100)'),
- 'Smooth signal changes instead of jerky reaction');
-assert.ok(hologram.includes('audioStream?.getTracks().forEach(track=>track.stop())'),
- 'Voice visualization stops microphone tracks when listening ends');
-assert.ok(hologram.includes('if(disposed){stream.getTracks().forEach(track=>track.stop());return;}'),
- 'Late permission grants must immediately release the microphone');
+assert.ok(!hologram.includes('navigator.mediaDevices.getUserMedia'),
+ 'Never open a second microphone stream while Android SpeechRecognition is running');
+assert.ok(!hologram.includes('createMediaStreamSource')&&!hologram.includes('createAnalyser'),
+ 'No competing audio analyser or device session remains');
+assert.ok(!hologram.includes('AudioContext')&&!hologram.includes('getUserMedia('),
+ 'Hologram is visualization-only and cannot interfere with recognition capture');
+assert.ok(hologram.includes('speechDetected?0.72:0.12'),
+ 'Hologram reacts to recognized speech activity without claiming measured audio level');
+assert.ok(hologramCss.includes('motyqSpeechPulse')&&hologramCss.includes('motyqSpeechParticles'),
+ 'Voice events expand and contract the radial bars and particles');
+assert.ok(ui.includes('r.onspeechstart=')&&ui.includes('r.onspeechend='),
+ 'Speech start and stop events drive the hologram');
+assert.ok(ui.includes('speechDetected={voiceSpeechDetected}'),
+ 'Voice activity is passed directly to the hologram');
+assert.ok(ui.includes('setVoiceSpeechDetected(false)'),
+ 'Speech activity resets when recognition closes, errors or ends');
+assert.ok(ui.includes('speechRef.current=null;setVoiceSpeechDetected(false);'),
+ 'On recognition errors release the active session so Retry starts a fresh session');
+assert.ok(ui.includes('text-2xl font-extrabold text-white'),
+ 'Dialog heading remains visible on dark overlay');
+assert.ok(ui.includes('font-semibold text-cyan-50'),
+ 'Try again and Speak again buttons are visible on dark overlay');
 assert.ok(hologramCss.includes('prefers-reduced-motion:reduce'),
  'People who reduce motion should see a static hologram');
 assert.ok(ui.includes('voiceManualStopRef.current=true'),
