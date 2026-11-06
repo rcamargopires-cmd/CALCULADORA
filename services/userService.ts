@@ -92,6 +92,14 @@ export const userService = {
       const docSnap = await getDoc(docRef);
       return docSnap.exists() ? docSnap.data() as User : null;
     } catch (directError) {
+      // Firestore quota errors cannot be fixed by issuing the same read
+      // through a second server route. Skip that redundant request to avoid
+      // multiplying traffic while the shared database is rate limited.
+      const firestoreFailure = String((directError as any)?.code || '') + ' ' +
+        String((directError as any)?.message || '');
+      if (/resource-exhausted|429|quota.exceeded|rate.limit/i.test(firestoreFailure)) {
+        throw new Error('MOTYQ_FIRESTORE_RATE_LIMITED');
+      }
       const currentUser = auth.currentUser;
       if (currentUser?.email && currentUser.email.toLowerCase() === normalized) {
         try {
