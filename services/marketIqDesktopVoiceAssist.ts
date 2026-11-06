@@ -4,6 +4,17 @@ export type VoiceCatalogEntry={code:string;name:string};
 type VoiceResult={transcript?:string;confidence?:number};
 type VoiceEvent={results?:ArrayLike<ArrayLike<VoiceResult>>};
 
+/** Remove conversational instructions before matching the FIPE catalog.
+ * Only unambiguous commands / the Portuguese spelling "jipe" are normalized.
+ * The browser's original phrase remains visible for confirmation.
+ */
+export function desktopCleanVehiclePhrase(raw:string):string{
+ let text=mobileSpeechToSearch(raw);
+ text=text.replace(/^\s*(?:(?:eu\s+)?(?:quero|preciso|gostaria\s+de)\s+)?(?:avaliar|precificar|buscar|pesquisar|procurar|consultar)\s+/i,'');
+ text=text.replace(/^\s*(?:por\s+placa|a\s+placa|placa|o\s+modelo|um\s+carro|uma\s+moto|um|uma|o|a)\s+/i,'');
+ return text.replace(/\bjipe\b/gi,'Jeep').trim();
+}
+
 const norm=(text:string)=>String(text||'').normalize('NFD')
  .replace(/[\u0300-\u036f]/g,'').toLowerCase()
  .replace(/\blong\b|\blongi\b/g,'longitude')
@@ -52,7 +63,8 @@ export function desktopSpeechInterpretations(
   const item=choices[i];
   const candidate=mobileSpeechToSearch([prefix,item?.transcript||''].join(' ').trim());
   if(!candidate)continue;
-  const text=norm(candidate),words=terms(candidate);
+  const cleaned=desktopCleanVehiclePhrase(candidate);
+  const text=norm(cleaned),words=terms(cleaned);
   const brand=brands.find(b=>text===norm(b.name)||text.startsWith(norm(b.name)+' '));
   const allowed=brand?words.filter(w=>!terms(brand.name).includes(w)):words;
   const matching=models.map(m=>{
