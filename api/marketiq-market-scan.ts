@@ -891,6 +891,7 @@ const archivePreviewReader=async(req:any,res:any,action:string)=>{
   if(!upstream.ok){
    const error:any=new Error('OFFICIAL_COMPARABLES_UNAVAILABLE');
    error.status=upstream.status;
+   error.retryAfterSeconds=Number(payload?.retryAfterSeconds)||180;
    throw error;
   }
   if(!Array.isArray(payload.plateRecords)||!Array.isArray(payload.records)||
@@ -905,9 +906,16 @@ const archivePreviewReader=async(req:any,res:any,action:string)=>{
    readOnlyPreview:true
   });
  }catch(e:any){
-  const status=[401,403,404].includes(e?.status)?e.status:503;
-  // No authenticated data is cached or logged in preview.
+  const limited=e?.status===429;
+  const status=limited?429:[401,403,404].includes(e?.status)?e.status:503;
+  // Pass through only the rate-limit status, never raw production data or tokens.
   console.error('Motyq IQ preview archive read-only proxy:',status);
+  if(limited){
+   const seconds=Math.min(900,Math.max(60,Number(e.retryAfterSeconds)||180));
+   res.setHeader('Retry-After',String(seconds));
+   return response(res,429,{code:'ARCHIVE_RATE_LIMIT',retryAfterSeconds:seconds,
+    error:'O banco de dados está limitando consultas. Aguarde antes de tentar novamente.'});
+  }
   return response(res,status,{
    error:status===401?'Sua sessão expirou. Entre novamente.':
     status===403?'Sem permissão para consultar o arquivo oficial.':
@@ -1091,9 +1099,15 @@ return async function handler(req:any,res:any){
   return response(res,400,{error:'Ação inválida.'});
  }catch(e:any){
   const msg=String(e?.message||'ARCHIVE_FAILED');
-  const status=msg==='AUTH_REQUIRED'?401:msg==='PERMISSION_DENIED'?403:
+  const throttled=msg==='FIRESTORE_READ_FAILED_429'||msg==='FIRESTORE_WRITE_FAILED_429';
+  const status=throttled?429:msg==='AUTH_REQUIRED'?401:msg==='PERMISSION_DENIED'?403:
    msg.startsWith('INVALID_')?400:msg==='ARCHIVE_INCOMPLETE'?409:500;
   console.error('Motyq IQ monthly archive:',msg);
+  if(throttled){
+   res.setHeader('Retry-After','180');
+   return response(res,429,{code:'ARCHIVE_RATE_LIMIT',retryAfterSeconds:180,
+    error:'O Firestore está limitando o acesso ao arquivo mensal. Aguarde antes de consultar novamente.'});
+  }
   return response(res,status,{error:status===500?
    'Arquivo mensal indisponível. Nenhuma informação de avaliações foi alterada.':
    status===403?'Sem permissão para acessar o arquivo mensal.':
