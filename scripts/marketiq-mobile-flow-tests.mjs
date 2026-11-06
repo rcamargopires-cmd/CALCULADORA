@@ -95,7 +95,10 @@ assert.ok(mesa.includes('<MarketIqMobileExperience'));
 assert.ok(mesa.includes('history={saved}'), 'Mobile uses exact same cloud history');
 assert.ok(mesa.includes('onRestoreHistory={record=>restore(record as Saved)}'));
 assert.ok(mesa.includes('fipe={fipe}'), 'Mobile uses existing FIPE API result');
-assert.ok(mesa.includes('onSave={()=>void save()}'), 'Mobile uses exact same history save');
+assert.ok(mesa.includes('onSave={(proposal,suggested,source)=>void save(proposal,suggested,source)}'),
+ 'Mobile uses the existing authenticated history backend with optional manager offer and selected base');
+assert.ok(ui.includes('onClick={saveProposal}'), 'Mobile save validates and sends proposal fields');
+assert.ok(ui.includes('Ajustar proposta'), 'Mobile offers an explicit change-of-offer control');
 assert.ok(mesa.includes('onSearchMarket={()=>void searchMarket()}'));
 assert.ok(mesa.includes("mobileFullDesk?'block':'hidden lg:block'"),'Preserve desktop desk on wide screens');
 assert.ok(app.includes('lg:flex'), 'Hide old desktop IQ masthead on phones');
