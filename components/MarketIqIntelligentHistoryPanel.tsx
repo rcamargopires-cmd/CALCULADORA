@@ -19,8 +19,8 @@ const fmt=(v:number|null|undefined)=>v===null||v===undefined?'—':
 const fmtN=(n:number)=>n.toLocaleString('pt-BR');
 const empty:ArchiveResponse={plateRecords:[],records:[],comparableTotal:0,truncated:false,monthsScanned:0};
 const tag=(entry:ComparableEntry)=>entry.grade==='placa'?'Mesma placa':
- entry.grade==='exato'?'Versão equivalente · mesmo ano':
- entry.grade==='equivalente'?'Versão equivalente · ano próximo':'Modelo semelhante (não entra na média)';
+ entry.grade==='exato'?'Mesma versão · mesmo ano':
+ entry.grade==='equivalente'?'Mesma versão · outro ano (fora da média)':'Outra versão (fora da média)';
 export default function MarketIqIntelligentHistoryPanel({
  current,cloudHistory,companyId,verifiedMarketCeiling=0,historicalModelTarget=0,
  onOpenPlateHistory,compact=false
@@ -28,7 +28,7 @@ export default function MarketIqIntelligentHistoryPanel({
  const [data,setData]=useState<ArchiveResponse>(empty);
  const [loading,setLoading]=useState(false);
  const [error,setError]=useState('');
- const [selected,setSelected]=useState<'plate'|'similar'|'paid'>('similar');
+ const [selected,setSelected]=useState<'plate'|'similar'|'paid'|'other'>('similar');
  const [reload,setReload]=useState(0);
  const plate=plateComparable(current.plate);
  const plateReady=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate);
@@ -80,17 +80,19 @@ export default function MarketIqIntelligentHistoryPanel({
  const suggestion=base!==null&&historicalCap!==null?Math.min(base,historicalCap):base;
  const sources=verifiedMarketCeiling>0?'Webmotors validada + histórico':
   historicalModelTarget>0?'Modelo estatístico histórico':'Histórico insuficiente';
+ const matching=report.comparables.filter(r=>r.grade==='exato');
+ const otherVersions=report.comparables.filter(r=>r.grade!=='exato');
  const rows=selected==='plate'?report.samePlate:selected==='paid'?
-  report.comparables.filter(r=>r.paid!==null):report.comparables;
+  matching.filter(r=>r.paid!==null):selected==='other'?otherVersions:matching;
  const heading=report.samePlate.length+' passagem(ns) desta placa · '+
-  report.comparables.length+' comparáveis carregados';
+  matching.length+' da versão e ano corretos · '+otherVersions.length+' outras versões/anos';
  return <section className={'rounded-2xl border border-sky-200 bg-white text-slate-950 '+(compact?'p-4':'p-5')}
   aria-label="Histórico Inteligente de Avaliações">
   <div className="flex flex-wrap items-start justify-between gap-3">
    <div>
     <p className="text-[11px] font-bold uppercase tracking-wider text-sky-800">Motyq IQ · Inteligência de aquisições</p>
     <h3 className="mt-1 flex items-center gap-2 text-lg font-black"><Layers size={20}/> Histórico Inteligente</h3>
-    <p className="mt-1 text-xs text-slate-600">Mesma placa, mesmo modelo, ano e KM. Sem misturar versões diferentes na referência de compra.</p>
+    <p className="mt-1 text-xs text-slate-600">A recomendação considera somente a mesma versão, motorização, combustível, câmbio e ano/modelo. As demais opções ficam separadas.</p>
    </div>
    <button type="button" onClick={()=>setReload(r=>r+1)} disabled={!ready||loading}
     className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-50">
@@ -120,7 +122,7 @@ export default function MarketIqIntelligentHistoryPanel({
      {report.historicalLow!==null&&report.historicalHigh!==null?
       ' · faixa central '+fmt(report.historicalLow)+' a '+fmt(report.historicalHigh):''}
     </p>}
-    <p className="mt-2 text-[11px] text-slate-600">A mediana utiliza apenas compras reconhecidas, com versão equivalente e KM até 20 mil da atual. Compras do Motyq têm valor aprovado/pago; outubro/2026 utiliza a regra operacional confirmada da Mesa para status UTILIZADO. Cotações e outros meses não viram valores pagos automaticamente.</p>
+    <p className="mt-2 text-[11px] text-slate-600">A mediana utiliza apenas compras confirmadas da mesma versão e ano/modelo, com KM até 20 mil da atual. Compras do Motyq têm valor aprovado/pago; outubro/2026 utiliza a regra operacional confirmada da Mesa para status UTILIZADO. Cotações e outros meses não viram valores pagos automaticamente.</p>
    </div>}
    <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3">
     <div className="flex flex-wrap items-center gap-2"><ShieldCheck size={17} className="text-sky-800"/>
@@ -134,16 +136,20 @@ export default function MarketIqIntelligentHistoryPanel({
    {!error&&<div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Tipo de histórico">
     {([
      ['plate','Mesma placa ('+report.samePlate.length+')'],
-     ['similar','Comparáveis ('+report.comparables.length+')'],
-     ['paid','Compras ('+report.comparables.filter(e=>e.paid!==null).length+')']
+     ['similar','Mesma versão ('+matching.length+')'],
+     ['paid','Compras iguais ('+matching.filter(e=>e.paid!==null).length+')'],
+     ['other','Outras versões ('+otherVersions.length+')']
     ] as const).map(([k,title])=><button key={k} type="button" role="tab" aria-selected={selected===k}
       onClick={()=>setSelected(k)} style={{color:selected===k?'#ffffff':'#334155'}}
       className={'rounded-full border px-3 py-2 text-xs font-bold '+(selected===k?
        'border-sky-700 bg-sky-800 text-white':'border-slate-300 bg-white text-slate-700')}>{title}</button>)}
    </div>}
+   {!error&&selected==='other'&&<p className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-bold text-amber-950">
+    Apenas para consulta. Motorizações, versões e anos diferentes não entram na mediana nem na sugestão de compra.
+   </p>}
    {!error&&<div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
     {!rows.length?<p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-     {loading?'Buscando avaliações...':'Nenhum registro nesta categoria. Importe os meses no Arquivo Mensal ou registre uma avaliação no Motyq.'}</p>:
+     {loading?'Buscando avaliações...':selected==='similar'||selected==='paid'?'Nenhuma avaliação dessa versão e ano/modelo encontrada. Consulte outras versões apenas como contexto, sem usá-las como base para precificar.':'Nenhum registro encontrado nesta categoria.'}</p>:
     rows.slice(0,35).map(e=><article key={e.id} className="rounded-xl border border-slate-200 bg-white p-3">
      <div className="flex flex-wrap justify-between gap-2">
       <div><p className="text-sm font-bold">{e.brand} {e.model} {e.year}</p>
@@ -161,8 +167,8 @@ export default function MarketIqIntelligentHistoryPanel({
      </p>
     </article>)}
    </div>}
-   {!error&&(report.comparables.length>35||report.limited)&&<p className="mt-2 text-xs font-semibold text-amber-900">
-    Exibindo parte dos comparáveis. Refine a consulta para avaliar o conjunto completo.</p>}
+   {!error&&(rows.length>35||report.limited)&&<p className="mt-2 text-xs font-semibold text-amber-900">
+    Exibindo parte dos registros disponíveis. Não use outras versões ou anos como base da mediana.</p>}
    {!error&&onOpenPlateHistory&&plateReady&&<button type="button" onClick={onOpenPlateHistory}
     className="mt-3 flex items-center gap-2 text-xs font-bold text-sky-800"><History size={16}/> Abrir linha do tempo completa da placa</button>}
   </>}
