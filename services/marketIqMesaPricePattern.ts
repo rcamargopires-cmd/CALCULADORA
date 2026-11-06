@@ -1,4 +1,10 @@
-import type {ComparableEntry} from './marketIqComparableHistory';
+import {normComparable,plateComparable,type ComparableCurrent,type ComparableEntry} from './marketIqComparableHistory';
+
+export type MesaPriceReference={key:string;value:number;count:number};
+export const mesaReferenceKey=(current:ComparableCurrent,companyId:string)=>[
+ companyId.trim(),current.vehicleType,plateComparable(current.plate),normComparable(current.brand),
+ normComparable(current.model),current.modelYear,current.km
+].join('|');
 
 export type MesaPricePattern={
  assessmentEvents:number;
