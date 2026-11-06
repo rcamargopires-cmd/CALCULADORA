@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useRef,useState} from 'react';
+import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {ArrowLeft,ArrowRight,Bike,CarFront,CheckCircle2,ChevronRight,History,Home,Info,LogOut,Mic,RefreshCw,Save,Search,Settings2,Share2,Wallet,ExternalLink,ShieldCheck} from 'lucide-react';
 import {signOut} from 'firebase/auth';
 import type {User,OperationalStockItem} from '../types';
@@ -9,6 +9,7 @@ import {currentStockService} from '../services/currentStockService';
 import {dmsPermissions} from '../services/dmsPermissions';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
+import {mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
 import {mobileHistorySearch,mobileModelYearFromCode,mobilePriceSource,mobileYearOptions,type MobileFuel,type MobileFipeOption} from '../services/marketIqMobileFlow';
 import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
 import {canPromptMotyqInstall,isStandaloneMotyq,promptMotyqInstall,subscribeMotyqInstall}
@@ -90,9 +91,19 @@ export default function MarketIqMobileExperience(p:Props){
  const models=useMemo(()=>p.models.filter(v=>clean(v.name).includes(clean(modelSearch))),[p.models,modelSearch]);
  const mileage=Number(p.km.replace(/\D/g,''))||0;
  const validPlate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(p.plate);
+ const currentVehicle={plate:p.plate,brand:p.brand,model:p.model,
+  modelYear:Number(p.fipe?.year||String(p.year).match(/(?:19|20)\d{2}/)?.[0]||0),
+  km:mileage,fipe:p.fipe?.value||0,vehicleType:p.vehicleType};
+ const [mesaReference,setMesaReference]=useState<MesaPriceReference|null>(null);
+ const onMesaReference=useCallback((candidate:MesaPriceReference|null)=>{
+  setMesaReference(previous=>previous?.key===candidate?.key&&previous?.value===candidate?.value&&
+   previous?.count===candidate?.count?previous:candidate);
+ },[]);
+ const scopedMesa=mesaReference?.key===mesaReferenceKey(currentVehicle,p.user.companyId||'abrao-reze')?
+  mesaReference:null;
  const selectedPrice=mobilePriceSource({fipe:p.fipe?.value||0,verifiedCount:p.verifiedCount,
   verifiedCeiling:p.verifiedCeiling,historicalTarget:p.vehicleType==='motorcycle'?p.motorcycleReference:p.historicalTarget,
-  indexedReference:p.indexedAverage});
+  indexedReference:p.indexedAverage,mesaReference:scopedMesa?.value||0,mesaCount:scopedMesa?.count||0});
  useEffect(()=>{
   if(tab!=='stock'||!canStock)return;
   let live=true;setStockBusy(true);setStockError('');
@@ -337,10 +348,15 @@ export default function MarketIqMobileExperience(p:Props){
        className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#008bd0]">Abrir Webmotors <ExternalLink size={13}/></a>}
      </div>
      <div className="p-4"><p className="text-[11px] font-black uppercase tracking-wider text-[#008bd0]">
-      {selectedPrice.kind==='verified'?'Anúncios conferidos':selectedPrice.kind==='historical'?'Modelo estatístico · não calibrado pela Mesa':'Referência insuficiente'}</p>
+      {selectedPrice.kind==='mesa'?'Sugestão consolidada da Mesa':selectedPrice.kind==='verified'?'Anúncios conferidos':selectedPrice.kind==='historical'?'Modelo estatístico · não calibrado pela Mesa':'Referência insuficiente'}</p>
       <div className="mt-2 flex justify-between gap-3"><span className="max-w-[160px] text-sm font-extrabold">{selectedPrice.kind==='historical'?'Cálculo estatístico preliminar':selectedPrice.label}</span>
        <strong className="text-[22px] text-[#008bd0]">{selectedPrice.value?cash(selectedPrice.value):'—'}</strong></div>
       <p className="mt-2 text-xs leading-5 text-slate-500">{selectedPrice.disclaimer}</p>
+      {selectedPrice.kind==='mesa'&&<p className="mt-1 text-xs font-bold text-emerald-900">
+       Referência em {scopedMesa?.count||0} veículos distintos. O modelo estatístico indicava
+       {p.historicalTarget>0?' '+cash(p.historicalTarget):' um valor indisponível'}.
+       Confira custos, estado do veículo e pagamentos anteriores.
+      </p>}
        {selectedPrice.kind==='historical'&&<p className="mt-1 text-xs font-bold text-amber-900">
         Este valor é anterior à análise dos pagamentos e avaliações da loja. Confira a sugestão operacional e o maior valor efetivamente pago no Histórico Inteligente abaixo.
        </p>}
@@ -353,13 +369,12 @@ export default function MarketIqMobileExperience(p:Props){
     </div>
     <MarketIqIntelligentHistoryPanel compact
       companyId={p.user.companyId||'abrao-reze'}
-      current={{plate:p.plate,brand:p.brand,model:p.model,
-       modelYear:Number(p.fipe?.year||String(p.year).match(/(?:19|20)\d{2}/)?.[0]||0),
-       km:mileage,fipe:p.fipe?.value||0,vehicleType:p.vehicleType}}
+      current={currentVehicle}
       cloudHistory={p.history}
       verifiedMarketCeiling={p.verifiedCeiling}
       historicalModelTarget={p.vehicleType==='motorcycle'?p.motorcycleReference:p.historicalTarget}
-      onOpenPlateHistory={p.onOpenPlateHistory}/>
+      onOpenPlateHistory={p.onOpenPlateHistory}
+      onMesaReference={onMesaReference}/>
     <div className={card+' p-4'}><h3 className="text-sm font-bold">Como calculamos?</h3>
      <p className="mt-2 text-xs leading-5 text-slate-600">Tabela FIPE, anúncios individuais conferidos, custos, 14% de desconto e 5% adicionais para repasse.
      Sem amostra validada, mostramos o histórico identificado como estimativa, nunca como oferta real de lojistas.</p></div>
