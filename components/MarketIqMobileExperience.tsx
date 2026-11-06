@@ -366,23 +366,106 @@ export default function MarketIqMobileExperience(p:Props){
      <p className="text-sm text-slate-500">Selecione o combustível do documento.</p>
      <div className={card+' px-4'}>{fuels.map(f=><button key={f} className={row}
       onClick={()=>{setPickedFuel(f);setStep(5);}}><strong className="text-lg">{f}</strong><ChevronRight size={18}/></button>)}</div></>}
-    {(step===5||quickMode)&&<><h2 className="text-[26px] font-extrabold">Qual é o modelo e a versão?</h2>
-     <p className="text-sm text-slate-500">A seleção abaixo utiliza o mesmo catálogo FIPE da Mesa.</p>
-     <input className={input} value={modelSearch} onChange={e=>setModelSearch(e.target.value)}
-      placeholder="Buscar modelo e versão"/>
-     <div className={card+' max-h-52 overflow-y-auto px-4'}>{models.slice(0,50).map(m=><button
-      key={m.code} className={row} onClick={()=>p.onModel(m.code)}>
-       <span className="pr-2 text-sm font-semibold">{m.name}</span>{p.modelCode===m.code?<CheckCircle2 size={20} color="#008bd0"/>:<ChevronRight size={18}/>}</button>)}
-      {!p.models.length&&<p className="py-4 text-xs text-slate-500">Carregando modelos desta marca...</p>}</div>
-     {p.modelCode&&<div className={card+' space-y-2 p-4'}>
-      <label className="text-sm font-bold">Ano/combustível da versão na FIPE</label>
-      <select className={input} value={matchingYears.choices.some(y=>y.code===p.yearCode)?p.yearCode:''}
-       onChange={e=>p.onYear(e.target.value)}>
-       <option value="">Selecione a versão correta</option>
-       {matchingYears.choices.map(y=><option key={y.code} value={y.code}>{y.name}</option>)}</select>
-      {!matchingYears.yearMatched&&<p className="text-xs text-amber-800">Nenhum ano {pickedYear} disponível para essa versão. Confira o ano/modelo.</p>}
-      {matchingYears.yearMatched&&pickedFuel&&!matchingYears.fuelMatched&&<p className="text-xs text-amber-800">
-       A FIPE pode descrever {pickedFuel} de outro modo. Confira a versão antes de continuar.</p>}
+    {(step===5||quickMode)&&<>
+     <h2 className="text-[24px] font-extrabold">{quickMode?'Escolha a versão correta':'Qual é o modelo e a versão?'}</h2>
+     <p className="text-sm leading-5 text-slate-600">
+      {quickMode?'Busca rápida com catálogo FIPE. Confirme a versão e o ano/modelo.':
+       'Apenas versões compatíveis com o combustível selecionado.'}
+     </p>
+     {quickMode&&<div className={card+' flex items-center justify-between gap-3 p-3'}>
+      <div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{quickQuery}</p>
+       <p className="text-xs text-slate-600">
+        {p.brand||'Marca a selecionar'} · {pickedYear||'Ano a selecionar'}
+       </p></div>
+      <button type="button" className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-sky-800"
+       onClick={()=>changeTab('home')}>Editar busca</button>
+     </div>}
+     {quickMode&&!p.brandCode&&<div className={card+' space-y-2 p-4'}>
+      <p className="text-sm font-bold">Qual é a marca?</p>
+      <input className={input} value={brandSearch} placeholder="Buscar marca" onChange={e=>setBrandSearch(e.target.value)}/>
+      <div className="max-h-52 overflow-y-auto">
+       {brands.slice(0,45).map(b=><button key={b.code} type="button" className={row}
+        onClick={()=>{p.onBrand(b.code);setBrandSearch('');}}>
+        <span className="text-sm font-semibold">{b.name}</span><ChevronRight size={17}/></button>)}
+      </div>
+      {p.catalogLoading&&<p className="text-xs text-slate-600">Carregando marcas FIPE...</p>}
+     </div>}
+     {quickMode&&p.brandCode&&<button type="button"
+      className="text-left text-xs font-bold text-[#0078b9]"
+      onClick={()=>{p.onBrand('');setBrandSearch('');}}>
+      Trocar marca: {p.brand}
+     </button>}
+     {(!quickMode||p.brandCode)&&<>
+      {!quickMode?
+       <input className={input} value={modelSearch} onChange={e=>setModelSearch(e.target.value)}
+        placeholder="Buscar modelo e versão" aria-label="Buscar modelo e versão"/>:
+       <input className={input} value={modelSearch} onChange={e=>setModelSearch(e.target.value)}
+        placeholder={quickIntent.modelSearch||'Refinar modelo e versão'}
+        aria-label="Refinar busca rápida de modelo"/>}
+      <p className="text-xs font-medium text-slate-600">
+       {models.length} versão(ões) compatíveis na lista
+       {pickedFuel?' · '+pickedFuel:''}
+      </p>
+      <div className={card+' max-h-[43dvh] overflow-y-auto px-4'} aria-label="Versões disponíveis na FIPE">
+       {models.slice(0,70).map(m=><button type="button" key={m.code}
+        className={row+' '+(p.modelCode===m.code?'bg-sky-50':'')}
+        onClick={()=>selectMobileModel(m)}>
+        <span className="min-w-0 flex-1">
+         <strong className="block text-[14px] leading-5 text-slate-900">{m.name}</strong>
+         <span className="mt-1 flex flex-wrap gap-1">
+          {mobileFuelFromModel(m.name)&&<span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-700">
+           {mobileFuelFromModel(m.name)}</span>}
+          {/AUT|AT6|AT8|CVT|DSG/i.test(m.name)&&<span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-700">Automático</span>}
+          {/MANUAL|MECANICO|MECÂNICO|\bMT\b/i.test(m.name)&&<span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-700">Manual</span>}
+          {/4X4/i.test(m.name)&&<span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-700">4x4</span>}
+         </span>
+        </span>
+        {p.modelCode===m.code?<CheckCircle2 size={22} color="#008bd0"/>:<ChevronRight size={20} className="shrink-0 text-slate-500"/>}
+       </button>)}
+       {!p.models.length&&<p className="py-4 text-sm text-slate-600">
+        {p.catalogLoading?'Carregando versões desta marca...':'Nenhuma versão carregada. Confira a marca ou tente novamente.'}
+       </p>}
+       {p.models.length>0&&models.length===0&&<p className="py-4 text-sm text-amber-900">
+        Nenhuma versão compatível. Confira a busca e o combustível antes de continuar.
+       </p>}
+      </div>
+     </>}
+     {p.modelCode&&<div className={card+' space-y-3 p-4'}>
+      <p className="text-sm font-bold text-slate-900">Versão selecionada</p>
+      <p className="text-sm leading-5 text-slate-700">{p.model}</p>
+      {quickMode&&!pickedYear&&<>
+       <p className="text-sm font-bold">Qual o ano/modelo?</p>
+       <div className="grid grid-cols-3 gap-2">{possibleYears.slice(0,18).map(y=>
+        <button type="button" key={y} className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold"
+         onClick={()=>{setPickedYear(y);p.onYear('');}}>{y}</button>)}</div>
+       {!possibleYears.length&&<p className="text-xs text-slate-600">Carregando anos da FIPE...</p>}
+      </>}
+      {pickedYear>0&&<>
+       <p className="text-sm font-bold text-slate-800">Ano/modelo FIPE: {pickedYear}</p>
+       {!p.years.length&&<p className="text-xs text-slate-600">Consultando ano e combustível da versão...</p>}
+       {p.years.length>0&&!matchingYears.yearMatched&&<p className="rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">
+        Essa versão não possui ano/modelo {pickedYear} na FIPE. Selecione outra versão ou confira o ano.
+       </p>}
+       {matchingYears.yearMatched&&pickedFuel&&!matchingYears.fuelMatched&&<p className="rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">
+        Não foi possível confirmar {pickedFuel} nessa versão. Escolha outra versão ou confira o combustível.
+       </p>}
+       {matchingYears.yearMatched&&(!pickedFuel||matchingYears.fuelMatched)&&matchingYears.choices.length===1&&
+        <p className="rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-900">
+         {p.yearCode===matchingYears.choices[0].code?
+          'FIPE selecionada automaticamente: '+matchingYears.choices[0].name:
+          'Confirmando FIPE: '+matchingYears.choices[0].name+'...'}
+        </p>}
+       {matchingYears.yearMatched&&(!pickedFuel||matchingYears.fuelMatched)&&matchingYears.choices.length>1&&<>
+        <p className="text-xs font-bold text-slate-800">Confirme uma opção da FIPE</p>
+        <div className="grid gap-2">{matchingYears.choices.map(y=>
+         <button type="button" key={y.code}
+          className={'rounded-xl border px-3 py-3 text-left text-sm font-bold '+(p.yearCode===y.code?
+           'border-sky-500 bg-sky-50 text-sky-900':'border-slate-300 bg-white text-slate-800')}
+          onClick={()=>p.onYear(y.code)}>{y.name} {p.yearCode===y.code?'✓':''}</button>)}</div>
+       </>}
+      </>}
+      {quickMode&&pickedYear>0&&<button type="button" className="text-xs font-bold text-sky-800"
+       onClick={()=>{setPickedYear(0);p.onYear('');}}>Alterar ano/modelo</button>}
      </div>}
      <div className={card+' space-y-4 p-4'}>
       <label className="block text-sm font-bold">Quilometragem<input inputMode="numeric"
@@ -397,8 +480,9 @@ export default function MarketIqMobileExperience(p:Props){
      </div>
      {p.catalogError&&<p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{p.catalogError}
       <button onClick={p.onRetryFipe} className="ml-2 font-bold underline">Tentar novamente</button></p>}
-     <button className={action} disabled={!p.modelCode||!p.yearCode||mileage<=0}
-      onClick={()=>{setResult(true);window.scrollTo({top:0,behavior:'smooth'});}}>Ver avaliação <ArrowRight size={18}/></button>
+     <button className={action} disabled={!p.modelCode||!p.yearCode||mileage<=0||p.catalogLoading}
+      onClick={()=>{setResult(true);window.scrollTo({top:0,behavior:'smooth'});}}>
+      Ver avaliação <ArrowRight size={18}/></button>
     </>}
    </div>}
    {tab==='pricing'&&result&&<div className="space-y-4">
