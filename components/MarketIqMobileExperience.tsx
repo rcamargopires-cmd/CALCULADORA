@@ -102,8 +102,8 @@ export default function MarketIqMobileExperience(p:Props){
   });
  },[p.brands,brandSearch]);
  const quickIntent=useMemo(()=>mobileQuickIntent(quickQuery,p.brands),[quickQuery,p.brands]);
- const models=useMemo(()=>mobileFilterModels(p.models,quickMode?quickIntent.modelSearch:modelSearch,pickedFuel),
-  [p.models,quickMode,quickIntent.modelSearch,modelSearch,pickedFuel]);
+ const models=useMemo(()=>mobileFilterModels(p.models,modelSearch,pickedFuel),
+  [p.models,modelSearch,pickedFuel]);
  const possibleYears=useMemo(()=>[...new Set(p.years.map(y=>mobileModelYearFromCode(y.code,y.name)).filter(y=>y>0))]
    .sort((a,b)=>b-a),[p.years]);
  const mileage=Number(p.km.replace(/\D/g,''))||0;
@@ -168,7 +168,7 @@ export default function MarketIqMobileExperience(p:Props){
   if(!p.onStartNew())return;
   if(!sameVehicleType)p.onVehicleType(quickType);
   setQuickError('');setResult(false);setQuickMode(true);setStep(5);
-  setPickedYear(intent.hasYear?intent.year:0);setPickedFuel('');setModelSearch('');
+  setPickedYear(intent.hasYear?intent.year:0);setPickedFuel('');setModelSearch(intent.modelSearch);
   setBrandSearch('');p.onYear('');
   if(intent.brand)p.onBrand(intent.brand.code);
   changeTab('pricing');
@@ -410,7 +410,7 @@ export default function MarketIqMobileExperience(p:Props){
        <input className={input} value={modelSearch} onChange={e=>setModelSearch(e.target.value)}
         placeholder="Buscar modelo e versão" aria-label="Buscar modelo e versão"/>:
        <input className={input} value={modelSearch} onChange={e=>setModelSearch(e.target.value)}
-        placeholder={quickIntent.modelSearch||'Refinar modelo e versão'}
+        placeholder="Digite ou ajuste modelo e versão"
         aria-label="Refinar busca rápida de modelo"/>}
       <p className="text-xs font-medium text-slate-600" role="status" aria-live="polite">
        {p.catalogLoading&&!p.models.length?'Consultando versões da FIPE...':
