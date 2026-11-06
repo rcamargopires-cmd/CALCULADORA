@@ -440,8 +440,19 @@ export default async function handler(req: any, res: any) {
       const scoped=await ensureReinaldoDeskAccess(email,await ensureEvandroIqOnly(email,profile));
       return res.status(200).json({user:{...scoped,email}});
     } catch (error:any) {
-      console.error('Current-user lookup failed',error?.message||error);
-      return res.status(401).json({ error: String(error?.message || 'not_authenticated') });
+      const message=String(error?.message||'current_user_unavailable');
+      const quotaLimited=message==='current_user_firestore_429';
+      console.error('Current-user lookup failed',quotaLimited?'firestore_rate_limited':message);
+      if(quotaLimited){
+        res.setHeader('Retry-After','180');
+        return res.status(429).json({
+          code:'PROFILE_RATE_LIMITED',retryAfterSeconds:180,
+          error:'O banco de dados está temporariamente limitando consultas. Aguarde antes de tentar novamente.'
+        });
+      }
+      // Authentication and true authorization failures remain fail-closed.
+      return res.status(message==='not_authenticated'?401:503)
+        .json({error:message==='not_authenticated'?'not_authenticated':'profile_unavailable'});
     }
   }
 
