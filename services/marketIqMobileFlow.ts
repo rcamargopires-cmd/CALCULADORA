@@ -31,8 +31,13 @@ export function mobileYearOptions(
 }
 export function mobilePriceSource(input:{
  fipe:number; verifiedCount:number;verifiedCeiling:number;
- historicalTarget:number;indexedReference:number;
-}):{label:string;value:number;kind:'verified'|'historical'|'missing';disclaimer:string}{
+ historicalTarget:number;indexedReference:number;mesaReference?:number;mesaCount?:number;
+ }):{label:string;value:number;kind:'mesa'|'verified'|'historical'|'missing';disclaimer:string}{
+ if((input.mesaCount||0)>=2&&Number.isFinite(input.mesaReference)&&Number(input.mesaReference)>0){
+  return {kind:'mesa',value:Number(input.mesaReference),
+   label:'Sugestão da Mesa · valor recorrente',
+   disclaimer:'Valor repetido em pelo menos 2 veículos distintos da mesma versão, ano/modelo e KM próximo. Baseado em avaliações internas, não em anúncios nem somente em compras. Não é autorização de compra.'};
+ }
  if(input.verifiedCount>=2&&input.verifiedCeiling>0){
   return {kind:'verified',value:input.verifiedCeiling,
    label:'Teto de compra com anúncios conferidos',
