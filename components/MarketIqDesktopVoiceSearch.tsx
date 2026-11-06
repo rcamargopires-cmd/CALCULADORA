@@ -6,7 +6,7 @@ import {
  type MobileFipeOption
 } from '../services/marketIqMobileFlow';
 import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
-import {desktopSpeechInterpretations,desktopFuzzyFipeSuggestions} from '../services/marketIqDesktopVoiceAssist';
+import {desktopSpeechInterpretations,desktopFuzzyFipeSuggestions,desktopCleanVehiclePhrase} from '../services/marketIqDesktopVoiceAssist';
 
 type Props={
  vehicleType:'car'|'motorcycle';onVehicleType:(type:'car'|'motorcycle')=>void;
@@ -71,7 +71,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
   return()=>window.removeEventListener('keydown',handler);
  },[open]);
  const prepareSearch=(raw:string)=>{
-  const normalized=mobileSpeechToSearch(raw);
+  const normalized=desktopCleanVehiclePhrase(raw);
   if(!normalized){
    setPhase('fallback');setHint('Digite ou fale o veículo antes de pesquisar.');return;
   }
