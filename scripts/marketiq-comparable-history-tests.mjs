@@ -57,6 +57,12 @@ const paidCloud={id:'motyq-1',plate:'XYZ2A34',brand:'CHEVROLET',
 const withCloud=buildComparableHistory(current,[],rows,[paidCloud],'abrao-reze');
 assert.equal(withCloud.paidCount,3,'Archive and cloud purchase of same plate/date count once');
 assert.ok(withCloud.comparables.some(r=>r.paidBasis==='approved'),'Explicit Motyq approval retained');
+const alias=buildComparableHistory({...current,brand:'GM - CHEVROLET'},[],
+ [row('alias','2026-10-19')],[],'abrao-reze');
+assert.equal(alias.paidCount,1,'Brand aliases must match safely');
+const hilux=buildComparableHistory({...current,brand:'TOYOTA',model:'HILUX 2.8 SRX'},[],
+ [row('sw4','2026-10-20',{brand:'TOYOTA',model:'HILUX SW4',version:'2.8 SRX'})],[],'abrao-reze');
+assert.equal(hilux.comparables.length,0,'Hilux SW4 must never become Hilux pickup comparable');
 const oldPlate=buildComparableHistory(current,[row('old','2026-09-18',{plate:'ABC1D23',status:'AVALIADO'})],[],[],'abrao-reze');
 assert.equal(oldPlate.samePlate.length,1,'Historical same-plate quote shown');
 assert.equal(oldPlate.samePlate[0].paid,null,'Same plate does not infer a purchase');
