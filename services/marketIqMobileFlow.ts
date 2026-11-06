@@ -62,7 +62,9 @@ const carModelMakes:Record<string,string>={
  corolla:'toyota',hilux:'toyota',yaris:'toyota',
  argo:'fiat',mobi:'fiat',pulse:'fiat',fastback:'fiat',strada:'fiat',
  kwid:'renault',duster:'renault',
- city:'honda',civic:'honda',hrv:'honda'
+ city:'honda',civic:'honda',hrv:'honda',
+ biz:'honda',pcx:'honda',cg:'honda',xre:'honda',cb:'honda',
+ fazer:'yamaha',factor:'yamaha',nmax:'yamaha',mt03:'yamaha'
 };
 /** Infer only unambiguous makes. User still chooses the exact FIPE version. */
 export function mobileQuickIntent(text:string,brands:MobileFipeOption[]){
