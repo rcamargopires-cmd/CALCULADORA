@@ -37,7 +37,7 @@ export const mobileNormalized=(raw:string)=>normalized(raw).replace(/[^a-z0-9]+/
 export function mobileFuelFromModel(label:string):MobileFuel|''{
  const v=mobileNormalized(label);
  if(/\b(diesel|dies|td350|td 350|tdi|crdi|bluehdi|d 4d)\b/.test(v))return 'Diesel';
- if(/\b(hibrid|hybrid|4xe|phev|hev|mhev)\b/.test(v))return 'Híbrido';
+ if(/\b(hibrid\w*|hybrid|4xe|phev|hev|mhev)\b/.test(v))return 'Híbrido';
  if(/\b(eletric|electric|ev)\b/.test(v))return 'Elétrico';
  if(/\b(flex|total flex|bicombustivel)\b/.test(v))return 'Flex';
  if(/\b(etanol|alcool)\b/.test(v))return 'Etanol';
@@ -89,7 +89,7 @@ export function mobileQuickIntent(text:string,brands:MobileFipeOption[]){
 }
 export function mobileAutoYearChoice(years:MobileFipeOption[],year:number,fuel:MobileFuel|''){
  const match=mobileYearOptions(years,year,fuel);
- if(!match.yearMatched||!match.fuelMatched&&fuel&&match.choices.length!==1)return null;
+ if(!match.yearMatched||(Boolean(fuel)&&!match.fuelMatched))return null;
  return match.choices.length===1?match.choices[0]:null;
 }
 
