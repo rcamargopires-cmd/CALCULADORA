@@ -32,7 +32,7 @@ export type Props={
  verifiedCount:number;verifiedAverage:number;verifiedCeiling:number;indexedAverage:number;
  historicalTarget:number;historicalMin:number;historicalMax:number;motorcycleReference:number;
  marketBrowseUrl:string|null;onSearchMarket:()=>void;marketBusy:boolean;marketNotice:string;
- onSave:(proposal?:NegotiatedProposal)=>void;saveBusy:boolean;saveNotice:string;saveError:string;onOpenFullDesk:()=>void;
+ onSave:(proposal?:NegotiatedProposal,suggested?:number,source?:'mesa'|'verified'|'historical'|'missing')=>void;saveBusy:boolean;saveNotice:string;saveError:string;onOpenFullDesk:()=>void;
  onStartNew:()=>boolean;onOpenApprovals:()=>void;onOpenPlateHistory?:()=>void;
 };
 type Tab='home'|'pricing'|'history'|'stock'|'repasse'|'settings';
@@ -122,7 +122,7 @@ export default function MarketIqMobileExperience(p:Props){
   setOfferAmount(updated.toFixed(2).replace('.',','));setOfferError('');
  };
  const saveProposal=()=>{
-  if(!offerActive||proposedAmount===selectedPrice.value){p.onSave();return;}
+  if(!offerActive||proposedAmount===selectedPrice.value){p.onSave(undefined,selectedPrice.value,selectedPrice.kind);return;}
   if(!Number.isFinite(proposedAmount)||proposedAmount<1500||proposedAmount>2000000){
    setOfferError('Informe um valor válido, de R$ 1.500 até R$ 2 milhões.');return;
   }
@@ -132,7 +132,7 @@ export default function MarketIqMobileExperience(p:Props){
   setOfferError('');
   p.onSave({negotiatedOffer:Math.round(proposedAmount*100)/100,
    baseSuggestion:selectedPrice.value,requestedByManager:offerManager.trim(),
-   negotiationReason:offerReason.trim()});
+   negotiationReason:offerReason.trim()},selectedPrice.value,selectedPrice.kind);
  };
  useEffect(()=>{
   if(tab!=='stock'||!canStock)return;
@@ -473,6 +473,7 @@ export default function MarketIqMobileExperience(p:Props){
      <small className="block text-slate-500">
       {r.negotiatedOffer?'Proposta gerencial · base '+cash(Number(r.baseSuggestion||r.value)):(r.provisional?'Preliminar':'Avaliação')}
       {r.negotiatedOffer?' · '+String(r.requestedByManager||'Gerente não informado'):''}
+      {r.negotiatedOffer&&r.negotiationReason?' · Motivo: '+String(r.negotiationReason):''}
       {Number(r.paidValue||r.approvedValue)>0?' · compra registrada':''}
      </small></span>
      <span className="flex items-center gap-1 text-xs font-bold text-[#008bd0]">
