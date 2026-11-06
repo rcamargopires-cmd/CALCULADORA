@@ -412,8 +412,9 @@ export default function MarketIqMobileExperience(p:Props){
        <input className={input} value={modelSearch} onChange={e=>setModelSearch(e.target.value)}
         placeholder={quickIntent.modelSearch||'Refinar modelo e versão'}
         aria-label="Refinar busca rápida de modelo"/>}
-      <p className="text-xs font-medium text-slate-600">
-       {models.length} versão(ões) compatíveis na lista
+      <p className="text-xs font-medium text-slate-600" role="status" aria-live="polite">
+       {p.catalogLoading&&!p.models.length?'Consultando versões da FIPE...':
+        models.length+' versão(ões) compatíveis na lista'}
        {pickedFuel?' · '+pickedFuel:''}
       </p>
       <div className={card+' max-h-[43dvh] overflow-y-auto px-4'} aria-label="Versões disponíveis na FIPE">
@@ -432,9 +433,16 @@ export default function MarketIqMobileExperience(p:Props){
         </span>
         {p.modelCode===m.code?<CheckCircle2 size={22} color="#008bd0"/>:<ChevronRight size={20} className="shrink-0 text-slate-500"/>}
        </button>)}
-       {!p.models.length&&<p className="py-4 text-sm text-slate-600">
-        {p.catalogLoading?'Carregando versões desta marca...':'Nenhuma versão carregada. Confira a marca ou tente novamente.'}
-       </p>}
+       {!p.models.length&&<div className="space-y-3 py-4">
+        <p className="text-sm text-slate-600">
+         {p.catalogLoading?'Carregando versões desta marca...':
+          'Não foi possível listar as versões desta marca. Tente carregar novamente.'}
+        </p>
+        {!p.catalogLoading&&<button type="button" onClick={p.onRetryFipe}
+         className="rounded-xl border border-sky-600 bg-white px-3 py-3 text-sm font-bold text-sky-800">
+         Atualizar catálogo FIPE
+        </button>}
+       </div>}
        {p.models.length>0&&models.length===0&&<p className="py-4 text-sm text-amber-900">
         Nenhuma versão compatível. Confira a busca e o combustível antes de continuar.
        </p>}
