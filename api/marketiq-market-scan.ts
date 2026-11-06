@@ -293,6 +293,25 @@ return async function handler(req:any,res:any){
  const idToken=idTokenFrom(req);
  if(!idToken||idToken.length>8000)return respond(res,401,{error:'Entre no Motyq novamente.'});
  try{
+
+   // Preview deployments intentionally have no production service account.
+   // Read-only history is proxied to the official, authenticated production API.
+   // Never forward mutation actions, and never copy production credentials into preview.
+   if(process.env.VERCEL_ENV==='preview'&&!process.env.FIREBASE_SERVICE_ACCOUNT_JSON){
+    if(req.body.action!=='pricing_history_list')
+      return respond(res,403,{error:'Homologação somente leitura: salve ou aprove avaliações na versão oficial do Motyq.'});
+    try{
+     const upstream=await fetch('https://app.motyq.com.br/api/marketiq-market-scan',{
+      method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+idToken},
+      body:JSON.stringify({action:'pricing_history_list'}),
+      signal:AbortSignal.timeout(22000),cache:'no-store'
+     });
+     const result=await upstream.json().catch(()=>({error:'A API oficial não retornou os dados do histórico.'}));
+     return respond(res,upstream.status,result);
+    }catch{
+     return respond(res,503,{error:'Histórico oficial indisponível na homologação. Tente novamente.'});
+    }
+   }
    const fb=await accountFromToken(idToken);
    if(!fb?.email)return respond(res,401,{error:'Sessão inválida. Entre novamente.'});
    const sa=serviceCredential();
@@ -789,14 +808,106 @@ const readChunks=async(monthPath:string,token:string,batchId:string,count:number
  }
  return output;
 };
+
+const officialArchiveRequest=async(idToken:string,action:'months'|'load'|'plate_history',month='',plate='')=>{
+ const host='https://app.motyq.com.br/api/marketiq-market-scan';
+ const method=action==='plate_history'?'POST':'GET';
+ const url=action==='months'?host+'?action=monthly_archive_months':
+  action==='load'?host+'?action=monthly_archive_load&month='+encodeURIComponent(month):host;
+ const resp=await fetch(url,{method,headers:{
+  authorization:'Bearer '+idToken,...(method==='POST'?{'content-type':'application/json'}:{})
+ },...(method==='POST'?{body:JSON.stringify({action:'monthly_archive_plate_history',plate})}:{}),
+ cache:'no-store',signal:AbortSignal.timeout(24000)});
+ const data=await resp.json().catch(()=>({error:'Resposta inválida da API oficial.'}));
+ if(!resp.ok){
+  const error:any=new Error(String(data?.error||'Consulta oficial indisponível.'));
+  error.status=resp.status;
+  throw error;
+ }
+ return data;
+};
+const archivePreviewReader=async(req:any,res:any,action:string)=>{
+ const idToken=getBearer(req);
+ if(!idToken||idToken.length>8000)return response(res,401,{error:'Entre novamente no Motyq.'});
+ if(!['months','load','plate_history','comparables'].includes(action)){
+  return response(res,403,{error:'Homologação somente leitura. Faça importações na versão oficial do Motyq.'});
+ }
+ try{
+  if(action==='months'){
+   const result=await officialArchiveRequest(idToken,'months');
+   return response(res,200,{...result,readOnlyPreview:true});
+  }
+  if(action==='load'){
+   const month=String(req.query?.month||'');
+   if(!monthValid(month))return response(res,400,{error:'Informe um mês válido.'});
+   const result=await officialArchiveRequest(idToken,'load',month);
+   return response(res,200,{...result,readOnlyPreview:true});
+  }
+  if(action==='plate_history'){
+   const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
+   if(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate))
+    return response(res,400,{error:'Informe uma placa válida.'});
+   const result=await officialArchiveRequest(idToken,'plate_history','',plate);
+   return response(res,200,{...result,readOnlyPreview:true});
+  }
+  const plate=trim(req.body?.plate,12).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const validPlate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate);
+  const brand=comparableBrand(req.body?.brand),model=comparableNorm(req.body?.model);
+  const year=int(req.body?.modelYear,1900,2100);
+  const km=int(req.body?.km,0,999999);
+  const kind=req.body?.vehicleType==='motorcycle'?'motorcycle':'car';
+  const version=comparableNorm(req.body?.version);
+  if(!validPlate&&(!brand||!model||!year))
+   return response(res,400,{error:'Informe uma placa válida ou marca, modelo e ano.'});
+  const meta=await officialArchiveRequest(idToken,'months');
+  const months=(Array.isArray(meta.months)?meta.months:[]).filter((m:any)=>monthValid(m.month));
+  const samePlate:any[]=[],comparable:any[]=[],seen=new Set<string>();
+  // Production retains its service credential, authorization and tenant scope.
+  // Preview reads its filtered monthly archive via the official authenticated API.
+  for(let offset=0;offset<months.length;offset+=3){
+   const part=await Promise.all(months.slice(offset,offset+3)
+    .map((m:any)=>officialArchiveRequest(idToken,'load',m.month)));
+   for(const monthData of part)for(const row of Array.isArray(monthData.records)?monthData.records:[]){
+    const key=String(row.month)+'|'+String(row.id);
+    if(seen.has(key))continue;
+    seen.add(key);
+    if(validPlate&&row.plate===plate)samePlate.push(row);
+    if(brand&&model&&year&&row.vehicleType===kind&&
+     comparableBrand(row.brand)===brand&&comparableModel(row.model,model)&&
+     typeof row.modelYear==='number'&&Math.abs(row.modelYear-year)<=2&&
+     !(validPlate&&row.plate===plate))comparable.push(row);
+   }
+  }
+  samePlate.sort((a,b)=>String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
+  comparable.sort((a,b)=>
+   comparableRank(b,year||0,version,km||0)-comparableRank(a,year||0,version,km||0)||
+   String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
+  return response(res,200,{
+   plateRecords:samePlate,records:comparable.slice(0,120),
+   comparableTotal:comparable.length,truncated:comparable.length>120,
+   monthsScanned:months.length,readOnlyPreview:true
+  });
+ }catch(e:any){
+  const status=[401,403,404].includes(e?.status)?e.status:503;
+  // No authenticated data is cached or logged in preview.
+  console.error('Motyq IQ preview archive read-only proxy:',status);
+  return response(res,status,{
+   error:status===401?'Sua sessão expirou. Entre novamente.':
+    status===403?'Sem permissão para consultar o arquivo oficial.':
+    'Não foi possível consultar o arquivo oficial nesta homologação.'
+  });
+ }
+};
 return async function handler(req:any,res:any){
  res.setHeader('Cache-Control','no-store');
  if(!['GET','POST'].includes(req.method))return response(res,405,{error:'Método não permitido.'});
  try{
+  const action=String(req.method==='GET'?req.query?.action:req.body?.action||'').replace(/^monthly_archive_/,'');
+  if(process.env.VERCEL_ENV==='preview'&&!process.env.FIREBASE_SERVICE_ACCOUNT_JSON)
+   return archivePreviewReader(req,res,action);
   const sa=serviceAccount();
   const token=await accessToken(sa);
   const user=await scopedUser(req,sa,token);
-  const action=String(req.method==='GET'?req.query?.action:req.body?.action||'').replace(/^monthly_archive_/,'');
   const root=dbBase(sa)+'/marketiq_monthly_archive_v1/'+encodeURIComponent(user.companyId)+'/months';
   if(req.method==='GET'&&action==='months'){
    const doc=await firestoreRead(root+'?pageSize=100',token);
