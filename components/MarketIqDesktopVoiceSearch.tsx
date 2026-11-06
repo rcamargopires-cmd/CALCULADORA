@@ -29,6 +29,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
  const [modelFilter,setModelFilter]=useState('');
  const [yearFilter,setYearFilter]=useState(0);
  const [brandFilter,setBrandFilter]=useState('');
+ const [brandConfirmed,setBrandConfirmed]=useState(false);
  const [formType,setFormType]=useState<'car'|'motorcycle'>(p.vehicleType);
  const recognitionRef=useRef<any>(null);
  const transcriptRef=useRef('');
@@ -36,6 +37,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
  const startedRef=useRef(false);
  const editingRef=useRef<HTMLInputElement|null>(null);
  const intent=useMemo(()=>mobileQuickIntent(searchText,p.brands),[searchText,p.brands]);
+ const showBrandPicker=!p.brandCode||(!intent.brand&&!brandConfirmed);
  const matchedModels=useMemo(()=>mobileFilterModels(p.models,modelFilter,''),
   [p.models,modelFilter]);
  const yearOptions=useMemo(()=>{
@@ -50,7 +52,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
  };
  const close=()=>{
   stopRecognition();setOpen(false);setPhase('idle');setHint('');
-  setSearching(false);setTranscript('');setBrandFilter('');
+  setSearching(false);setTranscript('');setBrandFilter('');setBrandConfirmed(false);
  };
  useEffect(()=>()=>{
   const active=recognitionRef.current;recognitionRef.current=null;
@@ -74,13 +76,18 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
    window.setTimeout(()=>document.getElementById('motyq-iq-valuation-form')?.scrollIntoView({behavior:'smooth'}),0);
    return;
   }
-  const parsed=mobileQuickIntent(normalized,p.brands);
+  const changingType=formType!==p.vehicleType;
+  if(changingType&&(p.brandCode||p.modelCode)&&
+    !window.confirm('Trocar o tipo de veículo e a ficha FIPE atual?'))return;
+  const parsed=mobileQuickIntent(normalized,changingType?[]:p.brands);
+  if(changingType)p.onVehicleType(formType);
+  setBrandConfirmed(Boolean(parsed.brand));
   setModelFilter(parsed.modelSearch);
   setYearFilter(parsed.hasYear?parsed.year:0);
   setSearching(true);setPhase('heard');
   setHint('Confira a versão e o ano/modelo na FIPE. Nada será salvo automaticamente.');
   p.onOpenPricing();
-  if(parsed.brand){
+  if(parsed.brand&&!changingType){
    if(p.modelCode&&p.brandCode!==parsed.brand.code&&
       !window.confirm('A pesquisa vai substituir marca, versão e ano da ficha atual. Continuar?'))return;
    if(p.brandCode!==parsed.brand.code||!p.models.length)p.onBrand(parsed.brand.code);
@@ -166,7 +173,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
  const pickBrand=(code:string)=>{
   if(p.modelCode&&p.brandCode!==code&&
    !window.confirm('Trocar a marca e a versão da avaliação atual?'))return;
-  p.onBrand(code);setBrandFilter('');
+  p.onBrand(code);setBrandFilter('');setBrandConfirmed(true);
  };
  const pickYear=(code:string)=>{
   p.onYear(code);
@@ -228,17 +235,14 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
          <option value="car">Carro</option><option value="motorcycle">Moto</option>
         </select>
        </label>
-       {!searching&&<button type="button" onClick={()=>{
-        if(formType!==p.vehicleType)p.onVehicleType(formType);
-        prepareSearch(searchText);
-       }} disabled={!searchText.trim()}
+       {!searching&&<button type="button" onClick={()=>prepareSearch(searchText)} disabled={!searchText.trim()}
         className="rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-50">
         Buscar versões FIPE <ArrowRight size={16} className="ml-1 inline"/></button>}
       </div>
       {searching&&<>
        {intent.brand&&<p className="text-sm font-semibold text-cyan-100">
         Marca reconhecida: {intent.brand.name}{yearFilter?' · '+yearFilter:''}</p>}
-       {!p.brandCode&&<div className="rounded-xl border border-cyan-500/30 bg-white/10 p-3">
+       {showBrandPicker&&<div className="rounded-xl border border-cyan-500/30 bg-white/10 p-3">
         <p className="mb-2 text-sm font-bold text-white">Confirme a marca</p>
         <input value={brandFilter} onChange={e=>setBrandFilter(e.target.value)}
          placeholder="Buscar marca" className="mb-2 w-full rounded-lg bg-white p-2 text-slate-950"/>
@@ -249,7 +253,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
            {b.name}</button>)}
         </div>
        </div>}
-       {p.brandCode&&<div className="rounded-xl border border-cyan-500/30 bg-white/10 p-3">
+       {!showBrandPicker&&p.brandCode&&<div className="rounded-xl border border-cyan-500/30 bg-white/10 p-3">
         <p className="mb-2 text-sm font-bold text-white">Versões FIPE · {p.brand}</p>
         <input value={modelFilter} onChange={e=>setModelFilter(e.target.value)}
          placeholder="Refinar modelo e versão" aria-label="Refinar modelos na busca por voz"
@@ -265,7 +269,7 @@ export default function MarketIqDesktopVoiceSearch(p:Props){
           Nenhuma versão corresponde. Ajuste a busca ou tente novamente.</p>}
         </div>
        </div>}
-       {p.modelCode&&<div className="rounded-xl border border-cyan-500/30 bg-white/10 p-3">
+       {!showBrandPicker&&p.modelCode&&<div className="rounded-xl border border-cyan-500/30 bg-white/10 p-3">
         <p className="mb-2 text-sm font-bold text-white">Ano/modelo e combustível · {p.model}</p>
         <label className="block text-xs font-semibold text-cyan-100">Ano desejado
          <input type="number" min={1990} max={2100} value={yearFilter||''}
