@@ -102,6 +102,12 @@ assert.equal(mobileAutoYearChoice([
 ],2025,''),null,'Ambiguous FIPE fuel choices require explicit selection');
 assert.ok(ui.includes('Busca rápida de veículo'));
 assert.ok(ui.includes('Prefiro escolher passo a passo'));
+assert.ok(ui.includes('Tipo de veículo para busca rápida'),'Quick search must support cars and motorcycles');
+assert.ok(ui.includes('if(!sameVehicleType)p.onVehicleType(quickType)'),
+ 'Quick search must not inherit old vehicle type');
+const motoQuick=mobileQuickIntent('Yamaha Fazer 2023',[{code:'10',name:'Yamaha'}]);
+assert.equal(motoQuick.brand?.name,'Yamaha');
+assert.equal(motoQuick.year,2023);
 assert.ok(ui.includes("mobileFilterModels(p.models,quickMode?quickIntent.modelSearch:modelSearch,pickedFuel)"));
 assert.ok(ui.includes('mobileAutoYearChoice(p.years,pickedYear,pickedFuel)'));
 assert.ok(!ui.includes('Ano/combustível da versão na FIPE'),'Redundant FIPE dropdown removed');
