@@ -1,0 +1,99 @@
+.motyq-holo {
+  position:relative;
+  width:min(92vw,370px);
+  margin-inline:auto;
+  color:#d5f8ff;
+  isolation:isolate;
+  user-select:none;
+  -webkit-user-select:none;
+  filter:drop-shadow(0 0 10px rgba(16,163,255,.16));
+}
+.motyq-holo::before {
+  content:"";
+  position:absolute;
+  inset:8% 8% 18%;
+  z-index:-1;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(12,129,242,.12),transparent 72%);
+  transform:scale(calc(1 + var(--motyq-audio-level,0) * .15));
+  transition:transform 90ms linear;
+}
+.motyq-holo-svg {display:block;width:100%;height:auto;overflow:visible}
+.motyq-holo-outer-orbit,.motyq-holo-middle-orbit {
+  transform-origin:180px 170px;
+  transform-box:view-box;
+  animation:motyqHoloSpin 18s linear infinite;
+}
+.motyq-holo-middle-orbit {animation:motyqHoloSpinReverse 7s linear infinite}
+.motyq-holo.is-processing .motyq-holo-outer-orbit{animation-duration:4s}
+.motyq-holo.is-processing .motyq-holo-middle-orbit{animation-duration:2.4s}
+.motyq-holo-inner {
+  transform-origin:180px 170px;
+  transform:scale(calc(1 + var(--motyq-audio-level,0) * .044));
+  transition:transform 90ms linear;
+}
+.motyq-holo-audio-bars{
+  filter:drop-shadow(0 0 3px rgba(39,208,255,.58));
+}
+.motyq-holo-wordmark{
+  fill:#e4fdff;
+  font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:23px;
+  font-weight:850;
+  letter-spacing:2.6px;
+  paint-order:stroke;
+  stroke:#3aa0e8;
+  stroke-opacity:.18;
+  stroke-width:2px;
+  filter:drop-shadow(0 0 6px rgba(122,238,255,.75));
+}
+.motyq-holo-subtitle{
+  fill:#9acbdf;
+  font-family:ui-sans-serif,system-ui,sans-serif;
+  font-size:6.8px;
+  letter-spacing:1.24px;
+  font-weight:700;
+}
+.motyq-holo-particles{
+  filter:drop-shadow(0 0 5px rgba(40,200,255,.66));
+}
+.motyq-holo-floor-motion{
+  transform-origin:180px 345px;
+  transform-box:view-box;
+  animation:motyqHoloFloor 2.8s ease-in-out infinite;
+}
+.motyq-holo.is-listening .motyq-holo-audio-bars {
+  filter:drop-shadow(0 0 5px rgba(39,224,255,.85));
+}
+.motyq-holo.is-processing .motyq-holo-particles{
+  animation:motyqHoloParticles .75s ease-in-out infinite alternate;
+  transform-origin:180px 170px;
+  transform-box:view-box;
+}
+.motyq-holo-caption{
+  position:absolute;
+  inset-inline:0;
+  bottom:4px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  text-align:center;
+  font-size:10px;
+  letter-spacing:2px;
+  font-weight:800;
+  color:#82d6ff;
+  text-shadow:0 0 12px rgba(12,190,244,.5);
+}
+.motyq-holo-meter-dot{
+  display:inline-block;
+  width:5px;height:5px;border-radius:50%;
+  background:#67f0ff;box-shadow:0 0 8px 2px rgba(103,240,255,.8);
+}
+@keyframes motyqHoloSpin {to{transform:rotate(360deg)}}
+@keyframes motyqHoloSpinReverse {to{transform:rotate(-360deg)}}
+@keyframes motyqHoloFloor {50%{transform:scaleX(1.11);opacity:.65}}
+@keyframes motyqHoloParticles {to{transform:scale(.93);opacity:.8}}
+@media(prefers-reduced-motion:reduce){
+ .motyq-holo *, .motyq-holo::before{animation:none!important;transition:none!important}
+}
