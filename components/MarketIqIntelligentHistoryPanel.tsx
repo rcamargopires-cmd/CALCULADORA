@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {History,Layers,RefreshCw,ShieldCheck,AlertTriangle} from 'lucide-react';
 import {auth} from '../firebase';
 import {alignPurchaseReference} from '../services/marketIqPurchaseAlignment';
-import {deriveMesaPricePattern} from '../services/marketIqMesaPricePattern';
+import {deriveMesaPricePattern,mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
 import type {MonthlyArchiveRow} from '../services/marketIqMonthlyArchive';
 import {
  buildComparableHistory,plateComparable,type ComparableCurrent,type ComparableCloud,
@@ -10,11 +10,12 @@ import {
 } from '../services/marketIqComparableHistory';
 
 type ArchiveResponse={plateRecords:MonthlyArchiveRow[];records:MonthlyArchiveRow[];
- comparableTotal:number;truncated:boolean;monthsScanned:number;readOnlyPreview?:boolean};
+ comparableTotal:number;truncated:boolean;monthsScanned:number;readOnlyPreview?:boolean;lookupIdentity?:string};
 type Props={
  current:ComparableCurrent;cloudHistory:ComparableCloud[];companyId:string;
  verifiedMarketCeiling?:number;historicalModelTarget?:number;
  onOpenPlateHistory?:()=>void;compact?:boolean;
+ onMesaReference?:(value:MesaPriceReference|null)=>void;
 };
 const fmt=(v:number|null|undefined)=>v===null||v===undefined?'—':
  v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -25,7 +26,7 @@ const tag=(entry:ComparableEntry)=>entry.grade==='placa'?'Mesma placa':
  entry.grade==='equivalente'?'Mesma versão · outro ano (fora da média)':'Outra versão (fora da média)';
 export default function MarketIqIntelligentHistoryPanel({
  current,cloudHistory,companyId,verifiedMarketCeiling=0,historicalModelTarget=0,
- onOpenPlateHistory,compact=false
+ onOpenPlateHistory,compact=false,onMesaReference
 }:Props){
  const [data,setData]=useState<ArchiveResponse>(empty);
  const [loading,setLoading]=useState(false);
@@ -64,7 +65,8 @@ export default function MarketIqIntelligentHistoryPanel({
      plateRecords:Array.isArray(body.plateRecords)?body.plateRecords:[],
      records:Array.isArray(body.records)?body.records:[],
      comparableTotal:Number(body.comparableTotal)||0,truncated:body.truncated===true,
-     monthsScanned:Number(body.monthsScanned)||0,readOnlyPreview:body.readOnlyPreview===true
+     monthsScanned:Number(body.monthsScanned)||0,readOnlyPreview:body.readOnlyPreview===true,
+     lookupIdentity:identity
     });
    }catch(e:any){
     if(!cancelled&&e?.name!=='AbortError'){setData(empty);setError(String(e.message||e));}
@@ -72,12 +74,26 @@ export default function MarketIqIntelligentHistoryPanel({
   },450);
   return ()=>{cancelled=true;window.clearTimeout(timer);controller.abort();};
  },[identity,ready,reload]);
- const report=useMemo(()=>buildComparableHistory(current,data.plateRecords,data.records,
-  cloudHistory,companyId,data.truncated),[identity,current.fipe,data,cloudHistory,companyId]);
+ const isCurrentArchive=data.lookupIdentity===identity;
+ const report=useMemo(()=>buildComparableHistory(current,
+  isCurrentArchive?data.plateRecords:[],isCurrentArchive?data.records:[],
+  cloudHistory,companyId,isCurrentArchive&&data.truncated),
+  [identity,current.fipe,data,cloudHistory,companyId,isCurrentArchive]);
  // Never display a statistical value as a reliable buying offer when confirmed
  // same-version purchases diverge materially. Small samples trigger review,
  // not an unreviewed automatic reduction or an inflated offer.
  const pattern=deriveMesaPricePattern(report.comparables,current.km);
+ const priceKey=mesaReferenceKey(current,companyId);
+ useEffect(()=>{
+  if(!onMesaReference)return;
+  if(!ready||loading||Boolean(error)||!isCurrentArchive||report.limited||
+    pattern.operationalSuggestion===null||pattern.typicalCount<2){
+   onMesaReference(null);
+   return;
+  }
+  onMesaReference({key:priceKey,value:pattern.operationalSuggestion,count:pattern.typicalCount});
+ },[onMesaReference,ready,loading,error,isCurrentArchive,report.limited,
+   pattern.operationalSuggestion,pattern.typicalCount,priceKey]);
  const priceSignal=alignPurchaseReference({
   verifiedMarketCeiling,statisticalTarget:historicalModelTarget,
   paidCount:report.paidCount,paidMedian:report.paidMedian,
@@ -133,7 +149,7 @@ export default function MarketIqIntelligentHistoryPanel({
     <p className="text-xs font-black uppercase tracking-wide text-emerald-900">Padrão de negociação da Mesa · mesma versão e ano</p>
     <p className="mt-1 text-3xl font-black text-emerald-950">{fmt(pattern.operationalSuggestion)}</p>
     <p className="mt-1 text-sm font-bold text-emerald-950">
-     {pattern.confidence==='baixa'?'Indicação inicial, amostra pequena':'Referência operacional sugerida, sujeita à aprovação'}
+     {pattern.confidence==='baixa'?'Padrão inicial de avaliação, amostra pequena':'Referência recorrente da Mesa, sujeita à aprovação'}
     </p>
     <p className="mt-1 text-xs leading-5 text-emerald-950">
      {pattern.quoteVehicles} veículo(s) com preço registrado, em {pattern.assessmentEvents} avaliação(ões).
@@ -157,7 +173,7 @@ export default function MarketIqIntelligentHistoryPanel({
       Valor(es) acima do padrão podem ser exceções comerciais. Antes de usar o máximo como teto, confirme a justificativa e a aprovação da direção.
      </p>}
     <p className="mt-2 text-[11px] leading-5 text-emerald-950">
-     O padrão combina preços avaliados e pagos sem confundi-los com compras realizadas. Veículos de mesma placa contam somente uma vez;
+     O padrão usa avaliações de veículos independentes, sem confundir propostas com compras confirmadas. Não comprova, por si só, preço de mercado. Veículos de mesma placa contam somente uma vez;
      custos, preparação, condição, FIPE, Webmotors e decisões excepcionais precisam ser analisados à parte.
     </p>
    </div>}
