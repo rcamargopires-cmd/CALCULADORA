@@ -267,6 +267,22 @@ export default function MarketIqMobileExperience(p:Props){
    </header>}
    {tab==='home'&&<div className="space-y-6">
     <div><p className="text-sm text-slate-500">Bem-vindo à sua Mesa</p><h2 className="mt-1 text-2xl font-extrabold">O que vamos avaliar hoje?</h2></div>
+    <div className={card+' space-y-3 p-4'}>
+     <label htmlFor="motyq-quick-search" className="block text-sm font-bold text-slate-800">Busca rápida de veículo</label>
+     <p className="text-xs text-slate-600">Digite o modelo, versão e ano. Ex.: Compass Longitude 2025.</p>
+     <div className="relative">
+      <Search size={19} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#008bd0]"/>
+      <input id="motyq-quick-search" className={input+' pl-11'} value={quickQuery}
+       onChange={e=>{setQuickQuery(e.target.value);setQuickError('');}}
+       onKeyDown={e=>{if(e.key==='Enter')startQuickSearch();}}
+       placeholder="Compass Longitude 2025" autoComplete="off"/>
+     </div>
+     {quickError&&<p role="alert" className="text-xs font-bold text-rose-700">{quickError}</p>}
+     <button type="button" className={action} onClick={startQuickSearch}
+      disabled={!quickQuery.trim()}>Buscar versões FIPE <ArrowRight size={18}/></button>
+     <button type="button" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-sky-800"
+      onClick={newValuation}>Prefiro escolher passo a passo</button>
+    </div>
     <div className={card+' p-4'}>
      <label htmlFor="mobile-history-search" className="block pb-2 text-xs font-bold text-slate-600">Buscar no histórico</label>
      <div className="relative"><Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#008bd0]"/>
