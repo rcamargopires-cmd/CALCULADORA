@@ -12,6 +12,7 @@ import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
 import {mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
 import {mobileHistorySearch,mobileModelYearFromCode,mobilePriceSource,mobileYearOptions,mobileQuickIntent,mobileFilterModels,mobileFuelFromModel,mobileAutoYearChoice,type MobileFuel,type MobileFipeOption} from '../services/marketIqMobileFlow';
 import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
+import MarketIqVoiceHologram from './MarketIqVoiceHologram';
 import {canPromptMotyqInstall,isStandaloneMotyq,promptMotyqInstall,subscribeMotyqInstall}
  from '../services/marketIqPwaInstall';
 type Vehicle='car'|'motorcycle';
@@ -689,17 +690,11 @@ export default function MarketIqMobileExperience(p:Props){
    {message&&<p role="status" className="mt-4 rounded-2xl bg-sky-50 p-3 text-sm text-sky-900">{message}</p>}
   </div>
   {voiceOpen&&<div role="dialog" aria-modal="true" aria-label="Motyq IQ busca por voz"
-   className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#071523]/95 p-5 text-white backdrop-blur-lg">
-   <style>{`
-    @keyframes motyqOrbit {from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-    @keyframes motyqOrbitReverse {from{transform:rotate(360deg)}to{transform:rotate(0deg)}}
-    @keyframes motyqVoicePulse {0%,100%{transform:scale(.95);opacity:.45}50%{transform:scale(1.09);opacity:1}}
-    @media(prefers-reduced-motion:reduce){.motyq-voice-motion{animation:none!important}}
-   `}</style>
-   <div className="relative mx-auto flex w-full max-w-[420px] flex-col items-center justify-center gap-5 py-8 text-center">
+   className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#020813]/95 bg-[radial-gradient(circle_at_50%_44%,rgba(7,62,124,0.35),rgba(2,8,19,0.98)_75%)] p-5 text-white backdrop-blur-lg">
+   <div className="relative mx-auto flex w-full max-w-[420px] flex-col items-center justify-center gap-3 py-6 text-center">
     <button type="button" aria-label="Fechar busca por voz" onClick={closeVoice}
      className="absolute right-0 top-0 rounded-full border border-white/20 bg-white/10 p-3 text-white"><X size={22}/></button>
-    <div className="mt-8 flex items-center gap-2 text-xs font-black uppercase tracking-[.24em] text-cyan-300">
+    <div className="mt-8 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.27em] text-cyan-300">
      <Volume2 size={16}/> MOTYQ IQ · VOZ
     </div>
     <h2 className="text-2xl font-extrabold">
@@ -715,19 +710,9 @@ export default function MarketIqMobileExperience(p:Props){
       else if(voiceState==='fallback')voice();
      }}
      disabled={voiceState==='processing'}
-     className="relative my-4 flex h-[250px] w-[250px] items-center justify-center rounded-full outline-none focus-visible:ring-4 focus-visible:ring-cyan-300 disabled:opacity-70">
-     <span className="absolute inset-0 rounded-full border border-cyan-400/20 bg-cyan-400/5"/>
-     <span className="motyq-voice-motion absolute inset-[10px] rounded-full border-2 border-dashed border-cyan-400/70"
-      style={{animation:'motyqOrbit 10s linear infinite'}}/>
-     <span className="motyq-voice-motion absolute inset-[28px] rounded-full border-[3px] border-cyan-200/60 border-l-transparent border-b-transparent"
-      style={{animation:'motyqOrbitReverse 5s linear infinite'}}/>
-     <span className="motyq-voice-motion absolute inset-[45px] rounded-full border-2 border-cyan-500/60"
-      style={{animation:'motyqVoicePulse 2s ease-in-out infinite'}}/>
-     <span className="absolute inset-[63px] rounded-full border border-cyan-300/50 bg-gradient-to-br from-sky-500/40 to-blue-900/50 shadow-[0_0_65px_12px_rgba(0,191,255,0.28)]"/>
-     <span className="relative flex h-20 w-20 items-center justify-center rounded-full border border-cyan-200/50 bg-[#083650] text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.5)]">
-      {voiceState==='processing'?<RefreshCw size={37} className="motyq-voice-motion animate-spin"/>:
-       voiceState==='fallback'?<MicOff size={38}/>:<Mic size={38}/>}
-     </span>
+     className="relative my-1 flex w-full max-w-[360px] items-center justify-center rounded-[38px] outline-none focus-visible:ring-4 focus-visible:ring-cyan-300 disabled:opacity-70">
+     <MarketIqVoiceHologram listening={voiceState==='listening'}
+      processing={voiceState==='processing'} heard={voiceState==='heard'}/>
     </button>
     <p className="max-w-[340px] text-sm leading-6 text-cyan-100" role="status" aria-live="polite">{voiceHint}</p>
     {voiceTranscript&&<div className="w-full rounded-2xl border border-cyan-400/30 bg-white/10 p-4">
