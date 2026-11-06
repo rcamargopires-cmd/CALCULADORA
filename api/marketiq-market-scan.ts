@@ -875,38 +875,47 @@ const archivePreviewReader=async(req:any,res:any,action:string)=>{
   const version=comparableNorm(req.body?.version);
   if(!validPlate&&(!brand||!model||!year))
    return response(res,400,{error:'Informe uma placa válida ou marca, modelo e ano.'});
-  const meta=await officialArchiveRequest(idToken,'months');
-  const months=(Array.isArray(meta.months)?meta.months:[]).filter((m:any)=>monthValid(m.month));
-  const samePlate:any[]=[],comparable:any[]=[],seen=new Set<string>();
-  // Production retains its service credential, authorization and tenant scope.
-  // Preview reads its filtered monthly archive via the official authenticated API.
-  for(let offset=0;offset<months.length;offset+=3){
-   const part=await Promise.all(months.slice(offset,offset+3)
-    .map((m:any)=>officialArchiveRequest(idToken,'load',m.month)));
-   for(const monthData of part)for(const row of Array.isArray(monthData.records)?monthData.records:[]){
-    const key=String(row.month)+'|'+String(row.id);
-    if(seen.has(key))continue;
-    seen.add(key);
-    if(validPlate&&row.plate===plate)samePlate.push(row);
-    if(brand&&model&&year&&row.vehicleType===kind&&
-     comparableBrand(row.brand)===brand&&comparableModel(row.model,model)&&
-     typeof row.modelYear==='number'&&Math.abs(row.modelYear-year)<=2&&
-     !(validPlate&&row.plate===plate))comparable.push(row);
-   }
+  // Use the official authenticated, tenant-scoped comparable endpoint directly.
+  // Reading every month's full snapshot from preview was fragile and could
+  // time out. Production already supports indexed comparables search.
+  const upstream=await fetch('https://app.motyq.com.br/api/marketiq-market-scan',{
+   method:'POST',headers:{
+    authorization:'Bearer '+idToken,'content-type':'application/json'
+   },body:JSON.stringify({
+    action:'monthly_archive_comparables',
+    plate:validPlate?plate:'',brand,model,modelYear:year,km,
+    vehicleType:kind,version,fipeCode:trim(req.body?.fipeCode,32)
+   }),cache:'no-store',signal:AbortSignal.timeout(28000)
+  });
+  const payload=await upstream.json().catch(()=>({}));
+  if(!upstream.ok){
+   const error:any=new Error('OFFICIAL_COMPARABLES_UNAVAILABLE');
+   error.status=upstream.status;
+   error.retryAfterSeconds=Number(payload?.retryAfterSeconds)||180;
+   throw error;
   }
-  samePlate.sort((a,b)=>String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
-  comparable.sort((a,b)=>
-   comparableRank(b,year||0,version,km||0)-comparableRank(a,year||0,version,km||0)||
-   String(b.evaluationDate).localeCompare(String(a.evaluationDate)));
+  if(!Array.isArray(payload.plateRecords)||!Array.isArray(payload.records)||
+   payload.plateRecords.length>1000||payload.records.length>120){
+   throw new Error('OFFICIAL_COMPARABLES_INVALID');
+  }
   return response(res,200,{
-   plateRecords:samePlate,records:comparable.slice(0,120),
-   comparableTotal:comparable.length,truncated:comparable.length>120,
-   monthsScanned:months.length,readOnlyPreview:true
+   plateRecords:payload.plateRecords,records:payload.records,
+   comparableTotal:Number(payload.comparableTotal)||0,
+   truncated:payload.truncated===true,
+   monthsScanned:Number(payload.monthsScanned)||0,
+   readOnlyPreview:true
   });
  }catch(e:any){
-  const status=[401,403,404].includes(e?.status)?e.status:503;
-  // No authenticated data is cached or logged in preview.
+  const limited=e?.status===429;
+  const status=limited?429:[401,403,404].includes(e?.status)?e.status:503;
+  // Pass through only the rate-limit status, never raw production data or tokens.
   console.error('Motyq IQ preview archive read-only proxy:',status);
+  if(limited){
+   const seconds=Math.min(900,Math.max(60,Number(e.retryAfterSeconds)||180));
+   res.setHeader('Retry-After',String(seconds));
+   return response(res,429,{code:'ARCHIVE_RATE_LIMIT',retryAfterSeconds:seconds,
+    error:'O banco de dados está limitando consultas. Aguarde antes de tentar novamente.'});
+  }
   return response(res,status,{
    error:status===401?'Sua sessão expirou. Entre novamente.':
     status===403?'Sem permissão para consultar o arquivo oficial.':
@@ -919,7 +928,7 @@ return async function handler(req:any,res:any){
  if(!['GET','POST'].includes(req.method))return response(res,405,{error:'Método não permitido.'});
  try{
   const action=String(req.method==='GET'?req.query?.action:req.body?.action||'').replace(/^monthly_archive_/,'');
-  if(process.env.VERCEL_ENV==='preview'&&!process.env.FIREBASE_SERVICE_ACCOUNT_JSON)
+  if(process.env.VERCEL_ENV==='preview')
    return archivePreviewReader(req,res,action);
   const sa=serviceAccount();
   const token=await accessToken(sa);
@@ -1090,9 +1099,15 @@ return async function handler(req:any,res:any){
   return response(res,400,{error:'Ação inválida.'});
  }catch(e:any){
   const msg=String(e?.message||'ARCHIVE_FAILED');
-  const status=msg==='AUTH_REQUIRED'?401:msg==='PERMISSION_DENIED'?403:
+  const throttled=msg==='FIRESTORE_READ_FAILED_429'||msg==='FIRESTORE_WRITE_FAILED_429';
+  const status=throttled?429:msg==='AUTH_REQUIRED'?401:msg==='PERMISSION_DENIED'?403:
    msg.startsWith('INVALID_')?400:msg==='ARCHIVE_INCOMPLETE'?409:500;
   console.error('Motyq IQ monthly archive:',msg);
+  if(throttled){
+   res.setHeader('Retry-After','180');
+   return response(res,429,{code:'ARCHIVE_RATE_LIMIT',retryAfterSeconds:180,
+    error:'O Firestore está limitando o acesso ao arquivo mensal. Aguarde antes de consultar novamente.'});
+  }
   return response(res,status,{error:status===500?
    'Arquivo mensal indisponível. Nenhuma informação de avaliações foi alterada.':
    status===403?'Sem permissão para acessar o arquivo mensal.':

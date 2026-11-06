@@ -104,6 +104,81 @@ assert.equal(compassResult.comparables.find(e=>e.id.endsWith('compass-hybrid')).
 assert.equal(compassResult.comparables.find(e=>e.id.endsWith('compass-2024')).eligible,false);
 assert.equal(compassResult.comparables.find(e=>e.id.endsWith('compass-uncertain')).eligible,false,
  'Insufficiently identified versions fail closed');
+// Realistic Amarok Extreme discrepancy reported by the Mesa on 2026-11-06:
+// FIPE label abbreviated "Dies." / "4x4"; AutoAvaliar writes "TDI" / "4Motion".
+const amarokCurrent={
+ plate:'TMB3G36',brand:'VW - VolksWagen',
+ model:'AMAROK Extreme CD 3.0 4x4 TB Dies. Aut.',
+ modelYear:2025,km:36000,fipe:279765,fipeCode:'005506-9',vehicleType:'car'
+};
+const amarokArchive=[
+ row('amarok-oct26','2026-10-26',{
+  plate:'TMJ0B10',brand:'VOLKSWAGEN',model:'AMAROK',
+  version:'3.0 V6 TDI EXTREME CD 4MOTION AUTOMATICO',
+  modelYear:2025,km:17838,assessedValue:225000,
+  status:'AVALIADO',fipe:277000
+ }),
+ row('amarok-oct23','2026-10-23',{
+  plate:'TJE8D61',brand:'VW - VOLKSWAGEN',model:'AMAROK',
+  version:'3.0 V6 TDI EXTREME CD 4MOTION AUTOMATICO DIESEL',
+  modelYear:2025,km:12900,assessedValue:230000,
+  status:'AVALIADO',fipe:277000
+ }),
+ row('amarok-highline','2026-10-20',{
+  plate:'ABC2D34',brand:'VOLKSWAGEN',model:'AMAROK',
+  version:'3.0 V6 TDI HIGHLINE CD 4MOTION AUTOMATICO',
+  modelYear:2025,km:34500,assessedValue:210000
+ }),
+ row('amarok-20','2026-10-21',{
+  plate:'ABC2D35',brand:'VOLKSWAGEN',model:'AMAROK',
+  version:'2.0 TDI EXTREME CD 4MOTION AUTOMATICO',
+  modelYear:2025,km:35000,assessedValue:198000
+ }),
+ row('amarok-4x2','2026-10-22',{
+  plate:'ABC2D36',brand:'VOLKSWAGEN',model:'AMAROK',
+  version:'3.0 V6 TDI EXTREME CD 4X2 AUTOMATICO',
+  modelYear:2025,km:35000,assessedValue:199000
+ }),
+ row('amarok-manual','2026-10-24',{
+  plate:'ABC2D37',brand:'VOLKSWAGEN',model:'AMAROK',
+  version:'3.0 V6 TDI EXTREME CD 4MOTION MANUAL',
+  modelYear:2025,km:35000,assessedValue:205000
+ }),
+ row('amarok-old-year','2026-10-25',{
+  plate:'ABC2D38',brand:'VOLKSWAGEN',model:'AMAROK',
+  version:'3.0 V6 TDI EXTREME CD 4MOTION AUTOMATICO',
+  modelYear:2024,km:35000,assessedValue:212000
+ })
+];
+const amarokReport=buildComparableHistory(
+ amarokCurrent,
+ [row('amarok-same-plate','2026-10-15',{
+  plate:'TMB3G36',brand:'VOLKSWAGEN',model:'AMAROK',
+  version:'3.0 V6 TDI EXTREME CD 4MOTION AUTOMATICO',
+  modelYear:2025,km:37000,status:'AVALIADO',assessedValue:225000
+ })],
+ amarokArchive,[],'abrao-reze'
+);
+assert.equal(amarokReport.samePlate.length,1,
+ 'Prior valuation of same plate stays visible in Mesma placa, never doubles as peer vehicle');
+assert.equal(amarokReport.exactCount,2,
+ 'October Amarok Extreme V6 Diesel 4Motion 2025 must match FIPE Dies. 4x4 Aut.');
+assert.equal(amarokReport.paidCount,0,
+ 'AutoAvaliar status AVALIADO is not proof of a purchase, even when the proposal was R$225k');
+assert.ok(amarokReport.comparables.filter(x=>x.grade==='exato').every(x=>x.paid===null),
+ 'Comparable quotation and confirmed purchase remain separate');
+assert.equal(amarokReport.comparables.filter(x=>x.grade==='equivalente').length,1,
+ '2024 Amarok Extreme can be seen as context, not mixed into 2025 average');
+assert.equal(amarokReport.comparables.filter(x=>x.grade==='relacionado').length,4,
+ 'Highline, 2.0, 4x2 and manual variants must remain outside exact pricing');
+const withOnePaid=buildComparableHistory(amarokCurrent,[],[{
+ ...amarokArchive[0],id:'confirmed-amarok',
+ plate:'UVW4B32',status:'UTILIZADO',km:36050
+}],[],'abrao-reze');
+assert.equal(withOnePaid.paidCount,1,
+ 'Only a matching, confirmed UTILIZADO purchase in October can count in operational paid evidence');
+assert.equal(withOnePaid.paidMedian,225000);
+
 assert.ok(panel.includes("'other','Outras versões ('+otherVersions.length"),
  'Unmatched trims must live in a separate tab');
 assert.ok(panel.includes("matching.filter(r=>r.paid!==null)"),
@@ -117,8 +192,14 @@ assert.ok(api.includes('const {plateIndex,...summary}=item'),'Old index privacy 
 assert.ok(api.includes('const {brandIndex,...safeSummary}=summary'),'New index must remain private');
 assert.ok(api.includes('const user=await scopedUser(req,sa,token)'),'Server authorization required');
 assert.ok(api.includes('user.companyId'),'Tenant scoped archive path');
-assert.ok(api.includes("process.env.VERCEL_ENV==='preview'&&!process.env.FIREBASE_SERVICE_ACCOUNT_JSON"),
- 'Preview must not require production service credentials');
+assert.ok(api.includes("if(process.env.VERCEL_ENV==='preview')"),
+ 'Preview must always use read-only official archive proxy, regardless of preview environment configuration');
+assert.ok(api.includes("action:'monthly_archive_comparables',"),
+ 'Preview comparison must call the official indexed comparable route directly');
+assert.ok(api.includes("OFFICIAL_COMPARABLES_INVALID")&&api.includes("readOnlyPreview:true"),
+ 'Preview must validate upstream response and mark it read-only');
+assert.ok(!api.includes("const meta=await officialArchiveRequest(idToken,'months');"),
+ 'Preview should not download and scan all monthly snapshots');
 assert.ok(api.includes("archivePreviewReader(req,res,action)"),
  'Preview must use read-only authenticated production archive endpoint');
 assert.ok(api.includes("['months','load','plate_history','comparables'].includes(action)"),
@@ -127,6 +208,20 @@ assert.ok(api.includes("Homologação somente leitura: salve ou aprove avaliaç�
  'Preview pricing history mutations must be forbidden');
 assert.ok(api.includes("authorization:'Bearer '+idToken"),
  'Official read must use the authenticated operator token, not service account credentials');
+assert.ok(api.includes("msg==='FIRESTORE_READ_FAILED_429'"),
+ 'Official archive must recognize Firestore HTTP429 quota exhaustion');
+assert.ok(api.includes("code:'ARCHIVE_RATE_LIMIT'")&&api.includes("Retry-After"),
+ 'Official and preview archive must send typed 429 responses with Retry-After');
+assert.ok(api.includes("const limited=e?.status===429"),
+ 'Preview must forward official rate-limit status instead of generic 503');
+assert.ok(panel.includes("archiveCooldownFromSession()")&&panel.includes("sessionStorage.setItem(archiveCooldownKey"),
+ 'Client must persist only a local rate-limit deadline, not vehicle data');
+assert.ok(panel.includes("if(response.status===429)")&&
+ panel.includes("disabled={!ready||loading||cooldownActive}"),
+ 'Client must stop repeated archive requests while Firestore is overloaded');
+assert.ok(panel.includes("setCooldownClock(Date.now())")&&
+ panel.includes("Aguarde '+Math.ceil"),
+ 'Cooldown must be visible and expire without reissuing a request automatically');
 assert.ok(!api.includes('FIREBASE_SERVICE_ACCOUNT_JSON_PREVIEW'),
  'Never distribute service credential to preview');
 assert.ok(panel.includes("action:'monthly_archive_comparables'"));
