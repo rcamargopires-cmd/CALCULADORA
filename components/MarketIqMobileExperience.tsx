@@ -10,7 +10,7 @@ import {dmsPermissions} from '../services/dmsPermissions';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
 import {mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
-import {mobileHistorySearch,mobileModelYearFromCode,mobilePriceSource,mobileYearOptions,type MobileFuel,type MobileFipeOption} from '../services/marketIqMobileFlow';
+import {mobileHistorySearch,mobileModelYearFromCode,mobilePriceSource,mobileYearOptions,mobileQuickIntent,mobileFilterModels,mobileFuelFromModel,mobileAutoYearChoice,type MobileFuel,type MobileFipeOption} from '../services/marketIqMobileFlow';
 import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
 import {canPromptMotyqInstall,isStandaloneMotyq,promptMotyqInstall,subscribeMotyqInstall}
  from '../services/marketIqPwaInstall';
@@ -52,6 +52,8 @@ export default function MarketIqMobileExperience(p:Props){
  const [pickedYear,setPickedYear]=useState(()=>mobileModelYearFromCode(p.yearCode,p.year));
  const [pickedFuel,setPickedFuel]=useState<MobileFuel|''>('');
  const [query,setQuery]=useState(''),[brandSearch,setBrandSearch]=useState(''),[modelSearch,setModelSearch]=useState('');
+ const [quickQuery,setQuickQuery]=useState(''),[quickMode,setQuickMode]=useState(false);
+ const [quickError,setQuickError]=useState('');
  const [stockQuery,setStockQuery]=useState(''),[message,setMessage]=useState('');
  const [offerEdit,setOfferEdit]=useState(false),[offerAmount,setOfferAmount]=useState('');
  const [offerManager,setOfferManager]=useState(''),[offerReason,setOfferReason]=useState('');
@@ -84,6 +86,11 @@ export default function MarketIqMobileExperience(p:Props){
  useEffect(()=>()=>{try{speechRef.current?.abort?.();}catch{} speechRef.current=null;},[]);
  const canStock=dmsPermissions(p.user).stockView;
  const matchingYears=useMemo(()=>mobileYearOptions(p.years,pickedYear,pickedFuel),[p.years,pickedYear,pickedFuel]);
+ useEffect(()=>{
+  if(tab!=='pricing'||result||!p.modelCode||!p.years.length||!pickedYear||p.yearCode)return;
+  const selected=mobileAutoYearChoice(p.years,pickedYear,pickedFuel);
+  if(selected)p.onYear(selected.code);
+ },[tab,result,p.modelCode,p.years,p.yearCode,pickedYear,pickedFuel,p.onYear]);
  const historyMatches=useMemo(()=>mobileHistorySearch(p.history,query),[p.history,query]);
  const recent=useMemo(()=>[...p.history].sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,5),[p.history]);
  const brands=useMemo(()=>{
@@ -93,7 +100,11 @@ export default function MarketIqMobileExperience(p:Props){
    return (ai<0?50:ai)-(bi<0?50:bi)||a.name.localeCompare(b.name,'pt-BR');
   });
  },[p.brands,brandSearch]);
- const models=useMemo(()=>p.models.filter(v=>clean(v.name).includes(clean(modelSearch))),[p.models,modelSearch]);
+ const quickIntent=useMemo(()=>mobileQuickIntent(quickQuery,p.brands),[quickQuery,p.brands]);
+ const models=useMemo(()=>mobileFilterModels(p.models,quickMode?quickIntent.modelSearch:modelSearch,pickedFuel),
+  [p.models,quickMode,quickIntent.modelSearch,modelSearch,pickedFuel]);
+ const possibleYears=useMemo(()=>[...new Set(p.years.map(y=>mobileModelYearFromCode(y.code,y.name)).filter(y=>y>0))]
+   .sort((a,b)=>b-a),[p.years]);
  const mileage=Number(p.km.replace(/\D/g,''))||0;
  const validPlate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(p.plate);
  const currentVehicle={plate:p.plate,brand:p.brand,model:p.model,
@@ -148,8 +159,22 @@ export default function MarketIqMobileExperience(p:Props){
   setVoiceState('idle');setVoiceHint('');
   setTab(v);setMessage('');window.scrollTo({top:0,behavior:'smooth'});
  };
- const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
- const restore=(r:MobileHistoryRecord)=>{p.onRestoreHistory(r);setPickedYear(mobileModelYearFromCode('',r.year));setStep(5);setResult(true);changeTab('pricing');};
+ const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setQuickMode(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
+ const startQuickSearch=()=>{
+  if(!quickQuery.trim()){setQuickError('Digite um modelo ou uma versão para buscar.');return;}
+  const intent=mobileQuickIntent(quickQuery,p.brands);
+  if(!p.onStartNew())return;
+  setQuickError('');setResult(false);setQuickMode(true);setStep(5);
+  setPickedYear(intent.hasYear?intent.year:0);setPickedFuel('');setModelSearch('');
+  setBrandSearch('');p.onYear('');
+  if(intent.brand)p.onBrand(intent.brand.code);
+  changeTab('pricing');
+ };
+ const selectMobileModel=(item:MobileFipeOption)=>{
+  p.onModel(item.code);
+  if(quickMode){const detected=mobileFuelFromModel(item.name);if(detected)setPickedFuel(detected);}
+ };
+ const restore=(r:MobileHistoryRecord)=>{p.onRestoreHistory(r);setPickedYear(mobileModelYearFromCode('',r.year));setQuickMode(false);setStep(5);setResult(true);changeTab('pricing');};
  const useKeyboardDictation=()=>{
   setVoiceState('fallback');
   setVoiceHint('O campo está pronto. No teclado do celular, toque no microfone e diga o modelo ou a placa.');
@@ -232,9 +257,9 @@ export default function MarketIqMobileExperience(p:Props){
  return <div className="min-h-[100dvh] bg-[#f6f9fc] font-sans text-[#1f2c42]">
   <div className="mx-auto max-w-[540px] px-4 pb-28 pt-5">
    {tab==='pricing'&&!result?<div className="mb-6 flex items-center justify-between">
-    <button type="button" onClick={()=>step>1?setStep(step-1):changeTab('home')} aria-label="Voltar"
+    <button type="button" onClick={()=>quickMode?changeTab('home'):step>1?setStep(step-1):changeTab('home')} aria-label="Voltar"
      className="flex h-11 w-11 items-center justify-center rounded-xl bg-white"><ArrowLeft size={20}/></button>
-    <div className="text-center"><strong className="text-lg">Nova avaliação</strong><p className="text-xs text-slate-400">Passo {step} de 5</p></div>
+    <div className="text-center"><strong className="text-lg">{quickMode?'Busca rápida':'Nova avaliação'}</strong><p className="text-xs text-slate-500">{quickMode?'Selecione a versão FIPE':'Passo '+step+' de 5'}</p></div>
     <button type="button" onClick={()=>changeTab('home')} aria-label="Fechar" className="h-11 w-11 rounded-xl bg-white text-xl">×</button>
    </div>:<header className="mb-6">
     <p className="text-[11px] font-extrabold uppercase tracking-[.18em] text-[#008bd0]">MOTYQ IQ · MOBILE</p>
@@ -290,20 +315,20 @@ export default function MarketIqMobileExperience(p:Props){
     </div>
    </div>}
    {tab==='pricing'&&!result&&<div className="space-y-5">
-    <div className="grid grid-cols-5 gap-1.5" aria-label={'Passo '+step+' de 5'}>
-     {[1,2,3,4,5].map(n=><span key={n} className={'h-1.5 rounded-full '+(n<=step?'bg-[#008bd0]':'bg-slate-200')}/>)}</div>
+    {!quickMode&&<div className="grid grid-cols-5 gap-1.5" aria-label={'Passo '+step+' de 5'}>
+     {[1,2,3,4,5].map(n=><span key={n} className={'h-1.5 rounded-full '+(n<=step?'bg-[#008bd0]':'bg-slate-200')}/>)}</div>}
     {step>1&&<div className="flex flex-wrap gap-2 text-xs font-semibold">
      <span className="rounded-full bg-white px-3 py-2">{p.vehicleType==='car'?'Carro':'Moto'}</span>
      {p.brand&&<span className="rounded-full bg-white px-3 py-2">{p.brand}</span>}
      {pickedYear>0&&<span className="rounded-full bg-white px-3 py-2">{pickedYear}</span>}
      {pickedFuel&&<span className="rounded-full bg-white px-3 py-2">{pickedFuel}</span>}
     </div>}
-    {step===1&&<><h2 className="text-[26px] font-extrabold">É carro ou moto?</h2>
+    {!quickMode&&step===1&&<><h2 className="text-[26px] font-extrabold">É carro ou moto?</h2>
      <button className={card+' flex min-h-[170px] w-full flex-col items-center justify-center gap-3'} onClick={()=>{p.onVehicleType('motorcycle');setStep(2);}}>
       <Bike size={48} color="#008bd0"/><strong className="text-2xl">Moto</strong><span className="text-sm text-slate-400">Motos e scooters</span></button>
      <button className={card+' flex min-h-[170px] w-full flex-col items-center justify-center gap-3'} onClick={()=>{p.onVehicleType('car');setStep(2);}}>
       <CarFront size={48} color="#008bd0"/><strong className="text-2xl">Carro</strong><span className="text-sm text-slate-400">Inclui picapes e SUVs</span></button></>}
-    {step===2&&<><h2 className="text-[26px] font-extrabold">Qual a marca?</h2>
+    {!quickMode&&step===2&&<><h2 className="text-[26px] font-extrabold">Qual a marca?</h2>
      <input className={input} value={brandSearch} onChange={e=>setBrandSearch(e.target.value)} placeholder="Buscar marca"/>
      <p className="text-xs text-slate-400">Marcas disponíveis na FIPE</p>
      {p.catalogLoading&&!p.brands.length&&<p className="text-sm text-slate-500">Carregando marcas...</p>}
@@ -311,7 +336,7 @@ export default function MarketIqMobileExperience(p:Props){
       <button key={brand.code} className={row} onClick={()=>{p.onBrand(brand.code);setStep(3);}}>
        <span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 font-black text-[#008bd0]">{brand.name.slice(0,2).toUpperCase()}</span>
         <strong className="text-base">{brand.name}</strong></span><ChevronRight size={18}/></button>)}</div></>}
-    {step===3&&<><h2 className="text-[26px] font-extrabold">Qual o ano-modelo?</h2>
+    {!quickMode&&step===3&&<><h2 className="text-[26px] font-extrabold">Qual o ano-modelo?</h2>
      <input className={input} inputMode="numeric" placeholder="Ex.: 2023" aria-label="Buscar ano"
       value={pickedYear||''} onChange={e=>setPickedYear(Number(e.target.value.replace(/\D/g,'').slice(0,4))||0)}/>
      <div className="grid grid-cols-3 gap-2">
@@ -321,11 +346,11 @@ export default function MarketIqMobileExperience(p:Props){
      {pickedYear>=1990&&pickedYear<=thisYear+2&&<button className={action}
       onClick={()=>{p.onYear('');setStep(4);}}>Continuar com {pickedYear}<ArrowRight size={18}/></button>}
      <p className="text-xs text-slate-500">Use o segundo ano do documento, não o de fabricação.</p></>}
-    {step===4&&<><h2 className="text-[26px] font-extrabold">Qual é o combustível?</h2>
+    {!quickMode&&step===4&&<><h2 className="text-[26px] font-extrabold">Qual é o combustível?</h2>
      <p className="text-sm text-slate-500">Selecione o combustível do documento.</p>
      <div className={card+' px-4'}>{fuels.map(f=><button key={f} className={row}
       onClick={()=>{setPickedFuel(f);setStep(5);}}><strong className="text-lg">{f}</strong><ChevronRight size={18}/></button>)}</div></>}
-    {step===5&&<><h2 className="text-[26px] font-extrabold">Qual é o modelo e a versão?</h2>
+    {(step===5||quickMode)&&<><h2 className="text-[26px] font-extrabold">Qual é o modelo e a versão?</h2>
      <p className="text-sm text-slate-500">A seleção abaixo utiliza o mesmo catálogo FIPE da Mesa.</p>
      <input className={input} value={modelSearch} onChange={e=>setModelSearch(e.target.value)}
       placeholder="Buscar modelo e versão"/>
