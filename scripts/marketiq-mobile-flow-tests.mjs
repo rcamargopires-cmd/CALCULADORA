@@ -40,6 +40,23 @@ assert.deepEqual(mobileHistorySearch(records,'').map(x=>x.id),['1','2']);
 const verified=mobilePriceSource({fipe:102497,verifiedCount:3,verifiedCeiling:84999,historicalTarget:77000,indexedReference:102173});
 assert.equal(verified.kind,'verified');
 assert.equal(verified.value,84999);
+const mesaMatch=mobilePriceSource({fipe:138930,verifiedCount:0,verifiedCeiling:0,
+ historicalTarget:113600,indexedReference:0,mesaReference:98000,mesaCount:2});
+assert.equal(mesaMatch.kind,'mesa','Two matching appraisals replace the statistical mobile recommendation');
+assert.equal(mesaMatch.value,98000);
+assert.ok(/avaliações internas/.test(mesaMatch.disclaimer),'Must label assessments, not sales');
+const mesaAndMarket=mobilePriceSource({fipe:138930,verifiedCount:3,verifiedCeiling:110000,
+ historicalTarget:113600,indexedReference:0,mesaReference:98000,mesaCount:2});
+assert.equal(mesaAndMarket.kind,'mesa','Repeated internal price becomes primary, verified market stays a separate datum');
+assert.equal(mesaAndMarket.value,98000);
+const singleMesa=mobilePriceSource({fipe:138930,verifiedCount:0,verifiedCeiling:0,
+ historicalTarget:113600,indexedReference:0,mesaReference:98000,mesaCount:1});
+assert.equal(singleMesa.kind,'historical','A single evaluation keeps the original model formula');
+assert.equal(singleMesa.value,113600);
+const noMesa=mobilePriceSource({fipe:138930,verifiedCount:0,verifiedCeiling:0,
+ historicalTarget:113600,indexedReference:0,mesaReference:0,mesaCount:0});
+assert.equal(noMesa.kind,'historical','No historical match keeps FIPE/statistical fallback');
+assert.equal(noMesa.value,113600);
 const history=mobilePriceSource({fipe:102497,verifiedCount:0,verifiedCeiling:0,historicalTarget:80850,indexedReference:102173});
 assert.equal(history.kind,'historical');
 assert.equal(history.value,80850);
