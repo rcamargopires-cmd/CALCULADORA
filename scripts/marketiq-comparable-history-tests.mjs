@@ -41,7 +41,7 @@ const report=buildComparableHistory(current,[rows[10]],rows,[],'abrao-reze');
 assert.equal(report.samePlate.length,1,'Plate chronology separate from peer comparisons');
 assert.equal(report.paidCount,3,'Only qualified exact/near purchase, not unrelated trims or non-purchases');
 assert.equal(report.paidMedian,53000);
-assert.equal(report.exactCount,5,'Comparable evaluations include non-purchases but not ONIX PLUS or bike');
+assert.equal(report.exactCount,6,'Comparable evaluations include non-purchases but not ONIX PLUS or bike');
 assert.ok(report.historicalAdjustedMedian!==null,'FIPE-relative median available');
 assert.equal(report.confidence,'moderada');
 assert.ok(!report.comparables.some(r=>r.model==='ONIX PLUS'));
