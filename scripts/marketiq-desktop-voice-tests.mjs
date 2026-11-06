@@ -21,7 +21,7 @@ const audioUrl='data:text/javascript;base64,'+Buffer.from(audio).toString('base6
 const {mobileSpeechToSearch}=await import(audioUrl);
 const assistantJs=compile(voiceAssist).outputText.replace(
  /from ['"]\.\/marketIqMobileVoice['"]/g, `from '${audioUrl}'`);
-const {desktopSpeechInterpretations,desktopFuzzyFipeSuggestions}=await import(
+const {desktopSpeechInterpretations,desktopFuzzyFipeSuggestions,desktopCleanVehiclePhrase}=await import(
  'data:text/javascript;base64,'+Buffer.from(assistantJs).toString('base64'));
 const brandList=[{code:'13',name:'Jeep'},{code:'9',name:'Yamaha'}];
 const q=mobileQuickIntent('Compass Longitude 2025',brandList);
@@ -46,6 +46,10 @@ const speechCandidates=desktopSpeechInterpretations({
 assert.equal(speechCandidates[0],'Compass longitude 2025',
  'A FIPE helps select the correct alternative among browser hypotheses');
 assert.equal(speechCandidates.length,3);
+assert.equal(desktopCleanVehiclePhrase('Quero avaliar um Jipe Compass Longitude dois mil e vinte e cinco'),
+ 'Jeep Compass Longitude 2025');
+assert.equal(desktopCleanVehiclePhrase('Buscar por placa ABC1D23'),'ABC1D23');
+assert.equal(desktopCleanVehiclePhrase('Compass Longitude 2025'),'Compass Longitude 2025');
 assert.deepEqual(desktopFuzzyFipeSuggestions('compass longitudo',models).map(v=>v.code),
  ['3','1'],'Fuzzy alternatives suggest only FIPE rows and never select them');
 assert.deepEqual(desktopFuzzyFipeSuggestions('limitd',models),[],
@@ -72,7 +76,8 @@ assert.ok(desktop.includes('desktopFuzzyFipeSuggestions(modelFilter,p.models)'),
 assert.ok(desktop.includes('Talvez você tenha dito uma destas versões'),
  'Suggestion wording must require human confirmation');
 assert.ok(desktop.includes('SpeechRecognition')&&desktop.includes('webkitSpeechRecognition'));
-assert.ok(desktop.includes('mobileSpeechToSearch'),'Normalize spoken years and plates');
+assert.ok(desktop.includes('desktopCleanVehiclePhrase(raw)'),
+ 'Normalize spoken years, plates and common natural language commands');
 assert.ok(desktop.includes('manualStopRef.current=true')&&desktop.includes('r.onend='),
  'Tap the hologram to stop and process speech');
 assert.ok(desktop.includes('onClick={()=>prepareSearch(searchText)}'),
