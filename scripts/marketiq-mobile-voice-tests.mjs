@@ -10,6 +10,12 @@ assert.equal(transpile.diagnostics?.filter(d=>d.category===ts.DiagnosticCategory
 const {speechErrorFeedback,mobileSpeechToSearch}=await import('data:text/javascript;base64,'+
  Buffer.from(transpile.outputText).toString('base64'));
 assert.equal(mobileSpeechToSearch('Tracker 2023'),'Tracker 2023');
+assert.equal(mobileSpeechToSearch('Compass Longitude dois mil e vinte e cinco'),
+ 'Compass Longitude 2025','Spoken full year becomes valid FIPE year');
+assert.equal(mobileSpeechToSearch('Tracker dois mil e vinte e tres'),
+ 'Tracker 2023','Speech parser must accept spoken year without accents');
+assert.equal(mobileSpeechToSearch('Onix dois mil e dezenove'),
+ 'Onix 2019','Older spelled years should also work');
 assert.equal(mobileSpeechToSearch('VW Jetta GLI'),'VW Jetta GLI');
 assert.equal(mobileSpeechToSearch('ABC 1 D 23'),'ABC1D23');
 assert.equal(mobileSpeechToSearch('A B C 1 D 2 3'),'ABC1D23');
