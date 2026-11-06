@@ -66,6 +66,50 @@ assert.equal(hilux.comparables.length,0,'Hilux SW4 must never become Hilux picku
 const oldPlate=buildComparableHistory(current,[row('old','2026-09-18',{plate:'ABC1D23',status:'AVALIADO'})],[],[],'abrao-reze');
 assert.equal(oldPlate.samePlate.length,1,'Historical same-plate quote shown');
 assert.equal(oldPlate.samePlate[0].paid,null,'Same plate does not infer a purchase');
+
+const compass={plate:'KLM4N56',brand:'JEEP',
+ model:'COMPASS LONG. T270 1.3 TB 4x2 Flex Aut.',modelYear:2025,km:37000,
+ fipe:130000,vehicleType:'car'};
+const cr=(id,date,overrides={})=>row(id,date,{
+ plate:'STN3A34',brand:'JEEP',model:'COMPASS',
+ version:'1.3 T270 TURBO FLEX LONGITUDE AT6',
+ modelYear:2025,km:37500,fipe:130000,assessedValue:98000,...overrides
+});
+const compassRows=[
+ cr('compass-same','2026-10-05'),
+ cr('compass-diesel','2026-10-08',{version:'2.0 TD350 TURBO DIESEL LIMITED 4X4 AUTOMATICO',modelYear:2023,assessedValue:112000}),
+ cr('compass-hybrid','2026-10-09',{version:'1.3 T270 TURBO HIBRIDO S 4XE AT6',assessedValue:102000}),
+ cr('compass-limited','2026-10-10',{version:'1.3 T270 TURBO FLEX LIMITED AT6',assessedValue:108000}),
+ cr('compass-2024','2026-10-11',{modelYear:2024,assessedValue:97000}),
+ cr('compass-2023','2026-10-12',{modelYear:2023,assessedValue:96000}),
+ cr('compass-manual','2026-10-13',{version:'1.3 T270 TURBO FLEX LONGITUDE MANUAL',assessedValue:81000}),
+ cr('compass-uncertain','2026-10-14',{version:'LONGITUDE',assessedValue:110000}),
+];
+const compassCloud={
+ id:'same-compass',plate:'ABC9X88',brand:'JEEP',
+ model:'COMPASS LONG. T270 1.3 TB 4x2 Flex Aut.',year:'2025',km:'38.000',
+ vehicleType:'car',paidValue:100000,paidAt:'2026-11-04',fipe:{value:130000}
+};
+const compassResult=buildComparableHistory(compass,[],compassRows,[compassCloud],'abrao-reze');
+assert.equal(compassResult.exactCount,2,'Only true Compass Longitude T270 Flex 2025 qualifies');
+assert.equal(compassResult.paidCount,2,'Diesel, hybrid, Limited, other years and manual cannot increase paid sample');
+assert.equal(compassResult.paidMedian,99000,'Median must ignore unrelated diesel price of 112,000');
+assert.equal(compassResult.historicalAdjustedMedian,99000);
+assert.equal(compassResult.comparables.filter(e=>e.grade==='relacionado').length,6,
+ 'Other Compass variants remain visible for optional lookup');
+assert.equal(compassResult.comparables.filter(e=>e.grade==='equivalente').length,1,
+ 'Same technical trim of different year may be browsed but not averaged');
+assert.equal(compassResult.comparables.find(e=>e.id.endsWith('compass-diesel')).eligible,false);
+assert.equal(compassResult.comparables.find(e=>e.id.endsWith('compass-hybrid')).eligible,false);
+assert.equal(compassResult.comparables.find(e=>e.id.endsWith('compass-2024')).eligible,false);
+assert.equal(compassResult.comparables.find(e=>e.id.endsWith('compass-uncertain')).eligible,false,
+ 'Insufficiently identified versions fail closed');
+assert.ok(panel.includes("'other','Outras versões ('+otherVersions.length"),
+ 'Unmatched trims must live in a separate tab');
+assert.ok(panel.includes("matching.filter(r=>r.paid!==null)"),
+ 'Paid tab must show only truly matched purchases');
+assert.ok(panel.includes("selected==='other'?otherVersions:matching"),
+ 'Normal comparable view must exclude diesel/hybrid/other trims');
 assert.ok(api.includes("action==='comparables'"));
 assert.ok(api.includes("'monthly_archive_comparables'"),'Endpoint dispatched');
 assert.ok(api.includes('const brandIndex:Record<string,number[]>={}'),'New month indexed by brand');
