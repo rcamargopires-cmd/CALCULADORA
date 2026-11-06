@@ -73,6 +73,18 @@ assert.ok(api.includes('const {plateIndex,...summary}=item'),'Old index privacy 
 assert.ok(api.includes('const {brandIndex,...safeSummary}=summary'),'New index must remain private');
 assert.ok(api.includes('const user=await scopedUser(req,sa,token)'),'Server authorization required');
 assert.ok(api.includes('user.companyId'),'Tenant scoped archive path');
+assert.ok(api.includes("process.env.VERCEL_ENV==='preview'&&!process.env.FIREBASE_SERVICE_ACCOUNT_JSON"),
+ 'Preview must not require production service credentials');
+assert.ok(api.includes("archivePreviewReader(req,res,action)"),
+ 'Preview must use read-only authenticated production archive endpoint');
+assert.ok(api.includes("['months','load','plate_history','comparables'].includes(action)"),
+ 'Preview archive proxy must permit only read operations');
+assert.ok(api.includes("Homologação somente leitura: salve ou aprove avaliações na versão oficial"),
+ 'Preview pricing history mutations must be forbidden');
+assert.ok(api.includes("authorization:'Bearer '+idToken"),
+ 'Official read must use the authenticated operator token, not service account credentials');
+assert.ok(!api.includes('FIREBASE_SERVICE_ACCOUNT_JSON_PREVIEW'),
+ 'Never distribute service credential to preview');
 assert.ok(panel.includes("action:'monthly_archive_comparables'"));
 assert.ok(source.includes("paidBasis:'approved'")&&panel.includes('october_confirmed'));
 assert.ok(desktop.includes('<MarketIqIntelligentHistoryPanel'));
