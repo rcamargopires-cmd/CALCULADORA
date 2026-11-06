@@ -590,7 +590,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   vehicleType,plate,brand,model,brandCode,modelCode,modelYear:marketYear,
   km:number(km),fipe,ads:currentAds,history:saved
  }),[vehicleType,plate,brand,model,brandCode,modelCode,marketYear,km,fipe,currentAds,saved]);
- const save=async(proposal?:NegotiatedProposal)=>{
+ const save=async(proposal?:NegotiatedProposal,selectedMobileReference?:number,mobileReferenceKind?:'mesa'|'verified'|'historical'|'missing')=>{
    const hasVehicle=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)&&brandCode&&modelCode&&yearCode&&number(km)>0;
    if(!hasVehicle){
      setNotice('Para salvar, preencha placa, marca, modelo, versão, ano e quilometragem.');
@@ -613,10 +613,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    if(newApprovedValue.trim()&&(!newApprovedDate||newApprovedDate>localDate())){
      setHistoryError('Informe uma data de aprovação válida, até hoje.');return;
    }
-   const provisional=!marketReady;
+   const selectedMobile=Number.isFinite(selectedMobileReference)&&Number(selectedMobileReference)>0?
+     Number(selectedMobileReference):null;
+   const provisional=mobileReferenceKind==='mesa'?true:!marketReady;
    const record:Saved={id:String(Date.now()),date:new Date().toISOString(),vehicleType,plate,model,year,km,cost,repasse,classificationReason:fleetPolicy.outOfRange?classificationReason.trim():'',directRepasseReason,goodLiquidity,
-     ads:currentAds,value:provisional?(vehicleType==='motorcycle'?(motorcycleReference?.medianIndication||0):referenceAvg>0?referenceCeiling:historicalEstimate?.target||0):ceiling,provisional,
-     referenceName:provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas':referenceAvg>0?referenceName:'Histórico de compras'):'Webmotors verificada',
+     ads:currentAds,value:selectedMobile??(provisional?(vehicleType==='motorcycle'?(motorcycleReference?.medianIndication||0):referenceAvg>0?referenceCeiling:historicalEstimate?.target||0):ceiling),provisional,
+     referenceName:mobileReferenceKind==='mesa'?'Mesa · valor recorrente de avaliações':
+      provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas':referenceAvg>0?referenceName:'Histórico de compras'):'Webmotors verificada',
      historicalTarget:vehicleType==='motorcycle'?motorcycleReference?.medianIndication:historicalEstimate?.target,historicalClass:classification||undefined,
      brand,brandCode,modelCode,yearCode,fipe,
      ...(proposal?{negotiatedOffer:proposal.negotiatedOffer,baseSuggestion:proposal.baseSuggestion,
@@ -693,7 +696,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    motorcycleReference={motorcycleReference?.medianIndication||0}
    marketBrowseUrl={orderedWebmotorsVersionUrl||orderedWebmotorsModelUrl}
    onSearchMarket={()=>void searchMarket()} marketBusy={autoLoading} marketNotice={marketMessage}
-   onSave={proposal=>void save(proposal)} saveBusy={historyBusy} saveNotice={notice} saveError={historyError}
+   onSave={(proposal,suggested,source)=>void save(proposal,suggested,source)} saveBusy={historyBusy} saveNotice={notice} saveError={historyError}
    onOpenFullDesk={()=>setMobileFullDesk(true)}
    onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');setMobileFullDesk(true);}}
    onStartNew={beginNewMobileValuation}
