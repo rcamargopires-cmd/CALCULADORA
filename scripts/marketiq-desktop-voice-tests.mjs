@@ -6,8 +6,8 @@ const mesa=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
 const hologram=readFileSync('components/MarketIqVoiceHologram.tsx','utf8');
 const speech=readFileSync('services/marketIqMobileVoice.ts','utf8');
 const flow=readFileSync('services/marketIqMobileFlow.ts','utf8');
-const compile=src=>ts.transpileModule(src,{compilerOptions:{
- module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022
+const compile=src=>ts.transpileModule(src,{fileName:'motyq-voice.tsx',compilerOptions:{
+ module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX
 },reportDiagnostics:true});
 for(const [file,src] of [['desktop component',desktop],['flow helper',flow],['speech helper',speech]]){
  assert.equal(compile(src).diagnostics?.filter(d=>d.category===ts.DiagnosticCategory.Error).length||0,0,file);
