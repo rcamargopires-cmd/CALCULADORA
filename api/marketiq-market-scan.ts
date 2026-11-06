@@ -800,7 +800,8 @@ return async function handler(req:any,res:any){
    // Index is server-private. The list picker receives summaries, not all plates.
    return response(res,200,{months:months.map((item:any)=>{
     const {plateIndex,...summary}=item;
-    return summary;
+    const {brandIndex,...safeSummary}=summary;
+    return safeSummary;
    })});
   }
   if(req.method==='POST'&&action==='comparables'){
