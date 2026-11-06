@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {ArrowLeft,ArrowRight,Bike,CarFront,CheckCircle2,ChevronRight,History,Home,Info,LogOut,Mic,RefreshCw,Save,Search,Settings2,Share2,Wallet,ExternalLink,ShieldCheck} from 'lucide-react';
+import {ArrowLeft,ArrowRight,Bike,CarFront,CheckCircle2,ChevronRight,History,Home,Info,LogOut,Mic,MicOff,RefreshCw,Save,Search,Settings2,Share2,Wallet,ExternalLink,ShieldCheck,X,Volume2} from 'lucide-react';
 import {signOut} from 'firebase/auth';
 import type {User,OperationalStockItem} from '../types';
 import {auth} from '../firebase';
@@ -61,8 +61,13 @@ export default function MarketIqMobileExperience(p:Props){
  const [offerVehicleKey,setOfferVehicleKey]=useState(''),[offerError,setOfferError]=useState('');
  const [stock,setStock]=useState<OperationalStockItem[]>([]),[stockBusy,setStockBusy]=useState(false),[stockError,setStockError]=useState('');
  const searchInputRef=useRef<HTMLInputElement|null>(null);
+ const quickInputRef=useRef<HTMLInputElement|null>(null);
  const speechRef=useRef<any>(null);
- const [voiceState,setVoiceState]=useState<'idle'|'listening'|'fallback'|'heard'>('idle');
+ const speechTranscriptRef=useRef('');
+ const voiceManualStopRef=useRef(false);
+ const [voiceOpen,setVoiceOpen]=useState(false);
+ const [voiceTranscript,setVoiceTranscript]=useState('');
+ const [voiceState,setVoiceState]=useState<'idle'|'listening'|'processing'|'fallback'|'heard'>('idle');
  const [voiceHint,setVoiceHint]=useState('');
  const [pwaInstallAvailable,setPwaInstallAvailable]=useState(canPromptMotyqInstall);
  const [pwaInstalled,setPwaInstalled]=useState(isStandaloneMotyq);
@@ -85,6 +90,12 @@ export default function MarketIqMobileExperience(p:Props){
     'Não foi possível exibir a instalação automática. Use o menu ⋮ do Chrome e escolha Instalar aplicativo.');
  };
  useEffect(()=>()=>{try{speechRef.current?.abort?.();}catch{} speechRef.current=null;},[]);
+ useEffect(()=>{
+  if(!voiceOpen)return;
+  const closeOnEscape=(event:KeyboardEvent)=>{if(event.key==='Escape')closeVoice();};
+  window.addEventListener('keydown',closeOnEscape);
+  return()=>window.removeEventListener('keydown',closeOnEscape);
+ },[voiceOpen]);
  const canStock=dmsPermissions(p.user).stockView;
  const matchingYears=useMemo(()=>mobileYearOptions(p.years,pickedYear,pickedFuel),[p.years,pickedYear,pickedFuel]);
  useEffect(()=>{
@@ -157,17 +168,18 @@ export default function MarketIqMobileExperience(p:Props){
  },[tab,canStock,p.user.companyId,p.user.storeId,p.user.email]);
  const changeTab=(v:Tab)=>{
   if(speechRef.current){const active=speechRef.current;speechRef.current=null;try{active.abort();}catch{}}
-  setVoiceState('idle');setVoiceHint('');
+  voiceManualStopRef.current=false;speechTranscriptRef.current='';
+  setVoiceOpen(false);setVoiceTranscript('');setVoiceState('idle');setVoiceHint('');
   setTab(v);setMessage('');window.scrollTo({top:0,behavior:'smooth'});
  };
  const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setQuickMode(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
- const startQuickSearch=()=>{
-  if(!quickQuery.trim()){setQuickError('Digite um modelo ou uma versão para buscar.');return;}
+ const startQuickSearch=(term:string=quickQuery)=>{
+  if(!term.trim()){setQuickError('Digite um modelo ou uma versão para buscar.');return;}
   const sameVehicleType=quickType===p.vehicleType;
-  const intent=mobileQuickIntent(quickQuery,sameVehicleType?p.brands:[]);
+  const intent=mobileQuickIntent(term,sameVehicleType?p.brands:[]);
   if(!p.onStartNew())return;
   if(!sameVehicleType)p.onVehicleType(quickType);
-  setQuickError('');setResult(false);setQuickMode(true);setStep(5);
+  setQuickQuery(term);setQuickError('');setResult(false);setQuickMode(true);setStep(5);
   setPickedYear(intent.hasYear?intent.year:0);setPickedFuel('');setModelSearch(intent.modelSearch);
   setBrandSearch('');p.onYear('');
   if(intent.brand)p.onBrand(intent.brand.code);
@@ -178,71 +190,93 @@ export default function MarketIqMobileExperience(p:Props){
   if(quickMode){const detected=mobileFuelFromModel(item.name);if(detected)setPickedFuel(detected);}
  };
  const restore=(r:MobileHistoryRecord)=>{p.onRestoreHistory(r);setPickedYear(mobileModelYearFromCode('',r.year));setQuickMode(false);setStep(5);setResult(true);changeTab('pricing');};
+ const closeVoice=()=>{
+  const active=speechRef.current;speechRef.current=null;
+  try{active?.abort?.();}catch{}
+  voiceManualStopRef.current=false;speechTranscriptRef.current='';
+  setVoiceOpen(false);setVoiceState('idle');setVoiceHint('');setVoiceTranscript('');
+ };
  const useKeyboardDictation=()=>{
-  setVoiceState('fallback');
-  setVoiceHint('O campo está pronto. No teclado do celular, toque no microfone e diga o modelo ou a placa.');
-  searchInputRef.current?.focus();
+  closeVoice();
+  setQuickError('Se preferir, use o microfone do teclado para ditar a busca.');
+  quickInputRef.current?.focus();
+ };
+ const runVoiceSearch=(raw:string)=>{
+  const transcript=mobileSpeechToSearch(raw);
+  if(!transcript){setVoiceState('fallback');setVoiceHint('Não ouvi um veículo. Tente falar novamente.');return;}
+  setVoiceTranscript(transcript);setQuickQuery(transcript);
+  // A recognized plate opens the history search; a model opens the FIPE catalog.
+  if(/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(transcript)){
+   setQuery(transcript);closeVoice();return;
+  }
+  startQuickSearch(transcript);
  };
  const voice=()=>{
+  // The central orb doubles as the stop/confirm control.
   if(speechRef.current){
-   const active=speechRef.current;speechRef.current=null;
-   try{active.stop();}catch{}
-   setVoiceState('idle');setVoiceHint('Escuta encerrada. Você pode tentar novamente.');
+   voiceManualStopRef.current=true;
+   setVoiceState('processing');
+   setVoiceHint('Concluindo o reconhecimento para buscar as versões FIPE...');
+   try{speechRef.current.stop();}catch{
+    speechRef.current=null;setVoiceState(speechTranscriptRef.current?'heard':'fallback');
+   }
    return;
   }
+  setVoiceOpen(true);setVoiceTranscript('');speechTranscriptRef.current='';voiceManualStopRef.current=false;
   const Recognizer=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
   if(!window.isSecureContext||!Recognizer){
    setVoiceState('fallback');
-   setVoiceHint('Este navegador não permite reconhecimento direto. Use o microfone do teclado, ou abra a prévia no Chrome.');
-   searchInputRef.current?.focus();
+   setVoiceHint('Este navegador não permite reconhecimento de voz. Abra no Chrome ou use o microfone do teclado.');
    return;
   }
   try{
    const r=new Recognizer();
-   let heard=false,failed=false;
-   r.lang='pt-BR';
-   r.continuous=false;
-   r.interimResults=false;
-   r.maxAlternatives=1;
+   let failed=false;
+   r.lang='pt-BR';r.continuous=false;r.interimResults=true;r.maxAlternatives=1;
    r.onstart=()=>{
     if(speechRef.current!==r)return;
-    setVoiceState('listening');setVoiceHint('Ouvindo... diga o modelo ou a placa. Toque novamente para encerrar.');
+    setVoiceState('listening');setVoiceHint('Estou ouvindo. Fale o veículo e toque no círculo para buscar.');
    };
-   r.onresult=(e:any)=>{
+   r.onresult=(event:any)=>{
     if(speechRef.current!==r)return;
-    const transcript=mobileSpeechToSearch(e?.results?.[0]?.[0]?.transcript);
-    if(!transcript){
-     failed=true;setVoiceState('fallback');
-     setVoiceHint('Não consegui identificar as palavras. Use o microfone do teclado ou tente novamente.');
-     return;
+    const results=event?.results;
+    if(!results?.length)return;
+    const transcript=mobileSpeechToSearch(results[results.length-1]?.[0]?.transcript);
+    if(!transcript)return;
+    speechTranscriptRef.current=transcript;setVoiceTranscript(transcript);
+    if(!voiceManualStopRef.current){
+     setVoiceState('listening');setVoiceHint('Entendi. Toque no círculo para buscar.');
     }
-    heard=true;
-    setQuery(transcript);
-    setVoiceState('heard');
-    setVoiceHint('Entendi: '+transcript+'. Resultados do histórico exibidos acima.');
    };
-   r.onerror=(e:any)=>{
+   r.onerror=(event:any)=>{
     if(speechRef.current!==r)return;
     failed=true;
-    const feedback=speechErrorFeedback(e?.error);
+    const feedback=speechErrorFeedback(event?.error);
     setVoiceState('fallback');setVoiceHint(feedback.message);
    };
    r.onend=()=>{
     if(speechRef.current!==r)return;
     speechRef.current=null;
-    if(!heard&&!failed){
-     setVoiceState('fallback');
-     setVoiceHint('A escuta terminou sem texto. Use o microfone do teclado ou tente novamente.');
+    if(failed)return;
+    const transcript=speechTranscriptRef.current;
+    if(!transcript){
+     setVoiceState('fallback');setVoiceHint('Não consegui ouvir o veículo. Tente novamente ou use o microfone do teclado.');
+    }else if(voiceManualStopRef.current){
+     runVoiceSearch(transcript);
+    }else{
+     setVoiceState('heard');
+     setVoiceHint('Confirme a busca ou toque novamente para falar.');
     }
+    voiceManualStopRef.current=false;
    };
    speechRef.current=r;
    setVoiceState('listening');
-   setVoiceHint('Ativando o microfone... autorize o acesso quando o navegador solicitar.');
+   setVoiceHint('Ativando o microfone. Autorize o acesso quando o navegador solicitar.');
    r.start();
   }catch{
    speechRef.current=null;
    setVoiceState('fallback');
-   setVoiceHint('Não foi possível iniciar a busca por voz. Abra no Chrome ou use o microfone do teclado.');
+   setVoiceHint('Não foi possível iniciar. Tente no Chrome ou use o microfone do teclado.');
   }
  };
  const share=async()=>{
@@ -282,13 +316,13 @@ export default function MarketIqMobileExperience(p:Props){
      </div>
      <div className="relative">
       <Search size={19} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#008bd0]"/>
-      <input id="motyq-quick-search" className={input+' pl-11'} value={quickQuery}
+      <input id="motyq-quick-search" ref={quickInputRef} className={input+' pl-11'} value={quickQuery}
        onChange={e=>{setQuickQuery(e.target.value);setQuickError('');}}
        onKeyDown={e=>{if(e.key==='Enter')startQuickSearch();}}
        placeholder="Compass Longitude 2025" autoComplete="off"/>
      </div>
      {quickError&&<p role="alert" className="text-xs font-bold text-rose-700">{quickError}</p>}
-     <button type="button" className={action} onClick={startQuickSearch}
+     <button type="button" className={action} onClick={()=>startQuickSearch()}
       disabled={!quickQuery.trim()}>Buscar versões FIPE <ArrowRight size={18}/></button>
      <button type="button" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-sky-800"
       onClick={newValuation}>Prefiro escolher passo a passo</button>
@@ -306,24 +340,12 @@ export default function MarketIqMobileExperience(p:Props){
     <div className="grid grid-cols-3 gap-2">
      <button className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'} onClick={()=>changeTab('history')}>
       <History size={25} color="#008bd0"/> Buscar por placa</button>
-     <button type="button" aria-pressed={voiceState==='listening'}
-      className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'+(voiceState==='listening'?' ring-2 ring-sky-400':'')} onClick={voice}>
-      <Mic size={25} color={voiceState==='listening'?'#dc2626':'#008bd0'}/>
-      {voiceState==='listening'?'Parar escuta':'Buscar por voz'}</button>
+     <button type="button" aria-haspopup="dialog"
+      className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'} onClick={voice}>
+      <Mic size={25} color="#008bd0"/> Buscar por voz</button>
      <button className={card+' flex min-h-[100px] flex-col items-center justify-center gap-2 p-2 text-xs font-bold'} onClick={newValuation}>
       <CarFront size={25} color="#008bd0"/> Escolher na lista</button>
     </div>
-    {voiceState!=='idle'&&<section aria-live="polite" role="status"
-      className={card+' space-y-2 border-sky-200 bg-sky-50 p-4'}>
-     <p className="text-sm font-bold text-sky-900">{voiceHint}</p>
-     {voiceState==='listening'&&<p className="text-xs text-sky-700">Reconhecimento de voz em português (Brasil).</p>}
-     {voiceState==='fallback'&&<>
-      <button type="button" className="rounded-xl bg-[#008bd0] px-4 py-3 text-xs font-bold text-white"
-       onClick={useKeyboardDictation}>Usar microfone do teclado</button>
-      <p className="text-xs leading-5 text-slate-600">Se estiver dentro de outro aplicativo, abra o endereço no Chrome.
-      Se o acesso foi bloqueado, confira a permissão de microfone do site no Chrome.</p>
-     </>}
-    </section>}
     <div><div className="mb-2 flex justify-between"><h2 className="text-base font-extrabold">Últimas avaliações</h2>
       <button className="text-xs font-bold text-[#008bd0]" onClick={()=>changeTab('history')}>Ver todas</button></div>
      {p.historyLoading&&<p className="text-sm text-slate-500">Carregando histórico...</p>}
@@ -666,6 +688,72 @@ export default function MarketIqMobileExperience(p:Props){
    </div>}
    {message&&<p role="status" className="mt-4 rounded-2xl bg-sky-50 p-3 text-sm text-sky-900">{message}</p>}
   </div>
+  {voiceOpen&&<div role="dialog" aria-modal="true" aria-label="Motyq IQ busca por voz"
+   className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#071523]/95 p-5 text-white backdrop-blur-lg">
+   <style>{`
+    @keyframes motyqOrbit {from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    @keyframes motyqOrbitReverse {from{transform:rotate(360deg)}to{transform:rotate(0deg)}}
+    @keyframes motyqVoicePulse {0%,100%{transform:scale(.95);opacity:.45}50%{transform:scale(1.09);opacity:1}}
+    @media(prefers-reduced-motion:reduce){.motyq-voice-motion{animation:none!important}}
+   `}</style>
+   <div className="relative mx-auto flex w-full max-w-[420px] flex-col items-center justify-center gap-5 py-8 text-center">
+    <button type="button" aria-label="Fechar busca por voz" onClick={closeVoice}
+     className="absolute right-0 top-0 rounded-full border border-white/20 bg-white/10 p-3 text-white"><X size={22}/></button>
+    <div className="mt-8 flex items-center gap-2 text-xs font-black uppercase tracking-[.24em] text-cyan-300">
+     <Volume2 size={16}/> MOTYQ IQ · VOZ
+    </div>
+    <h2 className="text-2xl font-extrabold">
+     {voiceState==='listening'?'Estou ouvindo...':
+      voiceState==='processing'?'Analisando sua fala...':
+      voiceState==='heard'?'Entendi sua busca':'Busca por voz'}
+    </h2>
+    <button type="button" aria-label={voiceState==='listening'?'Parar de ouvir e buscar':
+      voiceState==='heard'?'Confirmar busca por voz':'Tentar ouvir novamente'}
+     onClick={()=>{
+      if(voiceState==='listening')voice();
+      else if(voiceState==='heard')runVoiceSearch(voiceTranscript);
+      else if(voiceState==='fallback')voice();
+     }}
+     disabled={voiceState==='processing'}
+     className="relative my-4 flex h-[250px] w-[250px] items-center justify-center rounded-full outline-none focus-visible:ring-4 focus-visible:ring-cyan-300 disabled:opacity-70">
+     <span className="absolute inset-0 rounded-full border border-cyan-400/20 bg-cyan-400/5"/>
+     <span className="motyq-voice-motion absolute inset-[10px] rounded-full border-2 border-dashed border-cyan-400/70"
+      style={{animation:'motyqOrbit 10s linear infinite'}}/>
+     <span className="motyq-voice-motion absolute inset-[28px] rounded-full border-[3px] border-cyan-200/60 border-l-transparent border-b-transparent"
+      style={{animation:'motyqOrbitReverse 5s linear infinite'}}/>
+     <span className="motyq-voice-motion absolute inset-[45px] rounded-full border-2 border-cyan-500/60"
+      style={{animation:'motyqVoicePulse 2s ease-in-out infinite'}}/>
+     <span className="absolute inset-[63px] rounded-full border border-cyan-300/50 bg-gradient-to-br from-sky-500/40 to-blue-900/50 shadow-[0_0_65px_12px_rgba(0,191,255,0.28)]"/>
+     <span className="relative flex h-20 w-20 items-center justify-center rounded-full border border-cyan-200/50 bg-[#083650] text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.5)]">
+      {voiceState==='processing'?<RefreshCw size={37} className="motyq-voice-motion animate-spin"/>:
+       voiceState==='fallback'?<MicOff size={38}/>:<Mic size={38}/>}
+     </span>
+    </button>
+    <p className="max-w-[340px] text-sm leading-6 text-cyan-100" role="status" aria-live="polite">{voiceHint}</p>
+    {voiceTranscript&&<div className="w-full rounded-2xl border border-cyan-400/30 bg-white/10 p-4">
+     <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-cyan-300">Reconhecido</p>
+     <p className="text-lg font-bold">{voiceTranscript}</p>
+    </div>}
+    {voiceState==='listening'&&<p className="text-xs font-semibold text-slate-300">
+     Fale: “Compass Longitude 2025” e toque no círculo para pesquisar.
+    </p>}
+    {voiceState==='heard'&&<div className="w-full space-y-3">
+     <button type="button" className="w-full rounded-2xl bg-cyan-500 px-4 py-4 font-bold text-slate-950"
+      onClick={()=>runVoiceSearch(voiceTranscript)}>Buscar versões FIPE <ArrowRight size={18} className="ml-1 inline"/></button>
+     <button type="button" className="w-full rounded-2xl border border-cyan-300/40 px-4 py-3 font-semibold"
+      onClick={voice}>Falar novamente</button>
+    </div>}
+    {voiceState==='fallback'&&<div className="w-full space-y-3">
+     <button type="button" className="w-full rounded-2xl bg-cyan-500 px-4 py-4 font-bold text-slate-950"
+      onClick={useKeyboardDictation}>Usar microfone do teclado</button>
+     <button type="button" className="w-full rounded-2xl border border-cyan-300/40 px-4 py-3 font-semibold"
+      onClick={voice}>Tentar novamente</button>
+     <p className="text-xs leading-5 text-slate-300">
+      Se estiver em navegador integrado, abra o Motyq no Chrome e permita o microfone.
+     </p>
+    </div>}
+   </div>
+  </div>}
   <nav aria-label="Navegação principal do Motyq IQ Mobile" style={{paddingBottom:'max(10px,env(safe-area-inset-bottom))'}}
    className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-1 pt-2 shadow-lg backdrop-blur">
    <div className="mx-auto grid max-w-[540px] grid-cols-5">
