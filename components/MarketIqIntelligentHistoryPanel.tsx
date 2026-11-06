@@ -21,6 +21,14 @@ const fmt=(v:number|null|undefined)=>v===null||v===undefined?'—':
  v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const fmtN=(n:number)=>n.toLocaleString('pt-BR');
 const empty:ArchiveResponse={plateRecords:[],records:[],comparableTotal:0,truncated:false,monthsScanned:0};
+const archiveCooldownKey='motyq_iq_archive_cooldown_until';
+const archiveCooldownFromSession=()=>{
+ if(typeof window==='undefined')return 0;
+ try{
+  const timestamp=Number(window.sessionStorage.getItem(archiveCooldownKey)||0);
+  return Number.isFinite(timestamp)&&timestamp>Date.now()?timestamp:0;
+ }catch{return 0;}
+};
 const tag=(entry:ComparableEntry)=>entry.grade==='placa'?'Mesma placa':
  entry.grade==='exato'?'Mesma versão · mesmo ano':
  entry.grade==='equivalente'?'Mesma versão · outro ano (fora da média)':'Outra versão (fora da média)';
@@ -33,6 +41,16 @@ export default function MarketIqIntelligentHistoryPanel({
  const [error,setError]=useState('');
  const [selected,setSelected]=useState<'plate'|'similar'|'paid'|'other'>('similar');
  const [reload,setReload]=useState(0);
+ // The only sessionStorage value is a time stamp, never prices, plates or history.
+ const [cooldownUntil,setCooldownUntil]=useState(archiveCooldownFromSession);
+ const [cooldownClock,setCooldownClock]=useState(()=>Date.now());
+ const cooldownActive=cooldownClock<cooldownUntil;
+ useEffect(()=>{
+  if(!cooldownActive)return;
+  const timeout=window.setTimeout(()=>setCooldownClock(Date.now()),
+   Math.max(100,cooldownUntil-Date.now()+60));
+  return ()=>window.clearTimeout(timeout);
+ },[cooldownUntil,cooldownClock]);
  const plate=plateComparable(current.plate);
  const plateReady=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate);
  const modelReady=Boolean(current.brand.trim()&&current.model.trim()&&current.modelYear>=1990);
@@ -43,6 +61,13 @@ export default function MarketIqIntelligentHistoryPanel({
   let cancelled=false;
   const controller=new AbortController();
   if(!ready){setData(empty);setError('');setLoading(false);return;}
+  const paused=archiveCooldownFromSession();
+  if(paused>Date.now()){
+   setCooldownUntil(paused);setCooldownClock(Date.now());
+   setData(empty);setLoading(false);
+   setError('O banco de dados está limitando consultas ao arquivo mensal. Aguarde para tentar novamente.');
+   return;
+  }
   setLoading(true);setError('');
   const timer=window.setTimeout(async()=>{
    try{
@@ -60,6 +85,14 @@ export default function MarketIqIntelligentHistoryPanel({
      })
     });
     const body=await response.json().catch(()=>({}));
+    if(response.status===429){
+     const serverDelay=Number(body.retryAfterSeconds||response.headers.get('Retry-After'));
+     const seconds=Math.min(900,Math.max(60,Number.isFinite(serverDelay)?serverDelay:180));
+     const until=Date.now()+seconds*1000;
+     try{window.sessionStorage.setItem(archiveCooldownKey,String(until));}catch{}
+     if(!cancelled){setCooldownUntil(until);setCooldownClock(Date.now());}
+     throw Error('O Firestore está temporariamente limitando consultas. Aguarde antes de tentar novamente. O histórico não foi apagado.');
+    }
     if(!response.ok)throw Error(body.error||'Não foi possível consultar as avaliações importadas.');
     if(!cancelled)setData({
      plateRecords:Array.isArray(body.plateRecords)?body.plateRecords:[],
@@ -71,7 +104,7 @@ export default function MarketIqIntelligentHistoryPanel({
    }catch(e:any){
     if(!cancelled&&e?.name!=='AbortError'){setData(empty);setError(String(e.message||e));}
    }finally{if(!cancelled)setLoading(false);}
-  },450);
+  },650);
   return ()=>{cancelled=true;window.clearTimeout(timer);controller.abort();};
  },[identity,ready,reload]);
  const isCurrentArchive=data.lookupIdentity===identity;
@@ -115,9 +148,12 @@ export default function MarketIqIntelligentHistoryPanel({
     <h3 className="mt-1 flex items-center gap-2 text-lg font-black"><Layers size={20}/> Histórico Inteligente</h3>
     <p className="mt-1 text-xs text-slate-600">A recomendação considera somente a mesma versão, motorização, combustível, câmbio e ano/modelo. As demais opções ficam separadas.</p>
    </div>
-   <button type="button" onClick={()=>setReload(r=>r+1)} disabled={!ready||loading}
-    className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-50">
-    <RefreshCw size={14}/>{loading?'Consultando...':'Atualizar'}
+   <button type="button" onClick={()=>setReload(r=>r+1)}
+    disabled={!ready||loading||cooldownActive}
+    className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-50"
+    title={cooldownActive?'Aguarde o tempo indicado antes de consultar o Firestore novamente.':''}>
+    <RefreshCw size={14}/>{loading?'Consultando...':
+     cooldownActive?'Aguarde '+Math.ceil((cooldownUntil-cooldownClock)/1000)+'s':'Atualizar'}
    </button>
   </div>
   {!ready?<p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Informe uma placa ou selecione marca, modelo e ano para consultar o histórico automaticamente.</p>:
@@ -131,7 +167,10 @@ export default function MarketIqIntelligentHistoryPanel({
     Para trazer avaliações de novembro, importe o relatório desse mês em Arquivo mensal.
    </p>}
    {!error&&data.readOnlyPreview&&<p className="mt-1 text-xs font-semibold text-emerald-800">Consultado na base oficial da empresa · homologação somente leitura.</p>}
-   {error&&<p className="mt-3 text-sm font-bold text-amber-900">Consulta incompleta: a quantidade de avaliações e compras não pôde ser confirmada. Não considere zero como resultado.</p>}
+   {error&&<p className="mt-3 text-sm font-bold text-amber-900">
+    Consulta incompleta: a quantidade de avaliações e compras não pôde ser confirmada. Não considere zero como resultado.
+    {cooldownActive?' Evite atualizar a página repetidamente enquanto o banco estiver limitado.':''}
+   </p>}
    {!error&&<div className="mt-3 grid grid-cols-3 gap-2">
     <div className="rounded-xl bg-slate-50 p-3 text-center"><strong className="text-xl">{fmtN(report.samePlate.length)}</strong><p className="text-[10px] text-slate-600">Mesma placa</p></div>
     <div className="rounded-xl bg-sky-50 p-3 text-center"><strong className="text-xl">{fmtN(report.exactCount)}</strong><p className="text-[10px] text-sky-900">Mesmo ano/versão</p></div>
