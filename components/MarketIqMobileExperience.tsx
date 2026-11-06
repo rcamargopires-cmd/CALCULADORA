@@ -53,6 +53,7 @@ export default function MarketIqMobileExperience(p:Props){
  const [pickedFuel,setPickedFuel]=useState<MobileFuel|''>('');
  const [query,setQuery]=useState(''),[brandSearch,setBrandSearch]=useState(''),[modelSearch,setModelSearch]=useState('');
  const [quickQuery,setQuickQuery]=useState(''),[quickMode,setQuickMode]=useState(false);
+ const [quickType,setQuickType]=useState<Vehicle>('car');
  const [quickError,setQuickError]=useState('');
  const [stockQuery,setStockQuery]=useState(''),[message,setMessage]=useState('');
  const [offerEdit,setOfferEdit]=useState(false),[offerAmount,setOfferAmount]=useState('');
@@ -162,8 +163,10 @@ export default function MarketIqMobileExperience(p:Props){
  const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setQuickMode(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
  const startQuickSearch=()=>{
   if(!quickQuery.trim()){setQuickError('Digite um modelo ou uma versão para buscar.');return;}
-  const intent=mobileQuickIntent(quickQuery,p.brands);
+  const sameVehicleType=quickType===p.vehicleType;
+  const intent=mobileQuickIntent(quickQuery,sameVehicleType?p.brands:[]);
   if(!p.onStartNew())return;
+  if(!sameVehicleType)p.onVehicleType(quickType);
   setQuickError('');setResult(false);setQuickMode(true);setStep(5);
   setPickedYear(intent.hasYear?intent.year:0);setPickedFuel('');setModelSearch('');
   setBrandSearch('');p.onYear('');
@@ -270,6 +273,13 @@ export default function MarketIqMobileExperience(p:Props){
     <div className={card+' space-y-3 p-4'}>
      <label htmlFor="motyq-quick-search" className="block text-sm font-bold text-slate-800">Busca rápida de veículo</label>
      <p className="text-xs text-slate-600">Digite o modelo, versão e ano. Ex.: Compass Longitude 2025.</p>
+     <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tipo de veículo para busca rápida">
+      {([['car','Carro'],['motorcycle','Moto']] as const).map(([kind,label])=>
+       <button key={kind} type="button" aria-pressed={quickType===kind}
+        className={'rounded-xl border px-3 py-3 text-sm font-bold '+(quickType===kind?
+         'border-sky-500 bg-sky-50 text-sky-900':'border-slate-200 bg-white text-slate-700')}
+        onClick={()=>setQuickType(kind)}>{label}</button>)}
+     </div>
      <div className="relative">
       <Search size={19} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#008bd0]"/>
       <input id="motyq-quick-search" className={input+' pl-11'} value={quickQuery}
