@@ -133,7 +133,15 @@ const App: React.FC = () => {
             if (dbUser && dbUser.status === 'active') { setUser(iqExclusiveUser({...dbUser,email:normalizedEmail})); setAuthError(''); }
             else { setUser(null); setAuthError('Acesso negado. Sua conta não está ativa ou não possui permissão.'); await signOut(auth); }
           }
-        } catch (error) { console.error('Error fetching user:', error); setAuthError('Erro ao verificar permissões.'); setUser(null); }
+        } catch (error) {
+          const reason = String((error as any)?.code || '') + ' ' + String((error as any)?.message || '');
+          const quotaLimited = /MOTYQ_FIRESTORE_RATE_LIMITED|resource-exhausted|current_user_firestore_429|\b429\b/i.test(reason);
+          console.error('Motyq user profile verification temporarily failed:', quotaLimited ? 'firestore_rate_limited' : 'profile_unavailable');
+          setAuthError(quotaLimited
+            ? 'O banco de dados está limitando consultas neste momento. Sua senha não foi rejeitada e suas permissões não foram alteradas. Aguarde e tente entrar novamente.'
+            : 'Não foi possível verificar seu perfil agora. Seu acesso não foi revogado. Tente novamente mais tarde.');
+          setUser(null);
+        }
       } else setUser(null);
       setIsAuthLoading(false);
     });
