@@ -8,7 +8,7 @@ import {
 } from '../services/marketIqComparableHistory';
 
 type ArchiveResponse={plateRecords:MonthlyArchiveRow[];records:MonthlyArchiveRow[];
- comparableTotal:number;truncated:boolean;monthsScanned:number};
+ comparableTotal:number;truncated:boolean;monthsScanned:number;readOnlyPreview?:boolean};
 type Props={
  current:ComparableCurrent;cloudHistory:ComparableCloud[];companyId:string;
  verifiedMarketCeiling?:number;historicalModelTarget?:number;
@@ -62,7 +62,7 @@ export default function MarketIqIntelligentHistoryPanel({
      plateRecords:Array.isArray(body.plateRecords)?body.plateRecords:[],
      records:Array.isArray(body.records)?body.records:[],
      comparableTotal:Number(body.comparableTotal)||0,truncated:body.truncated===true,
-     monthsScanned:Number(body.monthsScanned)||0
+     monthsScanned:Number(body.monthsScanned)||0,readOnlyPreview:body.readOnlyPreview===true
     });
    }catch(e:any){
     if(!cancelled&&e?.name!=='AbortError'){setData(empty);setError(String(e.message||e));}
@@ -102,6 +102,7 @@ export default function MarketIqIntelligentHistoryPanel({
    {error&&<p role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-950">
     <AlertTriangle size={14} className="mr-1 inline"/>{error} Os registros salvos no Motyq continuam disponíveis.</p>}
    {!error&&<p className="mt-3 text-xs text-slate-600">{heading} · {fmtN(data.monthsScanned)} mês(es) de arquivo consultados.</p>}
+   {!error&&data.readOnlyPreview&&<p className="mt-1 text-xs font-semibold text-emerald-800">Consultado na base oficial da empresa · homologação somente leitura.</p>}
    {error&&<p className="mt-3 text-sm font-bold text-amber-900">Consulta incompleta: a quantidade de avaliações e compras não pôde ser confirmada. Não considere zero como resultado.</p>}
    {!error&&<div className="mt-3 grid grid-cols-3 gap-2">
     <div className="rounded-xl bg-slate-50 p-3 text-center"><strong className="text-xl">{fmtN(report.samePlate.length)}</strong><p className="text-[10px] text-slate-600">Mesma placa</p></div>
