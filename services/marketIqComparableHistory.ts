@@ -64,11 +64,16 @@ const canonicalVersion=(raw:string)=>normComparable(raw)
  .replace(/\bAUT\b|\bAUTOMATICA\b/g,'AUTOMATICO')
  .replace(/\bMEC\b|\bMECANICA\b/g,'MANUAL')
  .replace(/\bTB\b/g,'TURBO')
+ // FIPE abbreviates Diesel as "Dies."; AutoAvaliar commonly writes TDI/Diesel.
+ // Treat these as the same fuel, while keeping every fuel mismatch exclusion.
+ .replace(/\bDIES\b/g,'DIESEL')
+ // VW's 4Motion is the 4x4 drivetrain, not a distinct 4x2 configuration.
+ .replace(/\b4\s*MOTION\b/g,'4X4')
  .replace(/\bHYBRID\b/g,'HIBRIDO');
 const trimLabel=(s:string)=>{
  const specs=[
   ['TRAILHAWK',/\bTRAILHAWK\b/],['BLACKHAWK',/\bBLACKHAWK\b/],
-  ['OVERLAND',/\bOVERLAND\b/],['LONGITUDE',/\bLONGITUDE\b/],
+  ['OVERLAND',/\bOVERLAND\b/],['EXTREME',/\bEXTREME\b/],['LONGITUDE',/\bLONGITUDE\b/],
   ['LIMITED',/\bLIMITED\b/],['SPORT',/\bSPORT\b/],
   ['COMPASS S',/\bS(?:ERIES)?\s*4XE\b|\bCOMPASS S\b/],
   ['COMFORT PLUS',/\bCOMFORT PLUS\b/],['COMFORTLINE',/\bCOMFORTLINE\b/],
