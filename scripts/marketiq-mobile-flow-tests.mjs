@@ -122,7 +122,14 @@ assert.ok(ui.includes('if(!sameVehicleType)p.onVehicleType(quickType)'),
 const motoQuick=mobileQuickIntent('Yamaha Fazer 2023',[{code:'10',name:'Yamaha'}]);
 assert.equal(motoQuick.brand?.name,'Yamaha');
 assert.equal(motoQuick.year,2023);
-assert.ok(ui.includes("mobileFilterModels(p.models,quickMode?quickIntent.modelSearch:modelSearch,pickedFuel)"));
+assert.ok(ui.includes("mobileFilterModels(p.models,modelSearch,pickedFuel)"),
+ 'Quick search must apply the operator-edited term, not ignore typed revisions');
+assert.ok(ui.includes("setModelSearch(intent.modelSearch)"),
+ 'Quick query must initialize the visible, editable model filter');
+assert.deepEqual(mobileFilterModels(jeep,'Compass','').map(x=>x.code),['a','b','c'],
+ 'Deleting Longitude must widen the list to all Compass versions');
+assert.deepEqual(mobileFilterModels(jeep,'Compass Longitude','').map(x=>x.code),['a','c'],
+ 'Re-entering Longitude narrows the list again');
 assert.ok(ui.includes('mobileAutoYearChoice(p.years,pickedYear,pickedFuel)'));
 assert.ok(!ui.includes('Ano/combustível da versão na FIPE'),'Redundant FIPE dropdown removed');
 assert.ok(ui.includes('historyMatches'));
