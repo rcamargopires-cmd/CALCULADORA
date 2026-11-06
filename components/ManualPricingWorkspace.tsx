@@ -63,7 +63,8 @@ const decodeExtensionTransfer=(hash:string):CapturedAd[]=>{
  }catch{return [];}
 };
 
-type Saved={classificationReason?:string;directRepasseReason?:DirectRepasseReason;goodLiquidity?:boolean;vehicleType?:'car'|'motorcycle';approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;paidFromApproval?:boolean;groupedRecords?:number;valuationVersions?:number;revisionCount?:number;revisedAt?:string;revisedBy?:string;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
+type NegotiatedProposal={negotiatedOffer:number;baseSuggestion:number;requestedByManager:string;negotiationReason:string};
+type Saved={negotiatedOffer?:number|null;baseSuggestion?:number|null;requestedByManager?:string;negotiationReason?:string;negotiationStatus?:string;classificationReason?:string;directRepasseReason?:DirectRepasseReason;goodLiquidity?:boolean;vehicleType?:'car'|'motorcycle';approvedValue?:number;approvedAt?:string;approvedRecordedAt?:string;approvedRecordedBy?:string;approvedRecordedEmail?:string;paidValue?:number;paidAt?:string;paidRecordedAt?:string;paidRecordedBy?:string;paidRecordedEmail?:string;paidFromApproval?:boolean;groupedRecords?:number;valuationVersions?:number;revisionCount?:number;revisedAt?:string;revisedBy?:string;id:string;createdAt?:string;createdByName?:string;createdByEmail?:string;companyId?:string;storeId?:string;date:string;plate?:string;model:string;year:string;km:string;cost:string;repasse:boolean;ads:Ad[];value:number;provisional?:boolean;referenceName?:string;historicalTarget?:number;historicalClass?:HistoricalClass;brand?:string;brandCode?:string;modelCode?:string;yearCode?:string;fipe?:FipeDetail|null};
 const number=(v:string)=>Number(v.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0;
 const money=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const localDate=()=>{const now=new Date();return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);};
@@ -589,13 +590,20 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   vehicleType,plate,brand,model,brandCode,modelCode,modelYear:marketYear,
   km:number(km),fipe,ads:currentAds,history:saved
  }),[vehicleType,plate,brand,model,brandCode,modelCode,marketYear,km,fipe,currentAds,saved]);
- const save=async()=>{
+ const save=async(proposal?:NegotiatedProposal)=>{
    const hasVehicle=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)&&brandCode&&modelCode&&yearCode&&number(km)>0;
    if(!hasVehicle){
      setNotice('Para salvar, preencha placa, marca, modelo, versão, ano e quilometragem.');
      return;
    }
    if(historyBusy)return;
+   if(proposal&&(!Number.isFinite(proposal.negotiatedOffer)||proposal.negotiatedOffer<1500||
+      proposal.negotiatedOffer>2000000||!Number.isFinite(proposal.baseSuggestion)||proposal.baseSuggestion<1500||
+      proposal.negotiatedOffer===proposal.baseSuggestion||proposal.requestedByManager.trim().length<2||
+      proposal.negotiationReason.trim().length<6)){
+     setHistoryError('Revise o valor ajustado, o nome do gerente e a justificativa antes de salvar.');
+     return;
+   }
    if(fleetPolicy.outOfRange&&classificationReason.trim().length<6){
      setHistoryError('Justifique a classe diferente da faixa de quilometragem antes de salvar.');return;
    }
@@ -610,7 +618,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      ads:currentAds,value:provisional?(vehicleType==='motorcycle'?(motorcycleReference?.medianIndication||0):referenceAvg>0?referenceCeiling:historicalEstimate?.target||0):ceiling,provisional,
      referenceName:provisional?(vehicleType==='motorcycle'?'Histórico preliminar de motocicletas':referenceAvg>0?referenceName:'Histórico de compras'):'Webmotors verificada',
      historicalTarget:vehicleType==='motorcycle'?motorcycleReference?.medianIndication:historicalEstimate?.target,historicalClass:classification||undefined,
-     brand,brandCode,modelCode,yearCode,fipe};
+     brand,brandCode,modelCode,yearCode,fipe,
+     ...(proposal?{negotiatedOffer:proposal.negotiatedOffer,baseSuggestion:proposal.baseSuggestion,
+      requestedByManager:proposal.requestedByManager.trim(),negotiationReason:proposal.negotiationReason.trim(),
+      negotiationStatus:'manager_requested'}:{})};
    setHistoryBusy(true);setHistoryError('');
    try{
      const result=await historyRequest('save',record);
@@ -634,7 +645,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      if(failures.length){
        setHistoryError('A avaliação foi salva, mas '+failures.join(' · ')+'. Não salve novamente: complemente no Histórico.');
        setNotice('Avaliação salva. Confirme os eventos pendentes no Histórico de avaliações.');
-     }else setNotice((result.updated?'Avaliação de hoje atualizada sem criar duplicidade.':'Avaliação salva no histórico.')+(recorded.length?' Valor aprovado/pago confirmado.':'')+' O histórico mantém as versões anteriores para auditoria.');
+     }else setNotice((result.updated?'Avaliação de hoje atualizada sem criar duplicidade.':'Avaliação salva no histórico.')+
+      (proposal?' Proposta ajustada registrada, ainda não é compra confirmada.':'')+
+      (recorded.length?' Valor aprovado/pago confirmado.':'')+' O histórico mantém as versões anteriores para auditoria.');
    }catch(error:any){
      setHistoryError(error?.message||'Não foi possível salvar no histórico online.');
      setNotice('Não foi salva. Seus dados continuam nesta tela. Verifique a mensagem do histórico e tente novamente.');
@@ -680,7 +693,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    motorcycleReference={motorcycleReference?.medianIndication||0}
    marketBrowseUrl={orderedWebmotorsVersionUrl||orderedWebmotorsModelUrl}
    onSearchMarket={()=>void searchMarket()} marketBusy={autoLoading} marketNotice={marketMessage}
-   onSave={()=>void save()} saveBusy={historyBusy} saveNotice={notice} saveError={historyError}
+   onSave={proposal=>void save(proposal)} saveBusy={historyBusy} saveNotice={notice} saveError={historyError}
    onOpenFullDesk={()=>setMobileFullDesk(true)}
    onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');setMobileFullDesk(true);}}
    onStartNew={beginNewMobileValuation}
