@@ -54,30 +54,81 @@ const sameModel=(a:string,b:string)=>{
  const qualifier=larger.slice(shorter.length+1).split(' ')[0];
  return !['PLUS','SEDAN','HATCH','SPORT','CROSS','SW','SW4','RAPTOR','S'].includes(qualifier);
 };
-const transmission=(v:string)=>{
- const s=normComparable(v);
- return /\b(MANUAL|MECANICO|MT)\b/.test(s)?'manual':
-  /\b(AUTOMATICO|AUTOMATIZADO|AT6|AT8|CVT|DSG|TIPTRONIC|XTRONIC)\b/.test(s)?'auto':'';
+/**
+ * Strict version identity, distinct from the broad model-family discovery.
+ * A Compass T270 Longitude Flex must never receive TD350 Diesel, Limited
+ * or 4xe Hybrid purchase values in its comparable sample.
+ */
+const canonicalVersion=(raw:string)=>normComparable(raw)
+ .replace(/\bLONG\b/g,'LONGITUDE')
+ .replace(/\bAUT\b|\bAUTOMATICA\b/g,'AUTOMATICO')
+ .replace(/\bMEC\b|\bMECANICA\b/g,'MANUAL')
+ .replace(/\bTB\b/g,'TURBO')
+ .replace(/\bHYBRID\b/g,'HIBRIDO');
+const trimLabel=(s:string)=>{
+ const specs=[
+  ['TRAILHAWK',/\bTRAILHAWK\b/],['BLACKHAWK',/\bBLACKHAWK\b/],
+  ['OVERLAND',/\bOVERLAND\b/],['LONGITUDE',/\bLONGITUDE\b/],
+  ['LIMITED',/\bLIMITED\b/],['SPORT',/\bSPORT\b/],
+  ['COMPASS S',/\bS(?:ERIES)?\s*4XE\b|\bCOMPASS S\b/],
+  ['COMFORT PLUS',/\bCOMFORT PLUS\b/],['COMFORTLINE',/\bCOMFORTLINE\b/],
+  ['COMFORT',/\bCOMFORT\b/],['HIGHLINE',/\bHIGHLINE\b/],
+  ['PREMIER',/\bPREMIER\b/],['LTZ',/\bLTZ\b/],['LT',/\bLT\b/],
+  ['EXCLUSIVE',/\bEXCLUSIVE\b/],['PLATINUM',/\bPLATINUM\b/],
+  ['SENSE',/\bSENSE\b/],['INTENSE',/\bINTENSE\b/],
+  ['FREESTYLE',/\bFREESTYLE\b/],['N LINE',/\bN LINE\b/],
+  ['JOY',/\bJOY\b/],['TRACK',/\bTRACK\b/]
+ ] as const;
+ return specs.find(([,rx])=>rx.test(s))?.[0]||'';
 };
-const versionEquivalent=(current:ComparableCurrent,row:MonthlyArchiveRow)=>{
- if(current.fipeCode&&row.fipeCode&&current.fipeCode.replace(/\D/g,'')===row.fipeCode.replace(/\D/g,''))return true;
- const candidate=normComparable(row.version),full=normComparable(current.model);
- if(!candidate||!full)return false;
- const cTransmission=transmission(candidate),fTransmission=transmission(full);
- if(cTransmission&&fTransmission&&cTransmission!==fTransmission)return false;
- const excluded=new Set(['FLEX','TOTAL','GASOLINA','DIESEL','ETANOL','4P','2P','4X2','4X4','MOTOR','DE','DA','DO','CV']);
- const tokens=(v:string)=>new Set(v.split(' ').filter(t=>t.length>=2&&!excluded.has(t)));
- const a=tokens(candidate),b=tokens(full);
- if(!a.size||!b.size)return false;
- let hits=0;for(const x of a)if(b.has(x))hits++;
- return hits>=2&&hits/a.size>=0.70;
+const profileVersion=(raw:string)=>{
+ const text=canonicalVersion(raw);
+ const displacement=String(raw).match(/\b([1-9])\s*[.,]\s*(\d)\b/);
+ const at=text.match(/\b(T270|TD350|T200|T250|T300|TSI|TDI|TGDI|T GDI)\b/);
+ const automatic=/\b(AUTOMATICO|AT[4-9]|CVT|DSG|TIPTRONIC|XTRONIC|AUTOMATIZADO)\b/.test(text);
+ const manual=/\b(MANUAL|MECANICO|MT)\b/.test(text);
+ return {
+  text,trim:trimLabel(text),engine:at?.[1]||'',
+  displacement:displacement?displacement[1]+'.'+displacement[2]:'',
+  transmission:automatic?'automatic':manual?'manual':'',
+  drive:/\b4X4\b/.test(text)?'4x4':/\b4X2\b/.test(text)?'4x2':'',
+  diesel:/\b(DIESEL|TD350|TDI)\b/.test(text),
+  hybrid:/\b(HIBRIDO|4XE|PHEV|HEV|MHEV)\b/.test(text),
+  electric:/\b(ELETRICO|ELECTRIC|EV)\b/.test(text)
+ };
+};
+const sameTechnicalVersion=(current:ComparableCurrent,description:string,rowCode?:string)=>{
+ const a=profileVersion(current.model),b=profileVersion(description);
+ if(!a.text||!b.text)return false;
+ // These hard safety checks apply even when FIPE codes coincide.
+ if(a.diesel!==b.diesel||a.hybrid!==b.hybrid||a.electric!==b.electric)return false;
+ if(a.transmission&&b.transmission&&a.transmission!==b.transmission)return false;
+ if(a.drive&&b.drive&&a.drive!==b.drive)return false;
+ if(a.displacement&&b.displacement&&a.displacement!==b.displacement)return false;
+ if(a.engine&&b.engine&&a.engine!==b.engine)return false;
+ if(a.trim&&b.trim&&a.trim!==b.trim)return false;
+ const fipecode=String(current.fipeCode||'').replace(/\D/g,'');
+ const rowFipe=String(rowCode||'').replace(/\D/g,'');
+ if(fipecode.length>=6&&fipecode===rowFipe)return true;
+ if(current.vehicleType==='motorcycle'){
+  const clean=(v:string)=>new Set(v.split(' ').filter(t=>t.length>1&&
+   !['YAMAHA','HONDA','BAJAJ','SUZUKI','ROYAL','ENFIELD','BMW'].includes(t)));
+  const want=clean(b.text),got=clean(a.text);
+  return want.size>=2&&[...want].every(token=>got.has(token));
+ }
+ // If version, engine or gearbox is unconfirmed, do not use the purchase
+ // for a price suggestion. Such vehicles remain visible under "Other".
+ if(!a.trim||!b.trim||a.trim!==b.trim)return false;
+ if(!a.transmission||!b.transmission)return false;
+ if(!a.displacement&&!a.engine||!b.displacement&&!b.engine)return false;
+ return true;
 };
 const gradeFor=(current:ComparableCurrent,row:MonthlyArchiveRow):ComparableEntry['grade']=>{
  if(plateComparable(current.plate)&&plateComparable(current.plate)===plateComparable(row.plate))return 'placa';
  if(row.vehicleType!==current.vehicleType||comparableBrand(row.brand)!==comparableBrand(current.brand)||
     !sameModel(row.model,current.model)||!row.modelYear)return 'relacionado';
  const gap=Math.abs(row.modelYear-current.modelYear);
- const trimMatch=versionEquivalent(current,row);
+ const trimMatch=sameTechnicalVersion(current,row.version,row.fipeCode);
  return trimMatch&&gap===0?'exato':trimMatch&&gap===1?'equivalente':'relacionado';
 };
 const sortEntries=(a:ComparableEntry,b:ComparableEntry)=>{
@@ -111,7 +162,7 @@ export function buildComparableHistory(
    id:key,source:'AutoAvaliar',date:r.evaluationDate,plate:plateComparable(r.plate),
    brand:r.brand,model:r.model,version:r.version,year:r.modelYear||0,km:r.km,
    status:r.status,assessed:r.assessedValue,paid:historicalPaid?r.assessedValue:null,
-   fipe:r.fipe,grade,eligible:!same&&['exato','equivalente'].includes(grade),
+   fipe:r.fipe,grade,eligible:!same&&grade==='exato',
    paidBasis:historicalPaid?'october_confirmed':'none',store:r.store
   };
   (same?samePlate:comparables).push(entry);
@@ -128,7 +179,7 @@ export function buildComparableHistory(
   if(!same&&(!year||Math.abs(year-current.modelYear)>2))continue;
   const paid=validMoney(r.paidValue)?r.paidValue:validMoney(r.approvedValue)?r.approvedValue:null;
   const yearGap=Math.abs(year-current.modelYear);
-  const versionSame=normComparable(r.model)===normComparable(current.model);
+  const versionSame=sameTechnicalVersion(current,r.model);
   const grade:ComparableEntry['grade']=same?'placa':
    yearGap===0&&versionSame?'exato':yearGap===1&&versionSame?'equivalente':'relacionado';
   const entry:ComparableEntry={id,source:'Motyq IQ',
@@ -136,7 +187,7 @@ export function buildComparableHistory(
    brand:r.brand||'',model:r.model,version:r.model,year,km:readKm(r.km),
    status:paid!==null?'COMPRA CONFIRMADA':'AVALIADO',assessed:null,paid,
    fipe:validMoney(r.fipe?.value)?r.fipe.value:null,grade,
-   eligible:!same&&['exato','equivalente'].includes(grade),
+   eligible:!same&&grade==='exato',
    paidBasis:paid!==null?'approved':'none'};
   (same?samePlate:comparables).push(entry);
  }
