@@ -101,13 +101,14 @@ export default function MarketIqIntelligentHistoryPanel({
   <>
    {error&&<p role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-950">
     <AlertTriangle size={14} className="mr-1 inline"/>{error} Os registros salvos no Motyq continuam disponíveis.</p>}
-   <p className="mt-3 text-xs text-slate-600">{heading} · {fmtN(data.monthsScanned)} mês(es) de arquivo consultados.</p>
-   <div className="mt-3 grid grid-cols-3 gap-2">
+   {!error&&<p className="mt-3 text-xs text-slate-600">{heading} · {fmtN(data.monthsScanned)} mês(es) de arquivo consultados.</p>}
+   {error&&<p className="mt-3 text-sm font-bold text-amber-900">Consulta incompleta: a quantidade de avaliações e compras não pôde ser confirmada. Não considere zero como resultado.</p>}
+   {!error&&<div className="mt-3 grid grid-cols-3 gap-2">
     <div className="rounded-xl bg-slate-50 p-3 text-center"><strong className="text-xl">{fmtN(report.samePlate.length)}</strong><p className="text-[10px] text-slate-600">Mesma placa</p></div>
     <div className="rounded-xl bg-sky-50 p-3 text-center"><strong className="text-xl">{fmtN(report.exactCount)}</strong><p className="text-[10px] text-sky-900">Mesmo ano/versão</p></div>
     <div className="rounded-xl bg-emerald-50 p-3 text-center"><strong className="text-xl">{fmtN(report.paidCount)}</strong><p className="text-[10px] text-emerald-950">Compras comparáveis</p></div>
    </div>
-   <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+   {!error&&<div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
     <div className="flex flex-wrap items-end justify-between gap-2">
      <div><p className="text-xs font-bold text-slate-700">Mediana de compras comparáveis</p>
       <p className="mt-1 text-2xl font-black text-slate-950">{fmt(report.paidMedian)}</p></div>
@@ -129,17 +130,17 @@ export default function MarketIqIntelligentHistoryPanel({
      historicalCap!==null?'Teto conservador entre '+sources+'.':'Base: '+sources+'. Histórico local ainda não calibra este valor.'}</p>
     <p className="mt-1 text-[11px] text-sky-900">Não substitui laudo, custos, pesquisa Webmotors nem aprovação da Mesa. A sugestão não altera o valor salvo automaticamente.</p>
    </div>
-   <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Tipo de histórico">
+   {!error&&<div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Tipo de histórico">
     {([
      ['plate','Mesma placa ('+report.samePlate.length+')'],
      ['similar','Comparáveis ('+report.comparables.length+')'],
      ['paid','Compras ('+report.comparables.filter(e=>e.paid!==null).length+')']
     ] as const).map(([k,title])=><button key={k} type="button" role="tab" aria-selected={selected===k}
-      onClick={()=>setSelected(k)}
+      onClick={()=>setSelected(k)} style={{color:selected===k?'#ffffff':'#334155'}}
       className={'rounded-full border px-3 py-2 text-xs font-bold '+(selected===k?
        'border-sky-700 bg-sky-800 text-white':'border-slate-300 bg-white text-slate-700')}>{title}</button>)}
    </div>
-   <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+   {!error&&<div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
     {!rows.length?<p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
      {loading?'Buscando avaliações...':'Nenhum registro nesta categoria. Importe os meses no Arquivo Mensal ou registre uma avaliação no Motyq.'}</p>:
     rows.slice(0,35).map(e=><article key={e.id} className="rounded-xl border border-slate-200 bg-white p-3">
@@ -159,9 +160,9 @@ export default function MarketIqIntelligentHistoryPanel({
      </p>
     </article>)}
    </div>
-   {(report.comparables.length>35||report.limited)&&<p className="mt-2 text-xs font-semibold text-amber-900">
+   {!error&&(report.comparables.length>35||report.limited)&&<p className="mt-2 text-xs font-semibold text-amber-900">
     Exibindo parte dos comparáveis. Refine a consulta para avaliar o conjunto completo.</p>}
-   {onOpenPlateHistory&&plateReady&&<button type="button" onClick={onOpenPlateHistory}
+   {!error&&onOpenPlateHistory&&plateReady&&<button type="button" onClick={onOpenPlateHistory}
     className="mt-3 flex items-center gap-2 text-xs font-bold text-sky-800"><History size={16}/> Abrir linha do tempo completa da placa</button>}
   </>}
  </section>;
