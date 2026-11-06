@@ -28,7 +28,8 @@ const median=(numbers:number[])=>{
  return s.length?s.length%2?s[Math.floor(s.length/2)]:
   (s[s.length/2-1]+s[s.length/2])/2:null;
 };
-const moneyBucket=(v:number)=>Math.round(v/1000)*1000;
+// A matching valuation must be the same actual amount, not just a shared R$1k bucket.
+const moneyBucket=(v:number)=>Math.round(v);
 const mostRecent=(a:ComparableEntry,b:ComparableEntry)=>b.date.localeCompare(a.date);
 export function deriveMesaPricePattern(records:ComparableEntry[],currentKm:number):MesaPricePattern{
  const exact=records.filter(r=>r.grade==='exato'&&
@@ -67,11 +68,11 @@ export function deriveMesaPricePattern(records:ComparableEntry[],currentKm:numbe
  const confirmedPaidMedian=median(paidAmounts);
  const highest=purchaseRecords.filter(r=>cash(r.paid)).sort((a,b)=>(b.paid||0)-(a.paid||0))[0];
  const maxPaid=highest?.paid??null;
- const supportsTypical=observations.length>=2&&typicalCount>=2&&typicalShare>=0.5;
- // This reference is based on actual independent vehicles, with a mode
- // only when it dominates; otherwise use unique-vehicle median, if adequate.
- const operationalSuggestion=supportsTypical?typicalQuote:
-  observations.length>=3?quoteMedian:null;
+ const supportsTypical=typicalCount>=2;
+ // Two different vehicles at the identical price establish a repeated
+ // INTERNAL negotiation reference, even when more diverse quotations exist.
+ // If no amount repeats, keep the existing FIPE/Webmotors/statistical formula.
+ const operationalSuggestion=supportsTypical?typicalQuote:null;
  const exceptions=operationalSuggestion===null?0:
   paidAmounts.filter(v=>v>operationalSuggestion*1.05).length;
  const confidence: MesaPricePattern['confidence']=observations.length<2?'sem_amostra':
