@@ -31,7 +31,7 @@ const money=(n:number)=>Math.round(n*100)/100;
 export function alignPurchaseReference(input:AlignmentInput):AlignmentOutput{
  const reference=positive(input.verifiedMarketCeiling)?input.verifiedMarketCeiling:
   positive(input.statisticalTarget)?input.statisticalTarget:null;
- const evidence=positive(input.verifiedMarketCeiling)?'verified_webmotors':
+ const evidence:AlignmentOutput['evidence']=positive(input.verifiedMarketCeiling)?'verified_webmotors':
   positive(input.statisticalTarget)?'statistical_model':'none';
  const historyIsFipeAdjusted=positive(input.paidAdjustedMedian);
  const historyAnchor=historyIsFipeAdjusted?input.paidAdjustedMedian:
