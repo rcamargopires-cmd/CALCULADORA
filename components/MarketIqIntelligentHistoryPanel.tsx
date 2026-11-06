@@ -71,7 +71,7 @@ export default function MarketIqIntelligentHistoryPanel({
   return ()=>{cancelled=true;window.clearTimeout(timer);controller.abort();};
  },[identity,ready,reload]);
  const report=useMemo(()=>buildComparableHistory(current,data.plateRecords,data.records,
-  cloudHistory,companyId,data.truncated),[identity,data,cloudHistory,companyId]);
+  cloudHistory,companyId,data.truncated),[identity,current.fipe,data,cloudHistory,companyId]);
  // The verified Webmotors ceiling remains the primary decision. History is a
  // cross-check, never a way to promote an unverified indexed offer.
  const historicalCap=report.paidCount>=3?report.historicalAdjustedMedian:null;
