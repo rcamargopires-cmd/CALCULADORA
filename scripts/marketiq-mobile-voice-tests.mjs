@@ -25,21 +25,38 @@ assert.ok(speechErrorFeedback('not-allowed').message.includes('permissões'));
 assert.ok(speechErrorFeedback('network').message.includes('conexão'));
 assert.equal(speechErrorFeedback('aborted').useKeyboard,false);
 assert.ok(ui.includes("(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition"));
-assert.ok(ui.includes("r.lang='pt-BR'"));
-assert.ok(ui.includes('speechErrorFeedback(e?.error)'));
-assert.ok(ui.includes('mobileSpeechToSearch(e?.results?.[0]?.[0]?.transcript)'));
-assert.ok(ui.includes('setQuery(transcript)'), 'Transcribed model/plate must search existing online history');
-assert.ok(ui.includes("speechRef.current?.abort?.()"),'Unmount terminates active microphone');
-assert.ok(ui.includes('active.abort();'),'Leaving tab terminates active microphone');
-assert.ok(ui.includes("r.onend=()"),'Recognition completion must clear state');
-assert.ok(ui.includes("if(speechRef.current!==r)return;"),'Late callbacks cannot modify another screen');
-assert.ok(ui.includes("voiceState==='listening'?'Parar escuta':'Buscar por voz'"));
-assert.ok(ui.includes('role="status"'),'Speech feedback must be located next to microphone, not below history');
-assert.ok(ui.includes('onClick={useKeyboardDictation}'), 'A real tap must focus keyboard on unsupported browsers');
-assert.ok(ui.includes("searchInputRef.current?.focus()"));
-assert.ok(ui.includes("ref={searchInputRef}"));
-assert.ok(ui.includes('abra o endereço no Chrome'), 'Guide users in unsupported Android in-app browsers');
-assert.ok(ui.includes('permissão de microfone do site'), 'Explain microphone permission when blocked');
-assert.ok(!ui.includes('navigator.mediaDevices.getUserMedia'), 'Avoid recording audio or extra mic permission');
-assert.ok(!ui.includes('new MediaRecorder'), 'No audio is uploaded to Motyq');
-console.log('Motyq IQ Mobile voice: pt-BR Web Speech lifecycle, error-specific feedback, Android keyboard dictation and tab cleanup passed.');
+assert.ok(ui.includes("r.lang='pt-BR'"),'Recognize Brazilian Portuguese');
+assert.ok(ui.includes('speechErrorFeedback(event?.error)'),'Specific permission/network error guidance');
+assert.ok(ui.includes('mobileSpeechToSearch(results[results.length-1]?.[0]?.transcript)'),
+ 'Recognize the latest result, including interim browser speech');
+assert.ok(ui.includes('setQuickQuery(transcript)'),'Recognized vehicle fills quick search');
+assert.ok(ui.includes('startQuickSearch(transcript)'),'Recognized vehicle uses existing FIPE search');
+assert.ok(ui.includes('setQuery(transcript);closeVoice();return;'),
+ 'Recognized plates can still find authorized history records');
+assert.ok(ui.includes('role="dialog" aria-modal="true" aria-label="Motyq IQ busca por voz"'),
+ 'Voice search must be an accessible full-screen overlay');
+assert.ok(ui.includes('motyqOrbit 10s linear infinite'),
+ 'Central Jarvis orb animation is present');
+assert.ok(ui.includes('prefers-reduced-motion:reduce'),
+ 'People who reduce motion should see a static orb');
+assert.ok(ui.includes('voiceManualStopRef.current=true'),
+ 'Touching the orb stops speech and requests search');
+assert.ok(ui.includes("voiceState==='processing'"),
+ 'Show processing feedback during speech finalization');
+assert.ok(ui.includes('voiceManualStopRef.current')&&ui.includes('runVoiceSearch(transcript)'),
+ 'Manual end automatically searches after a final transcript');
+assert.ok(ui.includes('onClick={()=>runVoiceSearch(voiceTranscript)}'),
+ 'Silence-ended speech requires a visible confirmation');
+assert.ok(ui.includes('r.interimResults=true'),'Live words appear while listening');
+assert.ok(ui.includes('role="status" aria-live="polite"'),'Dialog announces speech status');
+assert.ok(ui.includes('aria-label="Fechar busca por voz"'),'An accessible close button is provided');
+assert.ok(ui.includes('onClick={useKeyboardDictation}'),'Unsupported browsers get Android keyboard fallback');
+assert.ok(ui.includes('quickInputRef.current?.focus()'),'Fallback focuses the vehicle search field');
+assert.ok(ui.includes('ref={quickInputRef}'));
+assert.ok(ui.includes('abra o Motyq no Chrome'),'In-app browser limitations are explained');
+assert.ok(ui.includes("speechRef.current?.abort?.()"),'Unmount aborts recognition');
+assert.ok(ui.includes('active.abort();'),'Leaving a tab aborts recognition');
+assert.ok(ui.includes('speechRef.current!==r'),'Late speech callbacks cannot change another screen');
+assert.ok(!ui.includes('navigator.mediaDevices.getUserMedia'),'Do not record extra microphone audio');
+assert.ok(!ui.includes('new MediaRecorder'),'Do not store raw user speech recordings');
+console.log('Motyq IQ voice overlay: animated dialog, speech lifecycle, confirmed FIPE search, mic fallback and accessible stop passed.');
