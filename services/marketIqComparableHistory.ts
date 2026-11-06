@@ -25,6 +25,12 @@ export type ComparableResult={
 export const normComparable=(v:unknown)=>String(v??'').normalize('NFD')
  .replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
 export const plateComparable=(v:unknown)=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const readKm=(raw:unknown)=>{
+ const s=String(raw??'').trim();
+ if(/^\d{1,3}(?:\.\d{3})+$/.test(s))return Number(s.replace(/\./g,''));
+ const clean=Number(s.replace(',','.'));
+ return Number.isFinite(clean)&&clean>=0&&clean<=999999?clean:null;
+};
 const validMoney=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n)&&n>=1500&&n<=2000000;
 const median=(v:number[]):number|null=>{
  const sorted=v.filter(Number.isFinite).sort((a,b)=>a-b);
@@ -120,7 +126,7 @@ export function buildComparableHistory(
    yearGap===0&&versionSame?'exato':yearGap===1&&versionSame?'equivalente':'relacionado';
   const entry:ComparableEntry={id,source:'Motyq IQ',
    date:String(r.paidAt||r.approvedAt||r.date||'').slice(0,10),plate:cloudPlate,
-   brand:r.brand||'',model:r.model,version:r.model,year,km:Number(r.km)||null,
+   brand:r.brand||'',model:r.model,version:r.model,year,km:readKm(r.km),
    status:paid!==null?'COMPRA CONFIRMADA':'AVALIADO',assessed:null,paid,
    fipe:validMoney(r.fipe?.value)?r.fipe.value:null,grade,
    eligible:!same&&['exato','equivalente'].includes(grade),
@@ -132,7 +138,12 @@ export function buildComparableHistory(
  const deduped=comparables.filter(row=>!(row.source==='AutoAvaliar'&&row.paid!==null&&
   motyqPurchases.some(p=>p.plate&&p.plate===row.plate&&p.year===row.year&&
    Math.abs(new Date(p.date).getTime()-new Date(row.date).getTime())<=90*86400000)));
- deduped.sort(sortEntries);
+ deduped.sort((a,b)=>{
+  const gradeOrder={placa:4,exato:3,equivalente:2,relacionado:1};
+  return gradeOrder[b.grade]-gradeOrder[a.grade]||
+   Math.abs((a.km??999999)-current.km)-Math.abs((b.km??999999)-current.km)||
+   b.date.localeCompare(a.date);
+ });
  samePlate.sort((a,b)=>b.date.localeCompare(a.date));
  const eligiblePaid=deduped.filter(e=>e.eligible&&e.paid!==null&&
    (e.km===null||!current.km||Math.abs(e.km-current.km)<=20000));
