@@ -5,7 +5,7 @@ import {
  mobileQuickIntent,mobileFilterModels,mobileYearOptions,
  type MobileFipeOption
 } from '../services/marketIqMobileFlow';
-import {mobileSpeechToSearch,speechErrorFeedback} from '../services/marketIqMobileVoice';
+import {speechErrorFeedback} from '../services/marketIqMobileVoice';
 import {desktopSpeechInterpretations,desktopFuzzyFipeSuggestions,desktopCleanVehiclePhrase} from '../services/marketIqDesktopVoiceAssist';
 
 type Props={
