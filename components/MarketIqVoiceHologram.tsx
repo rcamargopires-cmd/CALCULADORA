@@ -1,84 +1,24 @@
-import React,{useEffect,useState} from 'react';
+import React from 'react';
 import './MarketIqVoiceHologram.css';
 
 type Props={
  listening:boolean;
  processing:boolean;
  heard:boolean;
+ speechDetected:boolean;
 };
 
 /**
- * Purely local visualization. The browser's SpeechRecognition still owns
- * transcription and search. An optional, separate Web Audio analyser reads
- * amplitude only; it never records, uploads, or stores the user's speech.
+ * Purely visual, speech-event-driven hologram. The browser's SpeechRecognition
+ * is the only microphone owner. We intentionally avoid a parallel getUserMedia
+ * stream because it may interrupt recognition on Android. The animation reacts
+ * to speech detected / result events, not a measured audio-volume waveform.
  */
-export default function MarketIqVoiceHologram({listening,processing,heard}:Props){
- const [level,setLevel]=useState(0);
- const [meterAvailable,setMeterAvailable]=useState(false);
- useEffect(()=>{
-  let disposed=false;
-  let audioStream:MediaStream|null=null;
-  let context:AudioContext|null=null;
-  let animationFrame:number|null=null;
-  let lastTick=0;
-  let smoothed=0;
-  const cleanup=()=>{
-   disposed=true;
-   if(animationFrame!==null)cancelAnimationFrame(animationFrame);
-   audioStream?.getTracks().forEach(track=>track.stop());
-   audioStream=null;
-   if(context&&context.state!=='closed')void context.close().catch(()=>{});
-   context=null;
-  };
-  if(!listening){setLevel(0);setMeterAvailable(false);return cleanup;}
-  const begin=async()=>{
-   if(!navigator.mediaDevices?.getUserMedia)return;
-   const AudioContextConstructor=window.AudioContext||
-    (window as unknown as {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;
-   if(!AudioContextConstructor)return;
-   try{
-    const stream=await navigator.mediaDevices.getUserMedia({
-     audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
-     video:false
-    });
-    if(disposed){stream.getTracks().forEach(track=>track.stop());return;}
-    audioStream=stream;
-    context=new AudioContextConstructor();
-    const source=context.createMediaStreamSource(stream);
-    const analyser=context.createAnalyser();
-    analyser.fftSize=512;
-    analyser.smoothingTimeConstant=0.72;
-    source.connect(analyser);
-    const samples=new Uint8Array(analyser.fftSize);
-    setMeterAvailable(true);
-    const tick=(now:number)=>{
-     if(disposed)return;
-     animationFrame=requestAnimationFrame(tick);
-     if(now-lastTick<45)return; // Limit React render work on mobile (~22 fps).
-     lastTick=now;
-     analyser.getByteTimeDomainData(samples);
-     let sum=0;
-     for(let i=0;i<samples.length;i++){
-      const n=(samples[i]-128)/128;
-      sum+=n*n;
-     }
-     const rms=Math.sqrt(sum/samples.length);
-     const target=Math.max(0,Math.min(1,(rms-0.012)*13));
-     smoothed=smoothed*0.53+target*0.47;
-     setLevel(Math.round(smoothed*100)/100);
-    };
-    animationFrame=requestAnimationFrame(tick);
-   }catch{
-    // SpeechRecognition may still work even when concurrent microphone
-    // amplitude access isn't available. Leave the ambient animation running.
-    setMeterAvailable(false);
-   }
-  };
-  void begin();
-  return cleanup;
- },[listening]);
-
- const intensity=listening?level:processing?0.55:heard?0.18:0.1;
+export default function MarketIqVoiceHologram({listening,processing,heard,speechDetected}:Props){
+ // SpeechRecognition owns the microphone exclusively. Opening getUserMedia
+ // here created a second audio session and could interrupt Android recognition.
+ // React only to recognition events; never open another microphone stream.
+ const intensity=listening?(speechDetected?0.72:0.12):processing?0.55:heard?0.18:0.1;
  const cx=180,cy=170;
  const ticks=Array.from({length:88},(_,i)=>{
   const angle=i/88*2*Math.PI-Math.PI/2;
@@ -98,7 +38,7 @@ export default function MarketIqVoiceHologram({listening,processing,heard}:Props
  });
  const activity=Math.min(1,intensity);
  return <div className={'motyq-holo'+(listening?' is-listening':'')+
-  (processing?' is-processing':'')+(heard?' is-heard':'')}
+  (processing?' is-processing':'')+(heard?' is-heard':'')+(speechDetected?' is-speaking':'')}
   style={{'--motyq-audio-level':String(activity)} as React.CSSProperties}
   aria-hidden="true">
    <svg className="motyq-holo-svg" viewBox="0 0 360 420" role="presentation"
@@ -186,7 +126,7 @@ export default function MarketIqVoiceHologram({listening,processing,heard}:Props
    <div className="motyq-holo-caption">
     {processing?'PROCESSANDO COMANDO':listening?'CAPTANDO SUA VOZ':
      heard?'COMANDO RECONHECIDO':'ASSISTENTE MOTYQ IQ'}
-    {listening&&meterAvailable&&<span className="motyq-holo-meter-dot"/>}
+    {listening&&speechDetected&&<span className="motyq-holo-meter-dot"/>}
    </div>
   </div>;
 }
