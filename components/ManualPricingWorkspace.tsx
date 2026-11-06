@@ -451,12 +451,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  useEffect(()=>{setFipe(null);if(!brandCode||!modelCode||!yearCode)return;const controller=new AbortController();setCatalogLoading(true);setCatalogError('');catalog('detail',{brandCode,modelCode,yearCode},controller.signal).then(v=>{if(Number(v.value)>0)setFipe(v);else setCatalogError('Valor FIPE indisponível para esta versão.');}).catch(e=>{if(e.name!=='AbortError')setCatalogError('Não foi possível consultar o valor FIPE. Tente novamente em alguns instantes.');}).finally(()=>{if(!controller.signal.aborted)setCatalogLoading(false);});return()=>controller.abort();},[brandCode,modelCode,yearCode,vehicleType,fipeRefreshKey]);
  const selectVehicleType=(next:'car'|'motorcycle')=>{
    if(next===vehicleType)return;
-   setVehicleType(next);setBrandCode('');setBrand('');setModelCode('');setModel('');
+   setVehicleType(next);setBrands([]);setModels([]);setYears([]);setBrandCode('');setBrand('');setModelCode('');setModel('');
    setYearCode('');setYear('');setFipe(null);setAds([]);setAutoSearchKey('');setKm('');setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);
    setNotice('Tipo de veículo alterado. Selecione a marca, o modelo e o ano novamente.');
  };
- const selectBrand=(code:string)=>{setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);setBrandCode(code);setBrand(brands.find(x=>x.code===code)?.name||'');setModelCode('');setModel('');setYearCode('');setYear('');setFipe(null);};
- const selectModel=(code:string)=>{setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);setModelCode(code);setModel(models.find(x=>x.code===code)?.name||'');setYearCode('');setYear('');setFipe(null);};
+ const selectBrand=(code:string)=>{setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);setBrandCode(code);setBrand(brands.find(x=>x.code===code)?.name||'');setModelCode('');setModel('');setModels([]);setYears([]);setYearCode('');setYear('');setFipe(null);};
+ const selectModel=(code:string)=>{setManualClassification('');setClassificationReason('');setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);setModelCode(code);setModel(models.find(x=>x.code===code)?.name||'');setYears([]);setYearCode('');setYear('');setFipe(null);};
  const selectYear=(code:string)=>{setYearCode(code);setYear(years.find(x=>x.code===code)?.name||'');setFipe(null);};
  const change=(index:number,patch:Partial<Ad>)=>setAds(a=>a.map((x,i)=>i===index?{...x,...patch}:x));
  const searchMarket=async()=>{
