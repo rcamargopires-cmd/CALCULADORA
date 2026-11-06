@@ -338,7 +338,7 @@ export default function MarketIqMobileExperience(p:Props){
      </div>
      <div className="p-4"><p className="text-[11px] font-black uppercase tracking-wider text-[#008bd0]">
       {selectedPrice.kind==='verified'?'Anúncios conferidos':selectedPrice.kind==='historical'?'Modelo estatístico · não calibrado pela Mesa':'Referência insuficiente'}</p>
-      <div className="mt-2 flex justify-between gap-3"><span className="max-w-[160px] text-sm font-extrabold">{selectedPrice.label}</span>
+      <div className="mt-2 flex justify-between gap-3"><span className="max-w-[160px] text-sm font-extrabold">{selectedPrice.kind==='historical'?'Cálculo estatístico preliminar':selectedPrice.label}</span>
        <strong className="text-[22px] text-[#008bd0]">{selectedPrice.value?cash(selectedPrice.value):'—'}</strong></div>
       <p className="mt-2 text-xs leading-5 text-slate-500">{selectedPrice.disclaimer}</p>
        {selectedPrice.kind==='historical'&&<p className="mt-1 text-xs font-bold text-amber-900">
