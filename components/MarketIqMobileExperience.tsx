@@ -366,7 +366,7 @@ export default function MarketIqMobileExperience(p:Props){
      <RefreshCw size={16}/>{p.marketBusy?'Pesquisando...':'Busca indexada'}</button>
      <button onClick={()=>void share()} className={card+' flex items-center justify-center gap-2 px-2 py-4 text-xs font-bold text-[#008bd0]'}>
       <Share2 size={16}/> Compartilhar</button></div>
-    <button className={action} onClick={p.onSave} disabled={p.saveBusy||!validPlate||!p.fipe?.value}>
+    <button className={action} style={{color:'#ffffff'}} onClick={p.onSave} disabled={p.saveBusy||!validPlate||!p.fipe?.value}>
      <Save size={18}/>{p.saveBusy?'Salvando...':'Salvar avaliação no histórico'}</button>
     {!validPlate&&<p className="text-xs text-amber-800">Preencha uma placa válida para salvar.</p>}
     {p.saveError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs text-rose-800">{p.saveError}</p>}
