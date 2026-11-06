@@ -6,7 +6,7 @@ const panel=readFileSync('components/MarketIqIntelligentHistoryPanel.tsx','utf8'
 const mobile=readFileSync('components/MarketIqMobileExperience.tsx','utf8');
 const js=ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},reportDiagnostics:true});
 assert.equal(js.diagnostics.filter(d=>d.category===ts.DiagnosticCategory.Error).length,0);
-const {deriveMesaPricePattern}=await import('data:text/javascript;base64,'+Buffer.from(js.outputText).toString('base64'));
+const {deriveMesaPricePattern,mesaReferenceKey}=await import('data:text/javascript;base64,'+Buffer.from(js.outputText).toString('base64'));
 const row=(id,plate,price,extra={})=>({
  id,source:'AutoAvaliar',date:'2026-10-22',plate,brand:'JEEP',model:'COMPASS',
  version:'1.3 T270 FLEX LONGITUDE AT6',year:2025,km:28000,status:'AVALIADO',
@@ -54,6 +54,38 @@ const off=deriveMesaPricePattern([...events,row('other','QWE5G55',50000,{grade:'
 assert.equal(off.assessmentEvents,8,'Other versions never enter the operational reference');
 const distant=deriveMesaPricePattern([...events,row('far','QWE5G55',50000,{km:200000})],25000);
 assert.equal(distant.assessmentEvents,8,'Distant odometer values never affect typical purchase estimate');
+const differentAmounts=deriveMesaPricePattern([
+ row('q1','KLM1F44',98000),row('q2','KLM2F44',98001),
+ row('q3','KLM3F44',98002)],25000);
+assert.equal(differentAmounts.operationalSuggestion,null,
+ 'Three different offers do not replace the statistical fallback');
+const oncePlate=deriveMesaPricePattern([
+ row('p1','GGG1H23',98000),row('p2','GGG1H23',98000)
+],25000);
+assert.equal(oncePlate.operationalSuggestion,null,
+ 'Two evaluations of one plate must never activate the primary suggestion');
+const repeatedMinority=deriveMesaPricePattern([
+ row('a','AAA2G33',98000),row('b','BBB2G33',98000),
+ row('c','CCC2G33',101000),row('d','DDD2G33',102000),
+ row('e','EEE2G33',103000),row('f','FFF2G33',104000)
+],25000);
+assert.equal(repeatedMinority.operationalSuggestion,98000,
+ 'Two independent identical assessments should activate reference even without 50% majority');
+const clearKey={plate:'ABC1D23',brand:'JEEP',model:'COMPASS LONG. T270',
+ modelYear:2025,km:25000,fipe:138930,vehicleType:'car'};
+const baseKey=mesaReferenceKey(clearKey,'abrao-reze');
+assert.notEqual(baseKey,mesaReferenceKey({...clearKey,modelYear:2024},'abrao-reze'),
+ 'Different year must not reuse price signal');
+assert.notEqual(baseKey,mesaReferenceKey({...clearKey,model:'COMPASS LIMITED TD350'},'abrao-reze'),
+ 'Different trim must not reuse price signal');
+assert.notEqual(baseKey,mesaReferenceKey({...clearKey,plate:'DEF2G34'},'abrao-reze'),
+ 'Different plate must not reuse an already fetched signal');
+assert.notEqual(baseKey,mesaReferenceKey(clearKey,'another-company'),
+ 'Another company must never inherit a Mesa quote');
+assert.ok(panel.includes("data.lookupIdentity===identity"),
+ 'Do not publish stale archived price suggestions before lookup finishes');
+assert.ok(panel.includes("onMesaReference({key:priceKey"),
+ 'Panel must publish repeated-price candidate');
 assert.ok(panel.includes('deriveMesaPricePattern'));
 assert.ok(panel.includes('pattern.operationalSuggestion'));
 assert.ok(panel.includes('pattern.maxPaid'));
