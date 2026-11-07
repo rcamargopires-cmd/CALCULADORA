@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {AlertCircle,ArrowRight,BarChart3,CheckCircle2,Clock3,FileSearch,ShieldAlert,Warehouse,X} from 'lucide-react';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
-import {buildPurchaseRadar,type PurchaseRadarTarget} from '../services/marketIqPurchaseRadar';
+import {buildPurchaseRadar,calculateMesaPurchaseCeiling,type PurchaseRadarTarget} from '../services/marketIqPurchaseRadar';
 type Props={
  open:boolean;onClose:()=>void;target:PurchaseRadarTarget;
  snapshot:DealerStockSnapshot|null;onOpenRadar?:()=>void;
@@ -18,12 +18,12 @@ function Metric({caption,value,note,accent='normal'}:{
 }){
  const style=accent==='orange'?'border-orange-400 bg-orange-500 text-white':
   accent==='cyan'?'border-cyan-500 bg-[#0c7291] text-white':
-  accent==='dark'?'border-slate-900 bg-slate-950 text-white':
+  accent==='dark'?'border-slate-300 bg-slate-50 text-slate-950':
   'border-slate-200 bg-white text-slate-950';
  return <div className={'flex min-h-[116px] flex-col justify-between rounded-xl border p-4 shadow-sm '+style}>
-  <span className={'text-xs font-bold leading-5 '+(accent==='normal'?'text-slate-600':'text-white/90')}>{caption}</span>
+  <span className={'text-xs font-bold leading-5 '+(accent==='normal'||accent==='dark'?'text-slate-700':'text-white/90')}>{caption}</span>
   <strong className="my-2 text-2xl font-black leading-tight tabular-nums">{value}</strong>
-  <span className={'text-[11px] leading-4 '+(accent==='normal'?'text-slate-600':'text-white/85')}>{note}</span>
+  <span className={'text-[11px] leading-4 '+(accent==='normal'||accent==='dark'?'text-slate-600':'text-white/85')}>{note}</span>
  </div>;
 }
 /** Appraisal assistant: a decision aid, not an approval to buy or a sales prediction. */
@@ -33,10 +33,13 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  const [manualSale,setManualSale]=useState('');
  const [details,setDetails]=useState(false);
  const [rate,setRate]=useState('1.5');
+ const [scenarioMode,setScenarioMode]=useState<'stock'|'purchase'>('stock');
+ const [repasse,setRepasse]=useState(false);
  useEffect(()=>{
   if(!open)return;
   setStore(target.store||'');setOffer(target.offer&&target.offer>0?String(target.offer):'');
-  setManualSale('');setDetails(false);setRate('1.5');
+  setManualSale('');setDetails(false);setRate('1.5');setRepasse(false);
+  setScenarioMode(target.stockVehicle?'stock':'purchase');
  },[open,target.brand,target.model,target.year,target.plate,target.stockVehicle?.key]);
  useEffect(()=>{
   if(!open)return;
@@ -50,12 +53,16 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
   const num=Number(value.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''));
   return Number.isFinite(num)&&num>=0?num:0;
  };
- const data=useMemo(()=>buildPurchaseRadar(snapshot,{
-  ...target,offer:target.stockVehicle?.purchase||numeric(offer),
-  manualSalePrice:numeric(manualSale)
- },store,Number(rate.replace(',','.'))||1.5),[snapshot,target,store,offer,manualSale,rate]);
- if(!open)return null;
  const stock=target.stockVehicle;
+ const newPurchaseMode=!stock||scenarioMode==='purchase';
+ const data=useMemo(()=>buildPurchaseRadar(snapshot,{
+  ...target,stockVehicle:newPurchaseMode?null:stock,
+  offer:newPurchaseMode?numeric(offer):undefined,
+  manualSalePrice:manualSale.trim()?numeric(manualSale):undefined,
+  dealerSuggestedSalePrice:newPurchaseMode&&stock&&!manualSale.trim()?stock.price:undefined
+ },store,Number(rate.replace(',','.'))||1.5),
+ [snapshot,target,stock,newPurchaseMode,store,offer,manualSale,rate]);
+ if(!open)return null;
  const headline=(target.brand+' '+target.model+' '+target.year).trim();
  const stockDate=snapshot?.reportDate?
   snapshot.reportDate.split('-').reverse().join('/'):'Sem fotografia';
@@ -64,8 +71,15 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
   data.signal==='negotiate'?'border-rose-300 bg-rose-50 text-rose-950':
   data.signal==='stock_risk'?'border-orange-300 bg-orange-50 text-orange-950':
   'border-amber-200 bg-amber-50 text-amber-950';
- const projectedCost=stock?.cost&&stock.cost>0?stock.cost:(numeric(offer)>0?
-  numeric(offer)+Math.max(0,target.preparation||0):null);
+ const preparation=Math.max(0,target.preparation||0);
+ const projectedCost=!newPurchaseMode&&stock?.cost&&stock.cost>0?stock.cost:
+  numeric(offer)>0?numeric(offer)+preparation:null;
+ const ceiling=calculateMesaPurchaseCeiling(data.referencePrice,preparation,repasse);
+ const ceilingSource=data.referenceSale==='verified_webmotors'?'anúncios Webmotors conferidos':
+  data.referenceSale==='dealer_suggested'?'preço sugerido no Dealer':
+  data.referenceSale==='manual_assumption'?'preço de venda hipotético digitado':'fonte não confirmada';
+ const differenceToCeiling=!newPurchaseMode&&stock?.cost&&ceiling!==null?
+  stock.cost-ceiling:null;
  return <div className="fixed inset-0 z-[140] overflow-y-auto bg-[#071421]/80 px-2 py-4 backdrop-blur-sm md:p-8"
   role="dialog" aria-modal="true" aria-label="Motyq IQ: Resumo de Inteligência de Compra"
   onMouseDown={e=>{if(e.currentTarget===e.target)onClose();}}>
@@ -80,9 +94,19 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
      className="rounded-full border border-slate-300 bg-slate-50 p-2.5 text-slate-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-700"><X size={23}/></button>
    </header>
    <div className="space-y-5 p-4 md:p-6">
+    {stock&&<nav aria-label="Tipo de análise" className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2">
+     <button type="button" aria-pressed={!newPurchaseMode} onClick={()=>setScenarioMode('stock')}
+      className={'rounded-lg px-4 py-2 text-sm font-bold '+(!newPurchaseMode?'bg-[#10354f] text-white':'bg-slate-100 text-slate-700 hover:bg-slate-200')}>
+      Veículo já no estoque
+     </button>
+     <button type="button" aria-pressed={newPurchaseMode} onClick={()=>setScenarioMode('purchase')}
+      className={'rounded-lg px-4 py-2 text-sm font-bold '+(newPurchaseMode?'bg-[#10354f] text-white':'bg-slate-100 text-slate-700 hover:bg-slate-200')}>
+      Simular compra de outro igual
+     </button>
+    </nav>}
     <section className={'flex flex-wrap items-start justify-between gap-4 rounded-xl border p-4 '+signalTone}>
      <div className="max-w-3xl">
-      <p className="text-xs font-black uppercase tracking-wide">Sinal da Mesa · Orientação preliminar</p>
+      <p className="text-xs font-black uppercase tracking-wide">{newPurchaseMode?'Cenário de nova compra':'Situação do veículo em estoque'} · Orientação preliminar</p>
       <p className="mt-1 text-xl font-black md:text-2xl">{data.signalTitle}</p>
       <p className="mt-2 text-sm leading-6">
        {data.reasons[0]||'Ainda precisamos conferir os dados para orientar a compra.'}
@@ -91,6 +115,39 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
      <div className="rounded-lg border border-current/20 bg-white/70 px-3 py-2 text-xs font-bold">
       Sem aprovação automática
      </div>
+    </section>
+    <section className="rounded-xl border border-cyan-200 bg-white p-4 shadow-sm">
+     <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+       <p className="text-xs font-black uppercase tracking-wider text-cyan-800">Até quanto oferecer? · Simulação da Mesa</p>
+       <p className="mt-1 text-3xl font-black tracking-tight text-[#0b506c]">{money(ceiling)}</p>
+       <p className="mt-1 text-xs leading-5 text-slate-700">
+        {ceiling!==null
+         ?'Preço de referência × 0,86'+(repasse?' × 0,95':'')+' − preparo '+money(preparation)+'.'
+         :'Informe ou confira um preço de venda de referência para calcular um teto hipotético.'}
+       </p>
+      </div>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Destino do veículo">
+       <button type="button" aria-pressed={!repasse} onClick={()=>setRepasse(false)}
+        className={'rounded-lg border px-3 py-2 text-xs font-black '+(!repasse?'border-cyan-700 bg-cyan-50 text-cyan-950':'border-slate-300 bg-white text-slate-700')}>
+        Showroom · 14%
+       </button>
+       <button type="button" aria-pressed={repasse} onClick={()=>setRepasse(true)}
+        className={'rounded-lg border px-3 py-2 text-xs font-black '+(repasse?'border-cyan-700 bg-cyan-50 text-cyan-950':'border-slate-300 bg-white text-slate-700')}>
+        Repasse · +5%
+       </button>
+      </div>
+     </div>
+     <p className="mt-2 text-xs leading-5 text-amber-900">
+      Base: {ceilingSource}. {data.referenceSale!=='verified_webmotors'
+        ?'Preço não validado com anúncios individuais Webmotors. O teto é apenas uma hipótese e não autoriza compra.'
+        :'Mesmo com anúncios conferidos, exige revisão de versão, custos, laudo e aprovação da Mesa.'}
+      Capital, impostos específicos e outras despesas não informadas podem reduzir esse limite.
+     </p>
+     {differenceToCeiling!==null&&differenceToCeiling>0&&<p className="mt-2 rounded-lg bg-rose-50 p-2.5 text-xs font-bold text-rose-900">
+      O custo atual do estoque está {money(differenceToCeiling)} acima desse teto hipotético para uma nova aquisição.
+      Isso não equivale a prejuízo realizado.
+     </p>}
     </section>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
      <Metric caption="Fotografia do estoque" value={stockDate} note={snapshot?'Dealer · arquivo importado':'Importe o Dealer no Radar'}/>
@@ -108,10 +165,10 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
       note="Somente veículos com KM validado"/>
      <Metric caption="Preço sugerido mediano" value={money(data.medianSuggestedPrice)}
       note="Dealer · família e ano, não preço de venda confirmado"/>
-     <Metric caption="FIPE do veículo" value={money(target.fipe)}
-      note="Referência da ficha atual" accent="dark"/>
-     <Metric caption={stock?'Custo total no Dealer':'Custo considerado no cenário'}
-      value={money(projectedCost)} note={stock?'Valor Custo informado; não somar OS novamente':'Compra pretendida + preparação informada'}/>
+     <Metric caption="FIPE do veículo" value={target.fipe&&target.fipe>0?money(target.fipe):'A confirmar'}
+      note={target.fipe&&target.fipe>0?'Referência da ficha atual':'Consultar FIPE na Nova avaliação'} accent="dark"/>
+     <Metric caption={!newPurchaseMode&&stock?'Custo total no Dealer':'Custo considerado no cenário'}
+      value={money(projectedCost)} note={!newPurchaseMode&&stock?'Valor Custo informado; não somar OS novamente':'Compra pretendida + preparação informada'}/>
      <Metric caption="Preço de referência" value={money(data.referencePrice)}
       note={data.referenceSale==='dealer_suggested'?'Preço sugerido no Dealer':
        data.referenceSale==='verified_webmotors'?'Anúncios individuais Webmotors conferidos':
@@ -123,10 +180,10 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
      <section className={cell}>
       <h3 className={sceneTitle}>Simulação para orientar a compra</h3>
       <p className="mb-3 text-xs leading-5 text-slate-600">
-       {stock?'Os valores de custo e preço vêm do estoque Dealer. Para uma nova proposta, use a tela Nova avaliação.':
-        'Simule quanto pagar. A margem só será calculada com um preço de venda informado ou anúncios conferidos.'}
+       {!newPurchaseMode&&stock?'Diagnóstico do estoque existente: custo e preço sugerido vêm do Dealer. Mude para Simular compra de outro igual para testar uma nova oferta.':
+        'Simule o valor de compra e, opcionalmente, outro preço de venda. O preço sugerido do Dealer é somente uma hipótese, não uma venda realizada.'}
       </p>
-      {!stock&&<div className="grid gap-3 sm:grid-cols-2">
+      {newPurchaseMode&&<div className="grid gap-3 sm:grid-cols-2">
        <label className="text-xs font-bold text-slate-700">Quanto pretende pagar (R$)
         <input type="text" inputMode="decimal" value={offer} onChange={e=>setOffer(e.target.value)}
          placeholder="Ex.: 65.000" aria-label="Valor de compra pretendido"
