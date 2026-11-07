@@ -1,7 +1,9 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {AlertCircle,ArrowRight,BarChart3,CheckCircle2,Clock3,FileSearch,ShieldAlert,Warehouse,X} from 'lucide-react';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
-import {buildPurchaseRadar,calculateMesaPurchaseCeiling,type PurchaseRadarTarget} from '../services/marketIqPurchaseRadar';
+import {buildPurchaseRadar,calculateMesaPurchaseCeiling,modelYear,type PurchaseRadarTarget} from '../services/marketIqPurchaseRadar';
+import MarketIqPurchaseSourcesPanel from './MarketIqPurchaseSourcesPanel';
+import {summarizeOperatorWebmotors,type RadarFipeQuote,type RadarWebmotorsListing} from '../services/marketIqPurchaseEvidence';
 type Props={
  open:boolean;onClose:()=>void;target:PurchaseRadarTarget;
  snapshot:DealerStockSnapshot|null;onOpenRadar?:()=>void;
@@ -35,10 +37,13 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  const [rate,setRate]=useState('1.5');
  const [scenarioMode,setScenarioMode]=useState<'stock'|'purchase'>('stock');
  const [repasse,setRepasse]=useState(false);
+ const [localFipe,setLocalFipe]=useState<RadarFipeQuote|null>(null);
+ const [localListings,setLocalListings]=useState<RadarWebmotorsListing[]>([]);
  useEffect(()=>{
   if(!open)return;
   setStore(target.store||'');setOffer(target.offer&&target.offer>0?String(target.offer):'');
   setManualSale('');setDetails(false);setRate('1.5');setRepasse(false);
+  setLocalFipe(null);setLocalListings([]);
   setScenarioMode(target.stockVehicle?'stock':'purchase');
  },[open,target.brand,target.model,target.year,target.plate,target.stockVehicle?.key]);
  useEffect(()=>{
@@ -55,13 +60,25 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  };
  const stock=target.stockVehicle;
  const newPurchaseMode=!stock||scenarioMode==='purchase';
+ const fipeValue=localFipe?.value||target.fipe||0;
+ const checkedListings=useMemo(()=>summarizeOperatorWebmotors(
+  [...(target.marketListings||[]),...localListings],
+  {brand:target.brand,model:target.model,year:modelYear(target.year)||0,
+   km:Number(target.km)||0,vehicleType:target.vehicleType,fipe:fipeValue||undefined},
+  localFipe?.model||target.fipeModel||target.model
+ ),[target.brand,target.model,target.year,target.km,target.vehicleType,target.marketListings,
+    localListings,localFipe?.model,target.fipeModel,fipeValue]);
+ const marketReference=checkedListings.count>=2?checkedListings.average:null;
  const data=useMemo(()=>buildPurchaseRadar(snapshot,{
   ...target,stockVehicle:newPurchaseMode?null:stock,
+  fipe:fipeValue,
   offer:newPurchaseMode?numeric(offer):undefined,
   manualSalePrice:manualSale.trim()?numeric(manualSale):undefined,
-  dealerSuggestedSalePrice:newPurchaseMode&&stock&&!manualSale.trim()?stock.price:undefined
+  dealerSuggestedSalePrice:newPurchaseMode&&stock&&!manualSale.trim()?stock.price:undefined,
+  verifiedMarketPrice:marketReference||0,marketAdsVerified:checkedListings.count
  },store,Number(rate.replace(',','.'))||1.5),
- [snapshot,target,stock,newPurchaseMode,store,offer,manualSale,rate]);
+ [snapshot,target,stock,newPurchaseMode,store,offer,manualSale,rate,fipeValue,
+  marketReference,checkedListings.count]);
  if(!open)return null;
  const headline=(target.brand+' '+target.model+' '+target.year).trim();
  const stockDate=snapshot?.reportDate?
@@ -74,8 +91,9 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  const preparation=Math.max(0,target.preparation||0);
  const projectedCost=!newPurchaseMode&&stock?.cost&&stock.cost>0?stock.cost:
   numeric(offer)>0?numeric(offer)+preparation:null;
- const ceiling=calculateMesaPurchaseCeiling(data.referencePrice,preparation,repasse);
- const ceilingSource=data.referenceSale==='verified_webmotors'?'anúncios Webmotors conferidos':
+ const ceilingBenchmark=marketReference||data.referencePrice;
+ const ceiling=calculateMesaPurchaseCeiling(ceilingBenchmark,preparation,repasse);
+ const ceilingSource=marketReference?'média dos anúncios Webmotors conferidos pela Mesa':
   data.referenceSale==='dealer_suggested'?'preço sugerido no Dealer':
   data.referenceSale==='manual_assumption'?'preço de venda hipotético digitado':'fonte não confirmada';
  const differenceToCeiling=!newPurchaseMode&&stock?.cost&&ceiling!==null?
@@ -165,8 +183,12 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
       note="Somente veículos com KM validado"/>
      <Metric caption="Preço sugerido mediano" value={money(data.medianSuggestedPrice)}
       note="Dealer · família e ano, não preço de venda confirmado"/>
-     <Metric caption="FIPE do veículo" value={target.fipe&&target.fipe>0?money(target.fipe):'A confirmar'}
-      note={target.fipe&&target.fipe>0?'Referência da ficha atual':'Consultar FIPE na Nova avaliação'} accent="dark"/>
+     <Metric caption="FIPE do veículo" value={fipeValue>0?money(fipeValue):'A confirmar'}
+      note={localFipe?'Mês: '+(localFipe.referenceMonth||'não informado')+
+       ' · '+(localFipe.referenceStatus==='current'?'atual':localFipe.referenceStatus==='outdated'?'desatualizada':'não confirmada'):
+       target.fipe&&target.fipe>0?'Mês: '+(target.fipeReferenceMonth||'não informado')+
+        ' · '+(target.fipeStatus==='current'?'atual':target.fipeStatus==='outdated'?'desatualizada':'não confirmada'):
+        'Selecione versão e ano na consulta FIPE abaixo'} accent="dark"/>
      <Metric caption={!newPurchaseMode&&stock?'Custo total no Dealer':'Custo considerado no cenário'}
       value={money(projectedCost)} note={!newPurchaseMode&&stock?'Valor Custo informado; não somar OS novamente':'Compra pretendida + preparação informada'}/>
      <Metric caption="Preço de referência" value={money(data.referencePrice)}
@@ -176,6 +198,30 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
      <Metric caption="Diferença bruta potencial" value={money(data.grossSpread)}
       note={data.grossMarginPercent!==null?fmt(data.grossMarginPercent,1)+'% do preço de referência; não é lucro líquido':'Informe os valores para simular'}/>
     </div>
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+     <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+       <p className="text-xs font-black uppercase tracking-wider text-slate-600">Pesquisa Webmotors conferida pela Mesa</p>
+       <p className="mt-1 text-xl font-black text-slate-950">
+        {marketReference?money(marketReference):'A confirmar'}
+       </p>
+       <p className="mt-1 text-xs text-slate-700">
+        {checkedListings.count} anúncio(s) único(s), individual(is), conferido(s) pela Mesa · média dos até cinco menores preços aceitos.
+        {marketReference?' Este valor é uma referência de anúncio, não preço de venda efetiva.':' Necessários ao menos dois anúncios válidos da mesma versão, ano e KM próximo.'}
+       </p>
+      </div>
+      {marketReference&&<span className="rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-950">Mercado conferido pelo operador</span>}
+     </div>
+     {checkedListings.listings.length>0&&<div className="mt-3 flex flex-wrap gap-2">
+      {checkedListings.listings.map(ad=><a key={ad.id} href={ad.url} target="_blank" rel="noopener noreferrer"
+       className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-cyan-800 underline">
+       {money(ad.price)} · {fmt(ad.km)} km · anúncio {ad.id}
+      </a>)}
+     </div>}
+     {checkedListings.rejected.length>0&&<p className="mt-2 text-xs text-amber-900">
+      Desconsiderados: {checkedListings.rejected.map(r=>r.count+' '+r.reason).join(' · ')}.
+     </p>}
+    </section>
     <div className="grid gap-4 lg:grid-cols-[.95fr_1.05fr]">
      <section className={cell}>
       <h3 className={sceneTitle}>Simulação para orientar a compra</h3>
@@ -228,6 +274,10 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
       </div>
      </section>
     </div>
+    <MarketIqPurchaseSourcesPanel
+     vehicle={{brand:target.brand,model:target.model,year:target.year,vehicleType:target.vehicleType}}
+     quote={localFipe} onQuote={setLocalFipe}
+     listings={localListings} onListings={setLocalListings}/>
     <section className={cell}>
      <button type="button" aria-expanded={details} onClick={()=>setDetails(x=>!x)}
       className="flex w-full items-center justify-between gap-3 text-left">
