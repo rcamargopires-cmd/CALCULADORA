@@ -59,6 +59,32 @@ assert.deepEqual(radar.dealerSimilarStock(snap.vehicles,tracker).map(v=>v.plate)
  'Same model family counts separately from exact FIPE version/year');
 assert.ok(radar.dealerRiskFlags(tracker).some(x=>x.includes('90 dias')));
 assert.ok(radar.dealerRiskFlags(snap.vehicles.find(v=>v.plate==='GHI7J89')).some(x=>x.includes('abaixo do custo')));
+// Dealer can contain anomalous mileage. This must not remove the car,
+// its cost, its days or missing-price alert from the group stock.
+const withBadKm=radar.parseDealerStockRows([
+ ['Atualizado: 07/11/2026 - 07:48:22 AM'],headers,
+ ...input.slice(3,6),
+ row({Placa:'MNO1P23',Chassis:'9BGAA001100000007',Km:1250000,
+  Dias:12,'Preço Sugerido':0,'Valor Custo':87500})
+]);
+const badKmCar=withBadKm.vehicles.find(v=>v.plate==='MNO1P23');
+assert.equal(withBadKm.vehicles.length,4,'Invalid KM cannot remove a real stock vehicle');
+assert.equal(withBadKm.duplicateCount,0);
+assert.equal(badKmCar.kmValid,false,'KM must be explicitly marked unverified');
+assert.equal(badKmCar.kmOriginal,'1250000','Original reported KM remains visible to operator');
+assert.equal(badKmCar.km,0,'Invalid raw KM cannot be used in statistical comparisons');
+assert.ok(withBadKm.warnings.some(w=>w.includes('mantido(s) no estoque')));
+assert.ok(radar.dealerRiskFlags(badKmCar).some(w=>w.includes('KM inconsistente')));
+const badKmStats=radar.dealerRadarStats(withBadKm.vehicles);
+assert.equal(badKmStats.count,4);
+assert.equal(badKmStats.priceMissing,2);
+assert.equal(badKmStats.costTotal,78500+91000+52500+87500);
+assert.equal(badKmStats.ageBuckets.find(b=>b.name==='0 a 30').count,2);
+assert.ok(panel.includes("v.kmValid?v.km.toLocaleString('pt-BR'):'A conferir'"),
+ 'Radar table must display a mileage warning, never a fake 0 km');
+assert.ok(panel.includes("selected.kmOriginal||'não informado'"),
+ 'Operator must be able to inspect the original suspect mileage');
+
 const newer=radar.parseDealerStockRows([
  ['Atualizado: 08/11/2026 - 08:00:00 AM'],headers,
  row({Placa:'ABC1D23','Dias':96,'Estoque Atual':'ABRAO TATUI','Preço Sugerido':86000}),
