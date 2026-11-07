@@ -1168,6 +1168,15 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   target={{
    brand,model,year,plate,vehicleType,km:number(km),
    fipe:fipe?.value||0,preparation:number(cost),
+   fipeReferenceMonth:fipe?.referenceMonth||'',fipeCode:fipe?.fipeCode||'',
+   fipeStatus:fipe?.referenceStatus||'unverified',fipeModel:fipe?.model||'',
+   fipeYear:fipe?.year||0,fipeSource:fipe?.referenceSource||'',
+   // Only operator validated individual Webmotors listings enter the Radar.
+   // Indexed/automatic links are never passed off as verified advertisements.
+   marketListings:primary.map(ad=>({
+    url:ad.url,price:number(ad.price),km:number(ad.km),
+    title:String(ad.title||''),checked:!ad.auto&&ad.status==='valid'
+   })),
    verifiedMarketPrice:marketReady?avg:0,marketAdsVerified:marketReady?primary.length:0
   }}
  />
