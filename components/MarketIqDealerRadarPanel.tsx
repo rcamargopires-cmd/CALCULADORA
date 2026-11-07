@@ -1,7 +1,7 @@
 import React,{useMemo,useRef,useState} from 'react';
 import {AlertTriangle,ArrowDownUp,ArrowRight,CarFront,Clock3,FileSpreadsheet,RefreshCw,Search,ShieldCheck,UploadCloud,Warehouse} from 'lucide-react';
 import {
- readDealerWorkbook,dealerRadarStats,dealerRiskFlags,dealerSimilarStock,compareDealerSnapshots,
+ readDealerWorkbook,dealerRadarStats,dealerRiskFlags,dealerSimilarStock,dealerPlateSuggestions,compareDealerSnapshots,
  type DealerStockSnapshot,type DealerStockVehicle
 } from '../services/marketIqDealerRadar';
 import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
@@ -55,6 +55,13 @@ export default function MarketIqDealerRadarPanel(props:Props){
     (filter==='os'&&v.serviceOrders>0)));
   return [...list].sort((a,b)=>b.days-a.days);
  },[vehicles,store,type,search,filter]);
+ const plateSuggestions=useMemo(()=>filtered.length===0?
+  dealerPlateSuggestions(vehicles,search):[],[vehicles,search,filtered.length]);
+ const selectSuggestedPlate=(plate:string)=>{
+  // Only act on the operator's explicit click. Reset conflicting filters so
+  // the selected, verified Dealer plate really appears in the table.
+  setSearch(plate);setStore('all');setType('all');setFilter('all');setVisibleCount(60);
+ };
  const monthlyRate=Number(capitalRate.replace(',','.'));
  const rate=Number.isFinite(monthlyRate)?Math.min(6,Math.max(0,monthlyRate)):1.5;
  const stats=useMemo(()=>dealerRadarStats(filtered,rate),[filtered,rate]);
@@ -246,6 +253,19 @@ export default function MarketIqDealerRadarPanel(props:Props){
       </select>
      </label>
     </div>
+    {plateSuggestions.length>0&&<div role="status" aria-live="polite"
+     className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">
+     <p className="text-sm font-black">Nenhuma placa exata encontrada. Você quis dizer?</p>
+     <p className="mt-1 text-xs">Confira antes de selecionar. O Motyq nunca altera a placa automaticamente.</p>
+     <div className="mt-2 flex flex-wrap gap-2">
+      {plateSuggestions.map(v=><button type="button" key={v.key}
+       onClick={()=>selectSuggestedPlate(v.plate)}
+       className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-left hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-800">
+       <span className="block text-sm font-black">{v.plate}</span>
+       <span className="block text-xs text-slate-700">{v.brand} {v.model} · {v.store}</span>
+      </button>)}
+     </div>
+    </div>}
     <p className="mt-3 text-xs text-slate-600">Exibindo {Math.min(visibleCount,filtered.length)} de {filtered.length} veículos filtrados ({allStats.count} no arquivo).</p>
     <div className="mt-2 overflow-x-auto">
      <table className="w-full min-w-[780px] text-left text-xs">
