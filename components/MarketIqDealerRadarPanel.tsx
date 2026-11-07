@@ -4,6 +4,7 @@ import {
  readDealerWorkbook,dealerRadarStats,dealerRiskFlags,dealerSimilarStock,compareDealerSnapshots,
  type DealerStockSnapshot,type DealerStockVehicle
 } from '../services/marketIqDealerRadar';
+import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
 
 const brl=(n:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(n);
 const dec=(n:number)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1}).format(n);
@@ -15,10 +16,22 @@ const normal=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLow
 const cap=(s:string)=>s.length>48?s.slice(0,48)+'…':s;
 type Filter='all'|'aging'|'noPrice'|'belowCost'|'os';
 const card='rounded-2xl border border-slate-200 bg-white p-4 shadow-sm';
-export default function MarketIqDealerRadarPanel(){
+type Props={
+ snapshot?:DealerStockSnapshot|null;onSnapshotChange?:(next:DealerStockSnapshot|null)=>void;
+ previousSnapshot?:DealerStockSnapshot|null;onPreviousSnapshotChange?:(next:DealerStockSnapshot|null)=>void;
+};
+export default function MarketIqDealerRadarPanel(props:Props){
  const fileInput=useRef<HTMLInputElement|null>(null);
- const [current,setCurrent]=useState<DealerStockSnapshot|null>(null);
- const [previous,setPrevious]=useState<DealerStockSnapshot|null>(null);
+ const [localCurrent,setLocalCurrent]=useState<DealerStockSnapshot|null>(null);
+ const [localPrevious,setLocalPrevious]=useState<DealerStockSnapshot|null>(null);
+ const current=props.snapshot===undefined?localCurrent:props.snapshot;
+ const previous=props.previousSnapshot===undefined?localPrevious:props.previousSnapshot;
+ const setCurrent=(next:DealerStockSnapshot|null)=>{
+  setLocalCurrent(next);props.onSnapshotChange?.(next);
+ };
+ const setPrevious=(next:DealerStockSnapshot|null)=>{
+  setLocalPrevious(next);props.onPreviousSnapshotChange?.(next);
+ };
  const [fileName,setFileName]=useState('');
  const [loading,setLoading]=useState(false);
  const [error,setError]=useState('');
@@ -27,6 +40,7 @@ export default function MarketIqDealerRadarPanel(){
  const [type,setType]=useState<'all'|'car'|'motorcycle'>('all');
  const [filter,setFilter]=useState<Filter>('all');
  const [selectedKey,setSelectedKey]=useState('');
+ const [purchaseSummaryVehicle,setPurchaseSummaryVehicle]=useState<DealerStockVehicle|null>(null);
  const [capitalRate,setCapitalRate]=useState('1.5');
  const [visibleCount,setVisibleCount]=useState(60);
  const vehicles=current?.vehicles||[];
@@ -267,7 +281,13 @@ export default function MarketIqDealerRadarPanel(){
       <h3 className="mt-1 text-xl font-black text-slate-950">{selected.brand} {selected.model} · {selected.year}</h3>
       <p className="mt-1 text-sm text-slate-600">{selected.plate||'Sem placa'} · {selected.store} · {selected.days} dias · {selected.kmValid?selected.km.toLocaleString('pt-BR')+' km':'KM a conferir'}</p>
      </div>
-     <button type="button" onClick={()=>setSelectedKey('')} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold">Fechar</button>
+     <div className="flex flex-wrap gap-2">
+      <button type="button" onClick={()=>setPurchaseSummaryVehicle(selected)}
+       className="rounded-lg bg-[#0b7199] px-4 py-2 text-xs font-black text-white hover:bg-[#095b7b]">
+       Abrir Resumo de Compra
+      </button>
+      <button type="button" onClick={()=>setSelectedKey('')} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold">Fechar</button>
+     </div>
     </div>
     <div className="mt-4 grid gap-3 sm:grid-cols-4">
      {[
@@ -304,6 +324,15 @@ export default function MarketIqDealerRadarPanel(){
       </table></div>}
     </div>
    </section>}
+   <MarketIqPurchaseSummaryModal open={Boolean(purchaseSummaryVehicle)}
+    onClose={()=>setPurchaseSummaryVehicle(null)} snapshot={current}
+    target={{
+     brand:purchaseSummaryVehicle?.brand||'',model:purchaseSummaryVehicle?.model||'',
+     year:purchaseSummaryVehicle?.year||'',plate:purchaseSummaryVehicle?.plate,
+     km:purchaseSummaryVehicle?.km,store:purchaseSummaryVehicle?.store,
+     vehicleType:purchaseSummaryVehicle?.vehicleType||'car',
+     stockVehicle:purchaseSummaryVehicle,preparation:0
+    }}/>
    <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-xs leading-6 text-cyan-950">
     <strong>Limites do Radar 1.0:</strong> não calcula MDS regional, lucratividade líquida, giro de veículos vendidos nem recomenda automaticamente “Comprar”.
     Os dados de vendas, as transferências e o mercado Webmotors serão integrados em fases futuras, após validação e recuperação da infraestrutura do Firestore.
