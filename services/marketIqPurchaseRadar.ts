@@ -4,7 +4,7 @@ import type {DealerStockSnapshot,DealerStockVehicle} from './marketIqDealerRadar
 export type PurchaseRadarTarget={
  brand:string;model:string;year:string;plate?:string;
  km?:number;store?:string;vehicleType:'car'|'motorcycle';
- fipe?:number;offer?:number;preparation?:number;verifiedMarketPrice?:number;manualSalePrice?:number;dealerSuggestedSalePrice?:number;
+ fipe?:number;offer?:number;preparation?:number;verifiedMarketPrice?:number;manualSalePrice?:number;dealerSuggestedSalePrice?:number; fipeReferenceMonth?:string;fipeCode?:string;fipeStatus?:'current'|'outdated'|'unverified';fipeModel?:string;fipeYear?:number;fipeSource?:string; marketListings?:Array<{url:string;price:number;km:number;title:string;checked:boolean}>;
  marketAdsVerified?:number;stockVehicle?:DealerStockVehicle|null;
 };
 export type PurchaseRadarResult={
