@@ -1,6 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {ExternalLink,Search,ShieldCheck,AlertTriangle,Plus,Trash2} from 'lucide-react';
-import {type RadarFipeQuote,type RadarWebmotorsListing,validatedRadarFipe,radarTrim} from '../services/marketIqPurchaseEvidence';
+import {type RadarFipeQuote,type RadarWebmotorsListing,validatedRadarFipe,fipeVersionCompatible} from '../services/marketIqPurchaseEvidence';
+import {familyKey} from '../services/marketIqPurchaseRadar';
 type Item={code:string;name:string};
 type Props={
  vehicle:{brand:string;model:string;year:string;vehicleType:'car'|'motorcycle'};
@@ -63,11 +64,10 @@ export default function MarketIqPurchaseSourcesPanel({vehicle,quote,onQuote,list
    onQuote(null);setError('A FIPE retornada não corresponde ao ano-modelo esperado ou possui dados inválidos.');
    return;
   }
-  const targetTrim=radarTrim(vehicle.model),actualTrim=radarTrim(found.model);
-  if(targetTrim&&targetTrim!==actualTrim){
-   onQuote(null);setError('A versão FIPE selecionada ('+found.model+
-    ') não corresponde ao acabamento '+targetTrim.toUpperCase()+
-    ' identificado no Dealer. Confira a versão antes de continuar.');
+  if(familyKey(found.brand,found.model)!==familyKey(vehicle.brand,vehicle.model)||
+    !fipeVersionCompatible(vehicle.model,found.model)){
+   onQuote(null);setError('A FIPE selecionada ('+found.model+
+    ') não confere com a família, o acabamento, o motor ou o câmbio identificados no Dealer. Confira a versão.');
    return;
   }
   onQuote(found);
