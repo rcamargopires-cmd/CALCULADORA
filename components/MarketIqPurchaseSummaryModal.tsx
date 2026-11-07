@@ -53,7 +53,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  const data=useMemo(()=>buildPurchaseRadar(snapshot,{
   ...target,offer:target.stockVehicle?.purchase||numeric(offer),
   manualSalePrice:numeric(manualSale)
- },store,numeric(rate)||1.5),[snapshot,target,store,offer,manualSale,rate]);
+ },store,Number(rate.replace(',','.'))||1.5),[snapshot,target,store,offer,manualSale,rate]);
  if(!open)return null;
  const stock=target.stockVehicle;
  const headline=(target.brand+' '+target.model+' '+target.year).trim();
