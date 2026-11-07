@@ -142,7 +142,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
       Base: {ceilingSource}. {data.referenceSale!=='verified_webmotors'
         ?'Preço não validado com anúncios individuais Webmotors. O teto é apenas uma hipótese e não autoriza compra.'
         :'Mesmo com anúncios conferidos, exige revisão de versão, custos, laudo e aprovação da Mesa.'}
-      Capital, impostos específicos e outras despesas não informadas podem reduzir esse limite.
+      {' '}Capital, impostos específicos e outras despesas não informadas podem reduzir esse limite.
      </p>
      {differenceToCeiling!==null&&differenceToCeiling>0&&<p className="mt-2 rounded-lg bg-rose-50 p-2.5 text-xs font-bold text-rose-900">
       O custo atual do estoque está {money(differenceToCeiling)} acima desse teto hipotético para uma nova aquisição.
