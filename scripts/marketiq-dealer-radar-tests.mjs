@@ -85,6 +85,36 @@ assert.ok(panel.includes("v.kmValid?v.km.toLocaleString('pt-BR'):'A conferir'"),
 assert.ok(panel.includes("selected.kmOriginal||'não informado'"),
  'Operator must be able to inspect the original suspect mileage');
 
+// Real-world Dealer typo: SUX0A03 was searched as SUX0A63.
+const trackerPlate='SUX0A03';
+const nearby=radar.parseDealerStockRows([
+ ['Atualizado: 07/11/2026 - 07:48:22 AM'],headers,
+ row({Placa:trackerPlate,Chassis:'9BGED76B0RB144619',
+  Marca:'GM',Modelo:'TRACKER 12T A RS',Dias:64,
+  'Valor Custo':101466,'Preço Sugerido':99900}),
+ row({Placa:'ABC1D23',Chassis:'9BGAA001100000001'})
+]);
+assert.deepEqual(radar.dealerPlateSuggestions(nearby.vehicles,'SUX0A63').map(v=>v.plate),
+ [trackerPlate],'One incorrect digit in a full plate should suggest the real Dealer plate');
+assert.deepEqual(radar.dealerPlateSuggestions(nearby.vehicles,'SUX-0A63').map(v=>v.plate),
+ [trackerPlate],'Hyphenated plate inputs must be supported');
+assert.equal(radar.dealerPlateSuggestions(nearby.vehicles,'SUX0A03').length,0,
+ 'Exact plate exists: no typo suggestion is needed');
+assert.equal(radar.dealerPlateSuggestions(nearby.vehicles,'SUX0B63').length,0,
+ 'Two wrong characters must not guess a vehicle identity');
+assert.equal(radar.dealerPlateSuggestions(nearby.vehicles,'TRACKER').length,0,
+ 'Model text must never be treated as a license plate');
+assert.equal(radar.dealerPlateSuggestions(nearby.vehicles,'SUX0A6').length,0,
+ 'Partial plate must not trigger fuzzy suggestions');
+assert.ok(panel.includes('Nenhuma placa exata encontrada. Você quis dizer?'),
+ 'The UI clearly labels fuzzy plates as suggestions, not results');
+assert.ok(panel.includes('O Motyq nunca altera a placa automaticamente.'),
+ 'Do not silently select a vehicle');
+assert.ok(panel.includes('onClick={()=>selectSuggestedPlate(v.plate)}'),
+ 'Only a deliberate click accepts the suggested Dealer plate');
+assert.ok(panel.includes("setSearch(plate);setStore('all');setType('all');setFilter('all');"),
+ 'Choosing a suggestion resets filters that could hide the matched vehicle');
+
 const newer=radar.parseDealerStockRows([
  ['Atualizado: 08/11/2026 - 08:00:00 AM'],headers,
  row({Placa:'ABC1D23','Dias':96,'Estoque Atual':'ABRAO TATUI','Preço Sugerido':86000}),
