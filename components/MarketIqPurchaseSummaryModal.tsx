@@ -106,7 +106,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
     </nav>}
     <section className={'flex flex-wrap items-start justify-between gap-4 rounded-xl border p-4 '+signalTone}>
      <div className="max-w-3xl">
-      <p className="text-xs font-black uppercase tracking-wide">{newPurchaseMode?'Cenário de nova compra':'Situação do veículo em estoque'} · Orientação preliminar</p>
+      <p className="text-xs font-black uppercase tracking-wide">Sinal da Mesa · {newPurchaseMode?'Cenário de nova compra':'Situação do veículo em estoque'} · Orientação preliminar</p>
       <p className="mt-1 text-xl font-black md:text-2xl">{data.signalTitle}</p>
       <p className="mt-2 text-sm leading-6">
        {data.reasons[0]||'Ainda precisamos conferir os dados para orientar a compra.'}
