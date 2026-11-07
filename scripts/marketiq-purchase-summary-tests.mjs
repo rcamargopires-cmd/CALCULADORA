@@ -134,6 +134,11 @@ assert.ok(modal.includes("accent==='dark'?'border-slate-300 bg-slate-50 text-sla
  'Cards with light background must not hide their labels with white text');
 assert.ok(!modal.includes("accent==='dark'?'border-slate-900 bg-slate-950 text-white'"),
  'No invisible dark style from the user screenshot');
+assert.ok(modal.includes("accent==='orange'||accent==='cyan'?'!text-white':'!text-slate-950'"),
+ 'Highlighted KPI values must have enforced readable contrast on cyan/orange cards');
+assert.ok(modal.includes("{' '}Capital, impostos específicos"),
+ 'A space must separate purchase-caveat sentences');
+
 assert.ok(panel.includes("onClick={e=>{e.stopPropagation();setPurchaseSummaryVehicle(v);}}"),
  'Clicking summary directly in table must not trigger selection navigation');
 assert.ok(panel.includes('<MarketIqPurchaseSummaryModal'));
