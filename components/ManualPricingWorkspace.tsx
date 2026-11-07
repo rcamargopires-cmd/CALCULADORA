@@ -8,6 +8,7 @@ import MarketIqMobileExperience from './MarketIqMobileExperience';
 import MarketIqDesktopVoiceSearch from './MarketIqDesktopVoiceSearch';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
+import MarketIqDealerRadarPanel from './MarketIqDealerRadarPanel';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
 import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
 import {mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
@@ -84,14 +85,14 @@ const validSource=(a:Ad)=>{try{
 }catch{return false;}};
 export default function ManualPricingWorkspace({user}:{user:User}){
  const key='motyq-iq-local-test-'+user.email.toLowerCase();
- const [deskSection,setDeskSection]=useState<'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'>(()=>{
+ const [deskSection,setDeskSection]=useState<'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar'>(()=>{
    if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import'))return 'pricing';
    const previous=sessionStorage.getItem('motyq-iq-active-desk-tab');
-   return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'?previous:'dashboard';
+   return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'?previous:'dashboard';
  });
  const [selectedPlateForHistory,setSelectedPlateForHistory]=useState('');
  const [mobileFullDesk,setMobileFullDesk]=useState(false);
- const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory')=>{
+ const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar')=>{
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
  };
  const formKey='motyq-iq-preview-inputs-'+user.email.toLowerCase();
@@ -689,7 +690,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   return true;
  };
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
- const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
+ const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory'||deskSection==='radar';
  return <>
  <div className={mobileFullDesk?'hidden':'lg:hidden'}>
   <MarketIqMobileExperience
@@ -749,6 +750,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='archive'?'bg-white text-[#153f51] shadow-sm ring-1 ring-slate-200':'text-slate-600 hover:bg-white hover:text-slate-900')}>Arquivo mensal</button>
    <button type="button" onClick={()=>switchDeskSection('plateHistory')} aria-current={deskSection==='plateHistory'?'page':undefined}
     className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='plateHistory'?'bg-white text-[#153f51] shadow-sm ring-1 ring-slate-200':'text-slate-600 hover:bg-white hover:text-slate-900')}>Histórico por placa</button>
+   <button type="button" onClick={()=>switchDeskSection('radar')} aria-current={deskSection==='radar'?'page':undefined}
+    className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='radar'?'bg-cyan-50 text-cyan-950 shadow-sm ring-1 ring-cyan-300':'text-slate-600 hover:bg-white hover:text-slate-900')}>
+    Radar de Compra <span className="ml-1 rounded bg-cyan-100 px-1.5 py-0.5 text-[10px] font-black text-cyan-900">NOVO</span>
+   </button>
   </nav>}
  </div>
  {deskSection==='dashboard'?<MarketIqManagementDashboard user={user}/>:
@@ -757,6 +762,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     onOpenApprovals={()=>switchDeskSection('approvals')}/>:
   deskSection==='approvals'?<MarketIqApprovalCenter user={user}/>:
   deskSection==='learning'?<MarketIqLearningPanel user={user} history={saved} onRefresh={refreshHistory} onOpenArchive={()=>switchDeskSection('archive')}/>:
+  deskSection==='radar'?<MarketIqDealerRadarPanel/>:
   deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}
    onOpenPlateHistory={selected=>{setSelectedPlateForHistory(selected);switchDeskSection('plateHistory');}}/>:
   deskSection==='plateHistory'?<MarketIqPlateHistoryPanel user={user}
