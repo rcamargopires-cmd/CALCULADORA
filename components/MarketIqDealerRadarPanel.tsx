@@ -250,7 +250,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
     <div className="mt-2 overflow-x-auto">
      <table className="w-full min-w-[780px] text-left text-xs">
       <thead className="bg-slate-100 text-slate-700"><tr>
-       {['Veículo / placa','Unidade','Ano','Dias','KM','Valor Custo','Preço sugerido','Diferença bruta'].map(h=>
+       {['Veículo / placa','Unidade','Ano','Dias','KM','Valor Custo','Preço sugerido','Diferença bruta','Inteligência'].map(h=>
         <th key={h} scope="col" className="whitespace-nowrap px-3 py-3 font-black">{h}</th>)}
       </tr></thead>
       <tbody className="divide-y divide-slate-100">
@@ -266,8 +266,14 @@ export default function MarketIqDealerRadarPanel(props:Props){
         <td className="whitespace-nowrap px-3 py-3 text-slate-900">{v.price>0?brl(v.price):'Não informado'}</td>
         <td className={'whitespace-nowrap px-3 py-3 font-semibold '+(v.price>0&&v.price<v.cost?'text-rose-700':'text-slate-700')}>
          {v.price>0?brl(v.price-v.cost):'A confirmar'}</td>
+        <td className="px-3 py-3">
+         <button type="button" onClick={e=>{e.stopPropagation();setPurchaseSummaryVehicle(v);}}
+          className="whitespace-nowrap rounded-lg bg-cyan-700 px-3 py-2 text-xs font-black text-white hover:bg-cyan-800">
+          Resumo de Compra
+         </button>
+        </td>
        </tr>)}
-       {!filtered.length&&<tr><td colSpan={8} className="px-3 py-8 text-center text-sm text-slate-500">Nenhum veículo corresponde aos filtros.</td></tr>}
+       {!filtered.length&&<tr><td colSpan={9} className="px-3 py-8 text-center text-sm text-slate-500">Nenhum veículo corresponde aos filtros.</td></tr>}
       </tbody>
      </table>
     </div>
