@@ -59,10 +59,10 @@ export function summarizeOperatorWebmotors(
   price:x.price,km:x.km,url:x.url,title:x.title
  })),target);
  for(const {reason,count} of ranked.discarded)discarded.set(reason,(discarded.get(reason)||0)+count);
- const accepted=ranked.topFive.filter(x=>{
+ const accepted=ranked.accepted.filter(x=>{
   if(x.possibleFipePremium){reject('Preço 35% acima da FIPE: exige revisão');return false;}
   return true;
- });
+ }).slice(0,5);
  // Only 2-5 unique individual Webmotors URLs, explicitly checked, with
  // correct vehicle/model year/KM and a recognized matching version.
  const average=accepted.length>=2?Math.round(accepted.reduce((s,x)=>s+x.price,0)/accepted.length):null;
