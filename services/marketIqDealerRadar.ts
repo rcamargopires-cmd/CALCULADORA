@@ -163,6 +163,28 @@ export function dealerRadarStats(rows:DealerStockVehicle[],monthlyCapitalPercent
   capitalCostEstimate:rows.reduce((s,v)=>s+v.cost*(monthlyCapitalPercent/100)*(v.days/30),0)
  };
 }
+/**
+ * A full Brazilian license-plate query with exactly one mistyped character may
+ * have intended a plate already present in the local Dealer snapshot.
+ * Candidates are suggestions ONLY: never change the identity automatically.
+ */
+export function dealerPlateSuggestions(rows:DealerStockVehicle[],query:string,limit=5):DealerStockVehicle[]{
+ const typed=String(query||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+ // Brazilian old and Mercosul plates have seven alphanumeric characters.
+ // Do not show plate suggestions for broad model/brand search terms.
+ if(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(typed))return [];
+ if(rows.some(v=>v.plate===typed))return [];
+ return rows.filter(v=>{
+  const plate=String(v.plate||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(plate.length!==7)return false;
+  let differences=0;
+  for(let i=0;i<7;i++){
+   if(plate[i]!==typed[i])differences++;
+   if(differences>1)return false;
+  }
+  return differences===1;
+ }).slice(0,Math.max(0,Math.min(5,Math.floor(limit))));
+}
 export function dealerSimilarStock(rows:DealerStockVehicle[],target:DealerStockVehicle){
  return rows.filter(v=>v.key!==target.key&&v.familyKey===target.familyKey)
   .sort((a,b)=>Math.abs(a.days-target.days)-Math.abs(b.days-target.days));
