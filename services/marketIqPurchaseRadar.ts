@@ -59,8 +59,8 @@ export function buildPurchaseRadar(
  const byStore=store?rows.filter(v=>norm(v.store)===norm(store)).length:null;
  const stock=target.stockVehicle||null;
  const verified=Number(target.marketAdsVerified)>=2?validMoney(target.verifiedMarketPrice):null;
- const sourcePrice=validMoney(stock?.price)||verified||validMoney(target.manualSalePrice);
- const saleSource=stock?.price&&stock.price>0?'dealer_suggested':
+ const sourcePrice=stock?validMoney(stock.price):verified||validMoney(target.manualSalePrice);
+ const saleSource=stock?(stock.price>0?'dealer_suggested':'unavailable'):
   verified?'verified_webmotors':validMoney(target.manualSalePrice)?'manual_assumption':'unavailable';
  const referencePrice=saleSource==='unavailable'?null:sourcePrice;
  // Real Dealer cost is an existing inventory value. An offer is only a new
