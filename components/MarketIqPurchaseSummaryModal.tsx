@@ -22,7 +22,7 @@ function Metric({caption,value,note,accent='normal'}:{
   'border-slate-200 bg-white text-slate-950';
  return <div className={'flex min-h-[116px] flex-col justify-between rounded-xl border p-4 shadow-sm '+style}>
   <span className={'text-xs font-bold leading-5 '+(accent==='normal'||accent==='dark'?'text-slate-700':'text-white/90')}>{caption}</span>
-  <strong className="my-2 text-2xl font-black leading-tight tabular-nums">{value}</strong>
+  <strong className={"my-2 text-2xl font-black leading-tight tabular-nums "+(accent==='orange'||accent==='cyan'?'!text-white':'!text-slate-950')}>{value}</strong>
   <span className={'text-[11px] leading-4 '+(accent==='normal'||accent==='dark'?'text-slate-600':'text-white/85')}>{note}</span>
  </div>;
 }
