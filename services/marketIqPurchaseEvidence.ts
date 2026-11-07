@@ -45,6 +45,8 @@ export function summarizeOperatorWebmotors(
  const discarded=new Map<string,number>();
  const reject=(name:string)=>discarded.set(name,(discarded.get(name)||0)+1);
  const requiredTrim=radarTrim(exactModelLabel);
+ const expectedEngine=engineSize(exactModelLabel);
+ const seenIds=new Set<string>();
  const prechecked=rows.filter(x=>{
   if(!x.checked){reject('Pendente de conferência pelo operador');return false;}
   if(!requiredTrim){reject('Versão exata não identificada: selecione FIPE da versão');return false;}
@@ -52,6 +54,15 @@ export function summarizeOperatorWebmotors(
   try{u=new URL(x.url);}catch{reject('Link inválido');return false;}
   const identity=u.pathname.replace(/-/g,' ')+' '+x.title;
   if(!hasTrim(identity,requiredTrim)){reject('Versão do anúncio não confere');return false;}
+  const part=u.pathname.split('/').filter(Boolean)[3]||'';
+  const foundEngine=part.match(/^([1-9])([0-9])(?:-|$)/);
+  if(expectedEngine!==null&&foundEngine&&
+   Math.abs(Number(foundEngine[1]+'.'+foundEngine[2])-expectedEngine)>0.01){
+   reject('Motorização diferente');return false;
+  }
+  const id=u.pathname.split('/').filter(Boolean).at(-1);
+  if(id&&seenIds.has(id)){reject('Anúncio repetido');return false;}
+  if(id&&/^\d{7,}$/.test(id))seenIds.add(id);
   return true;
  });
  const ranked=rankWebmotorsCandidates(prechecked.map(x=>({
