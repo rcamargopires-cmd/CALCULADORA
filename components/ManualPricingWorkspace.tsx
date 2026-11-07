@@ -8,6 +8,9 @@ import MarketIqMobileExperience from './MarketIqMobileExperience';
 import MarketIqDesktopVoiceSearch from './MarketIqDesktopVoiceSearch';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
+import MarketIqDealerRadarPanel from './MarketIqDealerRadarPanel';
+import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
+import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
 import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
 import {mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
@@ -84,14 +87,19 @@ const validSource=(a:Ad)=>{try{
 }catch{return false;}};
 export default function ManualPricingWorkspace({user}:{user:User}){
  const key='motyq-iq-local-test-'+user.email.toLowerCase();
- const [deskSection,setDeskSection]=useState<'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'>(()=>{
+ const [deskSection,setDeskSection]=useState<'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar'>(()=>{
    if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import'))return 'pricing';
    const previous=sessionStorage.getItem('motyq-iq-active-desk-tab');
-   return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'?previous:'dashboard';
+   return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'?previous:'dashboard';
  });
  const [selectedPlateForHistory,setSelectedPlateForHistory]=useState('');
+ // Kept in React memory across Mesa tabs, scoped to the currently mounted user.
+ // Never persisted to Firestore or localStorage from this Radar pilot.
+ const [radarSnapshot,setRadarSnapshot]=useState<DealerStockSnapshot|null>(null);
+ const [radarPreviousSnapshot,setRadarPreviousSnapshot]=useState<DealerStockSnapshot|null>(null);
+ const [purchaseSummaryOpen,setPurchaseSummaryOpen]=useState(false);
  const [mobileFullDesk,setMobileFullDesk]=useState(false);
- const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory')=>{
+ const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar')=>{
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
  };
  const formKey='motyq-iq-preview-inputs-'+user.email.toLowerCase();
@@ -689,7 +697,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   return true;
  };
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
- const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
+ const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory'||deskSection==='radar';
  return <>
  <div className={mobileFullDesk?'hidden':'lg:hidden'}>
   <MarketIqMobileExperience
@@ -749,6 +757,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='archive'?'bg-white text-[#153f51] shadow-sm ring-1 ring-slate-200':'text-slate-600 hover:bg-white hover:text-slate-900')}>Arquivo mensal</button>
    <button type="button" onClick={()=>switchDeskSection('plateHistory')} aria-current={deskSection==='plateHistory'?'page':undefined}
     className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='plateHistory'?'bg-white text-[#153f51] shadow-sm ring-1 ring-slate-200':'text-slate-600 hover:bg-white hover:text-slate-900')}>Histórico por placa</button>
+   <button type="button" onClick={()=>switchDeskSection('radar')} aria-current={deskSection==='radar'?'page':undefined}
+    className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='radar'?'bg-cyan-50 text-cyan-950 shadow-sm ring-1 ring-cyan-300':'text-slate-600 hover:bg-white hover:text-slate-900')}>
+    Radar de Compra <span className="ml-1 rounded bg-cyan-100 px-1.5 py-0.5 text-[10px] font-black text-cyan-900">NOVO</span>
+   </button>
   </nav>}
  </div>
  {deskSection==='dashboard'?<MarketIqManagementDashboard user={user}/>:
@@ -757,6 +769,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     onOpenApprovals={()=>switchDeskSection('approvals')}/>:
   deskSection==='approvals'?<MarketIqApprovalCenter user={user}/>:
   deskSection==='learning'?<MarketIqLearningPanel user={user} history={saved} onRefresh={refreshHistory} onOpenArchive={()=>switchDeskSection('archive')}/>:
+  deskSection==='radar'?<MarketIqDealerRadarPanel
+   snapshot={radarSnapshot} onSnapshotChange={setRadarSnapshot}
+   previousSnapshot={radarPreviousSnapshot} onPreviousSnapshotChange={setRadarPreviousSnapshot}
+  />:
   deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}
    onOpenPlateHistory={selected=>{setSelectedPlateForHistory(selected);switchDeskSection('plateHistory');}}/>:
   deskSection==='plateHistory'?<MarketIqPlateHistoryPanel user={user}
@@ -849,7 +865,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   <div><h2 className="text-xl font-semibold">Nova precificação</h2>
    <p className="mt-1 text-sm text-slate-600">Selecione a versão FIPE ou fale o veículo no assistente M.O.T.Y.Q.</p>
   </div>
-  <MarketIqDesktopVoiceSearch
+  <div className="flex flex-wrap items-center gap-2">
+   <button type="button" onClick={()=>setPurchaseSummaryOpen(true)}
+    disabled={!brand.trim()||!model.trim()}
+    className="rounded-xl bg-[#0b7199] px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-[#095b7b] disabled:cursor-not-allowed disabled:opacity-50">
+    Inteligência de Compra
+   </button>
+   <MarketIqDesktopVoiceSearch
    vehicleType={vehicleType} onVehicleType={selectVehicleType}
    brands={brands} brand={brand} brandCode={brandCode} onBrand={selectBrand}
    models={models} model={model} modelCode={modelCode} onModel={selectModel}
@@ -858,6 +880,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    catalogLoading={catalogLoading} catalogError={catalogError}
    onRetryFipe={()=>{setCatalogError('');setRetryCatalog(n=>n+1);setFipeRefreshKey(n=>n+1);}}
    onOpenPricing={()=>switchDeskSection('pricing')}/>
+  </div>
  </div>
  <div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="ABC1D23" maxLength={7}/></label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">Selecione modelo e versão</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Ano/modelo e combustível<select className={input} value={yearCode} disabled={!modelCode} onChange={e=>selectYear(e.target.value)}><option value="">Selecione ano</option>{years.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>KM do veículo<input className={input} value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" placeholder="Ex.: 45000"/></label></div><div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Tabela FIPE · {vehicleType==='motorcycle'?'motocicletas':'automóveis'} · consulta gratuita</p>{catalogLoading?<p>Consultando catálogo FIPE...</p>:fipe?<><p className="text-2xl font-bold text-slate-900">{money(fipe.value)}</p><p className="text-sm text-slate-700">{fipe.brand} · {fipe.model} · {fipe.year} · {fipe.fuel}</p><p className="text-xs text-slate-700">Código FIPE: {fipe.fipeCode} · Referência: <strong>{fipe.referenceMonth}</strong>{fipe.referenceSource?' · Fonte: '+fipe.referenceSource:''}</p>
  <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1138,5 +1161,24 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">O histórico permanente fica na aba <button type="button" onClick={()=>switchDeskSection('history')} className="font-bold text-cyan-800 underline">Histórico de avaliações</button>. Cada versão salva mantém data, responsável, anúncios, custos e valor registrado.</section>
  </>}
  </main>
+ <MarketIqPurchaseSummaryModal open={purchaseSummaryOpen}
+  onClose={()=>setPurchaseSummaryOpen(false)}
+  snapshot={radarSnapshot}
+  onOpenRadar={()=>switchDeskSection('radar')}
+  target={{
+   brand,model,year,plate,vehicleType,km:number(km),
+   fipe:fipe?.value||0,preparation:number(cost),
+   fipeReferenceMonth:fipe?.referenceMonth||'',fipeCode:fipe?.fipeCode||'',
+   fipeStatus:fipe?.referenceStatus||'unverified',fipeModel:fipe?.model||'',
+   fipeYear:fipe?.year||0,fipeSource:fipe?.referenceSource||'',
+   // Only operator validated individual Webmotors listings enter the Radar.
+   // Indexed/automatic links are never passed off as verified advertisements.
+   marketListings:primary.map(ad=>({
+    url:ad.url,price:number(ad.price),km:number(ad.km),
+    title:String(ad.title||''),checked:!ad.auto&&ad.status==='valid'
+   })),
+   verifiedMarketPrice:marketReady?avg:0,marketAdsVerified:marketReady?primary.length:0
+  }}
+ />
  </>;
 }
