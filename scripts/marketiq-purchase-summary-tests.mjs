@@ -126,7 +126,11 @@ assert.ok(modal.includes('KM médio em estoque'));
 assert.ok(modal.includes('Preço de venda hipotético'));
 assert.ok(modal.includes('Simular compra de outro igual'));
 assert.ok(modal.includes('Veículo já no estoque'));
-assert.ok(modal.includes('calculateMesaPurchaseCeiling(data.referencePrice,preparation,repasse)'));
+assert.ok(modal.includes('calculateMesaPurchaseCeiling(ceilingBenchmark,preparation,repasse)'));
+assert.ok(modal.includes('marketReference||data.referencePrice'),
+ 'Use accepted Webmotors sample in preference to unsourced Dealer price for new-buy ceiling');
+assert.ok(modal.includes('marketReference?')&&modal.includes('!marketReference'),
+ 'Stock summary must distinguish market-backed and hypothetical ceilings');
 assert.ok(modal.includes('Showroom · 14%')&&modal.includes('Repasse · +5%'));
 assert.ok(modal.includes('O teto é apenas uma hipótese e não autoriza compra.'));
 assert.ok(modal.includes('não equivale a prejuízo realizado'));
