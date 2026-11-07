@@ -4,7 +4,7 @@ import type {DealerStockSnapshot,DealerStockVehicle} from './marketIqDealerRadar
 export type PurchaseRadarTarget={
  brand:string;model:string;year:string;plate?:string;
  km?:number;store?:string;vehicleType:'car'|'motorcycle';
- fipe?:number;offer?:number;preparation?:number;verifiedMarketPrice?:number;manualSalePrice?:number;
+ fipe?:number;offer?:number;preparation?:number;verifiedMarketPrice?:number;manualSalePrice?:number;dealerSuggestedSalePrice?:number;
  marketAdsVerified?:number;stockVehicle?:DealerStockVehicle|null;
 };
 export type PurchaseRadarResult={
@@ -43,6 +43,18 @@ const median=(values:number[])=>{
  return a.length%2?a[mid]:(a[mid-1]+a[mid])/2;
 };
 const validMoney=(n:number|undefined)=>Number.isFinite(n)&&Number(n)>0&&Number(n)<20000000?Number(n):null;
+/** Mesa commercial rule: 14% margin reserve, optional additional 5% for repasse.
+ * Only a hypothetical ceiling, not actual profit or an approved buy offer.
+ * Capital at 1.5%/month and any unprovided fees remain separate.
+ */
+export function calculateMesaPurchaseCeiling(
+ salePrice:number|null|undefined,preparation=0,repasse=false
+):number|null{
+ const price=validMoney(salePrice===null?undefined:salePrice);
+ if(price===null)return null;
+ const preparationValue=Number.isFinite(preparation)?Math.max(0,preparation):0;
+ return Math.max(0,Math.round((price*0.86*(repasse?0.95:1)-preparationValue)*100)/100);
+}
 export function buildPurchaseRadar(
  snapshot:DealerStockSnapshot|null|undefined,target:PurchaseRadarTarget,store='',
  monthlyCapitalRate=1.5
@@ -59,9 +71,11 @@ export function buildPurchaseRadar(
  const byStore=store?rows.filter(v=>norm(v.store)===norm(store)).length:null;
  const stock=target.stockVehicle||null;
  const verified=Number(target.marketAdsVerified)>=2?validMoney(target.verifiedMarketPrice):null;
- const sourcePrice=stock?validMoney(stock.price):verified||validMoney(target.manualSalePrice);
+ const dealerSuggested=validMoney(target.dealerSuggestedSalePrice);
+ const sourcePrice=stock?validMoney(stock.price):verified||dealerSuggested||validMoney(target.manualSalePrice);
  const saleSource=stock?(stock.price>0?'dealer_suggested':'unavailable'):
-  verified?'verified_webmotors':validMoney(target.manualSalePrice)?'manual_assumption':'unavailable';
+  verified?'verified_webmotors':dealerSuggested?'dealer_suggested':
+  validMoney(target.manualSalePrice)?'manual_assumption':'unavailable';
  const referencePrice=saleSource==='unavailable'?null:sourcePrice;
  // Real Dealer cost is an existing inventory value. An offer is only a new
  // operator-entered scenario. Never derive a "paid value" from FIPE or history.
@@ -86,6 +100,7 @@ export function buildPurchaseRadar(
  if(!stock&&offer===null)reasons.push('Informe o valor que pretende pagar para calcular a diferença bruta.');
  if(!stock&&saleSource==='unavailable')reasons.push('Não há dois anúncios individuais Webmotors conferidos para estimar preço de venda.');
  if(saleSource==='manual_assumption')reasons.push('Preço de venda digitado pelo operador: simulação, sem validação com o mercado.');
+ if(!stock&&saleSource==='dealer_suggested')reasons.push('Preço de venda baseado no anúncio sugerido do Dealer: não comprova venda nem mercado Webmotors.');
  if(grossMarginPercent!==null)reasons.push('Diferença bruta indicativa: '+grossMarginPercent.toFixed(1).replace('.',',')+'% do preço de referência.');
  const pressure=selected.length>0&&(over90>=2||over90/selected.length>=0.4)||familyCount>=6;
  let signal:PurchaseRadarResult['signal']='review',signalTitle='Análise em andamento';
@@ -94,9 +109,11 @@ export function buildPurchaseRadar(
  else if(stock&&grossSpread!==null&&grossSpread<0){signal='negotiate';signalTitle='Preço abaixo do custo';}
  else if(!stock&&(!offer||referencePrice===null)){signal='insufficient';signalTitle='Complete os dados da compra';}
  else if(grossMarginPercent!==null&&grossMarginPercent<10){signal='negotiate';signalTitle='Negociar ou revisar custos';}
- else if(saleSource==='manual_assumption'){signal='review';signalTitle='Simulação sem mercado confirmado';}
+ else if(saleSource==='manual_assumption'||saleSource==='dealer_suggested'){
+  signal='review';signalTitle='Preço de venda ainda não confirmado pelo mercado';
+ }
  else if(pressure){signal='stock_risk';signalTitle='Atenção ao estoque do grupo';}
- else if(grossMarginPercent!==null&&grossMarginPercent>=18&&yearFamilyCount<=2){
+ else if(saleSource==='verified_webmotors'&&grossMarginPercent!==null&&grossMarginPercent>=18&&yearFamilyCount<=2){
   signal='favorable';signalTitle='Cenário bruto favorável, conferir';
  }
  const limits=[
