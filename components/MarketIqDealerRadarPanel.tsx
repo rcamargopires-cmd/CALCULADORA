@@ -78,7 +78,8 @@ export default function MarketIqDealerRadarPanel(){
   const fields=[
    ['Placa','Marca','Modelo','Ano','Unidade','Dias','KM','Valor Custo','Preco Sugerido','Alertas'],
    ...risky.map(v=>[v.plate,v.brand,v.model,v.year,v.store,String(v.days),
-    String(v.km),String(v.cost),String(v.price),dealerRiskFlags(v).join(' / ')])
+    v.kmValid?String(v.km):'A conferir ('+v.kmOriginal+')',
+    String(v.cost),String(v.price),dealerRiskFlags(v).join(' / ')])
   ];
   const csv='\uFEFF'+fields.map(row=>row.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
@@ -246,7 +247,7 @@ export default function MarketIqDealerRadarPanel(){
         <td className="px-3 py-3 text-slate-700">{v.store}</td>
         <td className="px-3 py-3 text-slate-700">{v.year}</td>
         <td className={'px-3 py-3 font-black '+(v.days>90?'text-rose-700':'text-slate-800')}>{v.days}</td>
-        <td className="px-3 py-3 text-slate-700">{v.km.toLocaleString('pt-BR')}</td>
+        <td className="px-3 py-3 text-slate-700">{v.kmValid?v.km.toLocaleString('pt-BR'):'A conferir'}</td>
         <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{brl(v.cost)}</td>
         <td className="whitespace-nowrap px-3 py-3 text-slate-900">{v.price>0?brl(v.price):'Não informado'}</td>
         <td className={'whitespace-nowrap px-3 py-3 font-semibold '+(v.price>0&&v.price<v.cost?'text-rose-700':'text-slate-700')}>
@@ -264,7 +265,7 @@ export default function MarketIqDealerRadarPanel(){
     <div className="flex flex-wrap items-start justify-between gap-2">
      <div><p className="text-[11px] font-bold tracking-wide text-cyan-700">FICHA DE INTELIGÊNCIA DE ESTOQUE</p>
       <h3 className="mt-1 text-xl font-black text-slate-950">{selected.brand} {selected.model} · {selected.year}</h3>
-      <p className="mt-1 text-sm text-slate-600">{selected.plate||'Sem placa'} · {selected.store} · {selected.days} dias · {selected.km.toLocaleString('pt-BR')} km</p>
+      <p className="mt-1 text-sm text-slate-600">{selected.plate||'Sem placa'} · {selected.store} · {selected.days} dias · {selected.kmValid?selected.km.toLocaleString('pt-BR')+' km':'KM a conferir'}</p>
      </div>
      <button type="button" onClick={()=>setSelectedKey('')} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold">Fechar</button>
     </div>
@@ -282,6 +283,9 @@ export default function MarketIqDealerRadarPanel(){
      A diferença entre preço sugerido e Valor Custo não é lucro líquido comprovado. Confira impostos, desconto, margem desejada e estado do veículo.
      As {selected.serviceOrders} OS vinculadas são informativas e não foram somadas novamente ao custo.
     </p>
+    {!selected.kmValid&&<p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-950">
+     KM inconsistente no Dealer: {selected.kmOriginal||'não informado'}. O veículo continua nos totais de estoque e custo, mas seu KM não é usado como quilometragem válida.
+    </p>}
     {dealerRiskFlags(selected).length>0&&<div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
      <p className="font-bold text-amber-950">Pontos de atenção</p>
      {dealerRiskFlags(selected).map(f=><p key={f} className="mt-1 text-xs text-amber-950">• {f}</p>)}
