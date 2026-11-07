@@ -61,13 +61,16 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  const stock=target.stockVehicle;
  const newPurchaseMode=!stock||scenarioMode==='purchase';
  const fipeValue=localFipe?.value||target.fipe||0;
+ const currentFipeForComparison=localFipe?
+  (localFipe.referenceStatus==='current'?localFipe.value:0):
+  target.fipeStatus==='current'?(target.fipe||0):0;
  const checkedListings=useMemo(()=>summarizeOperatorWebmotors(
   [...(target.marketListings||[]),...localListings],
   {brand:target.brand,model:target.model,year:modelYear(target.year)||0,
-   km:Number(target.km)||0,vehicleType:target.vehicleType,fipe:fipeValue||undefined},
+   km:Number(target.km)||0,vehicleType:target.vehicleType,fipe:currentFipeForComparison||undefined},
   localFipe?.model||target.fipeModel||target.model
  ),[target.brand,target.model,target.year,target.km,target.vehicleType,target.marketListings,
-    localListings,localFipe?.model,target.fipeModel,fipeValue]);
+    localListings,localFipe?.model,target.fipeModel,currentFipeForComparison]);
  const marketReference=checkedListings.count>=2?checkedListings.average:null;
  const data=useMemo(()=>buildPurchaseRadar(snapshot,{
   ...target,stockVehicle:newPurchaseMode?null:stock,
@@ -157,7 +160,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
       </div>
      </div>
      <p className="mt-2 text-xs leading-5 text-amber-900">
-      Base: {ceilingSource}. {data.referenceSale!=='verified_webmotors'
+      Base: {ceilingSource}. {!marketReference
         ?'Preço não validado com anúncios individuais Webmotors. O teto é apenas uma hipótese e não autoriza compra.'
         :'Mesmo com anúncios conferidos, exige revisão de versão, custos, laudo e aprovação da Mesa.'}
       {' '}Capital, impostos específicos e outras despesas não informadas podem reduzir esse limite.
