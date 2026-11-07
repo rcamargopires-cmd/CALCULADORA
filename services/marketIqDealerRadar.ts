@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 
 export type DealerStockVehicle={
  key:string;plate:string;chassis:string;brand:string;model:string;year:string;
- km:number;fuel:string;transmission:string;days:number;price:number;purchase:number;cost:number;
+ km:number;kmOriginal:string;kmValid:boolean;fuel:string;transmission:string;days:number;price:number;purchase:number;cost:number;
  operationalCost:number;osRule:number;osOutside:number;store:string;buyingCompany:string;
  location:string;condition:string;vehicleType:'car'|'motorcycle';serviceOrders:number;
  familyKey:string;exactKey:string;
@@ -73,15 +73,18 @@ export function parseDealerStockRows(table:Cell[][],serviceRows:Cell[][]=[],date
   const model=text(get(row,'Modelo')),brand=text(get(row,'Marca'));
   const id=keyFor(plate,chassis);
   if(!model||!brand||!id)continue;
-  const km=number(get(row,'Km')),days=number(get(row,'Dias'));
-  if(!Number.isFinite(km)||km<0||km>999999){invalidKm++;continue;}
+  const kmOriginal=text(get(row,'Km')),km=number(get(row,'Km')),days=number(get(row,'Dias'));
+  const kmValid=kmOriginal!==''&&Number.isFinite(km)&&km>=0&&km<=999999;
+  // Never discard a real stock vehicle because mileage is suspect.
+  // Keep it in valuation/cost/stock KPIs; exclude the suspect mileage itself.
+  if(!kmValid)invalidKm++;
   if(!Number.isFinite(days)||days<0||days>3000)continue;
   const price=number(get(row,'Preço Sugerido'));
   const purchase=number(get(row,'Valor Compra')),cost=number(get(row,'Valor Custo'));
   const store=text(get(row,'Estoque Atual'));
   const v:DealerStockVehicle={
    key:id,plate,chassis,brand,model,year:text(get(row,'Ano Fab/Mod')),
-   km,fuel:text(get(row,'Comb.')),transmission:text(get(row,'Transmissão')),
+   km:kmValid?km:0,kmOriginal,kmValid,fuel:text(get(row,'Comb.')),transmission:text(get(row,'Transmissão')),
    days:Math.round(days),price:price>=0&&price<=20000000?price:0,
    purchase:purchase>=0&&purchase<=20000000?purchase:0,
    cost:cost>=0&&cost<=20000000?cost:0,
@@ -101,7 +104,7 @@ export function parseDealerStockRows(table:Cell[][],serviceRows:Cell[][]=[],date
   vehicles.set(id,v);
  }
  if(!vehicles.size)throw new Error('Nenhum veículo válido foi identificado na aba Consulta.');
- if(invalidKm)warnings.push(invalidKm+' linha(s) com KM fora do intervalo foram ignoradas.');
+ if(invalidKm)warnings.push(invalidKm+' veículo(s) com KM inconsistente mantido(s) no estoque; confira a quilometragem.');
  if(duplicateCount)warnings.push(duplicateCount+' duplicata(s) de placa/chassi consolidadas.');
  // Service orders are matched by chassis first, by license plate only as fallback.
  // They are informational and must never be added to Valor Custo a second time.
@@ -181,6 +184,7 @@ export function dealerRiskFlags(v:DealerStockVehicle){
  if(v.days>90)f.push('Mais de 90 dias em estoque');
  if(v.price<=0)f.push('Sem preço sugerido');
  else if(v.cost>0&&v.price<v.cost)f.push('Preço sugerido abaixo do custo informado');
- if(v.km>250000)f.push('KM elevado: conferir');
+ if(!v.kmValid)f.push('KM inconsistente: conferir no Dealer');
+ else if(v.km>250000)f.push('KM elevado: conferir');
  return f;
 }
