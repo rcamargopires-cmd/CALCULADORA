@@ -69,6 +69,30 @@ export function summarizeOperatorWebmotors(
  return {count:accepted.length,average,listings:accepted,
   rejected:[...discarded].map(([reason,count])=>({reason,count}))};
 }
+/** Prevent accidental FIPE substitution across trims, engines and gearboxes.
+ * A missing descriptor in Dealer source is not invented; operator must still
+ * inspect the complete FIPE version before accepting the quote.
+ */
+const engineSize=(input:string)=>{
+ const plain=clean(input);
+ const decimal=plain.match(/\b([1-9])\s+([0-9])\b/);
+ if(decimal)return Number(decimal[1]+'.'+decimal[2]);
+ const compact=plain.match(/\b([1-9])([0-9])t\b/);
+ return compact?Number(compact[1]+'.'+compact[2]):null;
+};
+export function fipeVersionCompatible(dealerModel:string,fipeModel:string):boolean{
+ const expectedTrim=radarTrim(dealerModel),actualTrim=radarTrim(fipeModel);
+ if(expectedTrim&&actualTrim!==expectedTrim)return false;
+ const expectedEngine=engineSize(dealerModel),actualEngine=engineSize(fipeModel);
+ if(expectedEngine!==null&&actualEngine!==null&&Math.abs(expectedEngine-actualEngine)>0.01)return false;
+ const target=clean(dealerModel),quoted=clean(fipeModel);
+ const auto=/(?:^| )(?:automatico|automatica|aut|cvt|at6|at8|at9)(?: |$)/.test(target)||
+  /\b(?:\d{2}t a|\d{2}t aut)\b/.test(target);
+ const manual=/(?:^| )(?:manual|mecanico|mec)(?: |$)/.test(target);
+ if(auto&&/(?:^| )(?:manual|mecanico|mec)(?: |$)/.test(quoted))return false;
+ if(manual&&/(?:^| )(?:automatico|aut|cvt)(?: |$)/.test(quoted))return false;
+ return true;
+}
 export function validatedRadarFipe(detail:any,expectedYear:number):RadarFipeQuote|null{
  const value=Number(detail?.value),year=Number(detail?.year);
  const code=String(detail?.fipeCode||''),model=String(detail?.model||'').trim();
