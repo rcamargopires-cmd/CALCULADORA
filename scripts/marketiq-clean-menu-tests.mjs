@@ -39,7 +39,8 @@ assert.ok(second.includes('>{saved.length}</span>'));
 assert.ok(second.includes('Arquivo mensal'));
 assert.ok(second.includes('Histórico por placa'));
 assert.ok(second.includes('Radar de Compra'));
-assert.ok(workspace.includes("deskSection==='radar'?<MarketIqDealerRadarPanel/>"));
+assert.ok(workspace.includes("deskSection==='radar'?<MarketIqDealerRadarPanel"),
+ 'Radar remains accessible as fifth Mesa submenu using in-memory stock state');
 assert.ok(second.includes('aria-label="Ferramentas da Mesa de precificação"'));
 assert.ok(second.includes("deskSection==='archive'?'page':undefined"));
 assert.ok(!top.includes('motyq-iq-tabs-caption'),'Remove decorative caption from packed primary bar');
