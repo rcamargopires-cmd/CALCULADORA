@@ -4,7 +4,7 @@ import type {DealerStockSnapshot,DealerStockVehicle} from './marketIqDealerRadar
 export type PurchaseRadarTarget={
  brand:string;model:string;year:string;plate?:string;
  km?:number;store?:string;vehicleType:'car'|'motorcycle';
- fipe?:number;offer?:number;preparation?:number;verifiedMarketPrice?:number;
+ fipe?:number;offer?:number;preparation?:number;verifiedMarketPrice?:number;manualSalePrice?:number;
  marketAdsVerified?:number;stockVehicle?:DealerStockVehicle|null;
 };
 export type PurchaseRadarResult={
@@ -14,7 +14,7 @@ export type PurchaseRadarResult={
  prices:number[];medianSuggestedPrice:number|null;minSuggestedPrice:number|null;
  grossSpread:number|null;grossMarginPercent:number|null;capitalAt30:number|null;
  grossBasis:'dealer_cost'|'estimated_offer_plus_preparation'|'unavailable';
- referenceSale:'dealer_suggested'|'verified_webmotors'|'unavailable';
+ referenceSale:'dealer_suggested'|'verified_webmotors'|'manual_assumption'|'unavailable';
  referencePrice:number|null;
  signal:'insufficient'|'check_offer'|'negotiate'|'stock_risk'|'favorable'|'review';
  signalTitle:string;reasons:string[];limits:string[];
@@ -58,10 +58,10 @@ export function buildPurchaseRadar(
  const validKm=selected.filter(v=>v.kmValid).map(v=>v.km);
  const byStore=store?rows.filter(v=>norm(v.store)===norm(store)).length:null;
  const stock=target.stockVehicle||null;
- const sourcePrice=validMoney(stock?.price)||validMoney(target.verifiedMarketPrice);
+ const verified=Number(target.marketAdsVerified)>=2?validMoney(target.verifiedMarketPrice):null;
+ const sourcePrice=validMoney(stock?.price)||verified||validMoney(target.manualSalePrice);
  const saleSource=stock?.price&&stock.price>0?'dealer_suggested':
-  target.verifiedMarketPrice&&target.verifiedMarketPrice>0&&Number(target.marketAdsVerified)>=2?
-   'verified_webmotors':'unavailable';
+  verified?'verified_webmotors':validMoney(target.manualSalePrice)?'manual_assumption':'unavailable';
  const referencePrice=saleSource==='unavailable'?null:sourcePrice;
  // Real Dealer cost is an existing inventory value. An offer is only a new
  // operator-entered scenario. Never derive a "paid value" from FIPE or history.
@@ -85,6 +85,7 @@ export function buildPurchaseRadar(
  if(stock&&stock.price>0&&stock.cost>stock.price)reasons.push('Preço sugerido abaixo do custo total informado pelo Dealer.');
  if(!stock&&offer===null)reasons.push('Informe o valor que pretende pagar para calcular a diferença bruta.');
  if(!stock&&saleSource==='unavailable')reasons.push('Não há dois anúncios individuais Webmotors conferidos para estimar preço de venda.');
+ if(saleSource==='manual_assumption')reasons.push('Preço de venda digitado pelo operador: simulação, sem validação com o mercado.');
  if(grossMarginPercent!==null)reasons.push('Diferença bruta indicativa: '+grossMarginPercent.toFixed(1).replace('.',',')+'% do preço de referência.');
  const pressure=selected.length>0&&(over90>=2||over90/selected.length>=0.4)||familyCount>=6;
  let signal:PurchaseRadarResult['signal']='review',signalTitle='Análise em andamento';
@@ -93,6 +94,7 @@ export function buildPurchaseRadar(
  else if(stock&&grossSpread!==null&&grossSpread<0){signal='negotiate';signalTitle='Preço abaixo do custo';}
  else if(!stock&&(!offer||referencePrice===null)){signal='insufficient';signalTitle='Complete os dados da compra';}
  else if(grossMarginPercent!==null&&grossMarginPercent<10){signal='negotiate';signalTitle='Negociar ou revisar custos';}
+ else if(saleSource==='manual_assumption'){signal='review';signalTitle='Simulação sem mercado confirmado';}
  else if(pressure){signal='stock_risk';signalTitle='Atenção ao estoque do grupo';}
  else if(grossMarginPercent!==null&&grossMarginPercent>=18&&yearFamilyCount<=2){
   signal='favorable';signalTitle='Cenário bruto favorável, conferir';
