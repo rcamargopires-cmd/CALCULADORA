@@ -4,6 +4,7 @@ import ts from 'typescript';
 const service=readFileSync('services/marketIqDealerRadar.ts','utf8');
 const panel=readFileSync('components/MarketIqDealerRadarPanel.tsx','utf8');
 const workspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
+const entry=readFileSync('index.tsx','utf8');
 for(const [name,source] of [['service',service],['panel',panel]]){
  const parsed=ts.transpileModule(source,{fileName:name+'.tsx',compilerOptions:{
   target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX
@@ -85,4 +86,13 @@ assert.ok(service.includes("book.Sheets['Consulta']"),'Only the Dealer Consulta 
 assert.ok(service.includes("book.Sheets['OrdensServ']"),'Read OS as informational only');
 assert.ok(service.includes("42*1024*1024"),'Reject oversized input');
 assert.ok(workspace.includes('Radar de Compra')&&workspace.includes('MarketIqDealerRadarPanel'));
+assert.ok(entry.includes("new URLSearchParams(window.location.search).get('radar-local')==='1'"),
+ 'Preview must offer local-only Radar independent of unstable auth');
+assert.ok(entry.includes("vercel\\.app"),
+ 'Unauthenticated local import route is only enabled on Vercel preview hostnames');
+assert.ok(entry.includes("isPublicCatalogRoute() ? <PublicCatalogPage /> : <RoleAwareRoot />"),
+ 'Normal production traffic must continue through the authenticated app');
+assert.ok(entry.includes('<MarketIqDealerRadarPanel/>'),
+ 'Standalone preview also renders the same Radar component');
+
 console.log('Motyq IQ Dealer Radar: V44 header, 3 distinct VINs, OS dedup, risk indicators, local-only import, broad family matches, and snapshot deltas passed.');
