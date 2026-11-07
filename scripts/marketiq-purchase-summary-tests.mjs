@@ -15,7 +15,7 @@ for(const [path,src] of [['model',model],['modal',modal]]){
 }
 const js=ts.transpileModule(model,{fileName:'purchase.ts',
  compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
-const {buildPurchaseRadar,familyKey,modelYear}=await import(
+const {buildPurchaseRadar,calculateMesaPurchaseCeiling,familyKey,modelYear}=await import(
  'data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 assert.equal(familyKey('VW - VolksWagen','AMAROK EXTREME'),
  familyKey('Volkswagen','Amarok 3.0 V6 TDI'),
@@ -24,6 +24,18 @@ assert.equal(familyKey('GM - Chevrolet','Tracker LTZ 1.0'),
  familyKey('Chevrolet','Tracker Premier'),'Chevrolet brand aliases');
 assert.equal(modelYear('2020/2021'),2021,'Read exact model year, not manufacturing year');
 assert.equal(modelYear('2025 Diesel'),2025);
+assert.equal(calculateMesaPurchaseCeiling(99900,0,false),85914,
+ 'Tracker Dealer suggested sale 99.900 minus Mesa commercial 14% is 85.914, hypothetical only');
+assert.equal(calculateMesaPurchaseCeiling(99900,0,true),81618.3,
+ 'Repasse additional 5% applies after the 14% commercial reserve');
+assert.equal(calculateMesaPurchaseCeiling(99900,2000,false),83914,
+ 'Preparation cost is removed once, after the 14% reserve');
+assert.equal(calculateMesaPurchaseCeiling(null,2000),null,
+ 'Without a real source or explicit scenario, never invent the maximum offer');
+assert.equal(calculateMesaPurchaseCeiling(0,1000),null);
+assert.equal(101466-99900,1566,'Screenshot Tracker is under Dealer reported cost');
+assert.equal(101466-calculateMesaPurchaseCeiling(99900,0),15552,
+ 'Gap from actual Dealer cost to a hypothetical NEW purchase ceiling is not an actual loss');
 const v=(data={})=>({
  key:'VIN:'+String(data.plate||'ABC1D23'),plate:'ABC1D23',chassis:'',
  brand:'CHEVROLET',model:'TRACKER LTZ TURBO',year:'2020/2021',km:55000,kmValid:true,
@@ -88,6 +100,21 @@ const noPrice=buildPurchaseRadar(snapshot,{...target,stockVehicle:v({
 })});
 assert.equal(noPrice.signal,'check_offer','Unpriced stock should get immediate review priority');
 assert.equal(noPrice.referencePrice,null);
+const dealerScenario=buildPurchaseRadar(snapshot,{
+ ...target,stockVehicle:null,offer:0,marketAdsVerified:0,
+ verifiedMarketPrice:0,dealerSuggestedSalePrice:99900
+});
+assert.equal(dealerScenario.referencePrice,99900);
+assert.equal(dealerScenario.referenceSale,'dealer_suggested');
+assert.equal(dealerScenario.grossSpread,null,'No offer means no gross spread to imply profit');
+assert.notEqual(dealerScenario.signal,'favorable',
+ 'A Dealer asking-price hypothesis must not become an approved buy signal');
+assert.ok(dealerScenario.reasons.some(r=>r.includes('não comprova venda')));
+const stockWithHighMargin=buildPurchaseRadar(snapshot,{
+ ...target,stockVehicle:v({key:'VIN:high-margin',price:160000,cost:90000})
+});
+assert.notEqual(stockWithHighMargin.signal,'favorable',
+ 'An unverified Dealer suggested price alone cannot lead to a favorable purchase signal');
 assert.ok(modal.includes('role="dialog" aria-modal="true"'));
 assert.ok(modal.includes("if(e.key==='Escape')onClose()"),'Escape closes modal');
 assert.ok(modal.includes('Resumo de Compra')&&modal.includes('Sinal da Mesa'));
@@ -97,6 +124,16 @@ assert.ok(modal.includes('Estoque da unidade'));
 assert.ok(modal.includes('Mais de 90 dias'));
 assert.ok(modal.includes('KM médio em estoque'));
 assert.ok(modal.includes('Preço de venda hipotético'));
+assert.ok(modal.includes('Simular compra de outro igual'));
+assert.ok(modal.includes('Veículo já no estoque'));
+assert.ok(modal.includes('calculateMesaPurchaseCeiling(data.referencePrice,preparation,repasse)'));
+assert.ok(modal.includes('Showroom · 14%')&&modal.includes('Repasse · +5%'));
+assert.ok(modal.includes('O teto é apenas uma hipótese e não autoriza compra.'));
+assert.ok(modal.includes('não equivale a prejuízo realizado'));
+assert.ok(modal.includes("accent==='dark'?'border-slate-300 bg-slate-50 text-slate-950'"),
+ 'Cards with light background must not hide their labels with white text');
+assert.ok(!modal.includes("accent==='dark'?'border-slate-900 bg-slate-950 text-white'"),
+ 'No invisible dark style from the user screenshot');
 assert.ok(panel.includes("onClick={e=>{e.stopPropagation();setPurchaseSummaryVehicle(v);}}"),
  'Clicking summary directly in table must not trigger selection navigation');
 assert.ok(panel.includes('<MarketIqPurchaseSummaryModal'));
