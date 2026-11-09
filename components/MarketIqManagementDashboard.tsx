@@ -8,6 +8,8 @@ import {aggregateDashboard,dashboardOptions,emptyFilters,filterDashboardRows,
   parseDashboardData,type DashboardFilters,type DashboardRow,type DashboardImportResult}
   from '../services/marketIqManagementData';
 import {OCT2026_SNAPSHOT} from '../services/marketIqManagementSnapshot';
+import {attachDashboardKeys,planDashboardMerge,readDashboardArchive,emptyDashboardArchive}
+ from '../services/marketIqDashboardPeriods';
 import {chooseBestConfirmedOffer,calculateConsultedOffer,offerIsEligible,
   loadConsultedCases,exportConsultedLogCsv,exportConsultedReportCsv,moneyNumber,formatReais,consultedFinancialInputsReady,
   type ConsultedCase} from '../services/marketIqConsultedRepasse';
@@ -43,15 +45,27 @@ const Metric=({label,value,detail,icon:Icon,tone='cyan'}:{
 const Pill=({children,tone='neutral'}:{children:React.ReactNode;tone?:'neutral'|'good'|'warn'})=>
 <span className={'inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold '+(tone==='good'?'bg-emerald-50 text-emerald-700':tone==='warn'?'bg-amber-50 text-amber-800':'bg-slate-100 text-slate-600')}>{children}</span>;
 
-export default function MarketIqManagementDashboard({user}:{user:User}) {
+export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:User;onOpenArchive?:()=>void}) {
  const storageKey='motyq-iq-dashboard-local-v2-all-vehicles-'+String(user.email||'local').toLowerCase();
- const [records,setRecords]=useState<DashboardRow[]>(()=>{
-   try{const saved=JSON.parse(localStorage.getItem(storageKey)||'null');
-     return Array.isArray(saved)&&saved.length<=15000?saved.filter(v=>v&&typeof v==='object'&&typeof v.status==='string'&&typeof v.store==='string'):[];
-   }catch{return [];}
+ const periodStorageKey='motyq-iq-dashboard-periods-v3-'+String(user.email||'local').toLowerCase();
+ const [archive,setArchive]=useState(()=>{
+   try{return readDashboardArchive(localStorage,periodStorageKey,storageKey);}
+   catch{return emptyDashboardArchive();}
  });
- const [importInfo,setImportInfo]=useState<DashboardImportResult|null>(null);
- const [sourceName,setSourceName]=useState(()=>{try{return localStorage.getItem(storageKey+'-name')||''}catch{return ''}});
+ const records=archive.records;
+ const sourceName=Object.entries(archive.months).sort(([a],[b])=>b.localeCompare(a))[0]?.[1].fileName||'';
+ const [importInfo,setImportInfo]=useState<Omit<DashboardImportResult,'rows'|'sourceIds'>|null>(null);
+ const [importNotice,setImportNotice]=useState('');
+ const periods=Object.keys(archive.months).sort();
+ useEffect(()=>{
+   const sync=(event:StorageEvent)=>{
+     if(event.key!==periodStorageKey)return;
+     try{setArchive(readDashboardArchive(localStorage,periodStorageKey,storageKey));}
+     catch{ /* Keep the previous in-memory snapshot if storage becomes unavailable. */ }
+   };
+   window.addEventListener('storage',sync);
+   return ()=>window.removeEventListener('storage',sync);
+ },[periodStorageKey,storageKey]);
  const [error,setError]=useState('');
  const [busy,setBusy]=useState(false);
  const [tab,setTab]=useState<Tab>('overview');
@@ -121,9 +135,11 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
  }));
  const setFiles=async(file:File|undefined)=>{
    if(!file)return;
-   if(file.size>18*1024*1024){setError('Arquivo acima de 18 MB. Exporte a planilha de avaliações em formato XLS/XLSX mais compacto.');return;}
-   setError('');setBusy(true);
-   try {
+   if(file.size>18*1024*1024){
+     setError('Arquivo acima de 18 MB. Exporte a planilha de avaliações em formato XLS/XLSX mais compacto.');return;
+   }
+   setError('');setImportNotice('');setBusy(true);
+   try{
      const XLSX=await import('xlsx');
      const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:false});
      const selected=workbook.SheetNames.find(name=>name.trim().toUpperCase()==='BASE')||
@@ -134,19 +150,43 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
      const source=Object.keys(input[0]||{}).some(k=>k.toLowerCase().includes('situação analítica'))?'filtered':'original';
      const parsed=parseDashboardData(input,source);
      if(!parsed.rows.length)throw Error('Nenhuma avaliação de carro ou moto válida foi identificada no arquivo.');
-     // Only de-identified vehicle/financial fields are persisted. Nothing is uploaded.
-     const compact=JSON.stringify(parsed.rows);
-     if(compact.length>4000000)throw Error('A base ficou grande para o armazenamento local. Divida o período em arquivos menores.');
-     localStorage.setItem(storageKey,compact);
-     localStorage.setItem(storageKey+'-name',file.name);
-     setRecords(parsed.rows);setSourceName(file.name);setImportInfo(parsed);
+     const keyed=await attachDashboardKeys(parsed.rows,parsed.sourceIds,String(user.email||'local').toLowerCase());
+     // Always reconcile with current browser storage, including imports made in a second tab.
+     const previous=readDashboardArchive(localStorage,periodStorageKey,storageKey);
+     const planned=planDashboardMerge(previous,keyed,file.name,new Date().toISOString());
+     if(planned.replacedMonths.length){
+       const months=planned.replacedMonths.join(', ');
+       if(!window.confirm('Os registros existentes de '+months+' não possuem IDs técnicos suficientes para atualizar individualmente. A nova fotografia substituirá SOMENTE esses períodos ('+
+         planned.removedByReplacement+' registros anteriores); os demais meses serão preservados. Continuar?')){
+         setImportNotice('Importação cancelada. Nenhum mês foi alterado.');return;
+       }
+     }
+     // Transactional local write: if quota is exceeded, keep both the stored archive
+     // and the previous on-screen data unchanged.
+     localStorage.setItem(periodStorageKey,JSON.stringify(planned.next));
+     setArchive(planned.next);
+     const {rows:discardRows,sourceIds:discardIds,...info}=parsed;
+     setImportInfo(info);
+     setImportNotice('Histórico acumulado: '+planned.months.join(', ')+
+       ' · '+planned.added+' registros novos · '+planned.updated+' avaliações atualizadas'+
+       (planned.replacedMonths.length?' · fotografia substituída somente em '+planned.replacedMonths.join(', '):'')+
+       '. Os demais meses foram preservados neste navegador.');
      setFilters({...emptyFilters});setTab('overview');
-   }catch(e:any){setError(e?.message||'Não foi possível ler a planilha.');}
-   finally{setBusy(false);if(inputRef.current)inputRef.current.value='';}
+   }catch(e:any){
+     const quota=e?.name==='QuotaExceededError';
+     setError(quota?'O navegador está sem espaço para acumular mais meses. Nenhuma base anterior foi substituída. Exporte o filtro antes de reorganizar o histórico.':
+       e?.message||'Não foi possível ler a planilha. A base anterior permanece intacta.');
+   }finally{setBusy(false);if(inputRef.current)inputRef.current.value='';}
  };
  const clear=()=>{
-   localStorage.removeItem(storageKey);localStorage.removeItem(storageKey+'-name');
-   setRecords([]);setSourceName('');setImportInfo(null);setFilters({...emptyFilters});setError('');setTab('overview');
+   if(!window.confirm('Excluir TODOS os meses do Painel Gerencial armazenados neste navegador? O Arquivo Mensal na nuvem não será apagado.'))return;
+   try{
+     localStorage.removeItem(periodStorageKey);
+     localStorage.removeItem(storageKey);
+     localStorage.removeItem(storageKey+'-name');
+     setArchive(emptyDashboardArchive());setImportInfo(null);setImportNotice('');
+     setFilters({...emptyFilters});setError('');setTab('overview');
+   }catch(e:any){setError('Não foi possível limpar o histórico local: '+String(e?.message||e));}
  };
  const download=()=>{
    if(!ready)return;
@@ -189,13 +229,27 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
   </div>
   <div className="flex flex-wrap items-center justify-between gap-2">
     <div className="flex flex-wrap items-center gap-2">
-      <Pill tone={ready?'good':'neutral'}>{ready?'Base importada neste navegador':'Resumo consolidado · Outubro 2026'}</Pill>
-      {ready?<span className="max-w-xs truncate text-xs text-slate-500">{sourceName||'Arquivo local'} · {fmtInt(records.length)} veículos</span>:
+      <Pill tone={ready?'good':'neutral'}>{ready?'Histórico acumulado neste navegador':'Resumo consolidado · Outubro 2026'}</Pill>
+      {ready?<span className="max-w-xs truncate text-xs text-slate-500">{sourceName||'Arquivo local'} · {fmtInt(records.length)} avaliações · {periods.length} período(s)</span>:
       <span className="text-xs text-slate-500">2.252 automóveis após os filtros de qualidade</span>}
     </div>
     {ready&&<button onClick={clear} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-red-700"><X size={14}/>Limpar importação</button>}
   </div>
-  {error&&<div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">{error}</div>}
+  {importNotice&&<div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-950">{importNotice}</div>}
+ {ready&&<div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
+   <div className="flex flex-wrap items-center gap-2">
+     <strong>Meses disponíveis:</strong>
+     {periods.map(month=><button type="button" key={month}
+       onClick={()=>changeFilter('month',filters.month===month?'':month)}
+       className={'rounded-lg border px-2.5 py-1.5 font-semibold '+(filters.month===month?'border-cyan-700 bg-cyan-50 text-cyan-950':'border-slate-200 bg-slate-50 text-slate-700')}>
+       {month==='SEM DATA'?'Sem data':month.slice(5)+'/'+month.slice(0,4)} · {fmtInt(archive.months[month].count)}
+     </button>)}
+     {filters.month&&<button type="button" onClick={()=>changeFilter('month','')} className="text-cyan-800 underline">Todos os meses</button>}
+   </div>
+   <p className="mt-2 text-slate-600">As bases deste painel ficam somente neste navegador. Para consultar arquivos mensais salvos na nuvem ou importar outubro detalhado, use o Arquivo mensal. O resumo consolidado de outubro não recupera automaticamente as linhas detalhadas que foram substituídas no passado.</p>
+   {onOpenArchive&&<button type="button" onClick={onOpenArchive} className="mt-2 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 font-bold text-cyan-950">Abrir Arquivo mensal na nuvem</button>}
+ </div>}
+ {error&&<div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">{error}</div>}
   {ready&&records.some(r=>!r.vehicleType)&&<p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Esta importação é anterior ao suporte a motos. Importe novamente o arquivo original para incluir todas as motocicletas.</p>}
  {importInfo&&<p className="rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-xs leading-5 text-cyan-900">
     Processamento local concluído: {fmtInt(importInfo.inputCount)} linhas de origem · {fmtInt(importInfo.excludedEvaluator)} registros do avaliador excluído · {fmtInt(importInfo.motorcyclesIncluded)} motocicletas incluídas · {fmtInt(importInfo.duplicates)} duplicidades removidas.
@@ -221,7 +275,7 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
     {count===0&&<p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Nenhum veículo corresponde aos filtros selecionados.</p>}
   </div>}
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-    <Metric label="Avaliações" value={fmtInt(count)} detail="Automóveis na seleção" icon={CarFront}/>
+    <Metric label="Avaliações" value={fmtInt(count)} detail="Carros e motos na seleção" icon={CarFront}/>
     <Metric label="Adquiridos" value={fmtInt(purchases)} detail="UTILIZADO + exceções confirmadas" icon={CheckCircle2} tone="indigo"/>
     <Metric label="Cotações" value={fmtInt(metrics.quoteCount)} detail="Não confirmadas como compras" icon={Clock3} tone="amber"/>
     <Metric label="Capital pago" value={fmtCompact(metrics.totalPaid)} detail="Somente aquisições confirmadas" icon={Wallet} tone="indigo"/>
@@ -341,7 +395,7 @@ export default function MarketIqManagementDashboard({user}:{user:User}) {
           <p><strong>Exceções:</strong> Toro e Commander confirmados manualmente como comprados, apesar do status AVALIADO.</p>
           <p><strong>FIPE:</strong> a razão preço pago/FIPE mede deságio de aquisição. Não revela lucro, custo final ou preço de venda.</p>
           <p><strong>Privacidade:</strong> nenhuma coluna de cliente, telefone, e-mail, placa, documento, chassi ou nome de avaliador é persistida no painel.</p>
-          <p><strong>Atualização:</strong> o resumo integrado cobre outubro de 2026; importar um novo arquivo substitui os registros locais.</p>
+          <p><strong>Atualização:</strong> cada mês importado permanece no histórico local. Avaliações com ID são atualizadas sem duplicar; arquivos sem ID exigem confirmação antes de substituir a fotografia do mesmo mês.</p>
         </div>
       </section>
     </div>
