@@ -142,13 +142,16 @@ assert.ok(service.includes("book.Sheets['Consulta']"),'Only the Dealer Consulta 
 assert.ok(service.includes("book.Sheets['OrdensServ']"),'Read OS as informational only');
 assert.ok(service.includes("42*1024*1024"),'Reject oversized input');
 assert.ok(workspace.includes('Radar de Compra')&&workspace.includes('MarketIqDealerRadarPanel'));
-assert.ok(entry.includes("new URLSearchParams(window.location.search).get('radar-local')==='1'"),
- 'Preview must offer local-only Radar independent of unstable auth');
-assert.ok(entry.includes("vercel\\.app"),
- 'Unauthenticated local import route is only enabled on Vercel preview hostnames');
+assert.ok(!entry.includes('radarLocalPreview')&&!entry.includes('radar-local'),
+ 'Radar must not have an unauthenticated, stand-alone laboratory route after integration');
 assert.ok(entry.includes("isPublicCatalogRoute() ? <PublicCatalogPage /> : <RoleAwareRoot />"),
- 'Normal production traffic must continue through the authenticated app');
-assert.ok(entry.includes('<MarketIqDealerRadarPanel/>'),
- 'Standalone preview also renders the same Radar component');
+ 'The IQ application must remain behind RoleAwareRoot authentication');
+assert.ok(!entry.includes('<MarketIqDealerRadarPanel/>'),
+ 'Radar must appear inside the authorized IQ workspace, not in the public root');
+assert.ok(workspace.includes('Ferramentas de aquisição do Motyq IQ')&&
+  workspace.includes("switchDeskSection('radar');setMobileFullDesk(true)"),
+ 'Mobile users need direct access to the authenticated Radar');
+assert.ok(workspace.includes('onClick={()=>setPurchaseSummaryOpen(true)}'),
+ 'IQ valuation must be able to open the integrated purchase summary');
 
 console.log('Motyq IQ Dealer Radar: V44 header, 3 distinct VINs, OS dedup, risk indicators, local-only import, broad family matches, and snapshot deltas passed.');
