@@ -8,6 +8,8 @@ export type DashboardRow={
  vehicleType:'car'|'motorcycle';date:string;month:string;store:string;brand:string;model:string;
  className:string;destination:string;status:DashboardStatus;
  value:number;preparation:number;fipe:number;webReference:number;km:number;year:number;
+ /** SHA-256 pseudonym of original evaluation ID, never the raw ID. */
+ recordKey?:string;
 };
 type InputLine=Record<string,unknown>;
 const text=(v:unknown)=>String(v??'').trim().replace(/\s+/g,' ');
@@ -64,9 +66,11 @@ const classification=(raw:string):DashboardStatus=>{
  if(s==='REVISAR')return 'REVISAR';
  return 'OUTROS';
 };
-export type DashboardImportResult={rows:DashboardRow[];excludedEvaluator:number;motorcyclesIncluded:number;duplicates:number;invalidPurchases:number;source:'original'|'filtered';inputCount:number};
+export type DashboardImportResult={rows:DashboardRow[];sourceIds:string[];excludedEvaluator:number;motorcyclesIncluded:number;duplicates:number;invalidPurchases:number;source:'original'|'filtered';inputCount:number};
 export function parseDashboardData(input:InputLine[],source:'original'|'filtered'):DashboardImportResult{
  const output:DashboardRow[]=[];
+ // IDs exist only during parsing and are replaced with digests before storing rows.
+ const sourceIds:string[]=[];
  const seen=new Set<string>();
  // Only an ephemeral duplicate detector; plate is never persisted or sent anywhere.
  const usedPlates=new Set<string>();
@@ -106,8 +110,9 @@ export function parseDashboardData(input:InputLine[],source:'original'|'filtered
      webReference:amount(entry(r,source==='filtered'?'Ref. Web':'ref. Web')),
      km:amount(entry(r,'KM')),year,
    });
+   sourceIds.push(id.replace(/\.0$/,''));
  });
- return {rows:output,excludedEvaluator,motorcyclesIncluded,duplicates,invalidPurchases,source,inputCount:input.length};
+ return {rows:output,sourceIds,excludedEvaluator,motorcyclesIncluded,duplicates,invalidPurchases,source,inputCount:input.length};
 }
 export type DashboardFilters={vehicleType:string;store:string;brand:string;model:string;className:string;destination:string;month:string;status:string};
 export const emptyFilters:DashboardFilters={vehicleType:'',store:'',brand:'',model:'',className:'',destination:'',month:'',status:''};
