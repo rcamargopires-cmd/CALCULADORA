@@ -91,7 +91,14 @@ export const userService = {
       const docRef = doc(db, USERS_COLLECTION, normalized);
       const docSnap = await getDoc(docRef);
       return docSnap.exists() ? docSnap.data() as User : null;
-    } catch (directError) {
+    } catch (directError: any) {
+      // A quota-limited Firestore cannot be fixed by immediately repeating
+      // the same users/{email} read through our server: this doubles traffic.
+      // Keep the Firebase session alive and let RoleAwareRoot show a clear
+      // service-availability state instead of treating this as a bad password.
+      const code=String(directError?.code||'')+' '+String(directError?.message||'');
+      if(/resource-exhausted|quota|429|MOTYQ_FIRESTORE_QUOTA_EXCEEDED/i.test(code))
+        throw new Error('MOTYQ_FIRESTORE_QUOTA_EXCEEDED');
       const currentUser = auth.currentUser;
       if (currentUser?.email && currentUser.email.toLowerCase() === normalized) {
         try {
@@ -103,7 +110,10 @@ export const userService = {
           });
           const payload = await response.json().catch(() => ({}));
           if (response.ok && payload?.user) return payload.user as User;
-        } catch (serverError) {
+          if(response.status===503&&payload?.error==='firestore_quota_exceeded')
+            throw new Error('MOTYQ_FIRESTORE_QUOTA_EXCEEDED');
+        } catch (serverError:any) {
+          if(String(serverError?.message||'').includes('MOTYQ_FIRESTORE_QUOTA_EXCEEDED'))throw serverError;
           console.error('Secure current-user fallback failed', serverError);
         }
       }

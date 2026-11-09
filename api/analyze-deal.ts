@@ -1,6 +1,11 @@
 import { GoogleGenAI } from '@google/genai';
 import { motyqFirestore } from '../server/motyqFirestore.js';
 
+// Per-function-instance circuit breaker to stop a burst of failed Firestore
+// profile reads after quota exhaustion. Does not cache roles or authorize users.
+// Multi-instance coordination remains a separate infrastructure concern.
+let currentUserQuotaBlockedUntil=0;
+
 const FIREBASE_API_KEY = 'AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
 
 const verifyFirebaseToken = async (idToken: string) => {
@@ -431,6 +436,11 @@ export default async function handler(req: any, res: any) {
       const firebaseUser=await verifyFirebaseToken(token);
       const email=emailOf(firebaseUser?.email);
       if(!email)return res.status(401).json({error:'not_authenticated'});
+      if(email!==OWNER_ADMIN&&Date.now()<currentUserQuotaBlockedUntil){
+        res.setHeader('Retry-After',String(Math.ceil((currentUserQuotaBlockedUntil-Date.now())/1000)));
+        res.setHeader('Cache-Control','no-store');
+        return res.status(503).json({error:'firestore_quota_exceeded'});
+      }
       if(email===OWNER_ADMIN){
         const profile=await currentUserProfileWithIdToken(token,email).catch(()=>null);
         return res.status(200).json({user:profile?{...profile,email,role:'admin',status:'active'}:{email,id:email,name:'Admin',role:'admin',status:'active',companyId:'abrao-reze',storeId:'outlet-sorocaba'}});
@@ -440,8 +450,20 @@ export default async function handler(req: any, res: any) {
       const scoped=await ensureReinaldoDeskAccess(email,await ensureEvandroIqOnly(email,profile));
       return res.status(200).json({user:{...scoped,email}});
     } catch (error:any) {
-      console.error('Current-user lookup failed',error?.message||error);
-      return res.status(401).json({ error: String(error?.message || 'not_authenticated') });
+      const reason=String(error?.message||error||'');
+      console.error('Current-user lookup failed',reason);
+      // Firestore quota and upstream availability are not authentication failures.
+      // Returning 401 made legitimate users repeatedly sign in, multiplying
+      // the exact reads that had already exhausted the quota.
+      if(/current_user_firestore_429|resource.exhausted|quota/i.test(reason)){
+        currentUserQuotaBlockedUntil=Date.now()+5*60*1000;
+        res.setHeader('Retry-After','300');
+        res.setHeader('Cache-Control','no-store');
+        return res.status(503).json({error:'firestore_quota_exceeded'});
+      }
+      if(/current_user_firestore_5\d\d|current_user_firestore_403|firebase_oauth_failed/i.test(reason))
+        return res.status(503).json({error:'profile_verification_unavailable'});
+      return res.status(401).json({error:'not_authenticated'});
     }
   }
 
