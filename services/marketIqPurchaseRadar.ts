@@ -6,6 +6,11 @@ export type PurchaseRadarTarget={
  km?:number;store?:string;vehicleType:'car'|'motorcycle';
  fipe?:number;offer?:number;preparation?:number;verifiedMarketPrice?:number;manualSalePrice?:number;dealerSuggestedSalePrice?:number; fipeReferenceMonth?:string;fipeCode?:string;fipeStatus?:'current'|'outdated'|'unverified';fipeModel?:string;fipeYear?:number;fipeSource?:string; marketListings?:Array<{url:string;price:number;km:number;title:string;checked:boolean}>;
  marketAdsVerified?:number;stockVehicle?:DealerStockVehicle|null;
+ historicalAssessment?:{
+  source:'AutoAvaliar'|'Motyq IQ';date:string;status:string;
+  assessed:number|null;paid:number|null;
+  paidBasis:'approved'|'october_confirmed'|'none';
+ };
 };
 export type PurchaseRadarResult={
  snapshotAvailable:boolean;familyCount:number;yearFamilyCount:number;storeFamilyCount:number|null;
