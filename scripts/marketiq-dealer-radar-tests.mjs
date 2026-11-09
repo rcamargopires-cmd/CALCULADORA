@@ -134,9 +134,13 @@ assert.ok(panel.includes('compareDealerSnapshots(previous,current)'));
 assert.ok(panel.includes('Exportar alertas CSV'));
 assert.ok(panel.includes('const url=URL.createObjectURL(new Blob([csv]'),
  'Export uses a browser download; no uploaded stock server endpoint');
-assert.ok(panel.includes('ao recarregar ou fechar, você precisará importar novamente'));
+assert.ok(panel.includes('último relatório e a fotografia anterior são recuperados automaticamente'),
+ 'Previous/current Dealer snapshots are kept in the user browser rather than lost on reload');
+assert.ok(panel.includes('snapshotOutdated')&&panel.includes('14'),'Old inventory gets a visible freshness alert');
+assert.ok(panel.includes('sourceFileName'),'Filename survives a browser reload');
+assert.ok(panel.includes('«Limpar dados locais»'),'Shared device users can erase cached inventory');
 assert.ok(!panel.includes('localStorage.setItem')&&!panel.includes('fetch('),
- 'Never send/store uploaded inventory without separate authorization');
+ 'No inventory upload to server and no insecure localStorage persistence');
 assert.ok(service.includes("bookVBA:false"),'Macros are never loaded or executed');
 assert.ok(service.includes("book.Sheets['Consulta']"),'Only the Dealer Consulta sheet is stock source');
 assert.ok(service.includes("book.Sheets['OrdensServ']"),'Read OS as informational only');

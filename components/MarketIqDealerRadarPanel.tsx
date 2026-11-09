@@ -19,6 +19,8 @@ const card='rounded-2xl border border-slate-200 bg-white p-4 shadow-sm';
 type Props={
  snapshot?:DealerStockSnapshot|null;onSnapshotChange?:(next:DealerStockSnapshot|null)=>void;
  previousSnapshot?:DealerStockSnapshot|null;onPreviousSnapshotChange?:(next:DealerStockSnapshot|null)=>void;
+ localArchiveState?:'loading'|'empty'|'restored'|'saving'|'saved'|'error';
+ localArchiveWarning?:string;
 };
 export default function MarketIqDealerRadarPanel(props:Props){
  const fileInput=useRef<HTMLInputElement|null>(null);
@@ -33,6 +35,15 @@ export default function MarketIqDealerRadarPanel(props:Props){
   setLocalPrevious(next);props.onPreviousSnapshotChange?.(next);
  };
  const [fileName,setFileName]=useState('');
+ const savedFileName=current?.sourceFileName||fileName||'Fotografia recuperada do navegador';
+ const cacheState=props.localArchiveState||'empty';
+ const today=new Date();
+ const currentLocalDay=Date.UTC(today.getFullYear(),today.getMonth(),today.getDate());
+ const referenceDay=current?.reportDate&&/^\d{4}-\d{2}-\d{2}$/.test(current.reportDate)?
+  Date.parse(current.reportDate+'T00:00:00Z'):NaN;
+ const snapshotAge=Number.isFinite(referenceDay)?
+  Math.floor((currentLocalDay-referenceDay)/86400000):null;
+ const snapshotOutdated=snapshotAge===null||snapshotAge>14||snapshotAge<0;
  const [loading,setLoading]=useState(false);
  const [error,setError]=useState('');
  const [search,setSearch]=useState('');
@@ -74,22 +85,22 @@ export default function MarketIqDealerRadarPanel(props:Props){
   if(!file)return;
   setLoading(true);setError('');
   try{
-   const snapshot=await readDealerWorkbook(file);
+   const snapshot={...(await readDealerWorkbook(file)),sourceFileName:file.name.slice(0,140)};
    if(current){
     if(snapshot.reportDate&&current.reportDate&&snapshot.reportDate<current.reportDate){
-     setPrevious(snapshot);setError('Você importou um relatório anterior. Ele será usado apenas para comparação com o estoque atual.');
+     setPrevious(snapshot);setError('Você importou um relatório anterior. Ele será usado apenas para comparação com o estoque atual. A última fotografia permanece ativa neste navegador.');
     }else{
-     setPrevious(current);setCurrent(snapshot);setSelectedKey('');
+     setPrevious(current);setCurrent(snapshot);setSelectedKey('');setFileName(file.name);
     }
    }else{
-    setCurrent(snapshot);setSelectedKey('');
+    setCurrent(snapshot);setSelectedKey('');setFileName(file.name);
    }
-   setFileName(file.name);setStore('all');setFilter('all');setSearch('');setType('all');setVisibleCount(60);
+   setStore('all');setFilter('all');setSearch('');setType('all');setVisibleCount(60);
   }catch(err){setError(err instanceof Error?err.message:'Não foi possível ler este arquivo do Dealer.');}
   finally{setLoading(false);}
  };
  const clear=()=>{
-  if(current&&!window.confirm('Limpar as fotografias do estoque nesta aba? Nenhum registro oficial será afetado.'))return;
+  if(current&&!window.confirm('Apagar as fotografias do estoque SALVAS NESTE NAVEGADOR? Você precisará importar a planilha novamente. Nenhum registro oficial será afetado.'))return;
   setCurrent(null);setPrevious(null);setSelectedKey('');setError('');setFileName('');
   if(fileInput.current)fileInput.current.value='';
  };
@@ -130,9 +141,22 @@ export default function MarketIqDealerRadarPanel(props:Props){
    </div>
    <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-cyan-100">
     <ShieldCheck size={16} className="mt-0.5 shrink-0"/>
-    Piloto seguro: a planilha é lida apenas no navegador. Nenhuma macro é executada, nenhum estoque é enviado ao servidor e nenhuma avaliação oficial é alterada.
+    Dados salvos somente neste navegador e nesta conta, sem envio da planilha à nuvem. Nenhuma macro é executada e nenhuma avaliação oficial é alterada. Em computador compartilhado, use «Limpar dados locais» ao terminar.
    </p>
   </section>
+  {props.localArchiveWarning&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">{props.localArchiveWarning}</p>}
+  {current&&<div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-950">
+   <span>{cacheState==='restored'?'Última fotografia do Dealer recuperada automaticamente neste navegador.':
+    cacheState==='saving'?'Salvando a fotografia para os próximos acessos...':
+    cacheState==='saved'?'Fotografia salva neste navegador para os próximos acessos.':
+    cacheState==='error'?'Fotografia disponível nesta sessão; o armazenamento local falhou.':
+    'Fotografia disponível para esta sessão.'}</span>
+   <span>{current.reportDate?'Base de '+date(current.reportDate):'Data da base não informada'} · {vehicles.length.toLocaleString('pt-BR')} veículos</span>
+  </div>}
+  {current&&snapshotOutdated&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-950">
+   Atenção: a fotografia do estoque está {snapshotAge===null?'sem data válida':snapshotAge<0?'com data futura':'com '+snapshotAge+' dias de idade'}.
+   Atualize pelo botão «Importar novo relatório» para não usar um estoque antigo como situação atual.
+  </p>}
   {error&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">{error}</p>}
   {!current?<div className={card}>
    <div className="flex items-start gap-3">
@@ -144,7 +168,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
    </div>
   </div>:<>
    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
-    <p><strong className="text-slate-900">Arquivo carregado:</strong> {cap(fileName)} · fotografia de {date(current.reportDate)} · {current.vehicles.length.toLocaleString('pt-BR')} veículos válidos</p>
+    <p><strong className="text-slate-900">Arquivo carregado:</strong> {cap(savedFileName)} · fotografia de {date(current.reportDate)} · {current.vehicles.length.toLocaleString('pt-BR')} veículos válidos</p>
     <span className="rounded-lg bg-cyan-50 px-3 py-1.5 font-bold text-cyan-900">Somente leitura</span>
    </div>
    {current.warnings.length>0&&<div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-6 text-amber-950">
@@ -362,7 +386,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
    <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-xs leading-6 text-cyan-950">
     <strong>Limites do Radar 1.0:</strong> não calcula MDS regional, lucratividade líquida, giro de veículos vendidos nem recomenda automaticamente “Comprar”.
     Os dados de vendas, as transferências e o mercado Webmotors serão integrados em fases futuras, após validação e recuperação da infraestrutura do Firestore.
-    <span className="block font-semibold">Os dados importados ficam apenas nesta aba; ao recarregar ou fechar, você precisará importar novamente.</span>
+    <span className="block font-semibold">O último relatório e a fotografia anterior são recuperados automaticamente neste navegador. Para atualizar os valores e o estoque real, importe um novo V44. O navegador pode apagar dados locais quando o armazenamento é limpo.</span>
    </div>
   </>}
  </div>;

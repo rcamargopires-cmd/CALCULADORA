@@ -9,6 +9,8 @@ export type DealerStockVehicle={
 };
 export type DealerStockSnapshot={
  importedAt:string;reportDate:string;vehicles:DealerStockVehicle[];
+ /** Display-only filename of the parsed inventory (the XLSM bytes are never persisted). */
+ sourceFileName?:string;
  duplicateCount:number;warnings:string[];stores:string[];serviceOrderRows:number;
 };
 export type DealerRadarStats={

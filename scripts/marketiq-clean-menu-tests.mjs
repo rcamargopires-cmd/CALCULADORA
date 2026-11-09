@@ -40,8 +40,10 @@ assert.ok(second.includes('Arquivo mensal'));
 assert.ok(second.includes('Histórico por placa'));
 assert.ok(top.includes('Radar de Compra')&&!second.includes('Radar de Compra'),
  'Radar is a direct top-level IQ tab instead of a duplicated submenu destination');
-assert.ok(workspace.includes("deskSection==='radar'?<MarketIqDealerRadarPanel"),
- 'Radar remains accessible as a top-level IQ destination using in-memory stock state');
+assert.ok(workspace.includes("deskSection==='radar'?(radarLoadedScope!==captureScope?")&&
+ workspace.includes('<MarketIqDealerRadarPanel')&&
+ workspace.includes('snapshot={radarSnapshot}'),
+ 'Radar remains accessible as a top-level IQ tab after account-scoped cache hydration');
 assert.ok(second.includes('aria-label="Ferramentas da Mesa de precificação"'));
 assert.ok(second.includes("deskSection==='archive'?'page':undefined"));
 assert.ok(!top.includes('motyq-iq-tabs-caption'),'Remove decorative caption from packed primary bar');
