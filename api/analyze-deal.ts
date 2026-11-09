@@ -440,8 +440,19 @@ export default async function handler(req: any, res: any) {
       const scoped=await ensureReinaldoDeskAccess(email,await ensureEvandroIqOnly(email,profile));
       return res.status(200).json({user:{...scoped,email}});
     } catch (error:any) {
-      console.error('Current-user lookup failed',error?.message||error);
-      return res.status(401).json({ error: String(error?.message || 'not_authenticated') });
+      const reason=String(error?.message||error||'');
+      console.error('Current-user lookup failed',reason);
+      // Firestore quota and upstream availability are not authentication failures.
+      // Returning 401 made legitimate users repeatedly sign in, multiplying
+      // the exact reads that had already exhausted the quota.
+      if(/current_user_firestore_429|resource.exhausted|quota/i.test(reason)){
+        res.setHeader('Retry-After','300');
+        res.setHeader('Cache-Control','no-store');
+        return res.status(503).json({error:'firestore_quota_exceeded'});
+      }
+      if(/current_user_firestore_5\d\d|current_user_firestore_403|firebase_oauth_failed/i.test(reason))
+        return res.status(503).json({error:'profile_verification_unavailable'});
+      return res.status(401).json({error:'not_authenticated'});
     }
   }
 
