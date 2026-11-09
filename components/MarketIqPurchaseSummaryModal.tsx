@@ -254,6 +254,64 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
        as condições da nova compra antes de tomar uma decisão.
       </p>
     </section>}
+    {target.historicalAssessment&&<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Dados aproveitados automaticamente">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+       <div>
+        <p className="text-xs font-black uppercase tracking-wider text-cyan-800">Histórico Inteligente + FIPE + Dealer + Webmotors</p>
+        <h3 className="mt-1 text-base font-black text-slate-950">O que já sabemos sobre este veículo</h3>
+       </div>
+       <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700">Consulta orientativa</span>
+      </div>
+      <p role="status" className={'mt-3 rounded-lg p-2.5 text-xs leading-5 '+(localFipe?.referenceStatus==='current'||target.fipeStatus==='current'?'bg-emerald-50 text-emerald-950':'bg-amber-50 text-amber-950')}>
+       <strong>FIPE:</strong> {autoFipeStatus||'Referência do mês atual não verificada; consulte a versão exata abaixo.'}
+      </p>
+      {historyStatus==='loading'&&<p role="status" className="mt-3 text-xs font-semibold text-slate-700">Consultando compras e avaliações comparáveis no arquivo autorizado da empresa...</p>}
+      {historyStatus==='error'&&<p role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs font-semibold text-amber-950">
+       Histórico indisponível: {historyError}. Não interprete a ausência de números como zero compras.
+      </p>}
+      {historicalMetrics&&<div className="mt-3 space-y-2">
+       <div className="grid gap-2 sm:grid-cols-3">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+         <p className="text-xs font-bold text-emerald-900">Mediana efetivamente paga</p>
+         <p className="mt-1 text-xl font-black text-emerald-950">{money(historicalMetrics.result.paidMedian)}</p>
+         <p className="text-[11px] leading-4 text-emerald-900">{historicalMetrics.result.paidCount} compra(s) de mesma versão, ano e KM próximo</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+         <p className="text-xs font-bold text-slate-800">Padrão interno recorrente</p>
+         <p className="mt-1 text-xl font-black text-slate-950">{money(historicalMetrics.pattern.operationalSuggestion)}</p>
+         <p className="text-[11px] leading-4 text-slate-700">{historicalMetrics.pattern.typicalCount} veículo(s) distintos com o mesmo valor registrado; pode ser cotação</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+         <p className="text-xs font-bold text-slate-800">Maior compra comparável</p>
+         <p className="mt-1 text-xl font-black text-slate-950">{money(historicalMetrics.pattern.maxPaid)}</p>
+         <p className="text-[11px] leading-4 text-slate-700">Máximo observado, nunca autorização automática de compra</p>
+        </div>
+       </div>
+       <p className="text-xs leading-5 text-slate-700">
+        {historicalMetrics.result.exactCount} avaliação(ões) tecnicamente comparável(is), com diferença de KM limitada a 20 mil para preços pagos.
+        {historicalMetrics.result.paidCount<3?' Amostra de compras pequena: não determina um teto confiável.':''}
+        {historicalMetrics.result.limited?' A consulta histórica foi parcial; não usar os totais como completos.':''}
+        {' '}As cotações não entram na mediana paga, e a placa analisada não conta como outra compra independente.
+       </p>
+       {historicalMetrics.result.historicalAdjustedMedian!==null&&
+        (localFipe?.referenceStatus==='current'||target.fipeStatus==='current')&&
+        <p className="text-xs font-semibold text-cyan-900">Mediana paga ajustada pela FIPE vigente: {money(historicalMetrics.result.historicalAdjustedMedian)} (referência estatística, sem aprovação automática).</p>}
+      </div>}
+      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+       <p className="rounded-lg bg-slate-50 p-2.5 text-slate-700">
+        <strong>Estoque Dealer:</strong> {snapshot?
+         data.familyCount+' veículo(s) da família encontrados na fotografia '+stockDate+
+         '; versões e anos distintos não são cotação de venda.' :
+         'fotografia não importada nesta sessão. Abra o Radar para carregar o estoque.'}
+       </p>
+       <p className="rounded-lg bg-slate-50 p-2.5 text-slate-700">
+        <strong>Mercado Webmotors:</strong> {marketReference?
+         money(marketReference)+' em '+checkedListings.count+' anúncios individuais já conferidos.':
+         'sem dois anúncios individuais da versão correta já conferidos. Não criamos preço de mercado automaticamente.'}
+       </p>
+      </div>
+      <p className="mt-2 text-[11px] leading-5 text-slate-600">Essas informações são contexto para a Mesa. O teto hipotético abaixo usa somente referência de venda identificada, custos informados e regras de 14% e 5%, quando aplicáveis.</p>
+    </section>}
     {stock&&<nav aria-label="Tipo de análise" className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2">
      <button type="button" aria-pressed={!newPurchaseMode} onClick={()=>setScenarioMode('stock')}
       className={'rounded-lg px-4 py-2 text-sm font-bold '+(!newPurchaseMode?'bg-[#10354f] text-white':'bg-slate-100 text-slate-700 hover:bg-slate-200')}>
