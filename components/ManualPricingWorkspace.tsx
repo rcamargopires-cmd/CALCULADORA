@@ -11,6 +11,7 @@ import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
 import MarketIqDealerRadarPanel from './MarketIqDealerRadarPanel';
 import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
+import {readDealerLocalArchive,persistDealerLocalArchive} from '../services/marketIqDealerLocalArchive';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
 import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
 import type {ComparableEntry} from '../services/marketIqComparableHistory';
@@ -95,10 +96,21 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'?previous:'dashboard';
  });
  const [selectedPlateForHistory,setSelectedPlateForHistory]=useState('');
- // Kept in React memory across Mesa tabs, scoped to the currently mounted user.
- // Never persisted to Firestore or localStorage from this Radar pilot.
+ // Local-only IndexedDB cache. Each account/company/unit owns an isolated key.
+ // The parsed snapshot never leaves this device and is never uploaded.
+ const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join('|');
  const [radarSnapshot,setRadarSnapshot]=useState<DealerStockSnapshot|null>(null);
  const [radarPreviousSnapshot,setRadarPreviousSnapshot]=useState<DealerStockSnapshot|null>(null);
+ const [radarLoadedScope,setRadarLoadedScope]=useState('');
+ const [radarCacheNotice,setRadarCacheNotice]=useState('');
+ const [radarCacheState,setRadarCacheState]=useState<'loading'|'empty'|'restored'|'saving'|'saved'|'error'>('loading');
+ const [radarWriteRevision,setRadarWriteRevision]=useState(0);
+ const updateRadarSnapshot=(next:DealerStockSnapshot|null)=>{
+  setRadarSnapshot(next);setRadarWriteRevision(value=>value+1);
+ };
+ const updateRadarPreviousSnapshot=(next:DealerStockSnapshot|null)=>{
+  setRadarPreviousSnapshot(next);setRadarWriteRevision(value=>value+1);
+ };
  const [purchaseSummaryOpen,setPurchaseSummaryOpen]=useState(false);
  const [purchaseSummaryComparable,setPurchaseSummaryComparable]=useState<ComparableEntry|null>(null);
  const [mobileFullDesk,setMobileFullDesk]=useState(false);
@@ -106,8 +118,48 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
  };
  const formKey='motyq-iq-preview-inputs-'+user.email.toLowerCase();
- const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join('|');
  const pendingCaptureKey='__captured_in_another_tab__';
+ // Recover current/previous Dealer stock automatically after authentication.
+ // Do not mount the Radar importer until the account-scoped read completes.
+ useEffect(()=>{
+  let alive=true;
+  setRadarLoadedScope('');setRadarCacheState('loading');setRadarCacheNotice('');
+  setRadarWriteRevision(0);setRadarSnapshot(null);setRadarPreviousSnapshot(null);
+  void readDealerLocalArchive(captureScope).then(saved=>{
+   if(!alive)return;
+   setRadarSnapshot(saved?.current||null);
+   setRadarPreviousSnapshot(saved?.previous||null);
+   setRadarCacheState(saved?.current?'restored':'empty');
+   setRadarLoadedScope(captureScope);
+  }).catch(error=>{
+   if(!alive)return;
+   setRadarCacheState('error');
+   setRadarCacheNotice('Não foi possível recuperar o estoque local: '+String(error?.message||error)+'. Você pode importar, mas o navegador talvez não consiga preservar o relatório.');
+   setRadarLoadedScope(captureScope);
+  });
+  return ()=>{alive=false;};
+ },[captureScope]);
+
+ // Save only imports/clears initiated by the operator, not the read-only
+ // hydration of an existing snapshot. Serialized writes prevent stale files
+ // from winning if the operator imports twice in rapid succession.
+ useEffect(()=>{
+  if(radarLoadedScope!==captureScope||radarWriteRevision===0)return;
+  let active=true;
+  setRadarCacheState('saving');
+  void persistDealerLocalArchive(captureScope,radarSnapshot,radarPreviousSnapshot)
+   .then(()=>{
+    if(!active)return;
+    setRadarCacheState(radarSnapshot?'saved':'empty');
+    setRadarCacheNotice('');
+   }).catch(error=>{
+    if(!active)return;
+    setRadarCacheState('error');
+    setRadarCacheNotice('Estoque disponível apenas nesta sessão: '+String(error?.message||error)+'. Reimporte caso volte a abrir o aplicativo.');
+   });
+  return ()=>{active=false;};
+ },[radarLoadedScope,captureScope,radarWriteRevision,radarSnapshot,radarPreviousSnapshot]);
+
  const [returnSuggestion]=useState(()=>readCaptureReturnContext(window.localStorage,captureScope));
  const savedForm=useMemo(()=>{
    try {const item=sessionStorage.getItem(formKey);return item?JSON.parse(item):{};} catch{return {};}
@@ -817,10 +869,15 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     onOpenApprovals={()=>switchDeskSection('approvals')}/>:
   deskSection==='approvals'?<MarketIqApprovalCenter user={user}/>:
   deskSection==='learning'?<MarketIqLearningPanel user={user} history={saved} onRefresh={refreshHistory} onOpenArchive={()=>switchDeskSection('archive')}/>:
-  deskSection==='radar'?<MarketIqDealerRadarPanel
-   snapshot={radarSnapshot} onSnapshotChange={setRadarSnapshot}
-   previousSnapshot={radarPreviousSnapshot} onPreviousSnapshotChange={setRadarPreviousSnapshot}
-  />:
+  deskSection==='radar'?(radarLoadedScope!==captureScope?
+   <section role="status" className="rounded-xl border border-cyan-200 bg-white p-5 text-sm font-semibold text-slate-800">
+    Recuperando a última fotografia do estoque Dealer salva neste navegador...
+   </section>:
+   <MarketIqDealerRadarPanel
+    snapshot={radarSnapshot} onSnapshotChange={updateRadarSnapshot}
+    previousSnapshot={radarPreviousSnapshot} onPreviousSnapshotChange={updateRadarPreviousSnapshot}
+    localArchiveState={radarCacheState} localArchiveWarning={radarCacheNotice}
+   />):
   deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}
    onOpenPlateHistory={selected=>{setSelectedPlateForHistory(selected);switchDeskSection('plateHistory');}}/>:
   deskSection==='plateHistory'?<MarketIqPlateHistoryPanel user={user}
