@@ -53,6 +53,11 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
    catch{return emptyDashboardArchive();}
  });
  const records=archive.records;
+ const comparisonMonths=Object.keys(archive.months).filter(m=>/^\d{4}-\d{2}$/.test(m)).sort().slice(-2);
+ const monthlyComparison=comparisonMonths.map(month=>{
+   const metric=aggregateDashboard(records.filter(r=>r.month===month));
+   return {month,avaliacoes:metric.evaluations,compras:metric.purchaseCount,capital:metric.totalPaid};
+ });
  const sourceName=Object.entries(archive.months).sort(([a],[b])=>b.localeCompare(a))[0]?.[1].fileName||'';
  const [importInfo,setImportInfo]=useState<Omit<DashboardImportResult,'rows'|'sourceIds'>|null>(null);
  const [importNotice,setImportNotice]=useState('');
@@ -248,6 +253,17 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
    </div>
    <p className="mt-2 text-slate-600">As bases deste painel ficam somente neste navegador. Para consultar arquivos mensais salvos na nuvem ou importar outubro detalhado, use o Arquivo mensal. O resumo consolidado de outubro não recupera automaticamente as linhas detalhadas que foram substituídas no passado.</p>
    {onOpenArchive&&<button type="button" onClick={onOpenArchive} className="mt-2 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 font-bold text-cyan-950">Abrir Arquivo mensal na nuvem</button>}
+ </div>}
+ {monthlyComparison.length===2&&<div className="rounded-xl border border-slate-200 bg-white p-3">
+   <p className="mb-2 text-xs font-bold text-slate-800">Comparativo dos dois últimos meses importados</p>
+   <div className="grid gap-2 sm:grid-cols-2">
+     {monthlyComparison.map(item=><div key={item.month} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800">
+       <strong className="text-sm">{item.month.slice(5)+'/'+item.month.slice(0,4)}</strong>
+       <p className="mt-1">Avaliações: <strong>{fmtInt(item.avaliacoes)}</strong> · Compras: <strong>{fmtInt(item.compras)}</strong></p>
+       <p>Capital em aquisições: <strong>{fmtMoney(item.capital)}</strong></p>
+     </div>)}
+   </div>
+   <p className="mt-2 text-[11px] text-slate-500">Comparação descritiva: o mês atual pode estar incompleto. Compras seguem a classificação da origem, não comprovam margem ou lucro.</p>
  </div>}
  {error&&<div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">{error}</div>}
   {ready&&records.some(r=>!r.vehicleType)&&<p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Esta importação é anterior ao suporte a motos. Importe novamente o arquivo original para incluir todas as motocicletas.</p>}
