@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useState} from 'react';
-import {History,Layers,RefreshCw,ShieldCheck,AlertTriangle} from 'lucide-react';
+import {History,Layers,RefreshCw,ShieldCheck,AlertTriangle,FileSearch} from 'lucide-react';
 import {auth} from '../firebase';
 import {alignPurchaseReference} from '../services/marketIqPurchaseAlignment';
 import {deriveMesaPricePattern,mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
@@ -16,6 +16,7 @@ type Props={
  verifiedMarketCeiling?:number;historicalModelTarget?:number;
  onOpenPlateHistory?:()=>void;compact?:boolean;
  onMesaReference?:(value:MesaPriceReference|null)=>void;
+ onOpenPurchaseSummary?:(entry:ComparableEntry)=>void;
 };
 const fmt=(v:number|null|undefined)=>v===null||v===undefined?'—':
  v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -26,7 +27,7 @@ const tag=(entry:ComparableEntry)=>entry.grade==='placa'?'Mesma placa':
  entry.grade==='equivalente'?'Mesma versão · outro ano (fora da média)':'Outra versão (fora da média)';
 export default function MarketIqIntelligentHistoryPanel({
  current,cloudHistory,companyId,verifiedMarketCeiling=0,historicalModelTarget=0,
- onOpenPlateHistory,compact=false,onMesaReference
+ onOpenPlateHistory,compact=false,onMesaReference,onOpenPurchaseSummary
 }:Props){
  const [data,setData]=useState<ArchiveResponse>(empty);
  const [loading,setLoading]=useState(false);
@@ -258,6 +259,12 @@ export default function MarketIqIntelligentHistoryPanel({
        <p className="text-[11px] text-slate-600">{e.paid!==null?
         e.paidBasis==='october_confirmed'?'Pago · regra histórica':'Pago · aprovação Motyq':
         'Valor avaliado, não pago'}</p>
+       {onOpenPurchaseSummary&&e.brand.trim()&&e.model.trim()&&e.year>=1990&&
+        <button type="button" onClick={()=>onOpenPurchaseSummary(e)}
+         aria-label={'Abrir Resumo de Compra de '+e.brand+' '+e.model+' '+e.year}
+         className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-50 px-2.5 py-1.5 text-xs font-bold text-cyan-950 hover:bg-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-700">
+         <FileSearch size={14}/> Resumo de Compra
+        </button>}
       </div>
      </div>
      <p className="mt-2 text-[11px] text-slate-600">

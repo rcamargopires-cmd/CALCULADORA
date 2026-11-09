@@ -12,7 +12,7 @@ export type ComparableCloud={
 export type ComparableEntry={
  id:string;source:'AutoAvaliar'|'Motyq IQ';date:string;plate:string;brand:string;
  model:string;version:string;year:number;km:number|null;
- status:string;assessed:number|null;paid:number|null;fipe:number|null;
+ vehicleType:'car'|'motorcycle';status:string;assessed:number|null;paid:number|null;fipe:number|null;
  grade:'exato'|'equivalente'|'relacionado'|'placa';eligible:boolean;
  paidBasis:'approved'|'october_confirmed'|'none';store?:string;
 };
@@ -161,7 +161,7 @@ export function buildComparableHistory(
   const entry:ComparableEntry={
    id:key,source:'AutoAvaliar',date:r.evaluationDate,plate:plateComparable(r.plate),
    brand:r.brand,model:r.model,version:r.version,year:r.modelYear||0,km:r.km,
-   status:r.status,assessed:r.assessedValue,paid:historicalPaid?r.assessedValue:null,
+   vehicleType:r.vehicleType,status:r.status,assessed:r.assessedValue,paid:historicalPaid?r.assessedValue:null,
    fipe:r.fipe,grade,eligible:!same&&grade==='exato',
    paidBasis:historicalPaid?'october_confirmed':'none',store:r.store
   };
@@ -185,6 +185,7 @@ export function buildComparableHistory(
   const entry:ComparableEntry={id,source:'Motyq IQ',
    date:String(r.paidAt||r.approvedAt||r.date||'').slice(0,10),plate:cloudPlate,
    brand:r.brand||'',model:r.model,version:r.model,year,km:readKm(r.km),
+   vehicleType:r.vehicleType||current.vehicleType,
    status:paid!==null?'COMPRA CONFIRMADA':'AVALIADO',assessed:null,paid,
    fipe:validMoney(r.fipe?.value)?r.fipe.value:null,grade,
    eligible:!same&&grade==='exato',

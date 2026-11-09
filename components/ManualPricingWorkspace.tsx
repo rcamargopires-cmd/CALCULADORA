@@ -13,6 +13,8 @@ import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
 import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
+import type {ComparableEntry} from '../services/marketIqComparableHistory';
+import {purchaseTargetFromComparable} from '../services/marketIqComparablePurchase';
 import {mesaReferenceKey,type MesaPriceReference} from '../services/marketIqMesaPricePattern';
 import MarketIqConfidencePanel from './MarketIqConfidencePanel';
 import MarketIqFleetClassificationPanel from './MarketIqFleetClassificationPanel';
@@ -98,6 +100,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [radarSnapshot,setRadarSnapshot]=useState<DealerStockSnapshot|null>(null);
  const [radarPreviousSnapshot,setRadarPreviousSnapshot]=useState<DealerStockSnapshot|null>(null);
  const [purchaseSummaryOpen,setPurchaseSummaryOpen]=useState(false);
+ const [purchaseSummaryComparable,setPurchaseSummaryComparable]=useState<ComparableEntry|null>(null);
  const [mobileFullDesk,setMobileFullDesk]=useState(false);
  const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar')=>{
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
@@ -906,6 +909,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   verifiedMarketCeiling={marketReady?ceiling:0}
   historicalModelTarget={vehicleType==='motorcycle'?motorcycleReference?.medianIndication||0:historicalEstimate?.target||0}
   onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');}}
+  onOpenPurchaseSummary={setPurchaseSummaryComparable}
   onMesaReference={onDesktopMesaReference}/>
  <MarketIqFleetClassificationPanel km={km} guideline={fleetPolicy.guideline}
   classification={fleetPolicy.classification} destination={fleetPolicy.destination}
@@ -1184,5 +1188,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    verifiedMarketPrice:marketReady?avg:0,marketAdsVerified:marketReady?primary.length:0
   }}
  />
+ {purchaseSummaryComparable&&<MarketIqPurchaseSummaryModal
+  open
+  onClose={()=>setPurchaseSummaryComparable(null)}
+  snapshot={radarSnapshot}
+  onOpenRadar={()=>{setPurchaseSummaryComparable(null);switchDeskSection('radar');}}
+  target={purchaseTargetFromComparable(purchaseSummaryComparable)}
+ />}
  </>;
 }
