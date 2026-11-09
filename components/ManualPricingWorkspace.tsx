@@ -767,7 +767,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     className={'rounded-md px-3 py-2 text-xs font-semibold transition-colors '+(deskSection==='plateHistory'?'bg-white text-[#153f51] shadow-sm ring-1 ring-slate-200':'text-slate-600 hover:bg-white hover:text-slate-900')}>Histórico por placa</button>
   </nav>}
  </div>
- {deskSection==='dashboard'?<MarketIqManagementDashboard user={user}/>:
+ {deskSection==='dashboard'?<MarketIqManagementDashboard user={user} onOpenArchive={()=>switchDeskSection('archive')}/>:
   deskSection==='consulted'?<MarketIqConsultedRepasse user={user}
     vehicleFromDesk={{plate,brand,model,year,km,fipe:fipe?.value||0}}
     onOpenApprovals={()=>switchDeskSection('approvals')}/>:
