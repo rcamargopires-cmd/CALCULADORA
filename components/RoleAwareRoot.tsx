@@ -61,7 +61,7 @@ const StandardMotyq = ({ user }: { user: User | null }) => {
     </CurrentStockProvider>;
   }
   return <CurrentStockProvider user={user}>
-    <ModuleErrorBoundary name="App" critical><App /></ModuleErrorBoundary>
+    <ModuleErrorBoundary name="App" critical><App resolvedUser={user}/></ModuleErrorBoundary>
     <Safe name="ManagerTopNav"><ManagerTopNav /></Safe>
     {user && permissions.crmView && <Safe name="MotyqCRM"><MotyqCRM user={user}/></Safe>}
     {user && <Safe name="MotyqVoice"><MotyqVoiceAssistant user={user}/></Safe>}
@@ -125,10 +125,23 @@ const RoleAwareRoot: React.FC = () => {
   const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [adminScope, setAdminScope] = useState(ADMIN_HOME_SCOPE);
+  const [profileError,setProfileError]=useState<''|'quota'|'temporarily_unavailable'|'inactive'>('');
+  const [authAccountPresent,setAuthAccountPresent]=useState(false);
+  const [retryAfter,setRetryAfter]=useState(0);
+  const [retryNonce,setRetryNonce]=useState(0);
+  const [retryNotice,setRetryNotice]=useState('');
+  // 5 minute circuit breaker for quota-limited session profile lookups.
+  // It stores only the next request time, never credentials or a cached role.
+  const quotaKey=(uid:string)=>'motyq-profile-cooldown-v1:'+uid;
 
   useEffect(() => {
+    let alive=true;
     let profileUnsubscribe: (()=>void) | null = null;
     const authUnsubscribe = onAuthStateChanged(auth, async firebaseUser => {
+      if(!alive)return;
+      setAuthAccountPresent(Boolean(firebaseUser?.email));
+      setRetryNotice('');
+      setProfileError('');
       profileUnsubscribe?.();
       profileUnsubscribe = null;
       if (!firebaseUser?.email) {
@@ -136,6 +149,14 @@ const RoleAwareRoot: React.FC = () => {
         setLoading(false);
         return;
       }
+      // Reloading the page does not bypass the cooldown and hammer Firestore.
+      try{
+        const until=Number(sessionStorage.getItem(quotaKey(firebaseUser.uid))||0);
+        if(Number.isFinite(until)&&until>Date.now()){
+          setProfile(null);setProfileError('quota');
+          setRetryAfter(until);setLoading(false);return;
+        }
+      }catch{ /* Private mode may restrict sessionStorage. */ }
       try {
         const normalizedEmail=String(firebaseUser.email||'').trim().toLowerCase();
         if(normalizedEmail==='r.camargo.pires@gmail.com'){
@@ -155,9 +176,14 @@ const RoleAwareRoot: React.FC = () => {
         }else{
 
           let user = await userService.getUser(normalizedEmail);
-          if(user?.status==='active'&&(
-             (normalizedEmail===EVANDRO_IQ_ONLY_EMAIL&&(user.role==='manager'||user.role==='pricing'))||
-             normalizedEmail==='reinaldo.ribas@abraoreze.com.br')){
+          if(!alive)return;
+          const evandroNeedsSync=normalizedEmail===EVANDRO_IQ_ONLY_EMAIL&&
+            (user?.role==='manager'||user?.role==='pricing')&&user.pricingDeskOnly!==true;
+          const reinaldoNeedsSync=normalizedEmail==='reinaldo.ribas@abraoreze.com.br'&&
+            user?.pricingDeskAccess!==true;
+          // Already granted desk permissions never trigger the extra server
+          // profile lookup on every sign-in.
+          if(user?.status==='active'&&(evandroNeedsSync||reinaldoNeedsSync)){
             try{
               const token=await firebaseUser.getIdToken();
               const response=await fetch('/api/analyze-deal?action=current-user',{
@@ -173,27 +199,42 @@ const RoleAwareRoot: React.FC = () => {
             }catch(error){console.warn('Motyq IQ: sincronização de perfil indisponível.',error);}
           }
           const active = user?.status === 'active' ? iqExclusiveUser({...user,email:normalizedEmail}) : null;
+          if(!active)setProfileError('inactive');
           if (active?.role === 'admin') {
             companyScopeService.enterAdminHome();
             setAdminScope(ADMIN_HOME_SCOPE);
           }
+          if(!alive)return;
           setProfile(active);
-          profileUnsubscribe = onSnapshot(doc(db,'users',normalizedEmail), snapshot => {
+          try{sessionStorage.removeItem(quotaKey(firebaseUser.uid));}catch{}
+          if(active)profileUnsubscribe = onSnapshot(doc(db,'users',normalizedEmail), snapshot => {
             const next = snapshot.exists() ? snapshot.data() as User : null;
             setProfile(next?.status === 'active' ? iqExclusiveUser({...next,email:normalizedEmail}) : null);
-          }, () => undefined);
+          }, error => {
+            console.warn('Motyq: atualização do perfil em tempo real indisponível.',String(error?.code||''));
+          });
         }
-      } catch {
+      } catch(error:any) {
+        if(!alive)return;
+        const code=String(error?.code||'')+' '+String(error?.message||'');
+        const quota=/resource-exhausted|quota|429|MOTYQ_FIRESTORE_QUOTA_EXCEEDED/i.test(code);
         setProfile(null);
+        setProfileError(quota?'quota':'temporarily_unavailable');
+        if(quota){
+          const until=Date.now()+5*60*1000;
+          setRetryAfter(until);
+          try{sessionStorage.setItem(quotaKey(firebaseUser.uid),String(until));}catch{}
+        }
       } finally {
-        setLoading(false);
+        if(alive)setLoading(false);
       }
     });
     return () => {
+      alive=false;
       authUnsubscribe();
       profileUnsubscribe?.();
     };
-  }, []);
+  }, [retryNonce]);
 
   useEffect(() => {
     const sync = (event: Event) => {
@@ -205,6 +246,46 @@ const RoleAwareRoot: React.FC = () => {
   }, []);
 
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#f6f8fb] text-sm font-semibold text-slate-500">Carregando MOTYQ...</div>;
+
+  // Firebase Authentication succeeded, but authorization cannot be verified.
+  // Never render the password form again or silently reuse unverified privileges.
+  if(authAccountPresent&&!profile&&profileError)return (
+    <main className="grid min-h-screen place-items-center bg-[#f6f8fb] p-5">
+      <section role="alert" className="w-full max-w-lg rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-wider text-slate-600">Motyq · verificação de acesso</p>
+        <h1 className="mt-2 text-xl font-black text-slate-900">
+          {profileError==='quota'?'Banco de dados temporariamente limitado':
+            profileError==='inactive'?'Perfil sem acesso ativo':'Não foi possível conferir seu perfil'}
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-slate-700">
+          {profileError==='quota'?
+            'O Firestore atingiu um limite de consultas. Sua senha não está incorreta e os dados salvos não foram apagados. Evite recarregar ou entrar repetidamente, pois isso aumenta as consultas.':
+            profileError==='inactive'?
+            'A conta foi autenticada, mas o perfil não consta como ativo. Um administrador deve conferir as permissões.':
+            'O serviço de perfis está indisponível no momento. Não é possível liberar o acesso sem confirmar as permissões.'}
+        </p>
+        {profileError==='quota'&&<p className="mt-2 text-xs font-semibold text-amber-900">
+          Nova verificação manual permitida após {new Date(retryAfter).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}.
+        </p>}
+        {retryNotice&&<p role="status" className="mt-2 text-xs text-amber-900">{retryNotice}</p>}
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button type="button" onClick={()=>{
+            if(Date.now()<retryAfter){
+              setRetryNotice('Aguarde até o horário indicado. Repetir a tentativa agora não restabelece a cota.');return;
+            }
+            setLoading(true);setProfileError('');setRetryNonce(n=>n+1);
+          }} className="rounded-xl bg-[#18475a] px-4 py-2.5 text-sm font-bold text-white">
+            Verificar novamente
+          </button>
+          <button type="button" onClick={()=>void signOut(auth)}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">
+            Sair da conta
+          </button>
+        </div>
+        <p className="mt-4 text-xs text-slate-500">O Motyq não modifica perfis nem aprova ações enquanto o acesso não estiver verificado.</p>
+      </section>
+    </main>
+  );
 
   // Standalone Motyq IQ, without seller docks, voice controls or operational overlays.
   const iqEmail=String(profile?.email||'').trim().toLowerCase();
@@ -218,7 +299,7 @@ const RoleAwareRoot: React.FC = () => {
   const goSelected=new URLSearchParams(window.location.search).get('go')==='1';
   if(profile&&iqAllowed&&(iqSelected||profile.role==='pricing'||profile.pricingDeskOnly||(iqEmail==='reinaldo.ribas@abraoreze.com.br'&&!goSelected)))
     return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/>
-      <BillingGate user={profile}><ModuleErrorBoundary name="Motyq IQ" critical><App/></ModuleErrorBoundary></BillingGate></>;
+      <BillingGate user={profile}><ModuleErrorBoundary name="Motyq IQ" critical><App resolvedUser={profile}/></ModuleErrorBoundary></BillingGate></>;
   if (profile?.role === 'evaluator') return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><EvaluatorMotyq user={profile}/></BillingGate></>;
   if (profile?.role === 'manager' && profile.pricingDeskOnly) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><BillingGate user={profile}><PricingMotyq user={profile}/></BillingGate></>;
   if (profile?.role === 'admin' && adminScope === ADMIN_HOME_SCOPE) return <><ErrorMonitoringBridge user={profile}/><PerformanceMonitoringBridge user={profile}/><AdminControlCenter currentUser={profile}/></>;
