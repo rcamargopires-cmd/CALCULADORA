@@ -251,7 +251,7 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
      </button>)}
      {filters.month&&<button type="button" onClick={()=>changeFilter('month','')} className="text-cyan-800 underline">Todos os meses</button>}
    </div>
-   <p className="mt-2 text-slate-600">As bases deste painel ficam somente neste navegador. Para consultar arquivos mensais salvos na nuvem ou importar outubro detalhado, use o Arquivo mensal. O resumo consolidado de outubro não recupera automaticamente as linhas detalhadas que foram substituídas no passado.</p>
+   <p className="mt-2 text-slate-600">As bases acumuladas deste painel ficam somente neste navegador. O Arquivo mensal é uma consulta separada na nuvem. Para acrescentar outubro ao Painel Gerencial, importe aqui novamente a planilha de outubro. O resumo consolidado não recupera automaticamente as linhas detalhadas substituídas no passado.</p>
    {onOpenArchive&&<button type="button" onClick={onOpenArchive} className="mt-2 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 font-bold text-cyan-950">Abrir Arquivo mensal na nuvem</button>}
  </div>}
  {monthlyComparison.length===2&&<div className="rounded-xl border border-slate-200 bg-white p-3">
