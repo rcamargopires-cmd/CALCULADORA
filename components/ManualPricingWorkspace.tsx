@@ -29,7 +29,7 @@ import {rankWebmotorsCandidates} from '../services/marketIqWebmotorsShortlist';
 import MarketIqWebmotorsShortlistPanel from './MarketIqWebmotorsShortlistPanel';
 import MarketIqAssistedCapturePanel from './MarketIqAssistedCapturePanel';
 import MarketIqCapturedReviewPanel from './MarketIqCapturedReviewPanel';
-import {readCaptureReturnContext,writeCaptureReturnContext,capturedOffersFitReturnContext}
+import {readCaptureReturnContext,writeCaptureReturnContext,clearCaptureReturnContext,capturedOffersFitReturnContext}
  from '../services/marketIqCaptureReturnContext';
 import {
  captureDraftKey,readCaptureDraft,writeCaptureDraft,clearCaptureDraft,CAPTURE_DRAFT_DAYS,
@@ -124,6 +124,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  savedForm.destinationOverride==='repasse'?'repasse':savedForm.destinationOverride==='auto'?'auto':
  savedForm.repasse===true&&['A','B','C'].includes(String(savedForm.classification||classifyByMileage(savedForm.km)?.classification||''))?'repasse':'auto');
  const [ads,setAds]=useState<Ad[]>([]);const [adsVehicleKey,setAdsVehicleKey]=useState('');const [notice,setNotice]=useState('');
+ const [saveSuccessMessage,setSaveSuccessMessage]=useState('');
+ const [mobileSaveResetSignal,setMobileSaveResetSignal]=useState(0);
+ // Prevent an in-flight Webmotors response for the previous plate from
+ // writing old ads into the next evaluation after a successful save.
+ const valuationEpoch=useRef(0);
  const freshCaptureRef=useRef<CapturedAd[]|null>(decodeExtensionTransfer(window.location.hash));
  const [extensionInbox,setExtensionInbox]=useState<CapturedAd[]>(()=>{
    const fresh=freshCaptureRef.current||[];
@@ -488,6 +493,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const selectYear=(code:string)=>{setYearCode(code);setYear(years.find(x=>x.code===code)?.name||'');setFipe(null);};
  const change=(index:number,patch:Partial<Ad>)=>setAds(a=>a.map((x,i)=>i===index?{...x,...patch}:x));
  const searchMarket=async()=>{
+   const searchEpoch=valuationEpoch.current;
    if(!searchReady){setAutoError('Informe '+missingMarketDetails+' para pesquisar anúncios.');setAutoSearchKey(vehicleKey);return;}
    if(autoLoading)return;
    if(marketCooldownUntil>Date.now()){
@@ -503,12 +509,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      const currentUser=auth.currentUser;
      if(!currentUser)throw new Error('Faça login novamente para pesquisar o mercado.');
      const token=await currentUser.getIdToken();
+     if(searchEpoch!==valuationEpoch.current)return;
      const response=await fetch('/api/marketiq-market-scan',{
        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
        body:JSON.stringify({action:'desk_market_search',vehicleType,brand,model,year:marketYear,km:number(km)}),
        signal:AbortSignal.timeout(55000)
      });
      const payload=await response.json().catch(()=>({}));
+     if(searchEpoch!==valuationEpoch.current)return;
      if(response.status===429&&payload?.code==='MARKET_SOURCE_RATE_LIMIT'){
        const seconds=Math.min(3600,Math.max(60,Number(payload.retryAfterSeconds)||900));
        const until=Date.now()+seconds*1000;
@@ -547,9 +555,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      setAds(existing=>[...found,...(adsVehicleKey===vehicleKey?existing:[]).filter(a=>!a.auto&&(a.price||a.km||a.url||a.note))]);
      if(!found.length)setAutoError('O índice localizou páginas da Webmotors, mas não conseguiu extrair ofertas individuais com ano, versão, preço e KM verificáveis. Isso NÃO significa ausência de veículos à venda. Confira as páginas indicadas ou registre anúncios conferidos.');
    }catch(error:any){
+     if(searchEpoch!==valuationEpoch.current)return;
      setAutoSearchKey(vehicleKey);
      setAutoError((error?.name==='TimeoutError'?'A fonte de anúncios demorou demais.':error?.message||'Pesquisa automática indisponível.')+' Use anúncios individuais conferidos quando não houver dados automáticos.');
-   }finally{setAutoLoading(false);}
+   }finally{if(searchEpoch===valuationEpoch.current)setAutoLoading(false);}
  };
  // Indexed results are optional and not audited; do not run a speculative
  // background lookup for every selected vehicle. The primary workflow is the
@@ -618,6 +627,33 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   vehicleType,plate,brand,model,brandCode,modelCode,modelYear:marketYear,
   km:number(km),fipe,ads:currentAds,history:saved
  }),[vehicleType,plate,brand,model,brandCode,modelCode,marketYear,km,fipe,currentAds,saved]);
+ /** Only clear this draft after all requested server save events have succeeded.
+  * Official history, paid audit and Radar Dealer snapshot remain untouched. */
+ const resetCurrentValuation=()=>{
+   valuationEpoch.current+=1;
+   try{
+     sessionStorage.removeItem(formKey);
+     clearCaptureReturnContext(window.localStorage,captureScope);
+     clearCaptureDraft(window.localStorage,captureScope,captureKey);
+   }catch{ /* React state still resets when browser storage is restricted. */ }
+   setVehicleType('car');
+   setPlate('');setBrand('');setBrandCode('');setModel('');setModelCode('');
+   setYear('');setYearCode('');setKm('');setCost('0');setFipe(null);
+   setModels([]);setYears([]);
+   setManualClassification('');setClassificationReason('');
+   setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);
+   setAds([]);setAdsVehicleKey('');setAutoSearchKey('');setAutoSearchedAt('');
+   setAutoLoading(false);setAutoError('');setSearchDiagnostics('');
+   setIndexedBrowsePages([]);setWebmotorsVersionOverride(null);
+   autoAttempted.current.clear();setDesktopMesaReference(null);
+   setExtensionInbox([]);setCaptureReview({selectedIds:null,checkedIds:[]});
+   setCaptureHydrated('');hydratedIdentityRef.current='';
+   setCaptureSavedLocally(false);setExtensionNotice('');
+   setNewApprovedValue('');setNewApprovedDate(localDate());
+   setCatalogError('');setHistoryError('');
+   setPurchaseSummaryOpen(false);setPurchaseSummaryComparable(null);
+   switchDeskSection('pricing');
+ };
  const save=async(proposal?:NegotiatedProposal,selectedMobileReference?:number,mobileReferenceKind?:'mesa'|'verified'|'historical'|'missing')=>{
    const hasVehicle=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)&&brandCode&&modelCode&&yearCode&&number(km)>0;
    if(!hasVehicle){
@@ -653,7 +689,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      ...(proposal?{negotiatedOffer:proposal.negotiatedOffer,baseSuggestion:proposal.baseSuggestion,
       requestedByManager:proposal.requestedByManager.trim(),negotiationReason:proposal.negotiationReason.trim(),
       negotiationStatus:'manager_requested'}:{})};
-   setHistoryBusy(true);setHistoryError('');
+   setHistoryBusy(true);setHistoryError('');setSaveSuccessMessage('');
    try{
      const result=await historyRequest('save',record);
      if(result.saved!==true)throw new Error('Não foi possível confirmar a gravação.');
@@ -676,9 +712,19 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      if(failures.length){
        setHistoryError('A avaliação foi salva, mas '+failures.join(' · ')+'. Não salve novamente: complemente no Histórico.');
        setNotice('Avaliação salva. Confirme os eventos pendentes no Histórico de avaliações.');
-     }else setNotice((result.updated?'Avaliação de hoje atualizada sem criar duplicidade.':'Avaliação salva no histórico.')+
-      (proposal?' Proposta ajustada registrada, ainda não é compra confirmada.':'')+
-      (recorded.length?' Valor aprovado/pago confirmado.':'')+' O histórico mantém as versões anteriores para auditoria.');
+     }else{
+       // Two successful server events when a paid amount was entered; never
+       // reset when approval fails, even if the evaluation itself was saved.
+       const receipt=(result.updated?'Avaliação de hoje atualizada sem criar duplicidade.':'Avaliação salva no histórico.')+
+        (proposal?' Proposta ajustada registrada, ainda não é compra confirmada.':'')+
+        (recorded.length?' Valor aprovado/pago confirmado.':'')+
+        ' O histórico mantém as versões anteriores para auditoria.';
+       resetCurrentValuation();
+       setSaveSuccessMessage(receipt+' Ficha limpa e pronta para a próxima avaliação.');
+       setNotice(receipt+' Ficha limpa e pronta para a próxima avaliação.');
+       setMobileSaveResetSignal(previous=>previous+1);
+       window.scrollTo({top:0,behavior:'smooth'});
+     }
    }catch(error:any){
      setHistoryError(error?.message||'Não foi possível salvar no histórico online.');
      setNotice('Não foi salva. Seus dados continuam nesta tela. Verifique a mensagem do histórico e tente novamente.');
@@ -690,13 +736,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const beginNewMobileValuation=():boolean=>{
   if((plate||brandCode||modelCode||yearCode||number(km)>0)&&
     !window.confirm('Iniciar nova avaliação? Dados não salvos da ficha atual serão substituídos; o histórico oficial permanece intacto.'))return false;
-  setPlate('');setBrand('');setBrandCode('');setModel('');setModelCode('');
-  setYear('');setYearCode('');setKm('');setCost('0');setFipe(null);
-  setManualClassification('');setClassificationReason('');
-  setDestinationOverride('auto');setDirectRepasseReason('none');setGoodLiquidity(false);
-  setAds([]);setAdsVehicleKey('');setAutoSearchKey('');setNewApprovedValue('');
-  setHistoryError('');setNotice('');setCatalogError('');
-  switchDeskSection('pricing');
+  resetCurrentValuation();setNotice('');setSaveSuccessMessage('');
   return true;
  };
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
@@ -731,6 +771,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    marketBrowseUrl={orderedWebmotorsVersionUrl||orderedWebmotorsModelUrl}
    onSearchMarket={()=>void searchMarket()} marketBusy={autoLoading} marketNotice={marketMessage}
    onSave={(proposal,suggested,source)=>void save(proposal,suggested,source)} saveBusy={historyBusy} saveNotice={notice} saveError={historyError}
+   resetAfterSaveSignal={mobileSaveResetSignal}
    onOpenFullDesk={()=>setMobileFullDesk(true)}
    onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');setMobileFullDesk(true);}}
    onStartNew={beginNewMobileValuation}
@@ -867,6 +908,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   </section>:
   <>
  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><strong>Piloto oficial:</strong> a busca automática usa páginas indexadas e pode ficar sem anúncios quando a fonte gratuita falhar. A estimativa histórica é independente da Webmotors e recalcula com FIPE, KM, classificação, preparo e destino. Anúncios não auditados não autorizam compras. As avaliações salvas no histórico online podem ser reabertas por perfis autorizados da mesma unidade.</div>
+ {saveSuccessMessage&&<div role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm font-semibold text-emerald-950">
+  {saveSuccessMessage}
+ </div>}
  <section id="motyq-iq-valuation-form" className="rounded-xl bg-white p-5">
  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
   <div><h2 className="text-xl font-semibold">Nova precificação</h2>
