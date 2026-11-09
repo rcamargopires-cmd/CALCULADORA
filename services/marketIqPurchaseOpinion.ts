@@ -43,7 +43,7 @@ function snapshotAge(date:string,today:string):number|null{
 export function buildMesaPurchaseOpinion(input:OpinionInput):PurchaseOpinion{
  const marketSupported=input.verifiedAds>=2&&valid(input.verifiedMarketPrice);
  const verifiedCeiling=marketSupported?calculateMesaPurchaseCeiling(
-  input.verifiedMarketPrice,Math.max(0,input.preparation),input.repasse):null;
+  input.verifiedMarketPrice,input.mode==='stock'?0:Math.max(0,input.preparation),input.repasse):null;
  const paid=Number.isFinite(input.paidCount)?Math.max(0,input.paidCount||0):0;
  const hasOffer=valid(input.offer),hasDealerCost=valid(input.dealerCost);
  const costReady=input.mode==='stock'?hasDealerCost:input.preparationConfirmed;
