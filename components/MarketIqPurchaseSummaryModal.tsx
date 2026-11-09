@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {auth} from '../firebase';
 import {AlertCircle,ArrowRight,BarChart3,CheckCircle2,Clock3,FileSearch,ShieldAlert,Warehouse,X} from 'lucide-react';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
@@ -48,6 +48,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  const [scenarioMode,setScenarioMode]=useState<'stock'|'purchase'>('stock');
  const [repasse,setRepasse]=useState(false);
  const [localFipe,setLocalFipe]=useState<RadarFipeQuote|null>(null);
+ const manuallySelectedFipe=useRef(false);
  const [localListings,setLocalListings]=useState<RadarWebmotorsListing[]>([]);
  const [autoFipeStatus,setAutoFipeStatus]=useState('');
  const [historyStatus,setHistoryStatus]=useState<'idle'|'loading'|'ready'|'error'>('idle');
@@ -61,6 +62,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
   if(!open)return;
   setStore(target.store||'');setOffer(target.offer&&target.offer>0?String(target.offer):'');
   setManualSale('');setDetails(false);setRate('1.5');setRepasse(false);
+  manuallySelectedFipe.current=false;
   setLocalFipe(null);setLocalListings([]);setAutoFipeStatus('');
   setScenarioMode(target.stockVehicle?'stock':'purchase');
  },[open,target.brand,target.model,target.year,target.plate,target.stockVehicle?.key]);
@@ -105,6 +107,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
     setAutoFipeStatus('O retorno FIPE não corresponde com segurança ao código, versão, câmbio e ano do histórico. Confirme manualmente.');
     return;
    }
+   if(manuallySelectedFipe.current)return;
    setLocalFipe(exact);
    setAutoFipeStatus(exact.referenceStatus==='current'?
     'FIPE atual conferida automaticamente pelo código exato, versão e ano-modelo.':
@@ -476,7 +479,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
     </div>
     <MarketIqPurchaseSourcesPanel
      vehicle={{brand:target.brand,model:target.model,year:target.year,vehicleType:target.vehicleType}}
-     quote={localFipe} onQuote={setLocalFipe}
+     quote={localFipe} onQuote={value=>{manuallySelectedFipe.current=true;setLocalFipe(value);}}
      listings={localListings} onListings={setLocalListings}/>
     <section className={cell}>
      <button type="button" aria-expanded={details} onClick={()=>setDetails(x=>!x)}
