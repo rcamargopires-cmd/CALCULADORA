@@ -155,6 +155,8 @@ assert.ok(desk.includes("marketAdsVerified:marketReady?primary.length:0"),
  'Pricing summary uses only individually validated Webmotors ads');
 assert.ok(desk.includes("verifiedMarketPrice:marketReady?avg:0"),
  'No indexed/unverified Webmotors price may appear as audited');
-assert.ok(!modal.includes('onSave')&&!modal.includes('fetch('),
- 'Summary cannot authorize purchases or send inventory to server');
+assert.ok(!modal.includes('onSave')&&!modal.includes("action:'save'")&&
+ modal.includes("action:'monthly_archive_comparables'")&&
+ modal.includes("fetch('/api/marketiq-fipe?'"),
+ 'Summary may read FIPE and authorized history only; it cannot approve a purchase or upload Dealer inventory');
 console.log('Motyq IQ Purchase Summary: family vs year, stock concentration, scenario margin, non-verified market guards, modal and shared in-memory Dealer snapshot passed.');
