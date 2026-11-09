@@ -72,6 +72,7 @@ assert.ok(modal.includes('deriveMesaPricePattern(result.comparables,current.km)'
 assert.ok(modal.includes('historyStatus===\'error\''),'Provider error is not zero purchases');
 assert.ok(modal.includes("historyData.identity!==historicalIdentity"),'Stale archive never rendered for another vehicle');
 assert.ok(modal.includes('autoFipeForHistoricalTarget(target,body)'),'Only exact FIPE auto accepted');
+assert.ok(modal.includes('if(manuallySelectedFipe.current)return;'),'Operator FIPE selection must not be overwritten by late auto response');
 assert.ok(modal.includes('Sem aprovação automática'));
 assert.ok(modal.includes('Não interprete a ausência de números como zero compras'));
 assert.ok(modal.includes('As cotações não entram na mediana paga'));
