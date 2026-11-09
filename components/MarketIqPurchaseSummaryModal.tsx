@@ -115,6 +115,21 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
      className="rounded-full border border-slate-300 bg-slate-50 p-2.5 text-slate-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-700"><X size={23}/></button>
    </header>
    <div className="space-y-5 p-4 md:p-6">
+    {target.historicalAssessment&&<section className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950" aria-label="Origem histórica da avaliação">
+      <p className="text-xs font-black uppercase tracking-wide">Avaliação selecionada no Histórico Inteligente</p>
+      <p className="mt-1">{target.historicalAssessment.source} · {target.historicalAssessment.date||'Data não registrada'} · {target.historicalAssessment.status||'Situação não confirmada'}</p>
+      <p className="mt-2 font-bold">Valor avaliado: {money(target.historicalAssessment.assessed)}</p>
+      <p className="mt-1 font-bold">{target.historicalAssessment.paid===null?
+        'Valor avaliado, não pago. Não há compra confirmada neste registro.':
+        'Valor pago registrado: '+money(target.historicalAssessment.paid)+
+        (target.historicalAssessment.paidBasis==='october_confirmed'?' · conforme regra histórica de outubro.':' · conforme aprovação registrada no Motyq IQ.')}
+      </p>
+      <p className="mt-2 text-xs leading-5">
+       A FIPE arquivada não está confirmada para o mês atual. O valor histórico não foi utilizado automaticamente
+       como oferta, custo do Dealer, preço de venda ou anúncio conferido. Confira a versão e informe
+       as condições da nova compra antes de tomar uma decisão.
+      </p>
+    </section>}
     {stock&&<nav aria-label="Tipo de análise" className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2">
      <button type="button" aria-pressed={!newPurchaseMode} onClick={()=>setScenarioMode('stock')}
       className={'rounded-lg px-4 py-2 text-sm font-bold '+(!newPurchaseMode?'bg-[#10354f] text-white':'bg-slate-100 text-slate-700 hover:bg-slate-200')}>
