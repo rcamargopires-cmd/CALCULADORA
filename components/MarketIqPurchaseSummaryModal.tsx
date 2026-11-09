@@ -1,12 +1,22 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import {auth} from '../firebase';
 import {AlertCircle,ArrowRight,BarChart3,CheckCircle2,Clock3,FileSearch,ShieldAlert,Warehouse,X} from 'lucide-react';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
 import {buildPurchaseRadar,calculateMesaPurchaseCeiling,modelYear,type PurchaseRadarTarget} from '../services/marketIqPurchaseRadar';
 import MarketIqPurchaseSourcesPanel from './MarketIqPurchaseSourcesPanel';
 import {summarizeOperatorWebmotors,type RadarFipeQuote,type RadarWebmotorsListing} from '../services/marketIqPurchaseEvidence';
+import {autoFipeForHistoricalTarget} from '../services/marketIqPurchaseAutoContext';
+import {buildComparableHistory,type ComparableCloud,type ComparableCurrent} from '../services/marketIqComparableHistory';
+import {deriveMesaPricePattern} from '../services/marketIqMesaPricePattern';
+import type {MonthlyArchiveRow} from '../services/marketIqMonthlyArchive';
 type Props={
  open:boolean;onClose:()=>void;target:PurchaseRadarTarget;
  snapshot:DealerStockSnapshot|null;onOpenRadar?:()=>void;
+ cloudHistory?:ComparableCloud[];companyId?:string;
+};
+type HistoryResult={
+ identity:string;records:MonthlyArchiveRow[];plateRecords:MonthlyArchiveRow[];
+ limited:boolean;monthsScanned:number;
 };
 const money=(n:number|null|undefined)=>n===null||n===undefined||!Number.isFinite(n)?
  'A confirmar':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(n);
@@ -29,7 +39,7 @@ function Metric({caption,value,note,accent='normal'}:{
  </div>;
 }
 /** Appraisal assistant: a decision aid, not an approval to buy or a sales prediction. */
-export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapshot,onOpenRadar}:Props){
+export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapshot,onOpenRadar,cloudHistory=[],companyId='abrao-reze'}:Props){
  const [store,setStore]=useState('');
  const [offer,setOffer]=useState('');
  const [manualSale,setManualSale]=useState('');
@@ -38,12 +48,22 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  const [scenarioMode,setScenarioMode]=useState<'stock'|'purchase'>('stock');
  const [repasse,setRepasse]=useState(false);
  const [localFipe,setLocalFipe]=useState<RadarFipeQuote|null>(null);
+ const manuallySelectedFipe=useRef(false);
  const [localListings,setLocalListings]=useState<RadarWebmotorsListing[]>([]);
+ const [autoFipeStatus,setAutoFipeStatus]=useState('');
+ const [historyStatus,setHistoryStatus]=useState<'idle'|'loading'|'ready'|'error'>('idle');
+ const [historyError,setHistoryError]=useState('');
+ const [historyData,setHistoryData]=useState<HistoryResult|null>(null);
+ const historicalIdentity=[
+   target.vehicleType,target.brand,target.model,target.year,target.km??'',
+   target.plate||'',target.fipeCode||''
+ ].join('|');
  useEffect(()=>{
   if(!open)return;
   setStore(target.store||'');setOffer(target.offer&&target.offer>0?String(target.offer):'');
   setManualSale('');setDetails(false);setRate('1.5');setRepasse(false);
-  setLocalFipe(null);setLocalListings([]);
+  manuallySelectedFipe.current=false;
+  setLocalFipe(null);setLocalListings([]);setAutoFipeStatus('');
   setScenarioMode(target.stockVehicle?'stock':'purchase');
  },[open,target.brand,target.model,target.year,target.plate,target.stockVehicle?.key]);
  useEffect(()=>{
@@ -54,6 +74,113 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
   window.addEventListener('keydown',esc);
   return ()=>{document.body.style.overflow=previous;window.removeEventListener('keydown',esc);};
  },[open,onClose]);
+ // An exact historical FIPE code can be refreshed with one read-only call.
+ // No broad automatic version guessing, no retry storm when providers are limited.
+ useEffect(()=>{
+  if(!open||!target.historicalAssessment)return;
+  const controller=new AbortController();
+  if(target.fipeStatus==='current'){
+   setAutoFipeStatus('FIPE do mês vigente já validada para este veículo no Motyq IQ.');
+   return;
+  }
+  if(!/^\d{6}-\d$/.test(String(target.fipeCode||''))){
+   setAutoFipeStatus('Sem código FIPE exato no histórico. Confirme a versão no catálogo abaixo.');
+   return;
+  }
+  let active=true;
+  setAutoFipeStatus('Consultando FIPE pelo código e ano-modelo do histórico...');
+  const query=new URLSearchParams({
+   brand:target.brand,model:target.model,year:target.year,
+   vehicleType:target.vehicleType,fipeCode:String(target.fipeCode)
+  });
+  void fetch('/api/marketiq-fipe?'+query.toString(),{
+   signal:controller.signal,cache:'no-store'
+  }).then(async response=>{
+   if(!response.ok)throw new Error(response.status===429?
+    'FIPE limitada temporariamente; mantenha a referência como não confirmada.':
+    'FIPE indisponível; escolha a versão manualmente quando necessário.');
+   return response.json();
+  }).then(body=>{
+   if(!active)return;
+   const exact=autoFipeForHistoricalTarget(target,body);
+   if(!exact){
+    setAutoFipeStatus('O retorno FIPE não corresponde com segurança ao código, versão, câmbio e ano do histórico. Confirme manualmente.');
+    return;
+   }
+   if(manuallySelectedFipe.current)return;
+   setLocalFipe(exact);
+   setAutoFipeStatus(exact.referenceStatus==='current'?
+    'FIPE atual conferida automaticamente pelo código exato, versão e ano-modelo.':
+    'FIPE encontrada por código, mas o mês vigente não foi confirmado. Não tratar como FIPE atual.');
+  }).catch(error=>{
+   if(!active||controller.signal.aborted)return;
+   setAutoFipeStatus(String(error?.message||'FIPE indisponível; confirme manualmente.'));
+  });
+  return ()=>{active=false;controller.abort();};
+ },[open,historicalIdentity,target.historicalAssessment?.date,target.fipeStatus]);
+
+ // Same authenticated archive query as Histórico Inteligente, now scoped to
+ // the clicked vehicle rather than to the unrelated current evaluation form.
+ useEffect(()=>{
+  if(!open||!target.historicalAssessment)return;
+  const controller=new AbortController();let active=true;
+  setHistoryData(null);setHistoryError('');setHistoryStatus('loading');
+  const run=async()=>{
+   try{
+    if(!target.brand.trim()||!target.model.trim()||!modelYear(target.year))
+     throw new Error('Marca, modelo ou ano-modelo não identificados.');
+    const account=auth.currentUser;
+    if(!account)throw new Error('Sua sessão expirou. Entre novamente no Motyq IQ.');
+    const token=await account.getIdToken();
+    const response=await fetch('/api/marketiq-market-scan',{
+     method:'POST',cache:'no-store',signal:controller.signal,
+     headers:{'content-type':'application/json',authorization:'Bearer '+token},
+     body:JSON.stringify({
+      action:'monthly_archive_comparables',plate:target.plate||'',
+      brand:target.brand,model:target.model,version:target.model,
+      modelYear:modelYear(target.year),km:target.km||0,
+      vehicleType:target.vehicleType,fipeCode:target.fipeCode||''
+     })
+    });
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(String(body.error||'Arquivo mensal indisponível.'));
+    if(!active)return;
+    setHistoryData({
+     identity:historicalIdentity,
+     records:Array.isArray(body.records)?body.records:[],
+     plateRecords:Array.isArray(body.plateRecords)?body.plateRecords:[],
+     limited:body.truncated===true,monthsScanned:Number(body.monthsScanned)||0
+    });
+    setHistoryStatus('ready');
+   }catch(error:any){
+    if(!active||controller.signal.aborted)return;
+    setHistoryError(String(error?.message||'Não foi possível consultar o histórico.'));
+    setHistoryStatus('error');
+   }
+  };
+  void run();
+  return ()=>{active=false;controller.abort();};
+ },[open,historicalIdentity,companyId,Boolean(target.historicalAssessment)]);
+
+ const historicalMetrics=useMemo(()=>{
+  if(!target.historicalAssessment||historyStatus!=='ready'||
+   !historyData||historyData.identity!==historicalIdentity)return null;
+  const current:ComparableCurrent={
+   brand:target.brand,model:target.model,plate:target.plate||'',
+   modelYear:modelYear(target.year)||0,vehicleType:target.vehicleType,
+   km:target.km||0,
+   // FIPE-adjusted medians are not used to approve an offer. The original
+   // archived FIPE is never called the current month's reference.
+   fipe:localFipe?.referenceStatus==='current'?localFipe.value:
+    target.fipeStatus==='current'?(target.fipe||0):0,
+   fipeCode:localFipe?.fipeCode||target.fipeCode
+  };
+  const result=buildComparableHistory(current,historyData.plateRecords,
+   historyData.records,cloudHistory,companyId,historyData.limited);
+  return {result,pattern:deriveMesaPricePattern(result.comparables,current.km)};
+ },[target.brand,target.model,target.year,target.plate,target.vehicleType,target.km,
+  target.fipe,target.fipeStatus,target.fipeCode,target.historicalAssessment,
+  historicalIdentity,historyStatus,historyData,cloudHistory,companyId,localFipe]);
  const numeric=(value:string)=>{
   const num=Number(value.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''));
   return Number.isFinite(num)&&num>=0?num:0;
@@ -129,6 +256,64 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
        como oferta, custo do Dealer, preço de venda ou anúncio conferido. Confira a versão e informe
        as condições da nova compra antes de tomar uma decisão.
       </p>
+    </section>}
+    {target.historicalAssessment&&<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Dados aproveitados automaticamente">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+       <div>
+        <p className="text-xs font-black uppercase tracking-wider text-cyan-800">Histórico Inteligente + FIPE + Dealer + Webmotors</p>
+        <h3 className="mt-1 text-base font-black text-slate-950">O que já sabemos sobre este veículo</h3>
+       </div>
+       <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700">Consulta orientativa</span>
+      </div>
+      <p role="status" className={'mt-3 rounded-lg p-2.5 text-xs leading-5 '+(localFipe?.referenceStatus==='current'||target.fipeStatus==='current'?'bg-emerald-50 text-emerald-950':'bg-amber-50 text-amber-950')}>
+       <strong>FIPE:</strong> {autoFipeStatus||'Referência do mês atual não verificada; consulte a versão exata abaixo.'}
+      </p>
+      {historyStatus==='loading'&&<p role="status" className="mt-3 text-xs font-semibold text-slate-700">Consultando compras e avaliações comparáveis no arquivo autorizado da empresa...</p>}
+      {historyStatus==='error'&&<p role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs font-semibold text-amber-950">
+       Histórico indisponível: {historyError}. Não interprete a ausência de números como zero compras.
+      </p>}
+      {historicalMetrics&&<div className="mt-3 space-y-2">
+       <div className="grid gap-2 sm:grid-cols-3">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+         <p className="text-xs font-bold text-emerald-900">Mediana efetivamente paga</p>
+         <p className="mt-1 text-xl font-black text-emerald-950">{money(historicalMetrics.result.paidMedian)}</p>
+         <p className="text-[11px] leading-4 text-emerald-900">{historicalMetrics.result.paidCount} compra(s) de mesma versão, ano e KM próximo</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+         <p className="text-xs font-bold text-slate-800">Padrão interno recorrente</p>
+         <p className="mt-1 text-xl font-black text-slate-950">{money(historicalMetrics.pattern.operationalSuggestion)}</p>
+         <p className="text-[11px] leading-4 text-slate-700">{historicalMetrics.pattern.typicalCount} veículo(s) distintos com o mesmo valor registrado; pode ser cotação</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+         <p className="text-xs font-bold text-slate-800">Maior compra comparável</p>
+         <p className="mt-1 text-xl font-black text-slate-950">{money(historicalMetrics.pattern.maxPaid)}</p>
+         <p className="text-[11px] leading-4 text-slate-700">Máximo observado, nunca autorização automática de compra</p>
+        </div>
+       </div>
+       <p className="text-xs leading-5 text-slate-700">
+        {historicalMetrics.result.exactCount} avaliação(ões) tecnicamente comparável(is), com diferença de KM limitada a 20 mil para preços pagos.
+        {historicalMetrics.result.paidCount<3?' Amostra de compras pequena: não determina um teto confiável.':''}
+        {historicalMetrics.result.limited?' A consulta histórica foi parcial; não usar os totais como completos.':''}
+        {' '}As cotações não entram na mediana paga, e a placa analisada não conta como outra compra independente.
+       </p>
+       {historicalMetrics.result.historicalAdjustedMedian!==null&&
+        (localFipe?.referenceStatus==='current'||target.fipeStatus==='current')&&
+        <p className="text-xs font-semibold text-cyan-900">Mediana paga ajustada pela FIPE vigente: {money(historicalMetrics.result.historicalAdjustedMedian)} (referência estatística, sem aprovação automática).</p>}
+      </div>}
+      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+       <p className="rounded-lg bg-slate-50 p-2.5 text-slate-700">
+        <strong>Estoque Dealer:</strong> {snapshot?
+         data.familyCount+' veículo(s) da família encontrados na fotografia '+stockDate+
+         '; versões e anos distintos não são cotação de venda.' :
+         'fotografia não importada nesta sessão. Abra o Radar para carregar o estoque.'}
+       </p>
+       <p className="rounded-lg bg-slate-50 p-2.5 text-slate-700">
+        <strong>Mercado Webmotors:</strong> {marketReference?
+         money(marketReference)+' em '+checkedListings.count+' anúncios individuais já conferidos.':
+         'sem dois anúncios individuais da versão correta já conferidos. Não criamos preço de mercado automaticamente.'}
+       </p>
+      </div>
+      <p className="mt-2 text-[11px] leading-5 text-slate-600">Essas informações são contexto para a Mesa. O teto hipotético abaixo usa somente referência de venda identificada, custos informados e regras de 14% e 5%, quando aplicáveis.</p>
     </section>}
     {stock&&<nav aria-label="Tipo de análise" className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2">
      <button type="button" aria-pressed={!newPurchaseMode} onClick={()=>setScenarioMode('stock')}
@@ -294,7 +479,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
     </div>
     <MarketIqPurchaseSourcesPanel
      vehicle={{brand:target.brand,model:target.model,year:target.year,vehicleType:target.vehicleType}}
-     quote={localFipe} onQuote={setLocalFipe}
+     quote={localFipe} onQuote={value=>{manuallySelectedFipe.current=true;setLocalFipe(value);}}
      listings={localListings} onListings={setLocalListings}/>
     <section className={cell}>
      <button type="button" aria-expanded={details} onClick={()=>setDetails(x=>!x)}

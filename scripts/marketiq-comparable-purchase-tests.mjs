@@ -13,8 +13,10 @@ for(const body of [source,panel,workspace,modal,radar,history]){
  const result=ts.transpileModule(body,{compilerOptions,reportDiagnostics:true});
  assert.equal((result.diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error).length,0);
 }
-const transpiled=ts.transpileModule(source,{compilerOptions}).outputText;
-assert.ok(!/from ['"]\./.test(transpiled),'Purchase target adapter must be a pure helper');
+const transpiled=ts.transpileModule(source,{compilerOptions}).outputText
+ .replace(/import\s*\{\s*reuseVerifiedIqEvidence\s*\}\s*from\s*['"]\.\/marketIqPurchaseAutoContext['"];?/,
+  'const reuseVerifiedIqEvidence=()=>null;');
+assert.ok(!/from ['"]\./.test(transpiled),'Legacy adapter tests must have no unresolved runtime import');
 const {purchaseTargetFromComparable}=await import('data:text/javascript;base64,'+Buffer.from(transpiled).toString('base64'));
 const row={
  id:'archive|2026-10|123',source:'AutoAvaliar',date:'2026-10-16',plate:'TIN6C49',
@@ -55,7 +57,7 @@ assert.ok(panel.includes('onOpenPurchaseSummary(e)'));
 assert.ok(panel.includes('Resumo de Compra'));
 assert.ok(panel.includes('onOpenPurchaseSummary?:'));
 assert.ok(workspace.includes('onOpenPurchaseSummary={setPurchaseSummaryComparable}'));
-assert.ok(workspace.includes('target={purchaseTargetFromComparable(purchaseSummaryComparable)}'));
+assert.ok(workspace.includes('target={purchaseTargetFromComparable(purchaseSummaryComparable,{'));
 assert.ok(workspace.includes('onClose={()=>setPurchaseSummaryComparable(null)}'));
 assert.ok(workspace.includes('target={{\n   brand,model,year,plate,vehicleType,km:number(km)'),
  'Existing current appraisal purchase summary must remain independent');

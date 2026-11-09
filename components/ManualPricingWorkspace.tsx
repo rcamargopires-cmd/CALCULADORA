@@ -1193,7 +1193,17 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   onClose={()=>setPurchaseSummaryComparable(null)}
   snapshot={radarSnapshot}
   onOpenRadar={()=>{setPurchaseSummaryComparable(null);switchDeskSection('radar');}}
-  target={purchaseTargetFromComparable(purchaseSummaryComparable)}
+  companyId={user.companyId||'abrao-reze'}
+  cloudHistory={saved}
+  target={purchaseTargetFromComparable(purchaseSummaryComparable,{
+   brand,model,year:marketYear,vehicleType,fipe,
+   // Only ads already explicitly checked by the Mesa can be carried across.
+   // The adapter also enforces FIPE code and version identity before reuse.
+   listings:primary.map(ad=>({
+    url:ad.url,price:number(ad.price),km:number(ad.km),
+    title:String(ad.title||''),checked:!ad.auto&&ad.status==='valid'
+   }))
+  })}
  />}
  </>;
 }

@@ -7,12 +7,13 @@ export type ComparableCurrent={
 export type ComparableCloud={
  id:string;plate?:string;brand?:string;model:string;year:string;km:string;
  vehicleType?:'car'|'motorcycle';approvedValue?:number;paidValue?:number;
- approvedAt?:string;paidAt?:string;date?:string;fipe?:{value?:number}|null;
+ approvedAt?:string;paidAt?:string;date?:string;fipe?:{value?:number;fipeCode?:string}|null;
 };
 export type ComparableEntry={
  id:string;source:'AutoAvaliar'|'Motyq IQ';date:string;plate:string;brand:string;
  model:string;version:string;year:number;km:number|null;
  vehicleType:'car'|'motorcycle';status:string;assessed:number|null;paid:number|null;fipe:number|null;
+ /** Code from the exact historical record; not a current price quote. */ fipeCode?:string;
  grade:'exato'|'equivalente'|'relacionado'|'placa';eligible:boolean;
  paidBasis:'approved'|'october_confirmed'|'none';store?:string;
 };
@@ -162,7 +163,7 @@ export function buildComparableHistory(
    id:key,source:'AutoAvaliar',date:r.evaluationDate,plate:plateComparable(r.plate),
    brand:r.brand,model:r.model,version:r.version,year:r.modelYear||0,km:r.km,
    vehicleType:r.vehicleType,status:r.status,assessed:r.assessedValue,paid:historicalPaid?r.assessedValue:null,
-   fipe:r.fipe,grade,eligible:!same&&grade==='exato',
+   fipe:r.fipe,fipeCode:r.fipeCode,grade,eligible:!same&&grade==='exato',
    paidBasis:historicalPaid?'october_confirmed':'none',store:r.store
   };
   (same?samePlate:comparables).push(entry);
@@ -187,7 +188,7 @@ export function buildComparableHistory(
    brand:r.brand||'',model:r.model,version:r.model,year,km:readKm(r.km),
    vehicleType:r.vehicleType||current.vehicleType,
    status:paid!==null?'COMPRA CONFIRMADA':'AVALIADO',assessed:null,paid,
-   fipe:validMoney(r.fipe?.value)?r.fipe.value:null,grade,
+   fipe:validMoney(r.fipe?.value)?r.fipe.value:null,fipeCode:r.fipe?.fipeCode,grade,
    eligible:!same&&grade==='exato',
    paidBasis:paid!==null?'approved':'none'};
   (same?samePlate:comparables).push(entry);
