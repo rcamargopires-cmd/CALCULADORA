@@ -42,6 +42,11 @@ export function writeCaptureReturnContext(
   return Boolean(readCaptureReturnContext(storage,scope,now));
  }catch{return false;}
 }
+/** A completed/saved valuation must not be resurrected as the next blank form. */
+export function clearCaptureReturnContext(storage:ScopeStorage|undefined,scope:string):boolean{
+ if(!storage||!scope)return false;
+ try{storage.removeItem(scopeKey(scope));return true;}catch{return false;}
+}
 export function capturedOffersFitReturnContext(
  urls:{url:string;year:number}[],expectedModelUrl:string|null,expectedYear:number
 ):boolean{
