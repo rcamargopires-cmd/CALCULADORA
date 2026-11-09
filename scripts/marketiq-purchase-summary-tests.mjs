@@ -117,7 +117,7 @@ assert.notEqual(stockWithHighMargin.signal,'favorable',
  'An unverified Dealer suggested price alone cannot lead to a favorable purchase signal');
 assert.ok(modal.includes('role="dialog" aria-modal="true"'));
 assert.ok(modal.includes("if(e.key==='Escape')onClose()"),'Escape closes modal');
-assert.ok(modal.includes('Resumo de Compra')&&modal.includes('Sinal da Mesa'));
+assert.ok(modal.includes('Resumo de Compra')&&modal.includes('Parecer Inteligente da Mesa')&&modal.includes('Indicador operacional do Radar'));
 assert.ok(modal.includes('Sem aprovação automática')&&modal.includes('não é lucro líquido'));
 assert.ok(modal.includes('Mesmo ano-modelo no grupo'));
 assert.ok(modal.includes('Estoque da unidade'));
