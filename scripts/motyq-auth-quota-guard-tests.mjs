@@ -38,6 +38,11 @@ assert.ok(service.includes("payload?.error==='firestore_quota_exceeded'"));
 assert.ok(api.includes("res.status(503).json({error:'firestore_quota_exceeded'})"),
  'Firestore capacity is not an invalid password');
 assert.ok(api.includes("res.setHeader('Retry-After','300')"));
+assert.ok(api.includes('let currentUserQuotaBlockedUntil=0'));
+assert.ok(api.includes('Date.now()<currentUserQuotaBlockedUntil'));
+assert.ok(api.includes('currentUserQuotaBlockedUntil=Date.now()+5*60*1000'));
+assert.ok(api.includes('if(email!==OWNER_ADMIN&&Date.now()<currentUserQuotaBlockedUntil)'),
+ 'Owner emergency path must not be blocked by transient quota breaker');
 assert.ok(api.includes("if(/current_user_firestore_429|resource.exhausted|quota/i.test(reason))"));
 assert.ok(!api.includes("res.status(401).json({ error: String(error?.message"),'No raw infrastructure errors mistaken for user credentials');
 console.log('Motyq auth quota circuit breaker: single profile verification, live permissions, 429 fail-fast, 503 backend mapping, session cooldown, no role bypass passed.');
