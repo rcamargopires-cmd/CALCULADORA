@@ -35,6 +35,7 @@ export type Props={
  marketBrowseUrl:string|null;onSearchMarket:()=>void;marketBusy:boolean;marketNotice:string;
  onSave:(proposal?:NegotiatedProposal,suggested?:number,source?:'mesa'|'verified'|'historical'|'missing')=>void;saveBusy:boolean;saveNotice:string;saveError:string;onOpenFullDesk:()=>void;
  onStartNew:()=>boolean;onOpenApprovals:()=>void;onOpenPlateHistory?:()=>void;
+ resetAfterSaveSignal?:number;
 };
 type Tab='home'|'pricing'|'history'|'stock'|'repasse'|'settings';
 const cash=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -175,6 +176,18 @@ export default function MarketIqMobileExperience(p:Props){
   setTab(v);setMessage('');window.scrollTo({top:0,behavior:'smooth'});
  };
  const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setQuickMode(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
+ // Parent confirms evaluation and any paid-value event before requesting a
+ // fresh mobile sheet. Do not reset here when saving failed or is pending.
+ useEffect(()=>{
+  if(!p.resetAfterSaveSignal)return;
+  setResult(false);setQuickMode(false);setQuickQuery('');setQuickError('');
+  setQuickType('car');setStep(1);setPickedYear(0);setPickedFuel('');
+  setBrandSearch('');setModelSearch('');setQuery('');
+  setOfferEdit(false);setOfferAmount('');setOfferManager('');
+  setOfferReason('');setOfferVehicleKey('');setOfferError('');
+  changeTab('pricing');
+ },[p.resetAfterSaveSignal]);
+
  const startQuickSearch=(term:string=quickQuery)=>{
   if(!term.trim()){setQuickError('Digite um modelo ou uma versão para buscar.');return;}
   const sameVehicleType=quickType===p.vehicleType;
@@ -642,6 +655,8 @@ export default function MarketIqMobileExperience(p:Props){
     {p.saveError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs text-rose-800">{p.saveError}</p>}
     {p.saveNotice&&<p role="status" className="rounded-xl bg-sky-50 p-3 text-xs text-sky-900">{p.saveNotice}</p>}
    </div>}
+   {tab==='pricing'&&p.saveNotice.includes('Ficha limpa e pronta para a próxima avaliação.')&&
+    <p role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-950">{p.saveNotice}</p>}
    {tab==='history'&&<div className="space-y-3">
     <input className={input} placeholder="Buscar placa, modelo ou ano" value={query} onChange={e=>setQuery(e.target.value)}/>
     <button className="flex items-center gap-2 text-xs font-bold text-[#008bd0]" onClick={p.onRefreshHistory}><RefreshCw size={16}/> Atualizar histórico</button>
