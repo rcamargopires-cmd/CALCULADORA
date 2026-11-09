@@ -1215,6 +1215,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  </main>
  <MarketIqPurchaseSummaryModal open={purchaseSummaryOpen}
   onClose={()=>setPurchaseSummaryOpen(false)}
+  companyId={user.companyId||'abrao-reze'}
+  cloudHistory={saved}
   snapshot={radarSnapshot}
   onOpenRadar={()=>switchDeskSection('radar')}
   target={{

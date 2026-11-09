@@ -3,6 +3,7 @@ import {auth} from '../firebase';
 import {AlertCircle,ArrowRight,BarChart3,CheckCircle2,Clock3,FileSearch,ShieldAlert,Warehouse,X} from 'lucide-react';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
 import {buildPurchaseRadar,calculateMesaPurchaseCeiling,modelYear,type PurchaseRadarTarget} from '../services/marketIqPurchaseRadar';
+import {buildMesaPurchaseOpinion} from '../services/marketIqPurchaseOpinion';
 import MarketIqPurchaseSourcesPanel from './MarketIqPurchaseSourcesPanel';
 import {summarizeOperatorWebmotors,type RadarFipeQuote,type RadarWebmotorsListing} from '../services/marketIqPurchaseEvidence';
 import {autoFipeForHistoricalTarget} from '../services/marketIqPurchaseAutoContext';
@@ -47,6 +48,8 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  const [rate,setRate]=useState('1.5');
  const [scenarioMode,setScenarioMode]=useState<'stock'|'purchase'>('stock');
  const [repasse,setRepasse]=useState(false);
+ const [preparationDraft,setPreparationDraft]=useState(String(target.preparation??0));
+ const [preparationConfirmed,setPreparationConfirmed]=useState(false);
  const [localFipe,setLocalFipe]=useState<RadarFipeQuote|null>(null);
  const manuallySelectedFipe=useRef(false);
  const [localListings,setLocalListings]=useState<RadarWebmotorsListing[]>([]);
@@ -62,6 +65,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
   if(!open)return;
   setStore(target.store||'');setOffer(target.offer&&target.offer>0?String(target.offer):'');
   setManualSale('');setDetails(false);setRate('1.5');setRepasse(false);
+  setPreparationDraft(String(target.preparation??0));setPreparationConfirmed(false);
   manuallySelectedFipe.current=false;
   setLocalFipe(null);setLocalListings([]);setAutoFipeStatus('');
   setScenarioMode(target.stockVehicle?'stock':'purchase');
@@ -122,7 +126,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  // Same authenticated archive query as Histórico Inteligente, now scoped to
  // the clicked vehicle rather than to the unrelated current evaluation form.
  useEffect(()=>{
-  if(!open||!target.historicalAssessment)return;
+  if(!open||!target.brand.trim()||!target.model.trim())return;
   const controller=new AbortController();let active=true;
   setHistoryData(null);setHistoryError('');setHistoryStatus('loading');
   const run=async()=>{
@@ -163,7 +167,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  },[open,historicalIdentity,companyId,Boolean(target.historicalAssessment)]);
 
  const historicalMetrics=useMemo(()=>{
-  if(!target.historicalAssessment||historyStatus!=='ready'||
+  if(historyStatus!=='ready'||
    !historyData||historyData.identity!==historicalIdentity)return null;
   const current:ComparableCurrent={
    brand:target.brand,model:target.model,plate:target.plate||'',
@@ -203,11 +207,12 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
   ...target,stockVehicle:newPurchaseMode?null:stock,
   fipe:fipeValue,
   offer:newPurchaseMode?numeric(offer):undefined,
+  preparation:newPurchaseMode?numeric(preparationDraft):0,
   manualSalePrice:manualSale.trim()?numeric(manualSale):undefined,
   dealerSuggestedSalePrice:newPurchaseMode&&stock&&!manualSale.trim()?stock.price:undefined,
   verifiedMarketPrice:marketReference||0,marketAdsVerified:checkedListings.count
  },store,Number(rate.replace(',','.'))||1.5),
- [snapshot,target,stock,newPurchaseMode,store,offer,manualSale,rate,fipeValue,
+ [snapshot,target,stock,newPurchaseMode,store,offer,preparationDraft,manualSale,rate,fipeValue,
   marketReference,checkedListings.count]);
  if(!open)return null;
  const headline=(target.brand+' '+target.model+' '+target.year).trim();
@@ -218,7 +223,7 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
   data.signal==='negotiate'?'border-rose-300 bg-rose-50 text-rose-950':
   data.signal==='stock_risk'?'border-orange-300 bg-orange-50 text-orange-950':
   'border-amber-200 bg-amber-50 text-amber-950';
- const preparation=Math.max(0,target.preparation||0);
+ const preparation=newPurchaseMode?numeric(preparationDraft):0;
  const projectedCost=!newPurchaseMode&&stock?.cost&&stock.cost>0?stock.cost:
   numeric(offer)>0?numeric(offer)+preparation:null;
  const ceilingBenchmark=marketReference||data.referencePrice;
@@ -226,6 +231,26 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
  const ceilingSource=marketReference?'média dos anúncios Webmotors conferidos pela Mesa':
   data.referenceSale==='dealer_suggested'?'preço sugerido no Dealer':
   data.referenceSale==='manual_assumption'?'preço de venda hipotético digitado':'fonte não confirmada';
+ const opinion=buildMesaPurchaseOpinion({
+  mode:newPurchaseMode?'purchase':'stock',
+  verifiedMarketPrice:marketReference,verifiedAds:checkedListings.count,
+  offer:newPurchaseMode&&numeric(offer)>0?numeric(offer):null,
+  dealerCost:!newPurchaseMode&&stock?.cost&&stock.cost>0?stock.cost:null,
+  preparation,preparationConfirmed,repasse,
+  fipeCurrent:currentFipeForComparison>0,fipeValue:currentFipeForComparison||null,
+  snapshotAvailable:Boolean(snapshot),snapshotDate:snapshot?.reportDate||'',
+  familyCount:data.familyCount,yearFamilyCount:data.yearFamilyCount,
+  over90Count:data.over90Count,
+  historyAvailable:historyStatus==='ready'&&Boolean(historicalMetrics),
+  historyLimited:historicalMetrics?.result.limited===true,
+  paidCount:historicalMetrics?.result.paidCount??null,
+  paidMedian:historicalMetrics?.result.paidMedian??null
+ });
+ const opinionTone=opinion.status==='opportunity'?
+  'border-emerald-300 bg-emerald-50 text-emerald-950':
+  opinion.status==='avoid'?'border-rose-300 bg-rose-50 text-rose-950':
+  opinion.status==='negotiate'?'border-amber-300 bg-amber-50 text-amber-950':
+  'border-slate-300 bg-slate-50 text-slate-900';
  const differenceToCeiling=!newPurchaseMode&&stock?.cost&&ceiling!==null?
   stock.cost-ceiling:null;
  return <div className="fixed inset-0 z-[140] overflow-y-auto bg-[#071421]/80 px-2 py-4 backdrop-blur-sm md:p-8"
@@ -325,9 +350,55 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
       Simular compra de outro igual
      </button>
     </nav>}
+    <section aria-label="Parecer Inteligente da Mesa" className={'rounded-xl border-2 p-4 shadow-sm '+opinionTone}>
+     <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+       <p className="text-xs font-black uppercase tracking-wider">Parecer Inteligente da Mesa · {newPurchaseMode?'Nova aquisição':'Estoque existente'}</p>
+       <h3 className="mt-1 text-xl font-black md:text-2xl">{opinion.title}</h3>
+       <p className="mt-2 max-w-3xl text-sm leading-6">{opinion.rationale}</p>
+      </div>
+      <span className="rounded-lg border border-current/20 bg-white px-3 py-2 text-xs font-bold text-slate-900">
+       Confiança: {opinion.confidence}
+      </span>
+     </div>
+     <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <div className="rounded-lg border border-current/10 bg-white/80 p-3">
+       <p className="text-[11px] font-bold text-slate-600">Mercado conferido</p>
+       <p className="mt-1 text-base font-black text-slate-900">{opinion.marketSupported?money(marketReference):'A confirmar'}</p>
+       <p className="text-[11px] text-slate-600">{checkedListings.count} anúncio(s) individual(is) aceito(s)</p>
+      </div>
+      <div className="rounded-lg border border-current/10 bg-white/80 p-3">
+       <p className="text-[11px] font-bold text-slate-600">Teto pela regra comercial</p>
+       <p className="mt-1 text-base font-black text-slate-900">{money(opinion.verifiedCeiling)}</p>
+       <p className="text-[11px] text-slate-600">{repasse?'14% + repasse de 5%':'Reserva comercial de 14%'} · preparo {money(preparation)}</p>
+      </div>
+      <div className="rounded-lg border border-current/10 bg-white/80 p-3">
+       <p className="text-[11px] font-bold text-slate-600">Histórico efetivamente pago</p>
+       <p className="mt-1 text-base font-black text-slate-900">{historicalMetrics?money(historicalMetrics.result.paidMedian):'A confirmar'}</p>
+       <p className="text-[11px] text-slate-600">{historicalMetrics?historicalMetrics.result.paidCount+' compra(s) comparável(is)':historyStatus==='loading'?'Consultando registros...':'Sem confirmação histórica'}</p>
+      </div>
+     </div>
+     {opinion.reasons.length>0&&<div className="mt-3">
+      <p className="text-xs font-black">Justificativas verificáveis</p>
+      <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-5">
+       {opinion.reasons.map((reason,i)=><li key={i}>{reason}</li>)}
+      </ul>
+     </div>}
+     {opinion.missing.length>0&&<div className="mt-3 rounded-lg border border-current/15 bg-white/70 p-3">
+      <p className="text-xs font-black">O que falta conferir para aumentar a confiança</p>
+      <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-5">
+       {opinion.missing.map((item,i)=><li key={i}>{item}</li>)}
+      </ul>
+     </div>}
+     {historyStatus==='error'&&<p role="alert" className="mt-2 text-xs font-semibold">
+      Histórico indisponível: {historyError}. Não interpretamos a falha como ausência de compras.
+     </p>}
+     <p className="mt-3 text-xs font-bold">Próximo passo: {opinion.nextAction}</p>
+     <p className="mt-2 border-t border-current/15 pt-2 text-[11px] leading-5">{opinion.warning} Nenhum parecer aprova uma compra automaticamente.</p>
+    </section>
     <section className={'flex flex-wrap items-start justify-between gap-4 rounded-xl border p-4 '+signalTone}>
      <div className="max-w-3xl">
-      <p className="text-xs font-black uppercase tracking-wide">Sinal da Mesa · {newPurchaseMode?'Cenário de nova compra':'Situação do veículo em estoque'} · Orientação preliminar</p>
+      <p className="text-xs font-black uppercase tracking-wide">Indicador operacional do Radar · {newPurchaseMode?'Cenário de nova compra':'Situação do veículo em estoque'} · Não substitui o Parecer Inteligente</p>
       <p className="mt-1 text-xl font-black md:text-2xl">{data.signalTitle}</p>
       <p className="mt-2 text-sm leading-6">
        {data.reasons[0]||'Ainda precisamos conferir os dados para orientar a compra.'}
@@ -444,8 +515,23 @@ export default function MarketIqPurchaseSummaryModal({open,onClose,target,snapsh
          className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-950"/>
        </label>
       </div>}
+      {newPurchaseMode&&<div className="mt-3 rounded-xl border border-slate-300 bg-white p-3">
+       <label className="block text-xs font-bold text-slate-800">Custo previsto de preparação (R$)
+        <input type="text" inputMode="decimal" value={preparationDraft}
+         onChange={e=>{setPreparationDraft(e.target.value);setPreparationConfirmed(false);}}
+         aria-label="Custo previsto de preparação"
+         className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-950"
+         placeholder="Ex.: 2.000,00"/>
+       </label>
+       <label className="mt-2 flex items-start gap-2 text-xs font-semibold text-slate-800">
+        <input type="checkbox" checked={preparationConfirmed}
+         onChange={e=>setPreparationConfirmed(e.target.checked)}
+         className="mt-1 h-4 w-4 shrink-0"/>
+        Conferi o custo de preparo desta simulação, mesmo que seja R$ 0. Despesas não informadas podem reduzir o teto.
+       </label>
+      </div>}
       <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-6 text-slate-700">
-       <p>Preparação prevista na ficha: <strong>{money(target.preparation||0)}</strong></p>
+       <p>Preparação {newPurchaseMode?'simulada':'já incorporada ao Valor Custo do Dealer'}: <strong>{money(preparation)}</strong></p>
        <p>Capital em 30 dias ({rate.replace('.',',')}% ao mês): <strong>{money(data.capitalAt30)}</strong></p>
        <p className="mt-1 text-slate-600">A simulação de capital não é despesa comprovada nem foi somada à diferença bruta acima.</p>
       </div>
