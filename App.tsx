@@ -42,6 +42,22 @@ const getInitialData = (): DealData => ({
   closingType: 'standard' as const
 });
 
+/**
+ * IQ is a separate workflow. Do not subscribe to the CRM, sales deals,
+ * user directory or billing configuration while a Mesa user only needs IQ.
+ * This saves potentially thousands of unnecessary Firestore reads per day.
+ */
+const isMotyqIqWorkspace = (user:User):boolean => {
+  const email=String(user.email||'').trim().toLowerCase();
+  const allowed=companyIdForUser(user)==='abrao-reze'&&(
+    ['pricing','manager','admin'].includes(user.role)||Boolean(user.pricingDeskOnly)||
+    Boolean(user.pricingDeskAccess)||email==='reinaldo.ribas@abraoreze.com.br'
+  );
+  const params=new URLSearchParams(window.location.search);
+  return allowed&&(params.get('iq')==='1'||user.role==='pricing'||
+    Boolean(user.pricingDeskOnly)||(email==='reinaldo.ribas@abraoreze.com.br'&&params.get('go')!=='1'));
+};
+
 const App: React.FC<{resolvedUser?:User|null}> = ({resolvedUser}) => {
   const [user, setUser] = useState<User | null>(resolvedUser ?? null);
   const [isAuthLoading, setIsAuthLoading] = useState(resolvedUser === undefined);
@@ -150,7 +166,10 @@ const App: React.FC<{resolvedUser?:User|null}> = ({resolvedUser}) => {
   }, [resolvedUser]);
 
   useEffect(() => {
-    if (!user) return;
+    // The user and authorization profile are already verified by
+    // RoleAwareRoot. IQ has its own scoped data and must not open three
+    // additional CRM/sales subscriptions at startup.
+    if (!user || isMotyqIqWorkspace(user)) return;
     const loadInitialConfig = async () => { const config = await configService.loadConfig(); setFieldConfig(config.visibility); setCommissionConfig(config.commission); setBankRates(config.bankRates); };
     // QA cleanup must never run on every production login. It scans the
     // tenant deals collection and was useful only during the final checklist.
