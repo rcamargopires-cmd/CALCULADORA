@@ -42,9 +42,9 @@ const getInitialData = (): DealData => ({
   closingType: 'standard' as const
 });
 
-const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+const App: React.FC<{resolvedUser?:User|null}> = ({resolvedUser}) => {
+  const [user, setUser] = useState<User | null>(resolvedUser ?? null);
+  const [isAuthLoading, setIsAuthLoading] = useState(resolvedUser === undefined);
   const [authError, setAuthError] = useState('');
   const [fieldConfig, setFieldConfig] = useState<FieldVisibility | null>(null);
   const [commissionConfig, setCommissionConfig] = useState<CommissionConfig | null>(null);
@@ -108,6 +108,15 @@ const App: React.FC = () => {
   useEffect(() => { if (toast) { const timer = setTimeout(() => setToast(null), 3000); return () => clearTimeout(timer); } }, [toast]);
 
   useEffect(() => {
+    // RoleAwareRoot has already authenticated and subscribed to the user's
+    // live authorization profile. Do NOT repeat Firestore reads or listeners
+    // inside App. Standalone App still retains its existing legacy flow.
+    if(resolvedUser !== undefined){
+      setUser(resolvedUser);
+      setAuthError('');
+      setIsAuthLoading(false);
+      return;
+    }
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser && firebaseUser.email) {
         try {
@@ -138,7 +147,7 @@ const App: React.FC = () => {
       setIsAuthLoading(false);
     });
     return () => unsubscribeAuth();
-  }, []);
+  }, [resolvedUser]);
 
   useEffect(() => {
     if (!user) return;
