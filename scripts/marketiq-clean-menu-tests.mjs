@@ -11,8 +11,8 @@ assert.equal((source.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCatego
  'The Mesa component must parse as valid React TSX');
 const top=workspace.match(/<nav className="motyq-iq-tabs[\s\S]*?<\/nav>/)?.[0];
 assert.ok(top,'One primary navigation bar should exist');
-const primary=['dashboard','pricing','consulted','approvals','learning'];
-const nested=['pricing','history','archive','plateHistory','radar'];
+const primary=['dashboard','pricing','radar','consulted','approvals','learning'];
+const nested=['pricing','history','archive','plateHistory'];
 for(const section of primary){
  assert.ok(top.includes("switchDeskSection('"+section+"')"),section+' must remain accessible in primary bar');
 }
@@ -20,16 +20,16 @@ for(const section of ['history','archive','plateHistory']){
  assert.ok(!top.includes("switchDeskSection('"+section+"')"),
   section+' must not appear at primary level');
 }
-assert.equal((top.match(/<button type="button"/g)||[]).length,5,
- 'Primary menu must have exactly five main buttons');
+assert.equal((top.match(/<button type="button"/g)||[]).length,6,
+ 'Primary menu must have six main buttons with direct Radar access');
 assert.ok(top.includes("aria-label=\"Áreas principais do Motyq IQ\""));
 assert.ok(top.includes('aria-expanded={mesaActive}'),'Mesa main item advertises submenu');
-assert.ok(workspace.includes("const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory'||deskSection==='radar';"),
- 'Mesa must remain active for all five nested pages');
+assert.ok(workspace.includes("const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';"),
+ 'Mesa must remain active for the four nested Mesa tools');
 const second=workspace.match(/\{mesaActive&&<nav id="motyq-iq-mesa-tools"[\s\S]*?<\/nav>\}/)?.[0];
 assert.ok(second,'Subnavigation only appears when Mesa is active');
-assert.equal((second.match(/<button type="button"/g)||[]).length,5,
- 'Exactly five nested destinations under Mesa, including Radar');
+assert.equal((second.match(/<button type="button"/g)||[]).length,4,
+ 'Exactly four nested destinations under Mesa: pricing, history, archive, plate history');
 for(const section of nested){
  assert.ok(second.includes("switchDeskSection('"+section+"')"),section+' must remain accessible under Mesa');
 }
@@ -38,9 +38,10 @@ assert.ok(second.includes('Histórico <span'),'Online history counter preserved 
 assert.ok(second.includes('>{saved.length}</span>'));
 assert.ok(second.includes('Arquivo mensal'));
 assert.ok(second.includes('Histórico por placa'));
-assert.ok(second.includes('Radar de Compra'));
+assert.ok(top.includes('Radar de Compra')&&!second.includes('Radar de Compra'),
+ 'Radar is a direct top-level IQ tab instead of a duplicated submenu destination');
 assert.ok(workspace.includes("deskSection==='radar'?<MarketIqDealerRadarPanel"),
- 'Radar remains accessible as fifth Mesa submenu using in-memory stock state');
+ 'Radar remains accessible as a top-level IQ destination using in-memory stock state');
 assert.ok(second.includes('aria-label="Ferramentas da Mesa de precificação"'));
 assert.ok(second.includes("deskSection==='archive'?'page':undefined"));
 assert.ok(!top.includes('motyq-iq-tabs-caption'),'Remove decorative caption from packed primary bar');
@@ -59,4 +60,4 @@ assert.ok(workspace.includes("onOpenApprovals={()=>switchDeskSection('approvals'
  'Repasse can still open approval workflow');
 assert.ok(workspace.includes("onOpenArchive={()=>switchDeskSection('archive')}"),
  'Plate-history panel can still return to archive');
-console.log('Motyq IQ clean menu: 5 main tabs, 5 nested Mesa tools with Radar, responsive active state, stored routes and cross-navigation verified.');
+console.log('Motyq IQ clean menu: 6 main tabs including Radar, 4 nested Mesa tools, responsive active state, stored routes and cross-navigation verified.');
