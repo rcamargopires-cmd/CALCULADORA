@@ -14,6 +14,13 @@ for(const source of [app,root,service,api]){
 }
 assert.ok(app.includes('resolvedUser?:User|null'));
 assert.ok(app.includes('if(resolvedUser !== undefined)'));
+assert.ok(app.includes('if (!user || isMotyqIqWorkspace(user)) return;'),
+ 'IQ must not activate CRM/directory/deal watchers at startup');
+assert.ok(app.includes("params.get('iq')==='1'")&&app.includes("params.get('go')!=='1'"),
+ 'Avoid loading standard workflows for pricing users and direct IQ access, but preserve GO navigation');
+assert.ok(app.includes("dealTenantService.subscribeDirectory(user")&&
+ app.includes("dealTenantService.subscribeDeals(user"),
+ 'GO keeps its existing live subscriptions when explicitly selected');
 assert.ok(app.includes('setUser(resolvedUser)'));
 assert.ok(app.includes('return;\n    }\n    const unsubscribeAuth = onAuthStateChanged'),
  'A verified role provided by root must skip the second auth listener and profile read');
