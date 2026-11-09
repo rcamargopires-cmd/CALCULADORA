@@ -147,8 +147,9 @@ assert.ok(panel.includes("onClick={e=>{e.stopPropagation();setPurchaseSummaryVeh
  'Clicking summary directly in table must not trigger selection navigation');
 assert.ok(panel.includes('<MarketIqPurchaseSummaryModal'));
 assert.ok(desk.includes('const [radarSnapshot,setRadarSnapshot]=useState<DealerStockSnapshot|null>(null)'));
-assert.ok(desk.includes('snapshot={radarSnapshot} onSnapshotChange={setRadarSnapshot}'),
- 'Stock import persists across Mesa navigation in memory');
+assert.ok(desk.includes('snapshot={radarSnapshot} onSnapshotChange={updateRadarSnapshot}')&&
+ desk.includes('persistDealerLocalArchive(captureScope,radarSnapshot,radarPreviousSnapshot)'),
+ 'Stock import persists across Mesa navigation and browser reloads with account-scoped local cache');
 assert.ok(desk.includes('Inteligência de Compra'),'Pricing must have one-click CarInvest summary');
 assert.ok(desk.includes('onClick={()=>setPurchaseSummaryOpen(true)}'));
 assert.ok(desk.includes("marketAdsVerified:marketReady?primary.length:0"),
