@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
-const transpile=(source,jsx=false)=>{
+const transpile=(source,jsx=false,label='source')=>{
  const out=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,
   module:ts.ModuleKind.ESNext,jsx:jsx?ts.JsxEmit.ReactJSX:undefined},reportDiagnostics:true});
- assert.equal(out.diagnostics?.filter(d=>d.category===ts.DiagnosticCategory.Error).length||0,0,
-  'Source must parse');
+ const parseErrors=out.diagnostics?.filter(d=>d.category===ts.DiagnosticCategory.Error)||[];
+ if(parseErrors.length)console.error('PARSE ERRORS IN '+label+'\n'+ts.formatDiagnosticsWithColorAndContext(parseErrors,{
+   getCanonicalFileName:f=>f,getCurrentDirectory:()=>process.cwd(),getNewLine:()=> '\n'
+ }));
+ assert.equal(parseErrors.length,0,'Source must parse: '+label);
  return out.outputText;
 };
 const moduleUrl=(code)=>'data:text/javascript;base64,'+Buffer.from(code).toString('base64');
@@ -14,7 +17,10 @@ const serviceSource=readFileSync('services/marketIqBuyerRegistration.ts','utf8')
 const publicSource=readFileSync('components/PublicCotacaoMesaBuyerForm.tsx','utf8');
 const index=readFileSync('index.tsx','utf8');
 const panel=readFileSync('components/MarketIqConsultedRepasse.tsx','utf8');
-for(const src of [buyerSource,serviceSource,publicSource,index,panel])transpile(src,src===publicSource||src===index||src===panel);
+for(const [name,src,jsx] of [
+ ['buyer',buyerSource,false],['registration',serviceSource,false],
+ ['public-form',publicSource,true],['index',index,true],['internal-panel',panel,true]
+])transpile(src,jsx,name);
 const buyerModule=moduleUrl(transpile(buyerSource));
 const serviceModule=moduleUrl(transpile(serviceSource).replaceAll("'./marketIqCotacaoMesaBuyers'","'"+buyerModule+"'"));
 const api=await import(serviceModule);
