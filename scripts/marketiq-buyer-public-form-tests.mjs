@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 const transpile=(source,jsx=false,label='source')=>{
  const out=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,
-  module:ts.ModuleKind.ESNext,jsx:jsx?ts.JsxEmit.ReactJSX:undefined},reportDiagnostics:true});
+  module:ts.ModuleKind.ESNext,...(jsx?{jsx:ts.JsxEmit.ReactJSX}:{})},reportDiagnostics:true});
  const parseErrors=out.diagnostics?.filter(d=>d.category===ts.DiagnosticCategory.Error)||[];
  if(parseErrors.length)console.error('PARSE ERRORS IN '+label+'\n'+ts.formatDiagnosticsWithColorAndContext(parseErrors,{
    getCanonicalFileName:f=>f,getCurrentDirectory:()=>process.cwd(),getNewLine:()=> '\n'
