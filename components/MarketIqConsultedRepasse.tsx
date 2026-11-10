@@ -155,7 +155,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    const updated=appendConsultedAudit(was,next,user.email||'usuário');
    const nextRows=[updated,...rows.filter(r=>r.id!==updated.id)].slice(0,300);
    try{saveConsultedCases(email,nextRows);setRows(nextRows);setDraft(updated);
-     setNotice('Consulta salva neste navegador. Versão '+updated.version+
+     setNotice('Cotação salva neste navegador. Versão '+updated.version+
        ' registrada no histórico local. Nenhuma compra foi aprovada ou executada.');
    }catch{setError('Não foi possível gravar o histórico local. Verifique o espaço disponível no navegador.');}
  };
@@ -259,16 +259,16 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    <div className="relative flex flex-wrap items-start justify-between gap-4">
     <div>
      <p className="motyq-iq-hero-eyebrow flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-cyan-300">
-      <HandCoins size={17}/> Motyq IQ · Modalidade especial
+      <Users size={17}/> Motyq IQ · Rede de compradores
      </p>
-     <h2 className="motyq-iq-hero-title mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Repasse Sob Consulta</h2>
+     <h2 className="motyq-iq-hero-title mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Cotação Mesa</h2>
      <p className="motyq-iq-hero-description mt-2 max-w-2xl text-sm leading-6 text-slate-200">
       Registre quanto outras lojas oferecem antes de definir o valor de entrada. Cada operação
       tem suas próprias despesas, tributos informados e margem desejada.
      </p>
     </div>
     <span className="motyq-iq-hero-status rounded-full border border-cyan-200/30 bg-cyan-100/10 px-3 py-1.5 text-xs font-bold text-cyan-200">
-      Piloto · não executa compras
+      Piloto assistido · sem disparos automáticos
     </span>
    </div>
   </section>
@@ -286,6 +286,12 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
     <button type="button" className={smallBtn} onClick={bringVehicle}><ArrowRight size={15}/>Trazer veículo da Mesa</button>
    </div>
    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+    <label className="col-span-2 md:col-span-1"><span className={label}>Categoria</span>
+     <select className={input} value={draft.vehicle.vehicleType||'car'}
+      onChange={e=>setDraft(d=>({...d,vehicle:{...d.vehicle,vehicleType:e.target.value as 'car'|'motorcycle'}}))}>
+      <option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option>
+     </select>
+    </label>
     <label className="col-span-2 md:col-span-1"><span className={label}>Marca</span><input className={input} value={draft.vehicle.brand} onChange={e=>updateVehicle('brand',e.target.value)} placeholder="Toyota"/></label>
     <label className="col-span-2"><span className={label}>Modelo e versão</span><input className={input} value={draft.vehicle.model} onChange={e=>updateVehicle('model',e.target.value)} placeholder="Hilux SW4 SRX 2.8 Diesel"/></label>
     <label><span className={label}>Ano / modelo</span><input className={input} value={draft.vehicle.year} onChange={e=>updateVehicle('year',e.target.value)} placeholder="2018"/></label>
@@ -297,7 +303,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
 
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
-    <div><h3 className="text-lg font-black">2. Ofertas das lojas compradoras</h3>
+    <div><h3 className="text-lg font-black">3. Propostas recebidas dos compradores</h3>
       <p className="mt-1 text-xs text-slate-500">Registre cada proposta de telefone ou WhatsApp. Só ofertas confirmadas, válidas e ainda não vencidas entram no teto calculado.</p></div>
     <button type="button" className="inline-flex items-center gap-2 rounded-xl bg-cyan-700 px-3 py-2 text-xs font-black text-white hover:bg-cyan-800" onClick={addOffer}><Plus size={16}/>Adicionar loja</button>
    </div>
@@ -341,7 +347,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
 
   <section className="grid gap-4 lg:grid-cols-5">
    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-3">
-    <h3 className="text-lg font-black">3. Custos e margem desta operação</h3>
+    <h3 className="text-lg font-black">4. Custos e margem desta operação</h3>
     <p className="mt-1 text-xs leading-5 text-slate-500">A margem é escolhida para cada veículo. Percentuais de imposto são inseridos pela Mesa conforme orientação fiscal. Zero somente quando realmente não houver custo aplicável.</p>
     <div className="mt-4 grid grid-cols-2 gap-3">
      {(['invoice','taxesFixed','taxesPercent','transport','preparation','other'] as (keyof ConsultedCosts)[]).map(key=>
@@ -359,7 +365,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
      O imposto percentual é aplicado sobre a oferta da loja compradora. A margem percentual, quando usada, também incide sobre essa oferta. Custos fixos e percentuais se somam. Não há cálculo fiscal automático nem substituição da conferência contábil.</p>
    </div>
    <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-5 lg:col-span-2">
-    <h3 className="flex items-center gap-2 text-lg font-black text-slate-900"><Calculator size={18}/>4. Resultado líquido</h3>
+    <h3 className="flex items-center gap-2 text-lg font-black text-slate-900"><Calculator size={18}/>5. Resultado líquido projetado</h3>
     {current?<>
       <p className="mt-2 text-xs text-cyan-900">Base: <strong>{current.offer.buyer}</strong> · proposta confirmada informada · válida até {current.offer.validUntil.split('-').reverse().join('/')}</p>
       <div className="mt-4 space-y-2 text-sm text-slate-700">
@@ -399,13 +405,13 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
 
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
-    <div><h3 className="text-lg font-black">5. Registrar consulta e alterações</h3>
+    <div><h3 className="text-lg font-black">7. Salvar cotação e histórico</h3>
      <p className="mt-1 text-xs text-slate-500">Cada salvamento cria uma nova versão do caso, preservando valores anteriores e responsável. Isso não é uma aprovação de compra.</p></div>
     <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">Versão atual: {draft.version||'nova'}</span>
    </div>
    <div className="mt-4 flex flex-wrap items-center gap-2">
     <button type="button" className="inline-flex items-center gap-2 rounded-xl bg-[#153f51] px-5 py-3 text-sm font-black text-white hover:bg-[#225468]" onClick={()=>save()}>
-     <Save size={17}/>Salvar consulta local</button>
+     <Save size={17}/>Salvar cotação</button>
     {onOpenApprovals&&<button type="button" className="inline-flex items-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-3 text-sm font-black text-cyan-900 disabled:cursor-not-allowed disabled:opacity-50"
       disabled={!before||changed||!current||requestedBuy<=0} onClick={()=>{
        try{sessionStorage.setItem('motyq-iq-manager-case-'+email,draft.id);}catch{}
@@ -413,7 +419,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
       }}>
       <CheckCircle2 size={16}/>Solicitar revisão gerencial</button>}
     <button type="button" className={smallBtn} onClick={()=>{setDraft(newCase(vehicleFromDesk));setNotice('Novo caso iniciado. O caso anterior permanece salvo se você o registrou.');setError('');setShowAudit(false);}}>
-     <Plus size={15}/>Nova consulta</button>
+     <Plus size={15}/>Nova cotação</button>
     {before&&<button type="button" className={smallBtn} onClick={()=>save(draft.state==='arquivado'?'consulta':'arquivado')}>
       {draft.state==='arquivado'?'Reativar caso':'Arquivar caso'}
     </button>}
@@ -437,7 +443,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
 
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
-    <div><h3 className="text-lg font-black">Histórico de repasses consultados</h3>
+    <div><h3 className="text-lg font-black">Histórico de Cotações Mesa</h3>
      <p className="mt-1 text-xs text-slate-500">{rows.length} caso(s) salvo(s) neste navegador. Exportação compatível com relatório gerencial.</p></div>
     <div className="flex flex-wrap items-center gap-2">
      <button type="button" disabled={!rows.length} className={smallBtn+' disabled:opacity-40'} onClick={()=>exportData('cases')}><ArrowDownToLine size={15}/>Relatório CSV</button>
@@ -445,7 +451,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
     </div>
    </div>
    <label className="mt-3 inline-flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={showArchive} onChange={e=>setShowArchive(e.target.checked)}/>Exibir casos arquivados</label>
-   {!rows.length?<p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Nenhuma consulta salva ainda. Registre a primeira oferta da loja para iniciar o histórico.</p>:
+   {!rows.length?<p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Nenhuma cotação salva ainda. Você pode iniciar uma consulta sem ter recebido propostas.</p>:
     <div className="mt-3 space-y-2">
      {rows.filter(r=>showArchive||r.state!=='arquivado').slice(0,30).map(r=>{
       const selected=consultedFinancialInputsReady(r.costs)?r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o)):undefined;
