@@ -5,6 +5,7 @@ import {User} from '../types';
 import {auth} from '../firebase';
 import MarketIqManagementDashboard from './MarketIqManagementDashboard';
 import MarketIqSimpleHome from './MarketIqSimpleHome';
+import type {MarketIqIncomingFile,MarketIqWorkbookKind} from '../services/marketIqSmartImport';
 import type {SimpleIqDestination} from '../services/marketIqSimpleNavigation';
 import {House,Menu} from 'lucide-react';
 import MarketIqMobileExperience from './MarketIqMobileExperience';
@@ -120,6 +121,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [purchaseSummaryComparable,setPurchaseSummaryComparable]=useState<ComparableEntry|null>(null);
  const [mobileFullDesk,setMobileFullDesk]=useState(false);
  const [showAllTools,setShowAllTools]=useState(false);
+ // One in-memory File handoff; no raw workbooks stored in browser storage.
+ const [smartIncomingFile,setSmartIncomingFile]=useState<MarketIqIncomingFile|null>(null);
+ const consumeSmartFile=(token:string)=>setSmartIncomingFile(current=>current?.token===token?null:current);
  const switchDeskSection=(next:'home'|'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar')=>{
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
  };
@@ -815,6 +819,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   window.scrollTo({top:0,behavior:'smooth'});
  };
  const selectSimpleImport=(kind:'dealer'|'evaluations')=>navigateSimple(kind==='dealer'?'radar':'archive');
+ const acceptSmartImport=(file:File,kind:MarketIqWorkbookKind)=>{
+  setSmartIncomingFile({token:Date.now()+'-'+Math.random(),file,kind});
+  navigateSimple(kind==='dealer'?'radar':'archive');
+ };
 
  return <>
  {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
@@ -822,6 +830,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onNavigate={navigateSimple}
    onOpenAdvanced={()=>{setShowAllTools(true);navigateSimple('pricing');}}
    onSelectImport={selectSimpleImport}
+    onSmartImport={acceptSmartImport}
    stockCount={radarLoadedScope===captureScope&&radarSnapshot?radarSnapshot.vehicles.length:null}
    stockDate={radarLoadedScope===captureScope?radarSnapshot?.reportDate||null:null}
    historyCount={saved.length} historyBusy={historyBusy}
@@ -925,6 +934,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     snapshot={radarSnapshot} onSnapshotChange={updateRadarSnapshot}
     previousSnapshot={radarPreviousSnapshot} onPreviousSnapshotChange={updateRadarPreviousSnapshot}
     localArchiveState={radarCacheState} localArchiveWarning={radarCacheNotice}
+    incomingFile={smartIncomingFile?.kind==='dealer'?smartIncomingFile:null}
+    onIncomingFileConsumed={consumeSmartFile}
     onQuoteVehicle={vehicle=>{
      if(!window.confirm('Abrir Cotação Mesa com '+vehicle.brand+' '+vehicle.model+
       '? Um rascunho não salvo poderá ser substituído. Cotações salvas serão preservadas.'))return;
@@ -935,6 +946,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     }}
    />):
   deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}
+   incomingFile={smartIncomingFile?.kind==='evaluations'?smartIncomingFile:null}
+   onIncomingFileConsumed={consumeSmartFile}
    onOpenPlateHistory={selected=>{setSelectedPlateForHistory(selected);switchDeskSection('plateHistory');}}/>:
   deskSection==='plateHistory'?<MarketIqPlateHistoryPanel user={user}
    initialPlate={selectedPlateForHistory||plate} onOpenArchive={()=>switchDeskSection('archive')}/>:
