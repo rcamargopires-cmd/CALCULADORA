@@ -80,7 +80,7 @@ assert.equal(badKmStats.count,4);
 assert.equal(badKmStats.priceMissing,2);
 assert.equal(badKmStats.costTotal,78500+91000+52500+87500);
 assert.equal(badKmStats.ageBuckets.find(b=>b.name==='0 a 30').count,2);
-assert.ok(panel.includes("v.kmValid?v.km.toLocaleString('pt-BR'):'A conferir'"),
+assert.ok(panel.includes("v.kmValid?v.km.toLocaleString('pt-BR')+' km':'KM a conferir'"),
  'Radar table must display a mileage warning, never a fake 0 km');
 assert.ok(panel.includes("selected.kmOriginal||'não informado'"),
  'Operator must be able to inspect the original suspect mileage');
