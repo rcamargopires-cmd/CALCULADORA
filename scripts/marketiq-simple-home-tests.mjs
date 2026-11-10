@@ -81,4 +81,19 @@ assert.ok(homeCss.includes('#root .motyq-iq-simple-home .motyq-iq-simple-hero'),
 for(const color of ['#ffffff','#e0edf4','#a5f3fc','#cffafe'])
  assert.ok(homeCss.includes('color: '+color+' !important;'),'Missing readable hero color '+color);
 
+// Simplified pricing must not render the unreliable ad comparison by default.
+assert.ok(workspace.includes('{showAllTools&&<section className="rounded-xl bg-white p-5" aria-label="Ferramentas experimentais de anúncios">'),
+ 'Webmotors ad-comparison block stays accessible only in explicitly expanded advanced mode');
+assert.ok(workspace.includes('Pesquisa de anúncios experimental. Ainda pode não retornar ofertas confiáveis'),
+ 'Do not present index-based market research as an operationally reliable service');
+assert.ok(workspace.includes('{showAllTools&&<section className="grid gap-4 rounded-xl bg-white p-5 md:grid-cols-2">'),
+ 'Redundant bottom calculation panel must stay out of default pricing view');
+assert.ok(workspace.includes('<details className="rounded-2xl border border-slate-200 bg-white p-4">'),
+ 'Detailed history/classification/confidence panels start folded');
+assert.ok(workspace.includes('Ver histórico inteligente, classificação e justificativas'));
+for(const panel of ['<MarketIqIntelligentHistoryPanel','<MarketIqFleetClassificationPanel','<MarketIqConfidencePanel']){
+ assert.ok(workspace.includes(panel),'Preserve the original analysis '+panel);
+}
+assert.ok(workspace.includes('Guardar esta avaliação no histórico')&&workspace.includes('Valor aprovado na avaliação'),
+ 'Primary save and actual-paid reporting must stay available');
 console.log('Motyq IQ simplified home: 4 primary actions, quick navigator, import guide, unchanged old modules, mobile routing and no extra reads passed.');
