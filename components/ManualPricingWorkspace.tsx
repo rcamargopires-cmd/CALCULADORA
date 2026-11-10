@@ -22,6 +22,7 @@ import MarketIqFleetClassificationPanel from './MarketIqFleetClassificationPanel
 import {classifyByMileage,resolveFleetPolicy,type FleetClass,type DestinationOverride,type DirectRepasseReason} from '../services/marketIqFleetClassification';
 import {assessMarketIqEvidence} from '../services/marketIqConfidence';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
+import type {ConsultedVehicle} from '../services/marketIqConsultedRepasse';
 import MarketIqApprovalCenter from './MarketIqApprovalCenter';
 import {calculateHistoricalPrice, MOTYQ_HISTORY_MODEL, HistoricalClass} from '../services/marketIqHistoricalPricing';
 import {calculateMotorcycleMarketReference,loadMotorcyclesForUser} from '../services/marketIqMotorcycleReference';
@@ -96,6 +97,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'?previous:'dashboard';
  });
  const [selectedPlateForHistory,setSelectedPlateForHistory]=useState('');
+ const [quoteFromRadar,setQuoteFromRadar]=useState<{token:string;vehicle:Partial<ConsultedVehicle>}|null>(null);
  // Local-only IndexedDB cache. Each account/company/unit owns an isolated key.
  // The parsed snapshot never leaves this device and is never uploaded.
  const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join('|');
@@ -842,7 +844,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   <button type="button" onClick={()=>switchDeskSection('radar')} aria-current={deskSection==='radar'?'page':undefined}
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='radar'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Radar de Compra <span className="ml-1 rounded bg-cyan-100 px-1.5 py-0.5 text-[10px] font-black text-cyan-900">NOVO</span></button>
   <button type="button" onClick={()=>switchDeskSection('consulted')} aria-current={deskSection==='consulted'?'page':undefined}
-   className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='consulted'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Repasse Sob Consulta</button>
+   className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='consulted'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Cotação Mesa</button>
   <button type="button" onClick={()=>switchDeskSection('approvals')} aria-current={deskSection==='approvals'?'page':undefined}
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='approvals'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Solicitações e aprovações</button>
   <button type="button" onClick={()=>switchDeskSection('learning')} aria-current={deskSection==='learning'?'page':undefined}
@@ -865,7 +867,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  </div>
  {deskSection==='dashboard'?<MarketIqManagementDashboard user={user} onOpenArchive={()=>switchDeskSection('archive')}/>:
   deskSection==='consulted'?<MarketIqConsultedRepasse user={user}
-    vehicleFromDesk={{plate,brand,model,year,km,fipe:fipe?.value||0}}
+    vehicleFromDesk={{plate,brand,model,year,km,vehicleType,fipe:fipe?.value||0}}
+    incomingVehicle={quoteFromRadar}
     onOpenApprovals={()=>switchDeskSection('approvals')}/>:
   deskSection==='approvals'?<MarketIqApprovalCenter user={user}/>:
   deskSection==='learning'?<MarketIqLearningPanel user={user} history={saved} onRefresh={refreshHistory} onOpenArchive={()=>switchDeskSection('archive')}/>:
@@ -877,6 +880,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     snapshot={radarSnapshot} onSnapshotChange={updateRadarSnapshot}
     previousSnapshot={radarPreviousSnapshot} onPreviousSnapshotChange={updateRadarPreviousSnapshot}
     localArchiveState={radarCacheState} localArchiveWarning={radarCacheNotice}
+    onQuoteVehicle={vehicle=>{
+     if(!window.confirm('Abrir Cotação Mesa com '+vehicle.brand+' '+vehicle.model+
+      '? Um rascunho não salvo poderá ser substituído. Cotações salvas serão preservadas.'))return;
+     setQuoteFromRadar({token:vehicle.key+':'+Date.now(),
+      vehicle:{plate:vehicle.plate,brand:vehicle.brand,model:vehicle.model,year:vehicle.year,
+       km:vehicle.kmValid?String(vehicle.km):'',fipe:0,vehicleType:vehicle.vehicleType}});
+     switchDeskSection('consulted');
+    }}
    />):
   deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}
    onOpenPlateHistory={selected=>{setSelectedPlateForHistory(selected);switchDeskSection('plateHistory');}}/>:

@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {ArrowDownToLine,ArrowRight,Building2,Calculator,CheckCircle2,
-  Clock3,FileClock,FileText,HandCoins,Info,Plus,Save,ShieldAlert,Trash2} from 'lucide-react';
+  Clock3,FileClock,FileText,HandCoins,Info,Plus,Save,ShieldAlert,Trash2,Send,Users,MessageCircle,Check} from 'lucide-react';
 import type {User} from '../types';
 import {getLocalApprovalRequests,isApprovalApplicable,type ApprovalActor,type ManagerApproval}
  from '../services/marketIqApprovalModel';
@@ -11,8 +11,12 @@ import {
   exportConsultedLogCsv, exportConsultedReportCsv, formatReais,
   loadConsultedCases, makeConsultedId,moneyNumber,offerIsEligible,
   saveConsultedCases, type ConsultedCase,type ConsultedCosts,
-  type ConsultedOffer,type ConsultedVehicle,
+  type ConsultedOffer,type ConsultedVehicle,type ConsultedOutreach,
 } from '../services/marketIqConsultedRepasse';
+import {
+ blankBuyer,buyerWhatsAppUrl,loadCotacaoBuyers,rankCotacaoBuyers,
+ saveCotacaoBuyers,validBuyerPhone,type BuyerProfile
+} from '../services/marketIqCotacaoMesaBuyers';
 
 const input='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100';
 const label='mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-slate-500';
@@ -22,7 +26,7 @@ const newCase=(vehicle?:Partial<ConsultedVehicle>):ConsultedCase=>({
  id:makeConsultedId(),createdAt:now(),updatedAt:now(),version:0,
  vehicle:{...emptyConsultedVehicle(),...vehicle},
  offers:[emptyConsultedOffer()],costs:emptyConsultedCosts(),
- selectedOfferId:'',proposedBuy:'',state:'consulta',events:[],
+ selectedOfferId:'',proposedBuy:'',state:'consulta',requests:[],events:[],
 });
 const download=(content:string,file:string)=>{
  const blob=new Blob([content],{type:'text/csv;charset=utf-8'});
@@ -42,11 +46,15 @@ const fieldName=(key:string)=>({
 }[key as keyof ConsultedCosts]||key);
 const vehicleDescription=(c:ConsultedVehicle)=>(c.brand+' '+c.model+' '+c.year).trim()||'Veículo não informado';
 
-export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApprovals}:{
- user:User;vehicleFromDesk:Partial<ConsultedVehicle>;onOpenApprovals?:()=>void;
+export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingVehicle,onOpenApprovals}:{
+ user:User;vehicleFromDesk:Partial<ConsultedVehicle>;
+ incomingVehicle?:{token:string;vehicle:Partial<ConsultedVehicle>}|null;
+ onOpenApprovals?:()=>void;
 }){
  const email=String(user.email||'').toLowerCase();
+ // Legacy key preserved to retain all previous repasse records.
  const draftKey='motyq-iq-repasse-draft-v1-'+email;
+ const buyerScope=[user.companyId||'',user.storeId||'',email].join('|');
  const [rows,setRows]=useState<ConsultedCase[]>(()=>loadConsultedCases(email));
  const [approvals,setApprovals]=useState<ManagerApproval[]>(()=>CLOUD_APPROVALS_ENABLED?[]:getLocalApprovalRequests(email));
  useEffect(()=>{
@@ -71,6 +79,22 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
  const [error,setError]=useState('');
  const [showAudit,setShowAudit]=useState(false);
  const [showArchive,setShowArchive]=useState(false);
+ const [buyers,setBuyers]=useState<BuyerProfile[]>(()=>loadCotacaoBuyers(buyerScope));
+ const [buyerForm,setBuyerForm]=useState<BuyerProfile>(()=>blankBuyer());
+ const [buyerFormOpen,setBuyerFormOpen]=useState(false);
+ const [buyerError,setBuyerError]=useState('');
+ const [saleFinalAmount,setSaleFinalAmount]=useState('');
+ const [salePaid,setSalePaid]=useState(false);
+ const [saleClosingDate,setSaleClosingDate]=useState(new Date().toISOString().slice(0,10));
+ const [incomingHandled,setIncomingHandled]=useState('');
+ useEffect(()=>setBuyers(loadCotacaoBuyers(buyerScope)),[buyerScope]);
+ useEffect(()=>{
+  if(!incomingVehicle||incomingVehicle.token===incomingHandled)return;
+  setDraft(newCase(incomingVehicle.vehicle));setSaleFinalAmount('');setSalePaid(false);
+  setIncomingHandled(incomingVehicle.token);setShowAudit(false);
+  setNotice('Veículo do estoque Dealer recebido. Confira versão e dados antes de cotar.');
+  setError('');
+ },[incomingVehicle,incomingHandled]);
 
  useEffect(()=>{try{sessionStorage.setItem(draftKey,JSON.stringify(draft));}catch{}},[draft,draftKey]);
  const updateVehicle=(key:keyof ConsultedVehicle,v:string)=>
@@ -79,6 +103,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
    setDraft(d=>({...d,costs:{...d.costs,[key]:v}}));
  const updateOffer=(id:string,key:keyof ConsultedOffer,v:string)=>
    setDraft(d=>({...d,offers:d.offers.map(o=>o.id===id?{...o,[key]:v}:o)}));
+ const rankedBuyers=useMemo(()=>rankCotacaoBuyers(buyers,draft.vehicle,draft.vehicle.vehicleType||'car'),[buyers,draft.vehicle]);
  const financialReady=consultedFinancialInputsReady(draft.costs);
  const calculations=useMemo(()=>draft.offers.map(offer=>({
    offer,calculation:calculateConsultedOffer(offer,draft.costs),
@@ -102,9 +127,11 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
  const changed=before?JSON.stringify({
     vehicle:draft.vehicle,offers:draft.offers,costs:draft.costs,
     selectedOfferId:draft.selectedOfferId,proposedBuy:draft.proposedBuy,state:draft.state,
+    requests:draft.requests||[],sale:draft.sale||null,
    })!==JSON.stringify({
     vehicle:before.vehicle,offers:before.offers,costs:before.costs,
     selectedOfferId:before.selectedOfferId,proposedBuy:before.proposedBuy,state:before.state,
+    requests:before.requests||[],sale:before.sale||null,
    }):true;
  const save=(override?:'arquivado'|'consulta')=>{
    setNotice('');setError('');
@@ -112,13 +139,15 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
    if(!next.vehicle.brand.trim()||!next.vehicle.model.trim()){
      setError('Preencha marca e modelo do veículo antes de salvar.');return;
    }
+   if(draft.state==='vendido'&&changed){setError('Caso já vendido: reabra a cotação antes de editar.');return;}
    if(!validCosts){setError('Verifique os custos e as alíquotas. Digite somente valores numéricos não negativos e percentuais de até 100%.');return;}
    if(next.proposedBuy.trim()&&!isValidConsultedMoney(next.proposedBuy,false)){
      setError('Informe um valor de compra numérico válido.');return;
    }
-   if(next.offers.length===0||!next.offers.some(o=>o.buyer.trim()&&moneyNumber(o.value)>0)){
-     setError('Registre ao menos uma oferta de uma loja com nome e valor positivo.');return;
-   }
+   // Cotação inicial pode ser salva antes de receber qualquer proposta.
+    if(next.state==='vendido'&&!next.sale){
+     setError('Registre comprador e preço fechado antes de marcar como vendido.');return;
+    }
    if(next.offers.some(o=>o.status==='confirmada'&&(!o.validUntil||!o.buyer.trim()||moneyNumber(o.value)<=0))){
      setError('Para marcar uma oferta como confirmada, informe loja, valor e validade.');return;
    }
@@ -127,15 +156,85 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
    const updated=appendConsultedAudit(was,next,user.email||'usuário');
    const nextRows=[updated,...rows.filter(r=>r.id!==updated.id)].slice(0,300);
    try{saveConsultedCases(email,nextRows);setRows(nextRows);setDraft(updated);
-     setNotice('Consulta salva neste navegador. Versão '+updated.version+
-       ' registrada no histórico local. Nenhuma compra foi aprovada ou executada.');
+     setNotice('Cotação salva neste navegador. Versão '+updated.version+
+       ' registrada no histórico local. Nenhuma compra, venda ou pagamento foi executado pelo sistema.');
    }catch{setError('Não foi possível gravar o histórico local. Verifique o espaço disponível no navegador.');}
  };
  const open=(item:ConsultedCase)=>{
-   setDraft(item);setNotice('Versão '+item.version+' reaberta. Alterações futuras gerarão novo evento.');
+   setDraft(item);setSaleFinalAmount(item.sale?String(item.sale.finalValue):'');setSalePaid(item.sale?.paymentReceived===true);
+  setSaleClosingDate(item.sale?.closedAt||new Date().toISOString().slice(0,10));
+  setNotice('Versão '+item.version+' reaberta. Alterações futuras gerarão novo evento.');
    setError('');setShowAudit(true);window.scrollTo({top:0,behavior:'smooth'});
  };
  const addOffer=()=>setDraft(d=>({...d,offers:[...d.offers,emptyConsultedOffer()]}));
+ const addOfferForBuyer=(buyer:BuyerProfile)=>{
+  if(draft.state==='vendido'){setError('Reabra o caso antes de cotar novamente.');return;}
+  setDraft(d=>({...d,offers:[...d.offers.filter(o=>o.buyer.trim()||o.value.trim()),
+   {...emptyConsultedOffer(),buyer:buyer.shop,channel:'whatsapp'}]}));
+  setNotice('Proposta pendente da '+buyer.shop+' adicionada. Informe o valor somente após resposta da loja.');
+ };
+ const saveBuyer=()=>{
+  setBuyerError('');setNotice('');
+  if(!buyerForm.shop.trim()){setBuyerError('Informe o nome da loja.');return;}
+  if(buyerForm.optedIn&&!validBuyerPhone(buyerForm.whatsapp)){
+   setBuyerError('WhatsApp inválido. Informe DDD e número brasileiro.');return;
+  }
+  const next={...buyerForm,id:buyerForm.id||makeConsultedId(),
+   updatedAt:now(),shop:buyerForm.shop.trim()};
+  const list=[...buyers.filter(x=>x.id!==next.id),next].slice(0,250);
+  try{
+   saveCotacaoBuyers(buyerScope,list);setBuyers(list);
+   setBuyerForm(blankBuyer());setBuyerFormOpen(false);
+   setNotice('Lojista cadastrado. O Motyq passa a sugeri-lo para os veículos compatíveis.');
+  }catch(e:any){setBuyerError(String(e?.message||'Não foi possível salvar a loja.'));}
+ };
+ function setBuyerField<K extends keyof BuyerProfile>(key:K,value:BuyerProfile[K]){
+  setBuyerForm(previous=>({...previous,[key]:value}));
+ }
+ const updateRequest=(buyer:BuyerProfile,status:ConsultedOutreach['status'])=>
+  setDraft(d=>({...d,requests:[
+   ...(d.requests||[]).filter(x=>x.buyerId!==buyer.id),
+   {buyerId:buyer.id,buyer:buyer.shop,preparedAt:now(),status}
+  ]}));
+ const registerClosedSale=()=>{
+  setError('');setNotice('');
+  if(draft.state==='vendido'){setError('O caso já está fechado. Reabra a negociação para corrigi-lo.');return;}
+  if(!before||changed){setError('Salve a cotação e suas propostas antes de registrar o fechamento.');return;}
+  const winning=draft.offers.find(o=>o.id===draft.selectedOfferId&&offerIsEligible(o));
+  const value=moneyNumber(saleFinalAmount);
+  if(!winning||!isValidConsultedMoney(saleFinalAmount,false)||value<=0){
+   setError('Selecione uma proposta confirmada e válida e informe o preço final da venda.');return;
+  }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(saleClosingDate)){
+   setError('Informe a data do fechamento.');return;
+  }
+  if(!window.confirm('Registrar venda para '+winning.buyer+' por '+formatReais(value)+
+   '? Pagamento '+(salePaid?'informado como RECEBIDO.':'ainda NÃO confirmado.')+
+   ' Nenhuma transação ou mensagem será executada.'))return;
+  const completed={...draft,state:'vendido' as const,sale:{
+   buyer:winning.buyer,offerId:winning.id,finalValue:value,closedAt:saleClosingDate,
+   paymentReceived:salePaid,registeredBy:user.email||'Mesa'
+  }};
+  const updated=appendConsultedAudit(before,completed,user.email||'Mesa');
+  const list=[updated,...rows.filter(r=>r.id!==updated.id)].slice(0,300);
+  try{
+   saveConsultedCases(email,list);setRows(list);setDraft(updated);
+   setNotice('Fechamento registrado: '+winning.buyer+' · '+formatReais(value)+
+    '. Pagamento '+(salePaid?'declarado recebido.':'a confirmar.')+
+    ' O registro é local e não integra o financeiro automaticamente.');
+  }catch{setError('Não foi possível salvar o fechamento no navegador.');}
+ };
+ const reopenSale=()=>{
+  if(draft.state!=='vendido'||!draft.sale)return;
+  if(!window.confirm('Reabrir a cotação? O fechamento anterior permanecerá no log local.'))return;
+  const beforeSaved=rows.find(row=>row.id===draft.id)||null;
+  const updated=appendConsultedAudit(beforeSaved,{...draft,state:'negociacao',sale:null},user.email||'Mesa');
+  const list=[updated,...rows.filter(x=>x.id!==updated.id)];
+  try{
+   saveConsultedCases(email,list);setRows(list);setDraft(updated);
+   setNotice('Cotação reaberta. O fechamento anterior permanece no log.');
+  }catch{setError('Falha ao reabrir o caso.');}
+ };
  const removeOffer=(id:string)=>setDraft(d=>({...d,
    offers:d.offers.filter(o=>o.id!==id),
    selectedOfferId:d.selectedOfferId===id?'':d.selectedOfferId,
@@ -153,7 +252,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
  };
  const exportData=(kind:'cases'|'log')=>{
    download(kind==='cases'?exportConsultedReportCsv(rows):exportConsultedLogCsv(rows),
-     'motyq-iq-'+(kind==='cases'?'repasses-consultados':'log-de-alteracoes')+'.csv');
+     'motyq-iq-'+(kind==='cases'?'cotacoes-mesa':'cotacoes-mesa-auditoria')+'.csv');
  };
 
  return <div className="space-y-5 pb-8 text-slate-900">
@@ -162,25 +261,32 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
    <div className="relative flex flex-wrap items-start justify-between gap-4">
     <div>
      <p className="motyq-iq-hero-eyebrow flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-cyan-300">
-      <HandCoins size={17}/> Motyq IQ · Modalidade especial
+      <Users size={17}/> Motyq IQ · Rede de compradores
      </p>
-     <h2 className="motyq-iq-hero-title mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Repasse Sob Consulta</h2>
+     <h2 className="motyq-iq-hero-title mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Cotação Mesa</h2>
      <p className="motyq-iq-hero-description mt-2 max-w-2xl text-sm leading-6 text-slate-200">
-      Registre quanto outras lojas oferecem antes de definir o valor de entrada. Cada operação
-      tem suas próprias despesas, tributos informados e margem desejada.
+      Selecione um veículo da Mesa ou do Radar, encontre os lojistas compatíveis, acompanhe propostas e registre o comprador e o preço fechado. Cálculos de custos e margem permanecem disponíveis.
      </p>
     </div>
     <span className="motyq-iq-hero-status rounded-full border border-cyan-200/30 bg-cyan-100/10 px-3 py-1.5 text-xs font-bold text-cyan-200">
-      Piloto · não executa compras
+      Piloto assistido · sem disparos automáticos
     </span>
    </div>
   </section>
   <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
    <ShieldAlert size={18} className="shrink-0"/>
-   <p><strong>Simulação operacional:</strong> as ofertas são informadas manualmente após contato com as lojas.
-    Marcar uma oferta como confirmada é uma declaração do operador, não uma validação externa.
-    Impostos e NF não são calculados automaticamente pela legislação. O registro e o log são
-    locais, neste navegador, e não substituem autorização gerencial ou trilha auditável no servidor.</p>
+   <p><strong>Cotação assistida:</strong> os compradores e as consultas são salvos somente neste navegador. O WhatsApp abre apenas ao seu clique, sem envio ou leitura automática de respostas. Preços, fechamento e recebimento de pagamento são informados manualmente pela Mesa. Impostos/NF, aprovação gerencial e transferência financeira continuam fora desta função.</p>
+  </div>
+  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores da Cotação Mesa">
+   {([
+    ['Casos em consulta',rows.filter(r=>r.state==='consulta').length.toLocaleString('pt-BR')],
+    ['Em negociação',rows.filter(r=>r.state==='negociacao').length.toLocaleString('pt-BR')],
+    ['Vendas fechadas',rows.filter(r=>r.state==='vendido'&&r.sale).length.toLocaleString('pt-BR')],
+    ['Total negociado',formatReais(rows.filter(r=>r.state==='vendido'&&r.sale).reduce((sum,r)=>sum+(r.sale?.finalValue||0),0))]
+   ] as const).map(([name,value])=><div key={name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{name}</p>
+    <p className="mt-1 text-xl font-black text-slate-950">{value}</p>
+   </div>)}
   </div>
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
@@ -189,6 +295,12 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
     <button type="button" className={smallBtn} onClick={bringVehicle}><ArrowRight size={15}/>Trazer veículo da Mesa</button>
    </div>
    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+    <label className="col-span-2 md:col-span-1"><span className={label}>Categoria</span>
+     <select className={input} value={draft.vehicle.vehicleType||'car'}
+      onChange={e=>setDraft(d=>({...d,vehicle:{...d.vehicle,vehicleType:e.target.value as 'car'|'motorcycle'}}))}>
+      <option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option>
+     </select>
+    </label>
     <label className="col-span-2 md:col-span-1"><span className={label}>Marca</span><input className={input} value={draft.vehicle.brand} onChange={e=>updateVehicle('brand',e.target.value)} placeholder="Toyota"/></label>
     <label className="col-span-2"><span className={label}>Modelo e versão</span><input className={input} value={draft.vehicle.model} onChange={e=>updateVehicle('model',e.target.value)} placeholder="Hilux SW4 SRX 2.8 Diesel"/></label>
     <label><span className={label}>Ano / modelo</span><input className={input} value={draft.vehicle.year} onChange={e=>updateVehicle('year',e.target.value)} placeholder="2018"/></label>
@@ -198,9 +310,84 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
    </div>
   </section>
 
+  <section className="rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm" aria-label="Carteira de compradores">
+   <div className="flex flex-wrap items-start justify-between gap-3">
+    <div><h3 className="flex items-center gap-2 text-lg font-black"><Users size={20} className="text-cyan-700"/>2. Lojistas sugeridos para este veículo</h3>
+     <p className="mt-1 text-xs leading-5 text-slate-600">Combinamos marca, modelo, ano e categoria. Nenhum contato é descoberto ou acionado automaticamente.</p>
+    </div>
+    <button type="button" className={smallBtn} onClick={()=>{setBuyerForm(blankBuyer());setBuyerFormOpen(v=>!v);setBuyerError('');}}>
+     <Plus size={15}/>{buyerFormOpen?'Fechar cadastro':'Cadastrar lojista'}</button>
+   </div>
+   <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+    <span className="rounded-lg bg-slate-100 px-2.5 py-1.5">{buyers.length} lojistas cadastrados</span>
+    <span className="rounded-lg bg-cyan-50 px-2.5 py-1.5 text-cyan-900">{rankedBuyers.length} compatíveis</span>
+   </div>
+   {buyerFormOpen&&<div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <p className="text-sm font-bold">{buyerForm.id?'Editar comprador':'Novo comprador'}</p>
+    <div className="grid gap-3 sm:grid-cols-2">
+     {([['shop','Nome da loja'],['contact','Nome do contato'],['whatsapp','WhatsApp com DDD'],['region','Cidade / região'],
+       ['brands','Marcas (ex.: Jeep, Fiat)'],['models','Modelos (ex.: Renegade, Compass)'],
+       ['yearFrom','Ano mínimo'],['yearTo','Ano máximo']] as const).map(([key,title])=>
+       <label key={key}><span className={label}>{title}</span>
+        <input className={input} value={buyerForm[key]} onChange={e=>setBuyerField(key,e.target.value)}
+         placeholder={key==='whatsapp'?'(15) 99999-9999':''}/></label>)}
+     <label><span className={label}>Tipo de veículo</span>
+      <select className={input} value={buyerForm.vehicleType} onChange={e=>setBuyerField('vehicleType',e.target.value as BuyerProfile['vehicleType'])}>
+       <option value="both">Carros e motos</option><option value="car">Automóveis</option><option value="motorcycle">Motos</option>
+      </select></label>
+    </div>
+    <label className="flex items-start gap-2 rounded-lg bg-white p-3 text-xs font-semibold text-slate-700">
+     <input type="checkbox" checked={buyerForm.optedIn} onChange={e=>setBuyerField('optedIn',e.target.checked)}/>
+     O comprador autorizou o recebimento de cotações via WhatsApp. Sem essa confirmação, não aparecerá o atalho de envio.
+    </label>
+    <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={buyerForm.active} onChange={e=>setBuyerField('active',e.target.checked)}/>Ativo na carteira</label>
+    {buyerError&&<p role="alert" className="text-xs font-bold text-rose-800">{buyerError}</p>}
+    <div className="flex gap-2">
+     <button type="button" onClick={saveBuyer} className="rounded-lg bg-cyan-800 px-4 py-2 text-xs font-black text-white">Salvar lojista</button>
+     <button type="button" className={smallBtn} onClick={()=>setBuyerFormOpen(false)}>Cancelar</button>
+    </div>
+   </div>}
+   {!rankedBuyers.length&&<p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+    {buyers.length?'Nenhum comprador ativo tem perfil compatível com o veículo informado.':'Cadastre compradores para começar a receber sugestões por tipo de veículo.'}
+   </p>}
+   <div className="mt-3 grid gap-3 lg:grid-cols-2">
+    {rankedBuyers.slice(0,24).map(({buyer,score,reasons})=>{
+     const url=buyerWhatsAppUrl(buyer,draft.vehicle);
+     const request=(draft.requests||[]).find(r=>r.buyerId===buyer.id);
+     return <div key={buyer.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="flex flex-wrap justify-between gap-2">
+       <div><p className="text-sm font-black">{buyer.shop}</p>
+        <p className="text-xs text-slate-600">{buyer.contact||'Sem nome'}{buyer.region?' · '+buyer.region:''}</p>
+        <p className="mt-1 text-[11px] text-slate-500">{reasons.join(' · ')} · Pontuação {score}</p></div>
+       <button type="button" className="text-xs font-bold text-cyan-800 underline" onClick={()=>{setBuyerForm(buyer);setBuyerFormOpen(true);}}>Editar</button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+       {url?<a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-black text-white"
+        onClick={()=>updateRequest(buyer,'preparado')}><MessageCircle size={14}/>Abrir WhatsApp</a>:
+        <span className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Sem contato autorizado/DDD válido</span>}
+       <button type="button" onClick={()=>addOfferForBuyer(buyer)} className={smallBtn}>Registrar resposta</button>
+      </div>
+      <label className="mt-2 flex items-center gap-2 text-xs font-bold">Contato
+       <select className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+        value={request?.status||''} onChange={e=>{
+         if(e.target.value)updateRequest(buyer,e.target.value as ConsultedOutreach['status']);
+         else setDraft(d=>({...d,requests:(d.requests||[]).filter(r=>r.buyerId!==buyer.id)}));
+        }}>
+        <option value="">Ainda não consultado</option>
+        <option value="preparado">Mensagem preparada, envio não confirmado</option>
+        <option value="contatado">Contatado pela Mesa</option>
+        <option value="respondeu">Respondeu</option><option value="recusou">Sem interesse</option>
+       </select>
+      </label>
+     </div>;
+    })}
+   </div>
+   <p className="mt-3 text-[11px] leading-5 text-slate-500">Abrir o WhatsApp não comprova envio ou resposta. O operador deve confirmar cada etapa. Sem disparos em massa, sem placa, dados pessoais ou preço interno nas mensagens preparadas.</p>
+  </section>
+
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
-    <div><h3 className="text-lg font-black">2. Ofertas das lojas compradoras</h3>
+    <div><h3 className="text-lg font-black">3. Propostas recebidas dos compradores</h3>
       <p className="mt-1 text-xs text-slate-500">Registre cada proposta de telefone ou WhatsApp. Só ofertas confirmadas, válidas e ainda não vencidas entram no teto calculado.</p></div>
     <button type="button" className="inline-flex items-center gap-2 rounded-xl bg-cyan-700 px-3 py-2 text-xs font-black text-white hover:bg-cyan-800" onClick={addOffer}><Plus size={16}/>Adicionar loja</button>
    </div>
@@ -244,7 +431,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
 
   <section className="grid gap-4 lg:grid-cols-5">
    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-3">
-    <h3 className="text-lg font-black">3. Custos e margem desta operação</h3>
+    <h3 className="text-lg font-black">4. Custos e margem desta operação</h3>
     <p className="mt-1 text-xs leading-5 text-slate-500">A margem é escolhida para cada veículo. Percentuais de imposto são inseridos pela Mesa conforme orientação fiscal. Zero somente quando realmente não houver custo aplicável.</p>
     <div className="mt-4 grid grid-cols-2 gap-3">
      {(['invoice','taxesFixed','taxesPercent','transport','preparation','other'] as (keyof ConsultedCosts)[]).map(key=>
@@ -262,7 +449,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
      O imposto percentual é aplicado sobre a oferta da loja compradora. A margem percentual, quando usada, também incide sobre essa oferta. Custos fixos e percentuais se somam. Não há cálculo fiscal automático nem substituição da conferência contábil.</p>
    </div>
    <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-5 lg:col-span-2">
-    <h3 className="flex items-center gap-2 text-lg font-black text-slate-900"><Calculator size={18}/>4. Resultado líquido</h3>
+    <h3 className="flex items-center gap-2 text-lg font-black text-slate-900"><Calculator size={18}/>5. Resultado líquido projetado</h3>
     {current?<>
       <p className="mt-2 text-xs text-cyan-900">Base: <strong>{current.offer.buyer}</strong> · proposta confirmada informada · válida até {current.offer.validUntil.split('-').reverse().join('/')}</p>
       <div className="mt-4 space-y-2 text-sm text-slate-700">
@@ -300,15 +487,54 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
    </div>
   </section>
 
+  <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm" aria-label="Fechamento da cotação">
+   <h3 className="flex items-center gap-2 text-lg font-black"><Check size={19} className="text-emerald-700"/>6. Fechamento: quem comprou e por quanto</h3>
+   <p className="mt-1 text-xs leading-5 text-slate-600">
+    Registre a venda apenas depois que a loja confirmar a proposta. Valor fechado e pagamento recebido são informações diferentes.
+    Não há lançamento financeiro nem baixa automática de estoque.
+   </p>
+   {draft.state==='vendido'&&draft.sale?<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+    <p className="text-[11px] font-bold uppercase text-emerald-800">Venda registrada pela Mesa</p>
+    <p className="mt-1 text-xl font-black text-emerald-950">{draft.sale.buyer} · {formatReais(draft.sale.finalValue)}</p>
+    <p className="mt-2 text-xs font-semibold text-emerald-950">Fechamento {draft.sale.closedAt.split('-').reverse().join('/')} ·
+     {draft.sale.paymentReceived?' Pagamento declarado recebido':' Pagamento ainda não confirmado'} · {draft.sale.registeredBy}</p>
+    <button type="button" className="mt-3 rounded-lg border border-emerald-400 bg-white px-3 py-2 text-xs font-bold text-emerald-900" onClick={reopenSale}>
+     Reabrir negociação com registro no histórico</button>
+   </div>:<div className="mt-4 space-y-3">
+    <div className="grid gap-3 sm:grid-cols-3">
+     <label><span className={label}>Oferta selecionada para fechamento</span>
+      <select className={input} value={draft.selectedOfferId}
+       onChange={e=>setDraft(d=>({...d,selectedOfferId:e.target.value}))}>
+       <option value="">Selecione uma oferta confirmada</option>
+       {draft.offers.filter(o=>offerIsEligible(o)).map(o=><option key={o.id} value={o.id}>{o.buyer} · {formatReais(moneyNumber(o.value))}</option>)}
+      </select>
+     </label>
+     <label><span className={label}>Preço final confirmado (R$)</span>
+      <input className={input} inputMode="decimal" value={saleFinalAmount} onChange={e=>setSaleFinalAmount(e.target.value)} placeholder="Ex.: 56.000,00"/></label>
+     <label><span className={label}>Data do fechamento</span>
+      <input className={input} type="date" value={saleClosingDate} onChange={e=>setSaleClosingDate(e.target.value)}/></label>
+    </div>
+    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+     <input type="checkbox" checked={salePaid} onChange={e=>setSalePaid(e.target.checked)}/>
+     Pagamento recebido e conferido pela Mesa (declaração manual)
+    </label>
+    <button type="button" disabled={!before||changed||!draft.selectedOfferId} onClick={registerClosedSale}
+     className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
+     <Check size={15}/>Registrar fechamento
+    </button>
+    <p className="text-[11px] text-slate-500">Antes de fechar, salve a cotação no passo 7. O log guarda mudanças e quem registrou o fechamento.</p>
+   </div>}
+  </section>
+
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
-    <div><h3 className="text-lg font-black">5. Registrar consulta e alterações</h3>
+    <div><h3 className="text-lg font-black">7. Salvar cotação e histórico</h3>
      <p className="mt-1 text-xs text-slate-500">Cada salvamento cria uma nova versão do caso, preservando valores anteriores e responsável. Isso não é uma aprovação de compra.</p></div>
     <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">Versão atual: {draft.version||'nova'}</span>
    </div>
    <div className="mt-4 flex flex-wrap items-center gap-2">
     <button type="button" className="inline-flex items-center gap-2 rounded-xl bg-[#153f51] px-5 py-3 text-sm font-black text-white hover:bg-[#225468]" onClick={()=>save()}>
-     <Save size={17}/>Salvar consulta local</button>
+     <Save size={17}/>Salvar cotação</button>
     {onOpenApprovals&&<button type="button" className="inline-flex items-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-3 text-sm font-black text-cyan-900 disabled:cursor-not-allowed disabled:opacity-50"
       disabled={!before||changed||!current||requestedBuy<=0} onClick={()=>{
        try{sessionStorage.setItem('motyq-iq-manager-case-'+email,draft.id);}catch{}
@@ -316,7 +542,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
       }}>
       <CheckCircle2 size={16}/>Solicitar revisão gerencial</button>}
     <button type="button" className={smallBtn} onClick={()=>{setDraft(newCase(vehicleFromDesk));setNotice('Novo caso iniciado. O caso anterior permanece salvo se você o registrou.');setError('');setShowAudit(false);}}>
-     <Plus size={15}/>Nova consulta</button>
+     <Plus size={15}/>Nova cotação</button>
     {before&&<button type="button" className={smallBtn} onClick={()=>save(draft.state==='arquivado'?'consulta':'arquivado')}>
       {draft.state==='arquivado'?'Reativar caso':'Arquivar caso'}
     </button>}
@@ -340,7 +566,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
 
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
-    <div><h3 className="text-lg font-black">Histórico de repasses consultados</h3>
+    <div><h3 className="text-lg font-black">Histórico de Cotações Mesa</h3>
      <p className="mt-1 text-xs text-slate-500">{rows.length} caso(s) salvo(s) neste navegador. Exportação compatível com relatório gerencial.</p></div>
     <div className="flex flex-wrap items-center gap-2">
      <button type="button" disabled={!rows.length} className={smallBtn+' disabled:opacity-40'} onClick={()=>exportData('cases')}><ArrowDownToLine size={15}/>Relatório CSV</button>
@@ -348,7 +574,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
     </div>
    </div>
    <label className="mt-3 inline-flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={showArchive} onChange={e=>setShowArchive(e.target.checked)}/>Exibir casos arquivados</label>
-   {!rows.length?<p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Nenhuma consulta salva ainda. Registre a primeira oferta da loja para iniciar o histórico.</p>:
+   {!rows.length?<p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Nenhuma cotação salva ainda. Você pode iniciar uma consulta sem ter recebido propostas.</p>:
     <div className="mt-3 space-y-2">
      {rows.filter(r=>showArchive||r.state!=='arquivado').slice(0,30).map(r=>{
       const selected=consultedFinancialInputsReady(r.costs)?r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o)):undefined;
