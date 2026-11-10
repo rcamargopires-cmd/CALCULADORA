@@ -143,7 +143,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
    </div>
    <details className="mt-3 rounded-lg border border-white/20 px-3 py-2 text-xs text-cyan-100">
     <summary className="cursor-pointer font-bold text-cyan-100">Origem dos dados e privacidade</summary>
-    <p className="mt-2 leading-5 text-cyan-100">Base importada manualmente do Dealer, salva somente neste navegador e conta. Não há conferência em tempo real, execução de macros ou alteração de avaliações oficiais. Em computador compartilhado, use “Limpar dados locais” ao terminar.</p>
+    <p className="mt-2 leading-5 text-cyan-100">Base importada manualmente do Dealer, salva somente neste navegador e conta. Não há conferência em tempo real. Nenhuma macro é executada e nenhuma avaliação oficial é alterada. Em computador compartilhado, use «Limpar dados locais» ao terminar.</p>
    </details>
   </section>
   {props.localArchiveWarning&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">{props.localArchiveWarning}</p>}
@@ -424,7 +424,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
    <details className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-6 text-slate-700">
     <summary className="cursor-pointer font-bold text-[#153f51]">Limites técnicos e atualização da planilha</summary>
     <p className="mt-2">O Radar não calcula lucratividade líquida nem verifica vendas em tempo real, e não recomenda automaticamente “Comprar”. Saídas da fotografia não comprovam vendas.</p>
-    <p className="mt-1">A base fica neste navegador; para atualizar o estoque real, importe um novo relatório V44. Limpar dados do navegador pode apagar a fotografia local.</p>
+    <p className="mt-1">O último relatório e a fotografia anterior são recuperados automaticamente neste navegador. Para atualizar o estoque real, importe um novo V44. Limpar dados do navegador pode apagar a fotografia local.</p>
    </details>
   </>}
  </div>;
