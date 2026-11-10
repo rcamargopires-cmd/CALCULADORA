@@ -12,7 +12,7 @@ type HomeProps={
  onNavigate:(section:SimpleIqDestination,plate?:string)=>void;
  onOpenAdvanced:()=>void;
  onSelectImport:(kind:'dealer'|'evaluations')=>void;
- onSmartImport:(file:File,kind:MarketIqWorkbookKind)=>void;
+ onSmartImport:(file:File,kind:MarketIqWorkbookKind,sheet:string)=>void;
  stockCount:number|null;
  stockDate:string|null;
  historyCount:number;
@@ -168,7 +168,7 @@ export default function MarketIqSimpleHome({
       <p className="text-sm font-black text-emerald-900">{detected.result.headline}</p>
       <p className="mt-1 break-all text-xs font-semibold text-slate-800">{detected.file.name} · aba {detected.result.sheet}</p>
       <p className="mt-2 text-xs leading-5 text-slate-600">{detected.result.description}</p>
-      <button type="button" onClick={()=>onSmartImport(detected.file,detected.result.kind)}
+      <button type="button" onClick={()=>onSmartImport(detected.file,detected.result.kind,detected.result.sheet)}
        className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-xs font-black text-white hover:bg-emerald-800">
        Conferir e importar no local correto <ArrowRight size={16}/></button>
      </div>}
