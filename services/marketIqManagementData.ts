@@ -71,6 +71,8 @@ export type DashboardStatusReconciliation={
  excludedStatuses:Record<string,number>;
  afterEvaluatorStatuses:Record<string,number>;
  retainedRows:number;
+ classifiedPurchases:number;
+ classifiedQuotes:number;
  firstEvaluationDate:string;
  lastEvaluationDate:string;
  missingStatusRows:number;
@@ -140,7 +142,7 @@ export function parseDashboardData(input:InputLine[],source:'original'|'filtered
    sourceIds.push(id.replace(/\.0$/,''));
  });
  return {rows:output,sourceIds,excludedEvaluator,motorcyclesIncluded,duplicates,invalidPurchases,source,inputCount:input.length,
-  reconciliation:{rawStatuses,excludedStatuses,afterEvaluatorStatuses,retainedRows:output.length,firstEvaluationDate,lastEvaluationDate,missingStatusRows}
+  reconciliation:{rawStatuses,excludedStatuses,afterEvaluatorStatuses,retainedRows:output.length,classifiedPurchases:output.filter(r=>r.status==='COMPRA').length,classifiedQuotes:output.filter(r=>r.status==='COTACAO').length,firstEvaluationDate,lastEvaluationDate,missingStatusRows}
  };
 }
 export type DashboardFilters={vehicleType:string;store:string;brand:string;model:string;className:string;destination:string;month:string;status:string};
