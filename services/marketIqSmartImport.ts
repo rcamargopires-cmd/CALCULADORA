@@ -6,7 +6,7 @@
 import * as XLSX from 'xlsx';
 
 export type MarketIqWorkbookKind='dealer'|'evaluations';
-export type MarketIqIncomingFile={token:string;file:File;kind:MarketIqWorkbookKind};
+export type MarketIqIncomingFile={token:string;file:File;kind:MarketIqWorkbookKind;sheet:string};
 export type MarketIqWorkbookDetection={
  kind:MarketIqWorkbookKind;
  sheet:string;
