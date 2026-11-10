@@ -301,6 +301,81 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    </div>
   </section>
 
+  <section className="rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm" aria-label="Carteira de compradores">
+   <div className="flex flex-wrap items-start justify-between gap-3">
+    <div><h3 className="flex items-center gap-2 text-lg font-black"><Users size={20} className="text-cyan-700"/>2. Lojistas sugeridos para este veículo</h3>
+     <p className="mt-1 text-xs leading-5 text-slate-600">Combinamos marca, modelo, ano e categoria. Nenhum contato é descoberto ou acionado automaticamente.</p>
+    </div>
+    <button type="button" className={smallBtn} onClick={()=>{setBuyerForm(blankBuyer());setBuyerFormOpen(v=>!v);setBuyerError('');}}>
+     <Plus size={15}/>{buyerFormOpen?'Fechar cadastro':'Cadastrar lojista'}</button>
+   </div>
+   <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+    <span className="rounded-lg bg-slate-100 px-2.5 py-1.5">{buyers.length} lojistas cadastrados</span>
+    <span className="rounded-lg bg-cyan-50 px-2.5 py-1.5 text-cyan-900">{rankedBuyers.length} compatíveis</span>
+   </div>
+   {buyerFormOpen&&<div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <p className="text-sm font-bold">{buyerForm.id?'Editar comprador':'Novo comprador'}</p>
+    <div className="grid gap-3 sm:grid-cols-2">
+     {([['shop','Nome da loja'],['contact','Nome do contato'],['whatsapp','WhatsApp com DDD'],['region','Cidade / região'],
+       ['brands','Marcas (ex.: Jeep, Fiat)'],['models','Modelos (ex.: Renegade, Compass)'],
+       ['yearFrom','Ano mínimo'],['yearTo','Ano máximo']] as const).map(([key,title])=>
+       <label key={key}><span className={label}>{title}</span>
+        <input className={input} value={buyerForm[key]} onChange={e=>setBuyerField(key,e.target.value)}
+         placeholder={key==='whatsapp'?'(15) 99999-9999':''}/></label>)}
+     <label><span className={label}>Tipo de veículo</span>
+      <select className={input} value={buyerForm.vehicleType} onChange={e=>setBuyerField('vehicleType',e.target.value as BuyerProfile['vehicleType'])}>
+       <option value="both">Carros e motos</option><option value="car">Automóveis</option><option value="motorcycle">Motos</option>
+      </select></label>
+    </div>
+    <label className="flex items-start gap-2 rounded-lg bg-white p-3 text-xs font-semibold text-slate-700">
+     <input type="checkbox" checked={buyerForm.optedIn} onChange={e=>setBuyerField('optedIn',e.target.checked)}/>
+     O comprador autorizou o recebimento de cotações via WhatsApp. Sem essa confirmação, não aparecerá o atalho de envio.
+    </label>
+    <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={buyerForm.active} onChange={e=>setBuyerField('active',e.target.checked)}/>Ativo na carteira</label>
+    {buyerError&&<p role="alert" className="text-xs font-bold text-rose-800">{buyerError}</p>}
+    <div className="flex gap-2">
+     <button type="button" onClick={saveBuyer} className="rounded-lg bg-cyan-800 px-4 py-2 text-xs font-black text-white">Salvar lojista</button>
+     <button type="button" className={smallBtn} onClick={()=>setBuyerFormOpen(false)}>Cancelar</button>
+    </div>
+   </div>}
+   {!rankedBuyers.length&&<p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+    {buyers.length?'Nenhum comprador ativo tem perfil compatível com o veículo informado.':'Cadastre compradores para começar a receber sugestões por tipo de veículo.'}
+   </p>}
+   <div className="mt-3 grid gap-3 lg:grid-cols-2">
+    {rankedBuyers.slice(0,24).map(({buyer,score,reasons})=>{
+     const url=buyerWhatsAppUrl(buyer,draft.vehicle);
+     const request=(draft.requests||[]).find(r=>r.buyerId===buyer.id);
+     return <div key={buyer.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="flex flex-wrap justify-between gap-2">
+       <div><p className="text-sm font-black">{buyer.shop}</p>
+        <p className="text-xs text-slate-600">{buyer.contact||'Sem nome'}{buyer.region?' · '+buyer.region:''}</p>
+        <p className="mt-1 text-[11px] text-slate-500">{reasons.join(' · ')} · Pontuação {score}</p></div>
+       <button type="button" className="text-xs font-bold text-cyan-800 underline" onClick={()=>{setBuyerForm(buyer);setBuyerFormOpen(true);}}>Editar</button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+       {url?<a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-black text-white"
+        onClick={()=>updateRequest(buyer,'preparado')}><MessageCircle size={14}/>Abrir WhatsApp</a>:
+        <span className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Sem contato autorizado/DDD válido</span>}
+       <button type="button" onClick={()=>addOfferForBuyer(buyer)} className={smallBtn}>Registrar resposta</button>
+      </div>
+      <label className="mt-2 flex items-center gap-2 text-xs font-bold">Contato
+       <select className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+        value={request?.status||''} onChange={e=>{
+         if(e.target.value)updateRequest(buyer,e.target.value as ConsultedOutreach['status']);
+         else setDraft(d=>({...d,requests:(d.requests||[]).filter(r=>r.buyerId!==buyer.id)}));
+        }}>
+        <option value="">Ainda não consultado</option>
+        <option value="preparado">Mensagem preparada, envio não confirmado</option>
+        <option value="contatado">Contatado pela Mesa</option>
+        <option value="respondeu">Respondeu</option><option value="recusou">Sem interesse</option>
+       </select>
+      </label>
+     </div>;
+    })}
+   </div>
+   <p className="mt-3 text-[11px] leading-5 text-slate-500">Abrir o WhatsApp não comprova envio ou resposta. O operador deve confirmar cada etapa. Sem disparos em massa, sem placa, dados pessoais ou preço interno nas mensagens preparadas.</p>
+  </section>
+
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
     <div><h3 className="text-lg font-black">3. Propostas recebidas dos compradores</h3>
