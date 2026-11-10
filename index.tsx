@@ -15,6 +15,8 @@ import './services/unifiedStockAuditAdapter';
 import './services/monthCycleAdapter';
 import RoleAwareRoot from './components/RoleAwareRoot';
 import { isPublicCatalogRoute, PublicCatalogPage } from './components/CrmPersonalizedCatalog';
+import PublicCotacaoMesaBuyerForm from './components/PublicCotacaoMesaBuyerForm';
+import {PUBLIC_BUYER_PATH} from './services/marketIqBuyerRegistration';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -24,7 +26,9 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    {isPublicCatalogRoute() ? <PublicCatalogPage /> : <RoleAwareRoot />}
+    {window.location.pathname.replace(/\/+$/,'')===PUBLIC_BUYER_PATH?
+      <PublicCotacaoMesaBuyerForm />:
+      isPublicCatalogRoute()?<PublicCatalogPage />:<RoleAwareRoot />}
   </React.StrictMode>
 );
 if('serviceWorker' in navigator && window.isSecureContext){
