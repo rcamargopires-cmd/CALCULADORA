@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {ArrowDownToLine,ArrowRight,Building2,Calculator,CheckCircle2,
-  Clock3,FileClock,FileText,HandCoins,Info,Plus,Save,ShieldAlert,Trash2} from 'lucide-react';
+  Clock3,FileClock,FileText,HandCoins,Info,Plus,Save,ShieldAlert,Trash2,Send,Users,MessageCircle,Check} from 'lucide-react';
 import type {User} from '../types';
 import {getLocalApprovalRequests,isApprovalApplicable,type ApprovalActor,type ManagerApproval}
  from '../services/marketIqApprovalModel';
@@ -11,8 +11,12 @@ import {
   exportConsultedLogCsv, exportConsultedReportCsv, formatReais,
   loadConsultedCases, makeConsultedId,moneyNumber,offerIsEligible,
   saveConsultedCases, type ConsultedCase,type ConsultedCosts,
-  type ConsultedOffer,type ConsultedVehicle,
+  type ConsultedOffer,type ConsultedVehicle,type ConsultedOutreach,
 } from '../services/marketIqConsultedRepasse';
+import {
+ blankBuyer,buyerWhatsAppUrl,loadCotacaoBuyers,rankCotacaoBuyers,
+ saveCotacaoBuyers,validBuyerPhone,type BuyerProfile
+} from '../services/marketIqCotacaoMesaBuyers';
 
 const input='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100';
 const label='mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-slate-500';
@@ -22,7 +26,7 @@ const newCase=(vehicle?:Partial<ConsultedVehicle>):ConsultedCase=>({
  id:makeConsultedId(),createdAt:now(),updatedAt:now(),version:0,
  vehicle:{...emptyConsultedVehicle(),...vehicle},
  offers:[emptyConsultedOffer()],costs:emptyConsultedCosts(),
- selectedOfferId:'',proposedBuy:'',state:'consulta',events:[],
+ selectedOfferId:'',proposedBuy:'',state:'consulta',requests:[],events:[],
 });
 const download=(content:string,file:string)=>{
  const blob=new Blob([content],{type:'text/csv;charset=utf-8'});
@@ -42,11 +46,15 @@ const fieldName=(key:string)=>({
 }[key as keyof ConsultedCosts]||key);
 const vehicleDescription=(c:ConsultedVehicle)=>(c.brand+' '+c.model+' '+c.year).trim()||'Veículo não informado';
 
-export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApprovals}:{
- user:User;vehicleFromDesk:Partial<ConsultedVehicle>;onOpenApprovals?:()=>void;
+export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingVehicle,onOpenApprovals}:{
+ user:User;vehicleFromDesk:Partial<ConsultedVehicle>;
+ incomingVehicle?:{token:string;vehicle:Partial<ConsultedVehicle>}|null;
+ onOpenApprovals?:()=>void;
 }){
  const email=String(user.email||'').toLowerCase();
+ // Legacy key preserved to retain all previous repasse records.
  const draftKey='motyq-iq-repasse-draft-v1-'+email;
+ const buyerScope=[user.companyId||'',user.storeId||'',email].join('|');
  const [rows,setRows]=useState<ConsultedCase[]>(()=>loadConsultedCases(email));
  const [approvals,setApprovals]=useState<ManagerApproval[]>(()=>CLOUD_APPROVALS_ENABLED?[]:getLocalApprovalRequests(email));
  useEffect(()=>{
@@ -71,6 +79,22 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
  const [error,setError]=useState('');
  const [showAudit,setShowAudit]=useState(false);
  const [showArchive,setShowArchive]=useState(false);
+ const [buyers,setBuyers]=useState<BuyerProfile[]>(()=>loadCotacaoBuyers(buyerScope));
+ const [buyerForm,setBuyerForm]=useState<BuyerProfile>(()=>blankBuyer());
+ const [buyerFormOpen,setBuyerFormOpen]=useState(false);
+ const [buyerError,setBuyerError]=useState('');
+ const [saleFinalAmount,setSaleFinalAmount]=useState('');
+ const [salePaid,setSalePaid]=useState(false);
+ const [saleClosingDate,setSaleClosingDate]=useState(new Date().toISOString().slice(0,10));
+ const [incomingHandled,setIncomingHandled]=useState('');
+ useEffect(()=>setBuyers(loadCotacaoBuyers(buyerScope)),[buyerScope]);
+ useEffect(()=>{
+  if(!incomingVehicle||incomingVehicle.token===incomingHandled)return;
+  setDraft(newCase(incomingVehicle.vehicle));setSaleFinalAmount('');setSalePaid(false);
+  setIncomingHandled(incomingVehicle.token);setShowAudit(false);
+  setNotice('Veículo do estoque Dealer recebido. Confira versão e dados antes de cotar.');
+  setError('');
+ },[incomingVehicle,incomingHandled]);
 
  useEffect(()=>{try{sessionStorage.setItem(draftKey,JSON.stringify(draft));}catch{}},[draft,draftKey]);
  const updateVehicle=(key:keyof ConsultedVehicle,v:string)=>
@@ -79,6 +103,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
    setDraft(d=>({...d,costs:{...d.costs,[key]:v}}));
  const updateOffer=(id:string,key:keyof ConsultedOffer,v:string)=>
    setDraft(d=>({...d,offers:d.offers.map(o=>o.id===id?{...o,[key]:v}:o)}));
+ const rankedBuyers=useMemo(()=>rankCotacaoBuyers(buyers,draft.vehicle,draft.vehicle.vehicleType||'car'),[buyers,draft.vehicle]);
  const financialReady=consultedFinancialInputsReady(draft.costs);
  const calculations=useMemo(()=>draft.offers.map(offer=>({
    offer,calculation:calculateConsultedOffer(offer,draft.costs),
@@ -102,9 +127,11 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
  const changed=before?JSON.stringify({
     vehicle:draft.vehicle,offers:draft.offers,costs:draft.costs,
     selectedOfferId:draft.selectedOfferId,proposedBuy:draft.proposedBuy,state:draft.state,
+    requests:draft.requests||[],sale:draft.sale||null,
    })!==JSON.stringify({
     vehicle:before.vehicle,offers:before.offers,costs:before.costs,
     selectedOfferId:before.selectedOfferId,proposedBuy:before.proposedBuy,state:before.state,
+    requests:before.requests||[],sale:before.sale||null,
    }):true;
  const save=(override?:'arquivado'|'consulta')=>{
    setNotice('');setError('');
@@ -116,9 +143,10 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
    if(next.proposedBuy.trim()&&!isValidConsultedMoney(next.proposedBuy,false)){
      setError('Informe um valor de compra numérico válido.');return;
    }
-   if(next.offers.length===0||!next.offers.some(o=>o.buyer.trim()&&moneyNumber(o.value)>0)){
-     setError('Registre ao menos uma oferta de uma loja com nome e valor positivo.');return;
-   }
+   // Cotação inicial pode ser salva antes de receber qualquer proposta.
+    if(next.state==='vendido'&&!next.sale){
+     setError('Registre comprador e preço fechado antes de marcar como vendido.');return;
+    }
    if(next.offers.some(o=>o.status==='confirmada'&&(!o.validUntil||!o.buyer.trim()||moneyNumber(o.value)<=0))){
      setError('Para marcar uma oferta como confirmada, informe loja, valor e validade.');return;
    }
@@ -132,7 +160,9 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
    }catch{setError('Não foi possível gravar o histórico local. Verifique o espaço disponível no navegador.');}
  };
  const open=(item:ConsultedCase)=>{
-   setDraft(item);setNotice('Versão '+item.version+' reaberta. Alterações futuras gerarão novo evento.');
+   setDraft(item);setSaleFinalAmount(item.sale?String(item.sale.finalValue):'');setSalePaid(item.sale?.paymentReceived===true);
+  setSaleClosingDate(item.sale?.closedAt||new Date().toISOString().slice(0,10));
+  setNotice('Versão '+item.version+' reaberta. Alterações futuras gerarão novo evento.');
    setError('');setShowAudit(true);window.scrollTo({top:0,behavior:'smooth'});
  };
  const addOffer=()=>setDraft(d=>({...d,offers:[...d.offers,emptyConsultedOffer()]}));
@@ -153,7 +183,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,onOpenApp
  };
  const exportData=(kind:'cases'|'log')=>{
    download(kind==='cases'?exportConsultedReportCsv(rows):exportConsultedLogCsv(rows),
-     'motyq-iq-'+(kind==='cases'?'repasses-consultados':'log-de-alteracoes')+'.csv');
+     'motyq-iq-'+(kind==='cases'?'cotacoes-mesa':'cotacoes-mesa-auditoria')+'.csv');
  };
 
  return <div className="space-y-5 pb-8 text-slate-900">
