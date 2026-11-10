@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import ts from 'typescript';
+const transpile=(source,jsx=false)=>{
+ const out=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,
+  module:ts.ModuleKind.ESNext,jsx:jsx?ts.JsxEmit.ReactJSX:undefined},reportDiagnostics:true});
+ assert.equal(out.diagnostics?.filter(d=>d.category===ts.DiagnosticCategory.Error).length||0,0,
+  'Source must parse');
+ return out.outputText;
+};
+const moduleUrl=(code)=>'data:text/javascript;base64,'+Buffer.from(code).toString('base64');
+const buyerSource=readFileSync('services/marketIqCotacaoMesaBuyers.ts','utf8');
+const serviceSource=readFileSync('services/marketIqBuyerRegistration.ts','utf8');
+const publicSource=readFileSync('components/PublicCotacaoMesaBuyerForm.tsx','utf8');
+const index=readFileSync('index.tsx','utf8');
+const panel=readFileSync('components/MarketIqConsultedRepasse.tsx','utf8');
+for(const src of [buyerSource,serviceSource,publicSource,index,panel])transpile(src,src===publicSource||src===index||src===panel);
+const buyerModule=moduleUrl(transpile(buyerSource));
+const serviceModule=moduleUrl(transpile(serviceSource).replaceAll("'./marketIqCotacaoMesaBuyers'","'"+buyerModule+"'"));
+const api=await import(serviceModule);
+const one={shop:'São Bento Veículos',contact:'João Pereira',whatsapp:'(15) 99999-1234',
+ region:'Sorocaba-SP',email:'compras@empresa.com.br',brands:'Jeep, Toyota',
+ models:'Compass, Hilux SRX',segments:'SUV, Picape',vehicleType:'car',
+ yearFrom:'2019',yearTo:'2026',maxKm:'100000',budgetTo:'140000',optedIn:true};
+const code=api.createPublicBuyerCode(one);
+assert.ok(code.startsWith('MOTYQBUYER1.'));
+const parsed=api.parsePublicBuyerCode('MENSAGEM PARA MESA\n'+api.buyerRegistrationMessage(one));
+assert.equal(parsed.shop,one.shop,'UTF-8 names survive message');
+assert.equal(parsed.contact,one.contact);
+assert.equal(parsed.brands,one.brands);
+assert.equal(parsed.segments,one.segments);
+assert.equal(parsed.budgetTo,one.budgetTo);
+assert.equal(parsed.whatsapp,'5515999991234');
+assert.equal(parsed.optedIn,true);
+assert.equal(api.publicBuyerFormUrl('https://app.motyq.com.br'), 'https://app.motyq.com.br/cotacao-mesa/cadastro');
+assert.ok(api.validatePublicBuyer({...one,optedIn:false})?.includes('consentimento'));
+assert.ok(api.validatePublicBuyer({...one,whatsapp:'123'})?.includes('WhatsApp'));
+assert.ok(api.validatePublicBuyer({...one,shop:''})?.includes('loja'));
+assert.ok(api.validatePublicBuyer({...one,brands:'',models:'',segments:''})?.includes('categoria'));
+assert.ok(api.validatePublicBuyer({...one,yearFrom:'2027',yearTo:'2022'})?.includes('Ano mínimo maior'));
+assert.throws(()=>api.parsePublicBuyerCode('MOTYQBUYER1.fake'),/Código de cadastro não encontrado/);
+assert.throws(()=>api.parsePublicBuyerCode('MOTYQBUYER1.'+'A'.repeat(150)),/não pôde ser conferido/);
+assert.ok(!serviceSource.includes('fetch('),'No anonymous public write endpoint');
+assert.ok(!publicSource.includes('firebase'),'Public form bypasses login and Firestore');
+assert.ok(!publicSource.includes('localStorage'),'Public page does not persist contact data');
+assert.ok(publicSource.includes('Compartilhar pelo WhatsApp'));
+assert.ok(publicSource.includes('Seus dados ainda não foram enviados nem cadastrados no Motyq.'));
+assert.ok(publicSource.includes('Sem assinatura ou custo'));
+assert.ok(index.includes('window.location.pathname')&&index.includes('PUBLIC_BUYER_PATH'));
+assert.ok(index.includes('<PublicCotacaoMesaBuyerForm />'));
+assert.ok(panel.includes('Copiar link do formulário'));
+assert.ok(panel.includes('Conferir cadastro recebido'));
+assert.ok(panel.includes('Confirmar e adicionar à carteira'));
+assert.ok(panel.includes('parsePublicBuyerCode(registrationText)'));
+assert.ok(panel.includes('saveCotacaoBuyers(buyerScope,next)'));
+assert.ok(panel.includes('Não há novas leituras ou gravações no Firestore.'));
+assert.ok(panel.includes('Código de importação')===false,'Import code label belongs to public page');
+console.log('Cotação Mesa public buyer form: Unicode roundtrip, permissions, buyer interests, invalid inputs, manual WhatsApp share, operator review/import and no Firestore writes passed.');
