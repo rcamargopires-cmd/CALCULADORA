@@ -222,65 +222,39 @@ export const appendConsultedAudit = (before:ConsultedCase|null, next:ConsultedCa
   };
 };
 export const exportConsultedReportCsv = (rows:ConsultedCase[]) => {
-  const head=['Veículo','Ano','KM','Situação','Versão','Data última alteração','Ofertas','Ofertas confirmadas válidas',
-    'Maior oferta confirmada R$','Teto líquido sugerido R$','Compra proposta R$','Margem estimada R$','NF R$',
-    'Imposto fixo R$','Imposto %','Transporte R$','Preparação R$','Outras despesas R$',
-    'Margem desejada','Modo margem','Último responsável','Quantidade eventos',
-    'Loja compradora no fechamento','Valor fechado R
-  const items=rows.map(r=>{
-    const best=chooseBestConfirmedOffer(r.offers,r.costs);
-    const selected=consultedFinancialInputsReady(r.costs)?r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o)):undefined;
-    const active=selected?{offer:selected,calculation:calculateConsultedOffer(selected,r.costs)}:best;
-    const proposed=moneyNumber(r.proposedBuy);
-    return [
-      (r.vehicle.brand+' '+r.vehicle.model).trim(),r.vehicle.year,r.vehicle.km,r.state,
-      String(r.version),r.updatedAt,String(r.offers.length),
-      String(r.offers.filter(o=>offerIsEligible(o)).length),
-      String(active?.calculation.sale||''),String(active?.calculation.ceiling||''),
-      r.proposedBuy,active&&proposed>0?String(cents(active.calculation.netBeforeMargin-proposed)):'',
-      r.costs.invoice,r.costs.taxesFixed,r.costs.taxesPercent,r.costs.transport,
-      r.costs.preparation,r.costs.other,r.costs.margin,r.costs.marginMode,
-      r.events[r.events.length-1]?.actor||'',String(r.events.length),
-      r.sale?.buyer||'',r.sale?String(r.sale.finalValue):'',r.sale?.closedAt||'',
-      r.sale?.paymentReceived?'SIM':'NÃO',r.sale?.registeredBy||'',
-    ];
-  });
-  const quote=(v:unknown)=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  return '\ufeff'+[head,...items].map(row=>row.map(quote).join(';')).join('\r\n');
+ const head=['Veículo','Ano','KM','Situação','Versão','Data última alteração','Ofertas','Ofertas confirmadas válidas',
+  'Maior oferta confirmada (reais)','Teto líquido sugerido (reais)','Compra proposta (reais)','Margem estimada (reais)',
+  'NF (reais)','Imposto fixo (reais)','Imposto percentual','Transporte (reais)','Preparação (reais)','Outras despesas (reais)',
+  'Margem desejada','Modo margem','Último responsável','Quantidade eventos',
+  'Loja compradora no fechamento','Valor fechado (reais)','Data do fechamento',
+  'Pagamento recebido conforme informado','Responsável pelo fechamento'];
+ const items=rows.map(row=>{
+  const best=chooseBestConfirmedOffer(row.offers,row.costs);
+  const picked=consultedFinancialInputsReady(row.costs)?
+   row.offers.find(offer=>offer.id===row.selectedOfferId&&offerIsEligible(offer)):undefined;
+  const active=picked?{offer:picked,calculation:calculateConsultedOffer(picked,row.costs)}:best;
+  const proposed=moneyNumber(row.proposedBuy);
+  return [
+   (row.vehicle.brand+' '+row.vehicle.model).trim(),row.vehicle.year,row.vehicle.km,row.state,
+   String(row.version),row.updatedAt,String(row.offers.length),
+   String(row.offers.filter(offer=>offerIsEligible(offer)).length),
+   String(active?.calculation.sale||''),String(active?.calculation.ceiling||''),
+   row.proposedBuy,active&&proposed>0?String(cents(active.calculation.netBeforeMargin-proposed)):'',
+   row.costs.invoice,row.costs.taxesFixed,row.costs.taxesPercent,row.costs.transport,
+   row.costs.preparation,row.costs.other,row.costs.margin,row.costs.marginMode,
+   row.events[row.events.length-1]?.actor||'',String(row.events.length),
+   row.sale?.buyer||'',row.sale?String(row.sale.finalValue):'',row.sale?.closedAt||'',
+   row.sale?.paymentReceived?'SIM':'NÃO',row.sale?.registeredBy||''
+  ];
+ });
+ const quote=(value:unknown)=>'"'+String(value??'').replace(/"/g,'""')+'"';
+ return '\ufeff'+[head,...items].map(row=>row.map(quote).join(';')).join('\r\n');
 };
 export const exportConsultedLogCsv = (rows:ConsultedCase[]) => {
-  const head=['Veículo','Caso','Evento','Data/hora','Responsável','Tipo','Teto anterior','Novo teto','Descrição da alteração'];
-  const items=rows.flatMap(r=>r.events.flatMap((ev,i)=>ev.changes.map(change=>
-    [(r.vehicle.brand+' '+r.vehicle.model).trim(),r.id,String(i+1),ev.at,ev.actor,ev.action,
-      ev.formerSuggestedCeiling??'',ev.newSuggestedCeiling??'',change])));
-  const quote=(v:unknown)=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  return '\ufeff'+[head,...items].map(row=>row.map(quote).join(';')).join('\r\n');
-};
-,'Data do fechamento','Pagamento recebido conforme informado','Responsável pelo fechamento'];
-  const items=rows.map(r=>{
-    const best=chooseBestConfirmedOffer(r.offers,r.costs);
-    const selected=consultedFinancialInputsReady(r.costs)?r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o)):undefined;
-    const active=selected?{offer:selected,calculation:calculateConsultedOffer(selected,r.costs)}:best;
-    const proposed=moneyNumber(r.proposedBuy);
-    return [
-      (r.vehicle.brand+' '+r.vehicle.model).trim(),r.vehicle.year,r.vehicle.km,r.state,
-      String(r.version),r.updatedAt,String(r.offers.length),
-      String(r.offers.filter(o=>offerIsEligible(o)).length),
-      String(active?.calculation.sale||''),String(active?.calculation.ceiling||''),
-      r.proposedBuy,active&&proposed>0?String(cents(active.calculation.netBeforeMargin-proposed)):'',
-      r.costs.invoice,r.costs.taxesFixed,r.costs.taxesPercent,r.costs.transport,
-      r.costs.preparation,r.costs.other,r.costs.margin,r.costs.marginMode,
-      r.events[r.events.length-1]?.actor||'',String(r.events.length),
-    ];
-  });
-  const quote=(v:unknown)=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  return '\ufeff'+[head,...items].map(row=>row.map(quote).join(';')).join('\r\n');
-};
-export const exportConsultedLogCsv = (rows:ConsultedCase[]) => {
-  const head=['Veículo','Caso','Evento','Data/hora','Responsável','Tipo','Teto anterior','Novo teto','Descrição da alteração'];
-  const items=rows.flatMap(r=>r.events.flatMap((ev,i)=>ev.changes.map(change=>
-    [(r.vehicle.brand+' '+r.vehicle.model).trim(),r.id,String(i+1),ev.at,ev.actor,ev.action,
-      ev.formerSuggestedCeiling??'',ev.newSuggestedCeiling??'',change])));
-  const quote=(v:unknown)=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  return '\ufeff'+[head,...items].map(row=>row.map(quote).join(';')).join('\r\n');
+ const head=['Veículo','Caso','Evento','Data/hora','Responsável','Tipo','Teto anterior','Novo teto','Descrição da alteração'];
+ const items=rows.flatMap(row=>row.events.flatMap((ev,i)=>ev.changes.map(change=>
+  [(row.vehicle.brand+' '+row.vehicle.model).trim(),row.id,String(i+1),ev.at,ev.actor,ev.action,
+   ev.formerSuggestedCeiling??'',ev.newSuggestedCeiling??'',change])));
+ const quote=(value:unknown)=>'"'+String(value??'').replace(/"/g,'""')+'"';
+ return '\ufeff'+[head,...items].map(row=>row.map(quote).join(';')).join('\r\n');
 };
