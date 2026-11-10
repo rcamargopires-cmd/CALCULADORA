@@ -148,8 +148,9 @@ assert.ok(service.includes("42*1024*1024"),'Reject oversized input');
 assert.ok(workspace.includes('Radar de Compra')&&workspace.includes('MarketIqDealerRadarPanel'));
 assert.ok(!entry.includes('radarLocalPreview')&&!entry.includes('radar-local'),
  'Radar must not have an unauthenticated, stand-alone laboratory route after integration');
-assert.ok(entry.includes("isPublicCatalogRoute() ? <PublicCatalogPage /> : <RoleAwareRoot />"),
- 'The IQ application must remain behind RoleAwareRoot authentication');
+assert.ok(entry.includes('PUBLIC_BUYER_PATH')&&entry.includes('<PublicCotacaoMesaBuyerForm />')&&
+ entry.includes('isPublicCatalogRoute()?<PublicCatalogPage />:<RoleAwareRoot />'),
+ 'The public dealer registration page may bypass login, while IQ and Radar remain gated by RoleAwareRoot');
 assert.ok(!entry.includes('<MarketIqDealerRadarPanel/>'),
  'Radar must appear inside the authorized IQ workspace, not in the public root');
 assert.ok(workspace.includes('Ferramentas de aquisição do Motyq IQ')&&

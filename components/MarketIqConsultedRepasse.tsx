@@ -15,8 +15,9 @@ import {
 } from '../services/marketIqConsultedRepasse';
 import {
  blankBuyer,buyerWhatsAppUrl,loadCotacaoBuyers,rankCotacaoBuyers,
- saveCotacaoBuyers,validBuyerPhone,type BuyerProfile
+ saveCotacaoBuyers,validBuyerPhone,safeBuyer,type BuyerProfile
 } from '../services/marketIqCotacaoMesaBuyers';
+import {parsePublicBuyerCode,publicBuyerFormUrl,type PublicBuyerRegistration} from '../services/marketIqBuyerRegistration';
 
 const input='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100';
 const label='mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-slate-500';
@@ -83,6 +84,9 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
  const [buyerForm,setBuyerForm]=useState<BuyerProfile>(()=>blankBuyer());
  const [buyerFormOpen,setBuyerFormOpen]=useState(false);
  const [buyerError,setBuyerError]=useState('');
+ const [registrationText,setRegistrationText]=useState('');
+ const [registrationPreview,setRegistrationPreview]=useState<PublicBuyerRegistration|null>(null);
+ const [registrationError,setRegistrationError]=useState('');
  const [saleFinalAmount,setSaleFinalAmount]=useState('');
  const [salePaid,setSalePaid]=useState(false);
  const [saleClosingDate,setSaleClosingDate]=useState(new Date().toISOString().slice(0,10));
@@ -187,6 +191,39 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    setBuyerForm(blankBuyer());setBuyerFormOpen(false);
    setNotice('Lojista cadastrado. O Motyq passa a sugeri-lo para os veículos compatíveis.');
   }catch(e:any){setBuyerError(String(e?.message||'Não foi possível salvar a loja.'));}
+ };
+ const publicFormLink=publicBuyerFormUrl(window.location.origin);
+ const invitation='Olá! Estamos organizando a rede de compradores da Cotação Mesa (Motyq). '+
+  'Para receber oportunidades de veículos compatíveis com sua loja, preencha o cadastro abaixo e '+
+  'compartilhe as respostas comigo por WhatsApp: '+publicFormLink;
+ const copyFormLink=async()=>{
+  try{await navigator.clipboard.writeText(publicFormLink);setNotice('Link copiado para enviar aos lojistas.');}
+  catch{window.prompt('Copie o link do formulário:',publicFormLink);}
+ };
+ const previewPublicRegistration=()=>{
+  setRegistrationError('');setRegistrationPreview(null);
+  try{setRegistrationPreview(parsePublicBuyerCode(registrationText));}
+  catch(error:any){setRegistrationError(String(error?.message||'Código de cadastro inválido.'));}
+ };
+ const acceptPublicRegistration=()=>{
+  if(!registrationPreview)return;
+  setRegistrationError('');
+  try{
+   const sanitized=safeBuyer({...blankBuyer(),...registrationPreview,id:makeConsultedId(),active:true,
+    updatedAt:now()});
+   if(!sanitized||!sanitized.optedIn||!validBuyerPhone(sanitized.whatsapp))
+    throw Error('Cadastro incompleto ou sem consentimento de contato.');
+   const normalizedPhone=validBuyerPhone(sanitized.whatsapp);
+   const existing=buyers.find(b=>validBuyerPhone(b.whatsapp)===normalizedPhone);
+   if(existing&&!window.confirm('Já existe um lojista com este WhatsApp: '+existing.shop+
+    '. Atualizar o cadastro existente após conferir os dados?'))return;
+   const item={...sanitized,id:existing?.id||sanitized.id};
+   const next=[item,...buyers.filter(b=>b.id!==item.id)];
+   saveCotacaoBuyers(buyerScope,next);setBuyers(next);
+   setRegistrationText('');setRegistrationPreview(null);
+   setNotice('Cadastro importado após conferência: '+item.shop+
+     '. Armazenado somente neste navegador. Nenhuma mensagem foi enviada.');
+  }catch(error:any){setRegistrationError(String(error?.message||'Falha ao importar o cadastro.'));}
  };
  function setBuyerField<K extends keyof BuyerProfile>(key:K,value:BuyerProfile[K]){
   setBuyerForm(previous=>({...previous,[key]:value}));
@@ -318,6 +355,53 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
     <button type="button" className={smallBtn} onClick={()=>{setBuyerForm(blankBuyer());setBuyerFormOpen(v=>!v);setBuyerError('');}}>
      <Plus size={15}/>{buyerFormOpen?'Fechar cadastro':'Cadastrar lojista'}</button>
    </div>
+   <div className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4">
+    <p className="text-sm font-black text-cyan-950">Formulário público para lojistas</p>
+    <p className="mt-1 text-xs leading-5 text-slate-700">
+     Envie o link por WhatsApp. O lojista informa contato, marcas, modelos, categorias, ano, KM e orçamento.
+     Ele escolhe compartilhar o cadastro com você. Cole a mensagem recebida abaixo para conferir e importar.
+    </p>
+    <div className="mt-3 flex flex-wrap gap-2">
+     <button type="button" onClick={()=>void copyFormLink()} className={smallBtn}>
+      <FileText size={15}/>Copiar link do formulário</button>
+     <a className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white hover:bg-emerald-800"
+      target="_blank" rel="noopener noreferrer"
+      href={'https://api.whatsapp.com/send?text='+encodeURIComponent(invitation)}>
+      <MessageCircle size={15}/>Compartilhar convite</a>
+     <a className={smallBtn} href={publicFormLink} target="_blank" rel="noopener noreferrer">
+      <ArrowRight size={15}/>Visualizar formulário</a>
+    </div>
+    <p className="mt-3 break-all rounded-xl border border-cyan-100 bg-white px-3 py-2 font-mono text-xs text-cyan-900">{publicFormLink}</p>
+    <label className="mt-4 block text-xs font-bold text-slate-800" htmlFor="motyq-buyer-registration">
+     Importar o cadastro que o lojista enviou pelo WhatsApp
+    </label>
+    <textarea id="motyq-buyer-registration" rows={3}
+     className={input+' mt-2 font-mono text-xs'} value={registrationText} maxLength={9500}
+     onChange={e=>{setRegistrationText(e.target.value);setRegistrationPreview(null);setRegistrationError('');}}
+     placeholder="Cole aqui a mensagem completa recebida, incluindo o código MOTYQBUYER1..."/>
+    <div className="mt-3 flex flex-wrap gap-2">
+     <button type="button" disabled={!registrationText.trim()} onClick={previewPublicRegistration}
+      className="rounded-xl border border-cyan-300 bg-white px-4 py-2 text-xs font-black text-cyan-900 disabled:opacity-40">
+      Conferir cadastro recebido</button>
+     {registrationPreview&&<button type="button" onClick={acceptPublicRegistration}
+      className="rounded-xl bg-cyan-800 px-4 py-2 text-xs font-black text-white">
+      Confirmar e adicionar à carteira</button>}
+    </div>
+    {registrationPreview&&<div className="mt-3 rounded-xl border border-emerald-200 bg-white p-3 text-xs leading-5 text-slate-700">
+     <p className="font-black text-emerald-900">Confira antes de importar</p>
+     <p><strong>{registrationPreview.shop}</strong> · {registrationPreview.contact} · {registrationPreview.whatsapp}</p>
+     <p>{registrationPreview.region} · {registrationPreview.email||'Sem e-mail'}</p>
+     <p>Marcas: {registrationPreview.brands||'Variadas'} · Modelos: {registrationPreview.models||'Variados'}</p>
+     <p>Categorias: {registrationPreview.segments||'Variadas'} · Ano: {registrationPreview.yearFrom||'livre'} a {registrationPreview.yearTo||'livre'}</p>
+     <p>KM máximo: {registrationPreview.maxKm||'livre'} · Teto desejado: {registrationPreview.budgetTo?formatReais(Number(registrationPreview.budgetTo)):'livre'}</p>
+     <p className="font-semibold text-amber-900">O formulário não comprova identidade. Confira se a mensagem veio do contato real do comprador.</p>
+    </div>}
+    {registrationError&&<p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-white p-3 text-xs font-bold text-rose-800">{registrationError}</p>}
+    <p className="mt-3 text-[11px] leading-5 text-slate-600">
+     Os cadastros não entram automaticamente no banco, exigem sua conferência e continuam neste dispositivo.
+     Não há novas leituras ou gravações no Firestore.
+    </p>
+   </div>
    <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
     <span className="rounded-lg bg-slate-100 px-2.5 py-1.5">{buyers.length} lojistas cadastrados</span>
     <span className="rounded-lg bg-cyan-50 px-2.5 py-1.5 text-cyan-900">{rankedBuyers.length} compatíveis</span>
@@ -358,7 +442,12 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
       <div className="flex flex-wrap justify-between gap-2">
        <div><p className="text-sm font-black">{buyer.shop}</p>
         <p className="text-xs text-slate-600">{buyer.contact||'Sem nome'}{buyer.region?' · '+buyer.region:''}</p>
-        <p className="mt-1 text-[11px] text-slate-500">{reasons.join(' · ')} · Pontuação {score}</p></div>
+        <p className="mt-1 text-[11px] text-slate-500">{reasons.join(' · ')} · Pontuação {score}</p>
+        {(buyer.segments||buyer.budgetTo||buyer.maxKm)&&<p className="mt-1 text-[11px] text-slate-600">
+         {buyer.segments?'Tipos: '+buyer.segments+' · ':''}
+         {buyer.maxKm?'Até '+Number(buyer.maxKm).toLocaleString('pt-BR')+' km · ':''}
+         {buyer.budgetTo?'Orçamento até '+formatReais(Number(buyer.budgetTo)):''}
+        </p>}</div>
        <button type="button" className="text-xs font-bold text-cyan-800 underline" onClick={()=>{setBuyerForm(buyer);setBuyerFormOpen(true);}}>Editar</button>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
