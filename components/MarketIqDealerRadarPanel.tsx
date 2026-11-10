@@ -1,4 +1,5 @@
-import React,{useMemo,useRef,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import type {MarketIqIncomingFile} from '../services/marketIqSmartImport';
 import './marketIqRadarCompact.css';
 import {AlertTriangle,ArrowDownUp,ArrowRight,CarFront,Clock3,FileSpreadsheet,RefreshCw,Search,ShieldCheck,UploadCloud,Warehouse} from 'lucide-react';
 import {
@@ -23,9 +24,12 @@ type Props={
  localArchiveState?:'loading'|'empty'|'restored'|'saving'|'saved'|'error';
  localArchiveWarning?:string;
  onQuoteVehicle?:(vehicle:DealerStockVehicle)=>void;
+ incomingFile?:MarketIqIncomingFile|null;
+ onIncomingFileConsumed?:(token:string)=>void;
 };
 export default function MarketIqDealerRadarPanel(props:Props){
  const fileInput=useRef<HTMLInputElement|null>(null);
+ const processedIncomingToken=useRef('');
  const [localCurrent,setLocalCurrent]=useState<DealerStockSnapshot|null>(null);
  const [localPrevious,setLocalPrevious]=useState<DealerStockSnapshot|null>(null);
  const current=props.snapshot===undefined?localCurrent:props.snapshot;
@@ -101,6 +105,15 @@ export default function MarketIqDealerRadarPanel(props:Props){
   }catch(err){setError(err instanceof Error?err.message:'Não foi possível ler este arquivo do Dealer.');}
   finally{setLoading(false);}
  };
+ // A confirmed smart import uses the original importer, with all existing
+ // stock-date and local-archive safeguards. React strict replays cannot re-import.
+ useEffect(()=>{
+  const incoming=props.incomingFile;
+  if(!incoming||incoming.kind!=='dealer'||processedIncomingToken.current===incoming.token)return;
+  processedIncomingToken.current=incoming.token;
+  props.onIncomingFileConsumed?.(incoming.token);
+  void importFile(incoming.file);
+ },[props.incomingFile?.token]);
  const clear=()=>{
   if(current&&!window.confirm('Apagar as fotografias do estoque SALVAS NESTE NAVEGADOR? Você precisará importar a planilha novamente. Nenhum registro oficial será afetado.'))return;
   setCurrent(null);setPrevious(null);setSelectedKey('');setError('');setFileName('');
