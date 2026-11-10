@@ -87,7 +87,7 @@ const paid=[
   fipe:{value:90000,fipeCode:'015142-9'}}
 ];
 const history=quick.buildQuickPurchaseDecision({...input,saved:paid,preparationConfirmed:true});
-assert.equal(history.similar.paidCount,1,'Only independently confirmed compatible paid values count');
+assert.equal(history.similar.paidCount,1,'Only independently confirmed compatible paid values count: '+JSON.stringify(history.similar));
 assert.equal(history.similar.paidMedian,70000);
 assert.equal(history.similar.limited,true,'This board does not pretend to have fetched the monthly archive');
 
