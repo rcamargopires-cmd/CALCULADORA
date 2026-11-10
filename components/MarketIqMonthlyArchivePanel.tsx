@@ -101,7 +101,8 @@ export default function MarketIqMonthlyArchivePanel({user,onOpenPlateHistory,inc
    // Mount-time month loading may still be pending, so never rely on an empty
    // initial UI state to decide whether an existing month can be replaced.
    const remote=await archiveRequest('months');
-   const savedMonths:Array<{month:string}>=Array.isArray(remote.months)?remote.months:[];
+   if(!Array.isArray(remote.months))throw Error('Não foi possível conferir os meses já arquivados. Importação cancelada para proteger o histórico.');
+   const savedMonths:Array<{month:string}>=remote.months;
    const previous=incomingMonths.filter(m=>savedMonths.some(item=>item.month===m));
    if(previous.length&&
      !window.confirm('Já existe arquivo do(s) mês(es) '+previous.join(', ')+'. Esta importação substituirá a fotografia desse(s) mês(es). Deseja continuar?')){
