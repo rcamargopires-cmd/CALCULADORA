@@ -800,6 +800,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
  const navigateSimple=(destination:SimpleIqDestination|'home',lookedUpPlate?:string)=>{
+  if(destination==='home')setShowAllTools(false);
   if(lookedUpPlate&&destination==='plateHistory')setSelectedPlateForHistory(lookedUpPlate);
   // Use the guided mobile assessment for pricing, and the original
   // full-resolution module for all other routes on small screens.
@@ -859,7 +860,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   />
  </div>
  {mobileFullDesk&&<button type="button" className="mx-4 mt-4 rounded-lg bg-[#008bd0] px-4 py-3 text-sm font-bold text-white lg:hidden"
-   onClick={()=>setMobileFullDesk(false)}>Voltar ao Motyq IQ Mobile</button>}
+   onClick={()=>navigateSimple('home')}>Voltar ao início do Motyq IQ</button>}
  {deskSection!=='home'&&<main className={'mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-5 '+(mobileFullDesk?'block':'hidden lg:block')}>
  <nav className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Navegação simplificada">
   <button type="button" onClick={()=>navigateSimple('home')} className="inline-flex items-center gap-2 rounded-xl bg-[#153f51] px-4 py-2.5 text-xs font-black text-white">
