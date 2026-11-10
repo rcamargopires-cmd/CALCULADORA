@@ -166,6 +166,73 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    setError('');setShowAudit(true);window.scrollTo({top:0,behavior:'smooth'});
  };
  const addOffer=()=>setDraft(d=>({...d,offers:[...d.offers,emptyConsultedOffer()]}));
+ const addOfferForBuyer=(buyer:BuyerProfile)=>{
+  if(draft.state==='vendido'){setError('Reabra o caso antes de cotar novamente.');return;}
+  setDraft(d=>({...d,offers:[...d.offers.filter(o=>o.buyer.trim()||o.value.trim()),
+   {...emptyConsultedOffer(),buyer:buyer.shop,channel:'whatsapp'}]}));
+  setNotice('Proposta pendente da '+buyer.shop+' adicionada. Informe o valor somente após resposta da loja.');
+ };
+ const saveBuyer=()=>{
+  setBuyerError('');setNotice('');
+  if(!buyerForm.shop.trim()){setBuyerError('Informe o nome da loja.');return;}
+  if(buyerForm.optedIn&&!validBuyerPhone(buyerForm.whatsapp)){
+   setBuyerError('WhatsApp inválido. Informe DDD e número brasileiro.');return;
+  }
+  const next={...buyerForm,id:buyerForm.id||makeConsultedId(),
+   updatedAt:now(),shop:buyerForm.shop.trim()};
+  const list=[...buyers.filter(x=>x.id!==next.id),next].slice(0,250);
+  try{
+   saveCotacaoBuyers(buyerScope,list);setBuyers(list);
+   setBuyerForm(blankBuyer());setBuyerFormOpen(false);
+   setNotice('Lojista cadastrado. O Motyq passa a sugeri-lo para os veículos compatíveis.');
+  }catch(e:any){setBuyerError(String(e?.message||'Não foi possível salvar a loja.'));}
+ };
+ const setBuyerField=<K extends keyof BuyerProfile>(key:K,value:BuyerProfile[K])=>
+  setBuyerForm(previous=>({...previous,[key]:value}));
+ const updateRequest=(buyer:BuyerProfile,status:ConsultedOutreach['status'])=>
+  setDraft(d=>({...d,requests:[
+   ...(d.requests||[]).filter(x=>x.buyerId!==buyer.id),
+   {buyerId:buyer.id,buyer:buyer.shop,preparedAt:now(),status}
+  ]}));
+ const registerClosedSale=()=>{
+  setError('');setNotice('');
+  if(draft.state==='vendido'){setError('O caso já está fechado. Reabra a negociação para corrigi-lo.');return;}
+  if(!before||changed){setError('Salve a cotação e suas propostas antes de registrar o fechamento.');return;}
+  const winning=draft.offers.find(o=>o.id===draft.selectedOfferId&&offerIsEligible(o));
+  const value=moneyNumber(saleFinalAmount);
+  if(!winning||!isValidConsultedMoney(saleFinalAmount,false)||value<=0){
+   setError('Selecione uma proposta confirmada e válida e informe o preço final da venda.');return;
+  }
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(saleClosingDate)){
+   setError('Informe a data do fechamento.');return;
+  }
+  if(!window.confirm('Registrar venda para '+winning.buyer+' por '+formatReais(value)+
+   '? Pagamento '+(salePaid?'informado como RECEBIDO.':'ainda NÃO confirmado.')+
+   ' Nenhuma transação ou mensagem será executada.'))return;
+  const completed={...draft,state:'vendido' as const,sale:{
+   buyer:winning.buyer,offerId:winning.id,finalValue:value,closedAt:saleClosingDate,
+   paymentReceived:salePaid,registeredBy:user.email||'Mesa'
+  }};
+  const updated=appendConsultedAudit(before,completed,user.email||'Mesa');
+  const list=[updated,...rows.filter(r=>r.id!==updated.id)].slice(0,300);
+  try{
+   saveConsultedCases(email,list);setRows(list);setDraft(updated);
+   setNotice('Fechamento registrado: '+winning.buyer+' · '+formatReais(value)+
+    '. Pagamento '+(salePaid?'declarado recebido.':'a confirmar.')+
+    ' O registro é local e não integra o financeiro automaticamente.');
+  }catch{setError('Não foi possível salvar o fechamento no navegador.');}
+ };
+ const reopenSale=()=>{
+  if(draft.state!=='vendido'||!draft.sale)return;
+  if(!window.confirm('Reabrir a cotação? O fechamento anterior permanecerá no log local.'))return;
+  const beforeSaved=rows.find(row=>row.id===draft.id)||null;
+  const updated=appendConsultedAudit(beforeSaved,{...draft,state:'negociacao',sale:null},user.email||'Mesa');
+  const list=[updated,...rows.filter(x=>x.id!==updated.id)];
+  try{
+   saveConsultedCases(email,list);setRows(list);setDraft(updated);
+   setNotice('Cotação reaberta. O fechamento anterior permanece no log.');
+  }catch{setError('Falha ao reabrir o caso.');}
+ };
  const removeOffer=(id:string)=>setDraft(d=>({...d,
    offers:d.offers.filter(o=>o.id!==id),
    selectedOfferId:d.selectedOfferId===id?'':d.selectedOfferId,
