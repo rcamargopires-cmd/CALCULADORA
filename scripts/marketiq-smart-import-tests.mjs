@@ -70,6 +70,8 @@ assert.ok(dealer.includes('processedIncomingToken.current===incoming.token')&&
  dealer.includes('void importFile(incoming.file)'));
 assert.ok(archive.includes('processedIncomingToken.current===file.token')&&
  archive.includes('void importFile(file.file,file.sheet)'));
+assert.ok(archive.includes("if(!Array.isArray(remote.months))throw Error("),
+ 'Malformed month listing must cancel the import rather than risking data overwrite');
 assert.ok(archive.includes("const remote=await archiveRequest('months');")&&
  archive.includes('const previous=incomingMonths.filter(m=>savedMonths.some(item=>item.month===m));'),
  'Never rely on mount-time empty month state for overwrite prevention');
