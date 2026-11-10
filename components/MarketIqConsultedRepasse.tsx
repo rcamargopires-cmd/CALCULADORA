@@ -139,6 +139,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    if(!next.vehicle.brand.trim()||!next.vehicle.model.trim()){
      setError('Preencha marca e modelo do veículo antes de salvar.');return;
    }
+   if(draft.state==='vendido'&&changed){setError('Caso já vendido: reabra a cotação antes de editar.');return;}
    if(!validCosts){setError('Verifique os custos e as alíquotas. Digite somente valores numéricos não negativos e percentuais de até 100%.');return;}
    if(next.proposedBuy.trim()&&!isValidConsultedMoney(next.proposedBuy,false)){
      setError('Informe um valor de compra numérico válido.');return;
@@ -156,7 +157,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    const nextRows=[updated,...rows.filter(r=>r.id!==updated.id)].slice(0,300);
    try{saveConsultedCases(email,nextRows);setRows(nextRows);setDraft(updated);
      setNotice('Cotação salva neste navegador. Versão '+updated.version+
-       ' registrada no histórico local. Nenhuma compra foi aprovada ou executada.');
+       ' registrada no histórico local. Nenhuma compra, venda ou pagamento foi executado pelo sistema.');
    }catch{setError('Não foi possível gravar o histórico local. Verifique o espaço disponível no navegador.');}
  };
  const open=(item:ConsultedCase)=>{
@@ -264,8 +265,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
      </p>
      <h2 className="motyq-iq-hero-title mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Cotação Mesa</h2>
      <p className="motyq-iq-hero-description mt-2 max-w-2xl text-sm leading-6 text-slate-200">
-      Registre quanto outras lojas oferecem antes de definir o valor de entrada. Cada operação
-      tem suas próprias despesas, tributos informados e margem desejada.
+      Selecione um veículo da Mesa ou do Radar, encontre os lojistas compatíveis, acompanhe propostas e registre o comprador e o preço fechado. Cálculos de custos e margem permanecem disponíveis.
      </p>
     </div>
     <span className="motyq-iq-hero-status rounded-full border border-cyan-200/30 bg-cyan-100/10 px-3 py-1.5 text-xs font-bold text-cyan-200">
@@ -275,10 +275,18 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
   </section>
   <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
    <ShieldAlert size={18} className="shrink-0"/>
-   <p><strong>Simulação operacional:</strong> as ofertas são informadas manualmente após contato com as lojas.
-    Marcar uma oferta como confirmada é uma declaração do operador, não uma validação externa.
-    Impostos e NF não são calculados automaticamente pela legislação. O registro e o log são
-    locais, neste navegador, e não substituem autorização gerencial ou trilha auditável no servidor.</p>
+   <p><strong>Cotação assistida:</strong> os compradores e as consultas são salvos somente neste navegador. O WhatsApp abre apenas ao seu clique, sem envio ou leitura automática de respostas. Preços, fechamento e recebimento de pagamento são informados manualmente pela Mesa. Impostos/NF, aprovação gerencial e transferência financeira continuam fora desta função.</p>
+  </div>
+  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores da Cotação Mesa">
+   {([
+    ['Casos em consulta',rows.filter(r=>r.state==='consulta').length.toLocaleString('pt-BR')],
+    ['Em negociação',rows.filter(r=>r.state==='negociacao').length.toLocaleString('pt-BR')],
+    ['Vendas fechadas',rows.filter(r=>r.state==='vendido'&&r.sale).length.toLocaleString('pt-BR')],
+    ['Total negociado',formatReais(rows.filter(r=>r.state==='vendido'&&r.sale).reduce((sum,r)=>sum+(r.sale?.finalValue||0),0))]
+   ] as const).map(([name,value])=><div key={name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{name}</p>
+    <p className="mt-1 text-xl font-black text-slate-950">{value}</p>
+   </div>)}
   </div>
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
