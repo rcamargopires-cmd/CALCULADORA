@@ -126,8 +126,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
  return <div className="space-y-5">
   <section className="overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-[#0c293d] via-[#123b51] to-[#126083] px-5 py-6 text-white shadow-sm">
    <p className="text-[11px] font-black uppercase tracking-[.2em] text-cyan-200">MOTYQ IQ · INTELIGÊNCIA DE AQUISIÇÕES</p>
-   <h2 className="mt-2 text-2xl font-black tracking-tight">Radar de Compra <span className="text-cyan-300">1.0</span></h2>
-   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100">Transforme o arquivo de estoque do Dealer em decisões de gestão: capital imobilizado, veículos parados, risco de preço e concorrência interna entre unidades.</p>
+   <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Meu estoque <span className="text-cyan-200">· Radar</span></h2>
+   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100">Encontre um carro, confira o custo e veja o que precisa de atenção.</p>
    <div className="mt-4 flex flex-wrap items-center gap-3">
     <button type="button" disabled={loading} onClick={()=>fileInput.current?.click()}
      className="inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-extrabold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
@@ -140,10 +140,10 @@ export default function MarketIqDealerRadarPanel(props:Props){
      className="rounded-lg border border-white/30 px-3 py-2.5 text-xs font-semibold text-white hover:bg-white/10">
      Limpar dados locais</button>}
    </div>
-   <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-cyan-100">
-    <ShieldCheck size={16} className="mt-0.5 shrink-0"/>
-    Dados salvos somente neste navegador e nesta conta, sem envio da planilha à nuvem. Nenhuma macro é executada e nenhuma avaliação oficial é alterada. Em computador compartilhado, use «Limpar dados locais» ao terminar.
-   </p>
+   <details className="mt-3 rounded-lg border border-white/20 px-3 py-2 text-xs text-cyan-100">
+    <summary className="cursor-pointer font-bold text-cyan-100">Origem dos dados e privacidade</summary>
+    <p className="mt-2 leading-5 text-cyan-100">Base importada manualmente do Dealer, salva somente neste navegador e conta. Não há conferência em tempo real, execução de macros ou alteração de avaliações oficiais. Em computador compartilhado, use “Limpar dados locais” ao terminar.</p>
+   </details>
   </section>
   {props.localArchiveWarning&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">{props.localArchiveWarning}</p>}
   {current&&<div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-950">
@@ -168,13 +168,15 @@ export default function MarketIqDealerRadarPanel(props:Props){
     </div>
    </div>
   </div>:<>
-   <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
-    <p><strong className="text-slate-900">Arquivo carregado:</strong> {cap(savedFileName)} · fotografia de {date(current.reportDate)} · {current.vehicles.length.toLocaleString('pt-BR')} veículos válidos</p>
-    <span className="rounded-lg bg-cyan-50 px-3 py-1.5 font-bold text-cyan-900">Somente leitura</span>
-   </div>
-   {current.warnings.length>0&&<div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-6 text-amber-950">
-    <strong>Validação do arquivo:</strong> {current.warnings.join(' ')}
-   </div>}
+   <details className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+    <summary className="cursor-pointer font-bold text-[#153f51]">
+     Dados da importação: {date(current.reportDate)} · {current.vehicles.length.toLocaleString('pt-BR')} veículos · {current.warnings.length} alerta(s)
+    </summary>
+    <p className="mt-2"><strong>Arquivo:</strong> {cap(savedFileName)} · somente leitura · dados informados na planilha, não sincronizados em tempo real</p>
+    {current.warnings.length>0&&<p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 font-semibold text-amber-950">
+     <strong>Validação do arquivo:</strong> {current.warnings.join(' ')}
+    </p>}
+   </details>
    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
     <article className={card}><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500"><CarFront size={17}/> Veículos</div>
      <p className="mt-2 text-3xl font-black text-slate-950">{stats.count}</p>
@@ -189,6 +191,9 @@ export default function MarketIqDealerRadarPanel(props:Props){
      <p className="mt-2 text-3xl font-black text-amber-700">{stats.over90}</p>
      <p className="mt-1 text-xs text-slate-600">Veículos exigindo revisão de giro</p></article>
    </div>
+   <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <summary className="cursor-pointer text-sm font-black text-[#153f51]">Análises adicionais: giro, alertas e comparação entre relatórios</summary>
+    <div className="mt-4 space-y-4">
    <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
     <section className={card}>
      <h3 className="font-black text-slate-950">Tempo em estoque</h3>
@@ -240,6 +245,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
     </div>
     <p className="mt-2 text-xs text-amber-800">A classificação de venda, repasse, devolução ou transferência exige relatório de movimentação ou vendas.</p>
    </section>}
+    </div>
+   </details>
    <section className={card}>
     <div className="flex flex-wrap items-start justify-between gap-3">
      <div><h3 className="text-lg font-black text-slate-950">Estoque por veículo</h3>
