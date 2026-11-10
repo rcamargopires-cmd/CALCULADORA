@@ -1,16 +1,18 @@
-import React,{useState} from 'react';
+import React,{useRef,useState} from 'react';
 import './marketIqSimpleHome.css';
 import {
  ArrowRight,ArrowUpRight,Bot,CarFront,ChartNoAxesCombined,ChevronDown,
  ClipboardList,FileSpreadsheet,History,Layers3,MessageSquareText,
- Search,ShieldCheck,Sparkles,Warehouse
+ Search,ShieldCheck,Sparkles,UploadCloud,Warehouse
 } from 'lucide-react';
 import {parseSimpleIqIntent,type SimpleIqDestination} from '../services/marketIqSimpleNavigation';
+import type {MarketIqWorkbookDetection,MarketIqWorkbookKind} from '../services/marketIqSmartImport';
 
 type HomeProps={
  onNavigate:(section:SimpleIqDestination,plate?:string)=>void;
  onOpenAdvanced:()=>void;
  onSelectImport:(kind:'dealer'|'evaluations')=>void;
+ onSmartImport:(file:File,kind:MarketIqWorkbookKind)=>void;
  stockCount:number|null;
  stockDate:string|null;
  historyCount:number;
@@ -32,11 +34,26 @@ const formatDate=(raw:string|null)=>{
  return day+'/'+month+'/'+year;
 };
 export default function MarketIqSimpleHome({
- onNavigate,onOpenAdvanced,onSelectImport,stockCount,stockDate,historyCount,historyBusy
+ onNavigate,onOpenAdvanced,onSelectImport,onSmartImport,stockCount,stockDate,historyCount,historyBusy
 }:HomeProps){
  const [command,setCommand]=useState('');
  const [hint,setHint]=useState('');
  const [importOpen,setImportOpen]=useState(false);
+ const smartFileRef=useRef<HTMLInputElement|null>(null);
+ const [detecting,setDetecting]=useState(false);
+ const [detected,setDetected]=useState<{file:File;result:MarketIqWorkbookDetection}|null>(null);
+ const [detectError,setDetectError]=useState('');
+ const detectFile=async(file?:File)=>{
+  if(!file||detecting)return;
+  setDetecting(true);setDetected(null);setDetectError('');
+  try{
+   const {detectMarketIqWorkbook}=await import('../services/marketIqSmartImport');
+   const result=await detectMarketIqWorkbook(file);
+   setDetected({file,result});
+  }catch(error:any){setDetectError(String(error?.message||'Não foi possível reconhecer a planilha.'));}
+  finally{setDetecting(false);}
+ };
+
  const route=()=>{
   const match=parseSimpleIqIntent(command);
   if(!match){
@@ -137,6 +154,26 @@ export default function MarketIqSimpleHome({
      Importar planilha<ChevronDown size={16} className={importOpen?'rotate-180':''}/></button>
    </div>
    {importOpen&&<div id="motyq-iq-import-guide" className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
+    <div className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 sm:col-span-2">
+     <p className="text-sm font-black text-slate-950">Importação inteligente</p>
+     <p className="mt-1 text-xs text-slate-700">Selecione a planilha uma vez. O Motyq verifica as colunas, mostra o tipo reconhecido e pede sua confirmação antes de importar. O arquivo é analisado neste navegador.</p>
+     <input ref={smartFileRef} type="file" accept=".xlsx,.xlsm,.xls"
+      aria-label="Selecionar planilha para identificar"
+      className="sr-only" onChange={event=>{const file=event.target.files?.[0];event.currentTarget.value='';void detectFile(file);}}/>
+     <button type="button" onClick={()=>smartFileRef.current?.click()} disabled={detecting}
+      className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#153f51] px-4 py-3 text-sm font-black text-white disabled:opacity-50">
+      <UploadCloud size={18}/>{detecting?'Analisando a planilha...':'Selecionar planilha'}</button>
+     {detectError&&<p role="alert" className="mt-3 rounded-xl border border-amber-200 bg-white p-3 text-xs font-semibold text-amber-900">{detectError}</p>}
+     {detected&&<div role="status" className="mt-3 rounded-xl border border-emerald-200 bg-white p-4">
+      <p className="text-sm font-black text-emerald-900">{detected.result.headline}</p>
+      <p className="mt-1 break-all text-xs font-semibold text-slate-800">{detected.file.name} · aba {detected.result.sheet}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-600">{detected.result.description}</p>
+      <button type="button" onClick={()=>onSmartImport(detected.file,detected.result.kind)}
+       className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-xs font-black text-white hover:bg-emerald-800">
+       Conferir e importar no local correto <ArrowRight size={16}/></button>
+     </div>}
+    </div>
+    <p className="text-[11px] font-bold text-slate-600 sm:col-span-2">Ou acesse os importadores manualmente:</p>
     <button type="button" onClick={()=>onSelectImport('dealer')}
      className="flex items-center gap-3 rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 text-left hover:bg-cyan-50">
      <Warehouse size={19} className="shrink-0 text-[#14627d]"/>
@@ -150,8 +187,7 @@ export default function MarketIqSimpleHome({
       <span className="mt-1 block text-xs text-slate-600">Histórico mensal de avaliações e valores.</span></span>
      <ArrowRight size={15} className="ml-auto shrink-0 text-indigo-700"/></button>
     <p className="text-[11px] leading-5 text-slate-500 sm:col-span-2">
-     Nesta versão de teste, escolha o tipo e faça a importação na tela indicada.
-     A identificação automática do arquivo será a próxima etapa.
+     A identificação é automática, mas você confirma a importação. Caso o formato não seja reconhecido, use os importadores manuais. Meses já arquivados exigem confirmação adicional.
     </p>
    </div>}
   </div>
