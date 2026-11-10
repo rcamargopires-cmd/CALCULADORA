@@ -187,8 +187,9 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    setNotice('Lojista cadastrado. O Motyq passa a sugeri-lo para os veículos compatíveis.');
   }catch(e:any){setBuyerError(String(e?.message||'Não foi possível salvar a loja.'));}
  };
- const setBuyerField=<K extends keyof BuyerProfile>(key:K,value:BuyerProfile[K])=>
+ function setBuyerField<K extends keyof BuyerProfile>(key:K,value:BuyerProfile[K]){
   setBuyerForm(previous=>({...previous,[key]:value}));
+ }
  const updateRequest=(buyer:BuyerProfile,status:ConsultedOutreach['status'])=>
   setDraft(d=>({...d,requests:[
    ...(d.requests||[]).filter(x=>x.buyerId!==buyer.id),
@@ -476,6 +477,45 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
       </p>
      </>}
    </div>
+  </section>
+
+  <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm" aria-label="Fechamento da cotação">
+   <h3 className="flex items-center gap-2 text-lg font-black"><Check size={19} className="text-emerald-700"/>6. Fechamento: quem comprou e por quanto</h3>
+   <p className="mt-1 text-xs leading-5 text-slate-600">
+    Registre a venda apenas depois que a loja confirmar a proposta. Valor fechado e pagamento recebido são informações diferentes.
+    Não há lançamento financeiro nem baixa automática de estoque.
+   </p>
+   {draft.state==='vendido'&&draft.sale?<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+    <p className="text-[11px] font-bold uppercase text-emerald-800">Venda registrada pela Mesa</p>
+    <p className="mt-1 text-xl font-black text-emerald-950">{draft.sale.buyer} · {formatReais(draft.sale.finalValue)}</p>
+    <p className="mt-2 text-xs font-semibold text-emerald-950">Fechamento {draft.sale.closedAt.split('-').reverse().join('/')} ·
+     {draft.sale.paymentReceived?' Pagamento declarado recebido':' Pagamento ainda não confirmado'} · {draft.sale.registeredBy}</p>
+    <button type="button" className="mt-3 rounded-lg border border-emerald-400 bg-white px-3 py-2 text-xs font-bold text-emerald-900" onClick={reopenSale}>
+     Reabrir negociação com registro no histórico</button>
+   </div>:<div className="mt-4 space-y-3">
+    <div className="grid gap-3 sm:grid-cols-3">
+     <label><span className={label}>Oferta selecionada para fechamento</span>
+      <select className={input} value={draft.selectedOfferId}
+       onChange={e=>setDraft(d=>({...d,selectedOfferId:e.target.value}))}>
+       <option value="">Selecione uma oferta confirmada</option>
+       {draft.offers.filter(o=>offerIsEligible(o)).map(o=><option key={o.id} value={o.id}>{o.buyer} · {formatReais(moneyNumber(o.value))}</option>)}
+      </select>
+     </label>
+     <label><span className={label}>Preço final confirmado (R$)</span>
+      <input className={input} inputMode="decimal" value={saleFinalAmount} onChange={e=>setSaleFinalAmount(e.target.value)} placeholder="Ex.: 56.000,00"/></label>
+     <label><span className={label}>Data do fechamento</span>
+      <input className={input} type="date" value={saleClosingDate} onChange={e=>setSaleClosingDate(e.target.value)}/></label>
+    </div>
+    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+     <input type="checkbox" checked={salePaid} onChange={e=>setSalePaid(e.target.checked)}/>
+     Pagamento recebido e conferido pela Mesa (declaração manual)
+    </label>
+    <button type="button" disabled={!before||changed||!draft.selectedOfferId} onClick={registerClosedSale}
+     className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
+     <Check size={15}/>Registrar fechamento
+    </button>
+    <p className="text-[11px] text-slate-500">Antes de fechar, salve a cotação no passo 7. O log guarda mudanças e quem registrou o fechamento.</p>
+   </div>}
   </section>
 
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
