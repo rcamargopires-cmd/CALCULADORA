@@ -1056,7 +1056,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <button type="button" onClick={()=>setPurchaseSummaryOpen(true)}
     disabled={!brand.trim()||!model.trim()}
     className="rounded-xl bg-[#0b7199] px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-[#095b7b] disabled:cursor-not-allowed disabled:opacity-50">
-    Conferir análise completa
+    Inteligência de Compra
    </button>
    <MarketIqDesktopVoiceSearch
    vehicleType={vehicleType} onVehicleType={selectVehicleType}
