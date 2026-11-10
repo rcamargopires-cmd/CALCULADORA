@@ -27,7 +27,7 @@ export function parseSimpleIqIntent(raw:string):SimpleIqIntent|null{
  if(/resultado|relatorio|painel|indicador|desempenho|mes passado/.test(text))
   return {destination:'dashboard',explanation:'Consultar os resultados gerenciais'};
  if(/aprend|padroes|inteligencia/.test(text))return {destination:'learning',explanation:'Abrir Aprendizado IQ'};
- if(/avaliar|avaliacao|precificar|fipe|preco|preco de compra/.test(text)||/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(compact))
+ if(/avaliar|avaliacao|precificar|fipe|preco|preco de compra|decisao de compra|quanto pagar|quanto oferecer/.test(text)||/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(compact))
   return {destination:'pricing',plate:selectedPlate,explanation:'Abrir uma avaliação de veículo'};
  return null;
 }
