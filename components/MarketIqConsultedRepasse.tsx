@@ -574,7 +574,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    </div>
   </section>
 
-  <details className="rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm" defaultOpen={Boolean(draft.sale)}>
+  <details className="rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm">
    <summary className="cursor-pointer p-2 text-sm font-black text-[#153f51]">{draft.sale?'Venda registrada: '+draft.sale.buyer+' · '+formatReais(draft.sale.finalValue):'6. Registrar fechamento quando houver comprador'}</summary>
   <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm" aria-label="Fechamento da cotação">
    <h3 className="flex items-center gap-2 text-lg font-black"><Check size={19} className="text-emerald-700"/>6. Fechamento: quem comprou e por quanto</h3>
