@@ -819,8 +819,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   window.scrollTo({top:0,behavior:'smooth'});
  };
  const selectSimpleImport=(kind:'dealer'|'evaluations')=>navigateSimple(kind==='dealer'?'radar':'archive');
- const acceptSmartImport=(file:File,kind:MarketIqWorkbookKind)=>{
-  setSmartIncomingFile({token:Date.now()+'-'+Math.random(),file,kind});
+ const acceptSmartImport=(file:File,kind:MarketIqWorkbookKind,sheet:string)=>{
+  setSmartIncomingFile({token:Date.now()+'-'+Math.random(),file,kind,sheet});
   navigateSimple(kind==='dealer'?'radar':'archive');
  };
 
