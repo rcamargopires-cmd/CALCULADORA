@@ -9,6 +9,7 @@ import './motyq-seller-mobile.css';
 import './motyq-executive-dashboard.css';
 import './motyq-shell.css';
 import './motyq-premium-light.css';
+import './public-cotacao-mesa.css';
 import './services/storeScopeAdapter';
 import './services/stockBatchAdapter';
 import './services/unifiedStockAuditAdapter';
