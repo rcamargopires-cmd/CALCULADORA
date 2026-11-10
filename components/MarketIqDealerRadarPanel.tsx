@@ -21,6 +21,7 @@ type Props={
  previousSnapshot?:DealerStockSnapshot|null;onPreviousSnapshotChange?:(next:DealerStockSnapshot|null)=>void;
  localArchiveState?:'loading'|'empty'|'restored'|'saving'|'saved'|'error';
  localArchiveWarning?:string;
+ onQuoteVehicle?:(vehicle:DealerStockVehicle)=>void;
 };
 export default function MarketIqDealerRadarPanel(props:Props){
  const fileInput=useRef<HTMLInputElement|null>(null);
@@ -315,6 +316,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
           className="whitespace-nowrap rounded-lg bg-cyan-700 px-3 py-2 text-xs font-black text-white hover:bg-cyan-800">
           Resumo de Compra
          </button>
+         {props.onQuoteVehicle&&<button type="button" onClick={e=>{e.stopPropagation();props.onQuoteVehicle?.(v);}}
+          className="ml-2 whitespace-nowrap rounded-lg border border-cyan-300 bg-white px-3 py-2 text-xs font-bold text-cyan-950 hover:bg-cyan-50">Cotar na Mesa</button>}
         </td>
        </tr>)}
        {!filtered.length&&<tr><td colSpan={9} className="px-3 py-8 text-center text-sm text-slate-500">Nenhum veículo corresponde aos filtros.</td></tr>}
@@ -336,6 +339,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
        className="rounded-lg bg-[#0b7199] px-4 py-2 text-xs font-black text-white hover:bg-[#095b7b]">
        Abrir Resumo de Compra
       </button>
+      {props.onQuoteVehicle&&<button type="button" onClick={()=>props.onQuoteVehicle?.(selected)}
+       className="rounded-lg border border-cyan-300 bg-cyan-50 px-4 py-2 text-xs font-black text-cyan-950">Cotar na Mesa</button>}
       <button type="button" onClick={()=>setSelectedKey('')} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold">Fechar</button>
      </div>
     </div>
