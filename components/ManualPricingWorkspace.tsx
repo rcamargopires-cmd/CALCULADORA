@@ -802,6 +802,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const navigateSimple=(destination:SimpleIqDestination|'home',lookedUpPlate?:string)=>{
   if(destination==='home')setShowAllTools(false);
   if(lookedUpPlate&&destination==='plateHistory')setSelectedPlateForHistory(lookedUpPlate);
+  if(lookedUpPlate&&destination==='pricing'){
+   // A quick command with a plate must not silently overwrite an unsaved
+   // valuation. Reuse the existing explicit confirmation/reset workflow.
+   if(!beginNewMobileValuation())return;
+   setPlate(lookedUpPlate);
+  }
   // Use the guided mobile assessment for pricing, and the original
   // full-resolution module for all other routes on small screens.
   setMobileFullDesk(destination!=='home'&&destination!=='pricing');
