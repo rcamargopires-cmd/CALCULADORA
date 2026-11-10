@@ -19,7 +19,7 @@ type HomeProps={
  historyBusy:boolean;
 };
 const primary=[
- {id:'pricing' as const,label:'Avaliar veículo',subtitle:'FIPE, mercado e preço',help:'Nova avaliação',
+ {id:'pricing' as const,label:'Decisão de Compra',subtitle:'FIPE, histórico, estoque e custos',help:'Analisar veículo',
   icon:CarFront,tone:'bg-[#e6f6fc] text-[#106081]',border:'hover:border-[#9cd9ee]'},
  {id:'consulted' as const,label:'Cotação Mesa',subtitle:'Lojistas e propostas',help:'Consultar compradores',
   icon:MessageSquareText,tone:'bg-[#fff1e5] text-[#ac570d]',border:'hover:border-[#f2c398]'},
