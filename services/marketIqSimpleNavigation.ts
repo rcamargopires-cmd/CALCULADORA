@@ -18,8 +18,9 @@ export function parseSimpleIqIntent(raw:string):SimpleIqIntent|null{
   return {destination:'radar',explanation:'Consultar o estoque no Radar de Compra'};
  if(/importar|planilha|excel|arquivo mensal|arquivo de avaliac/.test(text))
   return {destination:'archive',explanation:'Abrir o Arquivo Mensal para importar avaliações'};
- if(/placa|historico do carro|historico por placa/.test(text)&&selectedPlate)
-  return {destination:'plateHistory',plate:selectedPlate,explanation:'Consultar histórico por placa '+selectedPlate};
+ if(/placa|historico do carro|historico por placa/.test(text))
+  return {destination:'plateHistory',plate:selectedPlate,explanation:selectedPlate?
+   'Consultar histórico por placa '+selectedPlate:'Abrir a pesquisa de histórico por placa'};
  if(/aprova|solicitac/.test(text))return {destination:'approvals',explanation:'Abrir solicitações e aprovações'};
  if(/hist[oó]rico|avaliacoes antigas|minhas avaliac/.test(text))
   return {destination:'history',explanation:'Consultar as avaliações do histórico'};
