@@ -1,5 +1,5 @@
 /**
- * Repasse Sob Consulta - preview-only operating model.
+ * Cotação Mesa - browser-local operating model.
  * No tax determination, credit, vehicle purchase, manager approval or external
  * offer verification occurs here. Only user-entered phone/WhatsApp offers.
  * Browser-local records are NOT an authoritative audit log.
@@ -7,7 +7,7 @@
 export type OfferStatus = 'cotada' | 'confirmada' | 'retirada';
 export type OfferChannel = 'telefone' | 'whatsapp' | 'outro';
 export type MarginMode = 'reais' | 'percentual';
-export type CaseState = 'consulta' | 'negociacao' | 'arquivado';
+export type CaseState = 'consulta' | 'negociacao' | 'vendido' | 'arquivado';
 export type ConsultedVehicle = {
   plate: string;
   brand: string;
@@ -45,6 +45,11 @@ export type ConsultedEvent = {
   formerSuggestedCeiling: number | null;
   newSuggestedCeiling: number | null;
 };
+/** Operator-recorded sale, NOT a bank/payment gateway confirmation. */
+export type ConsultedSale={
+ buyer:string;offerId:string;finalValue:number;closedAt:string;
+ paymentReceived:boolean;registeredBy:string;
+};
 export type ConsultedCase = {
   id: string;
   createdAt: string;
@@ -56,6 +61,7 @@ export type ConsultedCase = {
   selectedOfferId: string;
   proposedBuy: string;
   state: CaseState;
+  sale?:ConsultedSale|null;
   events: ConsultedEvent[];
 };
 
@@ -157,7 +163,7 @@ export const appendConsultedAudit = (before:ConsultedCase|null, next:ConsultedCa
   const bestBefore=before?chooseBestConfirmedOffer(before.offers,before.costs):null;
   const bestAfter=chooseBestConfirmedOffer(next.offers,next.costs);
   const changes:string[]=[];
-  if(!before) changes.push('Nova consulta de repasse registrada.');
+  if(!before) changes.push('Nova cotação Mesa registrada.');
   else {
     const fields:[string,unknown,unknown][]=[
       ['Veículo',before.vehicle.brand+' '+before.vehicle.model,next.vehicle.brand+' '+next.vehicle.model],
@@ -176,6 +182,7 @@ export const appendConsultedAudit = (before:ConsultedCase|null, next:ConsultedCa
       ['Valor proposto à compra',before.proposedBuy,next.proposedBuy],
       ['Oferta selecionada',before.selectedOfferId,next.selectedOfferId],
       ['Situação',before.state,next.state],
+      ['Fechamento de venda',before.sale||null,next.sale||null],
     ];
     fields.forEach(([label,a,b])=>{const item=describe(label,a,b);if(item)changes.push(item);});
     const prior=new Map(before.offers.map(o=>[o.id,o]));
@@ -211,7 +218,38 @@ export const exportConsultedReportCsv = (rows:ConsultedCase[]) => {
   const head=['Veículo','Ano','KM','Situação','Versão','Data última alteração','Ofertas','Ofertas confirmadas válidas',
     'Maior oferta confirmada R$','Teto líquido sugerido R$','Compra proposta R$','Margem estimada R$','NF R$',
     'Imposto fixo R$','Imposto %','Transporte R$','Preparação R$','Outras despesas R$',
-    'Margem desejada','Modo margem','Último responsável','Quantidade eventos'];
+    'Margem desejada','Modo margem','Último responsável','Quantidade eventos',
+    'Loja compradora no fechamento','Valor fechado R
+  const items=rows.map(r=>{
+    const best=chooseBestConfirmedOffer(r.offers,r.costs);
+    const selected=consultedFinancialInputsReady(r.costs)?r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o)):undefined;
+    const active=selected?{offer:selected,calculation:calculateConsultedOffer(selected,r.costs)}:best;
+    const proposed=moneyNumber(r.proposedBuy);
+    return [
+      (r.vehicle.brand+' '+r.vehicle.model).trim(),r.vehicle.year,r.vehicle.km,r.state,
+      String(r.version),r.updatedAt,String(r.offers.length),
+      String(r.offers.filter(o=>offerIsEligible(o)).length),
+      String(active?.calculation.sale||''),String(active?.calculation.ceiling||''),
+      r.proposedBuy,active&&proposed>0?String(cents(active.calculation.netBeforeMargin-proposed)):'',
+      r.costs.invoice,r.costs.taxesFixed,r.costs.taxesPercent,r.costs.transport,
+      r.costs.preparation,r.costs.other,r.costs.margin,r.costs.marginMode,
+      r.events[r.events.length-1]?.actor||'',String(r.events.length),
+      r.sale?.buyer||'',r.sale?String(r.sale.finalValue):'',r.sale?.closedAt||'',
+      r.sale?.paymentReceived?'SIM':'NÃO',r.sale?.registeredBy||'',
+    ];
+  });
+  const quote=(v:unknown)=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  return '\ufeff'+[head,...items].map(row=>row.map(quote).join(';')).join('\r\n');
+};
+export const exportConsultedLogCsv = (rows:ConsultedCase[]) => {
+  const head=['Veículo','Caso','Evento','Data/hora','Responsável','Tipo','Teto anterior','Novo teto','Descrição da alteração'];
+  const items=rows.flatMap(r=>r.events.flatMap((ev,i)=>ev.changes.map(change=>
+    [(r.vehicle.brand+' '+r.vehicle.model).trim(),r.id,String(i+1),ev.at,ev.actor,ev.action,
+      ev.formerSuggestedCeiling??'',ev.newSuggestedCeiling??'',change])));
+  const quote=(v:unknown)=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  return '\ufeff'+[head,...items].map(row=>row.map(quote).join(';')).join('\r\n');
+};
+,'Data do fechamento','Pagamento recebido conforme informado','Responsável pelo fechamento'];
   const items=rows.map(r=>{
     const best=chooseBestConfirmedOffer(r.offers,r.costs);
     const selected=consultedFinancialInputsReady(r.costs)?r.offers.find(o=>o.id===r.selectedOfferId&&offerIsEligible(o)):undefined;
