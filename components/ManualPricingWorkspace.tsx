@@ -14,6 +14,7 @@ import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
 import MarketIqDealerRadarPanel from './MarketIqDealerRadarPanel';
 import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
+import MarketIqQuickDecisionPanel from './MarketIqQuickDecisionPanel';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
 import {readDealerLocalArchive,persistDealerLocalArchive} from '../services/marketIqDealerLocalArchive';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
@@ -182,7 +183,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  // Explicit model reload on re-selecting the same brand. React batches
  // clear-then-select in Quick Search, leaving brandCode unchanged otherwise.
  const [modelCatalogRevision,setModelCatalogRevision]=useState(0);
- const [fipe,setFipe]=useState<FipeDetail|null>(null);const [catalogError,setCatalogError]=useState('');const [catalogLoading,setCatalogLoading]=useState(false);const [km,setKm]=useState<string>(()=>typeof savedForm.km==='string'?savedForm.km:'');const [cost,setCost]=useState<string>(()=>typeof savedForm.cost==='string'?savedForm.cost:'0');const [destinationOverride,setDestinationOverride]=useState<DestinationOverride>(()=>
+ const [fipe,setFipe]=useState<FipeDetail|null>(null);const [catalogError,setCatalogError]=useState('');const [catalogLoading,setCatalogLoading]=useState(false);const [km,setKm]=useState<string>(()=>typeof savedForm.km==='string'?savedForm.km:'');const [cost,setCost]=useState<string>(()=>typeof savedForm.cost==='string'?savedForm.cost:'0');
+ const [decisionOffer,setDecisionOffer]=useState('');
+ const [decisionConfirmedCost,setDecisionConfirmedCost]=useState<string|null>(null);
+ useEffect(()=>{setDecisionOffer('');},[plate,brandCode,modelCode,yearCode,vehicleType]);
+ useEffect(()=>{setDecisionConfirmedCost(null);},[cost,plate,brandCode,modelCode,yearCode,vehicleType]);const [destinationOverride,setDestinationOverride]=useState<DestinationOverride>(()=>
  savedForm.destinationOverride==='repasse'?'repasse':savedForm.destinationOverride==='auto'?'auto':
  savedForm.repasse===true&&['A','B','C'].includes(String(savedForm.classification||classifyByMileage(savedForm.km)?.classification||''))?'repasse':'auto');
  const [ads,setAds]=useState<Ad[]>([]);const [adsVehicleKey,setAdsVehicleKey]=useState('');const [notice,setNotice]=useState('');
@@ -842,8 +847,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-900 shadow-sm">Início</button>
    <button type="button" onClick={()=>{switchDeskSection('radar');setMobileFullDesk(true);}}
     className="rounded-xl border border-cyan-300 bg-white px-3.5 py-2.5 text-xs font-bold text-cyan-950 shadow-sm">Radar de Compra</button>
-   <button type="button" onClick={()=>setPurchaseSummaryOpen(true)} disabled={!brand.trim()||!model.trim()}
-    className="rounded-xl bg-[#0b7199] px-3.5 py-2.5 text-xs font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40">Inteligência de Compra</button>
+   <button type="button" onClick={()=>{
+    setMobileFullDesk(true);switchDeskSection('pricing');
+    window.setTimeout(()=>document.getElementById('motyq-iq-decision-board')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
+   }} className="rounded-xl bg-[#0b7199] px-3.5 py-2.5 text-xs font-bold text-white shadow-sm">Decisão de Compra</button>
   </nav>
   <MarketIqMobileExperience
    user={user}
@@ -1049,7 +1056,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <button type="button" onClick={()=>setPurchaseSummaryOpen(true)}
     disabled={!brand.trim()||!model.trim()}
     className="rounded-xl bg-[#0b7199] px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-[#095b7b] disabled:cursor-not-allowed disabled:opacity-50">
-    Inteligência de Compra
+    Conferir análise completa
    </button>
    <MarketIqDesktopVoiceSearch
    vehicleType={vehicleType} onVehicleType={selectVehicleType}
@@ -1074,6 +1081,37 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    O preço-alvo pode mudar quando a FIPE atualizar. Confira antes de aprovar a compra.
  </p>}
  {fipe.referenceSource==='tabelafipe.info'&&<p className="mt-1 text-xs text-slate-700">Dados via tabelafipe.info (Tabela FIPE). Fonte independente, conferida por código e ano-modelo.</p>}</>:<p className="text-sm text-slate-600">Selecione marca, modelo/versão e ano para consultar o valor automaticamente.</p>}{catalogError&&<div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-red-700">{catalogError}</p><button type="button" onClick={()=>{setCatalogError("");setRetryCatalog(x=>x+1);if(brandCode){const current=brandCode;setBrandCode('');window.setTimeout(()=>setBrandCode(current),0);}}} className="rounded-lg border border-cyan-700 px-3 py-1 text-sm font-semibold text-cyan-900">Tentar novamente</button></div>}</div></section>
+ <MarketIqQuickDecisionPanel
+  target={{
+   brand,model,year,plate,vehicleType,km:number(km),
+   fipe:fipe?.value||0,preparation:number(cost),
+   fipeReferenceMonth:fipe?.referenceMonth||'',fipeCode:fipe?.fipeCode||'',
+   fipeStatus:fipe?.referenceStatus||'unverified',fipeModel:fipe?.model||'',
+   fipeYear:fipe?.year||0,fipeSource:fipe?.referenceSource||''
+  }}
+  stock={radarLoadedScope===captureScope?radarSnapshot:null}
+  history={saved} companyId={user.companyId||'abrao-reze'}
+  offer={decisionOffer} onOffer={setDecisionOffer}
+  costs={cost} onCosts={setCost}
+  costConfirmed={decisionConfirmedCost===cost}
+  onCostConfirmed={accepted=>setDecisionConfirmedCost(accepted?cost:null)}
+  repasse={repasse} marketPrice={marketReady?avg:null} marketAds={marketReady?primary.length:0}
+  historicalEstimate={vehicleType==='motorcycle'?motorcycleReference?.medianIndication||null:
+   currentDesktopMesa?.value||historicalEstimate?.target||null}
+  historicalRange={vehicleType==='car'&&historicalEstimate?
+   [historicalEstimate.rangeMin,historicalEstimate.rangeMax]:null}
+  onFullAnalysis={()=>setPurchaseSummaryOpen(true)}
+  onRadar={()=>navigateSimple('radar')}
+  onHistory={()=>navigateSimple('history')}
+  onQuote={()=>{
+   if(!brand.trim()||!model.trim()||!year.trim())return;
+   if(!window.confirm('Abrir Cotação Mesa com '+brand+' '+model+
+     '? Uma cotação não salva poderá ser substituída. As avaliações registradas permanecem intactas.'))return;
+   setQuoteFromRadar({token:'decision:'+Date.now(),vehicle:{
+     plate,brand,model,year,km,vehicleType,fipe:fipe?.value||0}});
+   navigateSimple('consulted');
+  }}
+ />
  <details className="rounded-2xl border border-slate-200 bg-white p-4">
   <summary className="cursor-pointer select-none text-sm font-black text-[#153f51]">
    Ver histórico inteligente, classificação e justificativas
