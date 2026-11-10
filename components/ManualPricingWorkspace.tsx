@@ -1138,6 +1138,9 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  <MarketIqConfidencePanel result={confidence}/>
   </div>
  </details>
+ <details className="rounded-2xl border border-slate-200 bg-white p-4">
+  <summary className="cursor-pointer text-sm font-black text-[#153f51]">Ver modelo histórico, classificação e cálculos detalhados</summary>
+  <div className="mt-3">
  {vehicleType==='car'? <section className="rounded-xl border border-indigo-100 bg-white p-5">
   <div className="flex flex-wrap items-start justify-between gap-2">
     <div><h2 className="text-xl font-semibold">Preço-alvo histórico · Motyq IQ</h2>
@@ -1192,6 +1195,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    </div>:<p className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-sm font-semibold text-amber-950">Ainda não há amostra suficiente de motos utilizável neste navegador. Importe novamente a planilha original pelo Painel Gerencial para calcular a média histórica, ou confira ofertas individuais da Webmotors.</p>}
    <p className="mt-2 text-sm font-semibold text-amber-950">{marketReady?'Pelo menos dois anúncios Webmotors foram conferidos.':'Para uma média de mercado verificável, confira pelo menos 2 anúncios Webmotors de versão, ano e KM próximos. O botão abaixo tenta localizar anúncios indexados, mas pode retornar poucos resultados.'}</p>
  </section>}
+  </div>
+ </details>
 
 
  <section className="rounded-xl border border-cyan-200 bg-white p-4">
