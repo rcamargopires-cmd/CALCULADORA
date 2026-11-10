@@ -4,6 +4,7 @@ import type {User} from '../types';
 import {archiveMonthlyTotals,parseMonthlyArchive,
  type MonthlyArchiveRow} from '../services/marketIqMonthlyArchive';
 import {validPlate} from '../services/marketIqPlateHistory';
+import type {MarketIqIncomingFile} from '../services/marketIqSmartImport';
 
 type MonthMeta={month:string;count:number;chunks:number;sourceName:string;importedAt:string;
  withPurchaseDate:number;withWebReference:number;classDifference:number;importedBy:string};
@@ -40,8 +41,13 @@ async function archiveRequest(action:string,extra:Record<string,unknown>={},meth
  if(!response.ok)throw Error(String(payload.error||'Arquivo mensal indisponível.').slice(0,220));
  return payload;
 }
-export default function MarketIqMonthlyArchivePanel({user,onOpenPlateHistory}:{user:User;onOpenPlateHistory?:(plate:string)=>void}){
+export default function MarketIqMonthlyArchivePanel({user,onOpenPlateHistory,incomingFile,onIncomingFileConsumed}:{
+ user:User;onOpenPlateHistory?:(plate:string)=>void;
+ incomingFile?:MarketIqIncomingFile|null;
+ onIncomingFileConsumed?:(token:string)=>void;
+}){
  const fileRef=useRef<HTMLInputElement>(null);
+ const processedIncomingToken=useRef('');
  const [months,setMonths]=useState<MonthMeta[]>([]);
  const [month,setMonth]=useState('');
  const [rows,setRows]=useState<MonthlyArchiveRow[]>([]);
@@ -76,7 +82,7 @@ export default function MarketIqMonthlyArchivePanel({user,onOpenPlateHistory}:{u
  useEffect(()=>{refreshMonths().catch(e=>setError(String(e?.message||e)));},[user.email]);
  useEffect(()=>{setSearch('');setStatus('');setStore('');setDestination('');setLimit(75);
   void loadMonth(month);},[month]);
- const importFile=async(file?:File)=>{
+ const importFile=async(file?:File,selectedSheet?:string)=>{
   if(!file||importing)return;
   setError('');setMessage('');setProgress('');
   if(file.size>18*1024*1024){setError('Arquivo acima de 18 MB. Exporte um relatório menor.');return;}
@@ -85,13 +91,18 @@ export default function MarketIqMonthlyArchivePanel({user,onOpenPlateHistory}:{u
    setProgress('Lendo as avaliações da planilha...');
    const XLSX=await import('xlsx');
    const book=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:false});
-   const worksheet=book.Sheets[book.SheetNames[0]];
+   const worksheet=book.Sheets[selectedSheet||book.SheetNames[0]];
    if(!worksheet)throw Error('A planilha não contém uma aba de dados.');
    const input=XLSX.utils.sheet_to_json<Record<string,unknown>>(worksheet,{defval:null,raw:true});
    const parsed=parseMonthlyArchive(input);
    if(!parsed.rows.length)throw Error('Nenhuma avaliação válida com ID e data foi encontrada no arquivo.');
    const incomingMonths=Object.keys(parsed.months).sort();
-   const previous=incomingMonths.filter(m=>months.some(item=>item.month===m));
+   // Query the authoritative tenant archive immediately before importing.
+   // Mount-time month loading may still be pending, so never rely on an empty
+   // initial UI state to decide whether an existing month can be replaced.
+   const remote=await archiveRequest('months');
+   const savedMonths:Array<{month:string}>=Array.isArray(remote.months)?remote.months:[];
+   const previous=incomingMonths.filter(m=>savedMonths.some(item=>item.month===m));
    if(previous.length&&
      !window.confirm('Já existe arquivo do(s) mês(es) '+previous.join(', ')+'. Esta importação substituirá a fotografia desse(s) mês(es). Deseja continuar?')){
     setProgress('Importação cancelada. Nenhum arquivo mensal foi alterado.');return;
@@ -128,6 +139,13 @@ export default function MarketIqMonthlyArchivePanel({user,onOpenPlateHistory}:{u
    setProgress('');
   }finally{setImporting(false);if(fileRef.current)fileRef.current.value='';}
  };
+ useEffect(()=>{
+  const file=incomingFile;
+  if(!file||file.kind!=='evaluations'||processedIncomingToken.current===file.token)return;
+  processedIncomingToken.current=file.token;
+  onIncomingFileConsumed?.(file.token);
+  void importFile(file.file,file.sheet);
+ },[incomingFile?.token]);
  const visible=useMemo(()=>{
   const q=normalize(search.trim());
   return rows.filter(r=>
