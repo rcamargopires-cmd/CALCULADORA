@@ -1097,7 +1097,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   onCostConfirmed={accepted=>setDecisionConfirmedCost(accepted?cost:null)}
   repasse={repasse} marketPrice={marketReady?avg:null} marketAds={marketReady?primary.length:0}
   historicalEstimate={vehicleType==='motorcycle'?motorcycleReference?.medianIndication||null:
-   currentDesktopMesa?.value||historicalEstimate?.target||null}
+   historicalEstimate?.target||null}
   historicalRange={vehicleType==='car'&&historicalEstimate?
    [historicalEstimate.rangeMin,historicalEstimate.rangeMax]:null}
   onFullAnalysis={()=>setPurchaseSummaryOpen(true)}
