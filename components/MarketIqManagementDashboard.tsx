@@ -271,6 +271,55 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
     Processamento local concluído: {fmtInt(importInfo.inputCount)} linhas de origem · {fmtInt(importInfo.excludedEvaluator)} registros do avaliador excluído · {fmtInt(importInfo.motorcyclesIncluded)} motocicletas incluídas · {fmtInt(importInfo.duplicates)} duplicidades removidas.
     {importInfo.invalidPurchases>0&&<> · {fmtInt(importInfo.invalidPurchases)} compra(s) com valor inválido separada(s) para revisão.</>}
   </p>}
+  {importInfo&&<details className="rounded-xl border border-slate-200 bg-white p-4">
+    <summary className="cursor-pointer text-sm font-black text-[#153f51]">
+     Conciliação com AutoAvaliar: status originais e exclusões
+    </summary>
+    <p className="mt-3 text-xs leading-5 text-slate-700">
+     <strong>Planilha importada:</strong> {fmtInt(importInfo.inputCount)} linhas originais;
+     {fmtInt(importInfo.excludedEvaluator)} excluídas pela regra do avaliador Daniel Barruchelli da Silva;
+     {fmtInt(importInfo.reconciliation.retainedRows)} linhas processadas após exclusões e identificação de duplicidades.
+     O painel não consulta os indicadores ao vivo do AutoAvaliar.
+    </p>
+    <p className="mt-2 text-xs text-slate-600">
+     <strong>Período das avaliações na planilha:</strong> {importInfo.reconciliation.firstEvaluationDate||'não informado'} a {importInfo.reconciliation.lastEvaluationDate||'não informado'}.
+     Compare os sistemas apenas se o período, a unidade e o momento de atualização forem equivalentes.
+    </p>
+    <div className="mt-3 overflow-x-auto">
+     <table className="w-full min-w-[540px] text-left text-xs">
+      <thead className="bg-slate-100 text-slate-800">
+       <tr>
+        <th scope="col" className="px-3 py-2">Status original do Excel</th>
+        <th scope="col" className="px-3 py-2 text-right">Antes dos filtros</th>
+        <th scope="col" className="px-3 py-2 text-right">Avaliador excluído</th>
+        <th scope="col" className="px-3 py-2 text-right">Após exclusão</th>
+       </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100">
+       {Object.entries(importInfo.reconciliation.rawStatuses).sort((a,b)=>b[1]-a[1]).map(([status,quantity])=>
+        <tr key={status}>
+         <td className="px-3 py-2 font-bold text-slate-950">{status}</td>
+         <td className="px-3 py-2 text-right tabular-nums">{fmtInt(quantity)}</td>
+         <td className="px-3 py-2 text-right tabular-nums">{fmtInt(importInfo.reconciliation.excludedStatuses[status]||0)}</td>
+         <td className="px-3 py-2 text-right tabular-nums">{fmtInt(importInfo.reconciliation.afterEvaluatorStatuses[status]||0)}</td>
+        </tr>)}
+      </tbody>
+     </table>
+    </div>
+    <p className="mt-3 text-xs leading-5 text-slate-700">
+     <strong>UTILIZADO no Excel:</strong> {fmtInt(importInfo.reconciliation.rawStatuses['UTILIZADO']||0)} antes da exclusão,
+     {fmtInt(importInfo.reconciliation.afterEvaluatorStatuses['UTILIZADO']||0)} após.
+     <strong> Classificados como compra pelo Motyq:</strong> {fmtInt(importInfo.reconciliation.classifiedPurchases)}.
+     <strong> Como cotação:</strong> {fmtInt(importInfo.reconciliation.classifiedQuotes)}.
+    </p>
+    {importInfo.reconciliation.missingStatusRows>0&&<p role="alert" className="mt-2 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+     {fmtInt(importInfo.reconciliation.missingStatusRows)} linha(s) sem Status reconhecível na exportação. Confira a aba e os cabeçalhos.
+    </p>}
+    <p className="mt-2 text-[11px] leading-5 text-slate-500">
+     O Motyq aplica critérios próprios de exclusão, duplicidade, validação de valor e exceções de compra confirmadas. Os números acima auditam o arquivo que você importou, não os indicadores em tempo real do AutoAvaliar.
+     Nenhum status foi alterado para forçar a igualdade. Esta conciliação permanece apenas em memória e não registra nomes, placas ou dados de clientes.
+    </p>
+   </details>}
   {!ready&&<div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/70 px-4 py-3 text-xs leading-5 text-indigo-900">
     <strong>O resumo de outubro já está disponível.</strong> Para filtrar todas as unidades, modelos e períodos, use <strong>Importar planilha</strong> acima e selecione o relatório original AutoAvaliar (.xls) ou a planilha filtrada (.xlsx). Os dados são lidos no seu navegador, sem envio ao servidor; somente campos de veículos e valores são guardados localmente.
   </div>}
