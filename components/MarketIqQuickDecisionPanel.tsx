@@ -1,4 +1,5 @@
 import React from 'react';
+import './marketIqQuickDecision.css';
 import {AlertTriangle,ArrowRight,BarChart3,CheckCircle2,Clock3,
  ClipboardCheck,History,MessageSquareText,SearchCheck,ShieldAlert,Warehouse} from 'lucide-react';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
@@ -55,7 +56,7 @@ export default function MarketIqQuickDecisionPanel(p:Props){
     <SearchCheck size={16}/>Conferir fontes completas</button>
   </div>
   <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr]">
-   <div className="rounded-2xl border border-cyan-200 bg-[#153f51] p-5 text-white">
+   <div className="motyq-quick-decision-summary rounded-2xl border border-cyan-200 bg-[#153f51] p-5 text-white">
     <p className="text-xs font-bold text-cyan-100">{concise}</p>
     <p className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">{brl(mainValue)}</p>
     <p className="mt-2 text-xs font-semibold text-cyan-100">{confidence}</p>
@@ -100,7 +101,7 @@ export default function MarketIqQuickDecisionPanel(p:Props){
   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
    <div className={tile}>
     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600"><CheckCircle2 size={15}/>FIPE</div>
-    <strong className="mt-2 block text-lg font-black text-slate-950">{brl(p.target.fipe)}</strong>
+    <strong className="mt-2 block text-lg font-black text-slate-950">{brl(Number(p.target.fipe)>0?p.target.fipe:null)}</strong>
     <p className={'mt-1 text-[11px] font-semibold '+(decision.fipeCurrent?'text-emerald-800':'text-amber-800')}>
      {decision.fipeCurrent?'Versão e mês conferidos':'Versão ou mês a confirmar'}
     </p>
