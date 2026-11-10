@@ -66,7 +66,18 @@ const classification=(raw:string):DashboardStatus=>{
  if(s==='REVISAR')return 'REVISAR';
  return 'OUTROS';
 };
-export type DashboardImportResult={rows:DashboardRow[];sourceIds:string[];excludedEvaluator:number;motorcyclesIncluded:number;duplicates:number;invalidPurchases:number;source:'original'|'filtered';inputCount:number};
+export type DashboardStatusReconciliation={
+ rawStatuses:Record<string,number>;
+ excludedStatuses:Record<string,number>;
+ afterEvaluatorStatuses:Record<string,number>;
+ retainedRows:number;
+ classifiedPurchases:number;
+ classifiedQuotes:number;
+ firstEvaluationDate:string;
+ lastEvaluationDate:string;
+ missingStatusRows:number;
+};
+export type DashboardImportResult={rows:DashboardRow[];sourceIds:string[];excludedEvaluator:number;motorcyclesIncluded:number;duplicates:number;invalidPurchases:number;source:'original'|'filtered';inputCount:number;reconciliation:DashboardStatusReconciliation};
 export function parseDashboardData(input:InputLine[],source:'original'|'filtered'):DashboardImportResult{
  const output:DashboardRow[]=[];
  // IDs exist only during parsing and are replaced with digests before storing rows.
@@ -75,9 +86,28 @@ export function parseDashboardData(input:InputLine[],source:'original'|'filtered
  // Only an ephemeral duplicate detector; plate is never persisted or sent anywhere.
  const usedPlates=new Set<string>();
  let excludedEvaluator=0,motorcyclesIncluded=0,duplicates=0,invalidPurchases=0;
+ const rawStatuses:Record<string,number>={};
+ const excludedStatuses:Record<string,number>={};
+ const afterEvaluatorStatuses:Record<string,number>={};
+ let firstEvaluationDate='',lastEvaluationDate='',missingStatusRows=0;
+ const increment=(bucket:Record<string,number>,status:string)=>{
+  const key=status||'(SEM STATUS)';
+  bucket[key]=(bucket[key]||0)+1;
+ };
  input.forEach((r,i)=>{
+   const rawStatus=norm(entry(r,source==='filtered'?'Situação analítica':'Status'));
+   increment(rawStatuses,rawStatus);
+   if(!rawStatus)missingStatusRows++;
+   const originalDate=dateString(entry(r,source==='filtered'?'Data avaliação':'Data de Avaliação'));
+   if(originalDate&&(!firstEvaluationDate||originalDate<firstEvaluationDate))firstEvaluationDate=originalDate;
+   if(originalDate&&(!lastEvaluationDate||originalDate>lastEvaluationDate))lastEvaluationDate=originalDate;
    const evaluator=norm(entry(r,'Avaliador'));
-   if(evaluator==='DANIEL BARRUCHELLI DA SILVA'){excludedEvaluator++;return;}
+   if(evaluator==='DANIEL BARRUCHELLI DA SILVA'){
+    excludedEvaluator++;
+    increment(excludedStatuses,rawStatus);
+    return;
+   }
+   increment(afterEvaluatorStatuses,rawStatus);
    const brand=text(entry(r,'Marca')),model=text(entry(r,'Modelo'));
    const vehicleType=vehicleTypeOf(r,brand,model);
    const id=text(entry(r,'ID Avaliação')??entry(r,'ID avaliação'));
@@ -85,8 +115,7 @@ export function parseDashboardData(input:InputLine[],source:'original'|'filtered
    if(id)seen.add(id);
    const year=Math.round(amount(entry(r,'Ano modelo')??entry(r,'Ano Modelo')));
    const value=amount(entry(r,source==='filtered'?'Valor avaliado/pago':'Valor avaliado'));
-   const originalStatus=norm(entry(r,source==='filtered'?'Situação analítica':'Status'));
-   let status=classification(originalStatus);
+   let status=classification(rawStatus);
    if(source==='original'&&status==='COTACAO'&&confirmedException(brand,model,year,value))status='COMPRA';
    if(status==='COMPRA'&&!validValue(value)){status='REVISAR';invalidPurchases++;}
    if(source==='original'&&status==='COMPRA'){
@@ -112,7 +141,9 @@ export function parseDashboardData(input:InputLine[],source:'original'|'filtered
    });
    sourceIds.push(id.replace(/\.0$/,''));
  });
- return {rows:output,sourceIds,excludedEvaluator,motorcyclesIncluded,duplicates,invalidPurchases,source,inputCount:input.length};
+ return {rows:output,sourceIds,excludedEvaluator,motorcyclesIncluded,duplicates,invalidPurchases,source,inputCount:input.length,
+  reconciliation:{rawStatuses,excludedStatuses,afterEvaluatorStatuses,retainedRows:output.length,classifiedPurchases:output.filter(r=>r.status==='COMPRA').length,classifiedQuotes:output.filter(r=>r.status==='COTACAO').length,firstEvaluationDate,lastEvaluationDate,missingStatusRows}
+ };
 }
 export type DashboardFilters={vehicleType:string;store:string;brand:string;model:string;className:string;destination:string;month:string;status:string};
 export const emptyFilters:DashboardFilters={vehicleType:'',store:'',brand:'',model:'',className:'',destination:'',month:'',status:''};
