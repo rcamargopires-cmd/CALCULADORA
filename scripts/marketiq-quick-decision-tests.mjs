@@ -44,7 +44,7 @@ const stock={reportDate:now,importedAt:now,vehicles:[{
  cost:75000,price:90000,store:'SOROCABA'
 }],warnings:[],stores:['SOROCABA'],duplicateCount:0,serviceOrderRows:0};
 const target={
- plate:'ABC1D23',brand:'HYUNDAI',model:'HB20 1.0 TGDI AT6',year:'2022/2023',
+ plate:'ABC1D23',brand:'HYUNDAI',model:'HB20 1.0 TGDI AT6 COMFORT PLUS',year:'2022/2023',
  km:32000,vehicleType:'car',fipe:90000,fipeStatus:'current',
  fipeCode:'015142-9',fipeYear:2023
 };
@@ -82,11 +82,13 @@ assert.equal(older.fipeCurrent,false);
 assert.equal(older.historical,null,'Outdated FIPE cannot qualify a historical estimate');
 assert.ok(older.warnings.some(s=>s.includes('FIPE vigente')));
 const paid=[
- {id:'real1',plate:'DEF4G56',brand:'HYUNDAI',model:'HB20 1.0 TGDI AT6',
+ {id:'real1',plate:'DEF4G56',brand:'HYUNDAI',model:'HB20 1.0 TGDI AT6 COMFORT PLUS',
   year:'2023',km:'34000',vehicleType:'car',approvedValue:70000,
   fipe:{value:90000,fipeCode:'015142-9'}}
 ];
-const history=quick.buildQuickPurchaseDecision({...input,saved:paid,preparationConfirmed:true});
+const otherTrim={...paid[0],id:'wrong-version',plate:'XYZ9H87',
+ model:'HB20 1.0 TGDI AT6 LIMITED',approvedValue:120000};
+const history=quick.buildQuickPurchaseDecision({...input,saved:[...paid,otherTrim],preparationConfirmed:true});
 assert.equal(history.similar.paidCount,1,'Only independently confirmed compatible paid values count: '+JSON.stringify(history.similar));
 assert.equal(history.similar.paidMedian,70000);
 assert.equal(history.similar.limited,true,'This board does not pretend to have fetched the monthly archive');
