@@ -1084,6 +1084,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  <MarketIqQuickDecisionPanel
   target={{
    brand,model,year,plate,vehicleType,km:number(km),
+   offer:approvalInputValid(decisionOffer)?number(decisionOffer):undefined,
    fipe:fipe?.value||0,preparation:number(cost),
    fipeReferenceMonth:fipe?.referenceMonth||'',fipeCode:fipe?.fipeCode||'',
    fipeStatus:fipe?.referenceStatus||'unverified',fipeModel:fipe?.model||'',
