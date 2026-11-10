@@ -96,4 +96,39 @@ for(const panel of ['<MarketIqIntelligentHistoryPanel','<MarketIqFleetClassifica
 }
 assert.ok(workspace.includes('Guardar esta avaliação no histórico')&&workspace.includes('Valor aprovado na avaliação'),
  'Primary save and actual-paid reporting must stay available');
+const quotePanel=readFileSync('components/MarketIqConsultedRepasse.tsx','utf8');
+const radarPanel=readFileSync('components/MarketIqDealerRadarPanel.tsx','utf8');
+const radarCss=readFileSync('components/marketIqRadarCompact.css','utf8');
+compile(quotePanel,true);compile(radarPanel,true);
+assert.ok(quotePanel.includes('Escolha o veículo, consulte lojistas compatíveis e registre a melhor proposta.'));
+assert.ok(quotePanel.includes('Convidar e cadastrar novos lojistas'),
+ 'Public buyer invitation/import must be available without crowding quote flow');
+assert.ok(quotePanel.includes('Ver cotações anteriores ({rows.length}) e exportar relatórios'),
+ 'Previous cases and export are retained but folded');
+assert.ok(quotePanel.includes('Preencher para calcular teto'),
+ 'Tax/margin controls stay available when needed, with explicit simulation label');
+assert.ok(quotePanel.includes('Teto simulado para compra')&&quotePanel.includes('current.calculation.sale'),
+ 'Quote values and estimated buy ceiling remain distinct');
+assert.ok(quotePanel.includes('Registrar fechamento quando houver comprador'));
+assert.ok(quotePanel.includes('onClick={()=>save()}')&&quotePanel.includes('Registrar fechamento'),
+ 'Persisting quotes and recording a manually confirmed sale still work');
+assert.ok(quotePanel.includes('buyerWhatsAppUrl(buyer,draft.vehicle)'),
+ 'Buyer WhatsApp actions remain individual and opt-in gated');
+assert.ok(radarPanel.includes('Meu estoque <span'));
+assert.ok(radarPanel.includes('Dados da importação:')&&radarPanel.includes('current.warnings.join'),
+ 'Import provenance and all validation warnings remain inspectable');
+assert.ok(radarPanel.includes('snapshotOutdated')&&radarPanel.includes('role="alert"'),
+ 'Old-stock and import failures must remain prominent');
+assert.ok(radarPanel.includes('Filtros rápidos do estoque')&&radarPanel.includes('aria-pressed={filter===value}'));
+assert.ok(radarPanel.includes('Mais filtros: categoria e condições'),
+ 'Vehicle type/OS filters still exist in expandable controls');
+assert.ok(radarPanel.includes('Análises adicionais: giro, alertas e comparação entre relatórios'),
+ 'Capital-cost scenarios and delta analysis are retained but folded');
+assert.ok(radarPanel.includes('Cotar na Mesa')&&radarPanel.includes('setPurchaseSummaryVehicle(v)'),
+ 'Selected vehicles still open quote and purchase-summary workflows');
+assert.ok(radarPanel.includes('Semelhança por família de modelo')&&radarPanel.includes('dealerSimilarStock(vehicles,selected)'));
+assert.ok(radarPanel.includes('Limites técnicos e atualização da planilha'));
+assert.ok(radarCss.includes('#root .motyq-iq-radar-hero h2 { color: #ffffff !important; }'));
+assert.ok(!radarPanel.includes('fetch(')&&!quotePanel.includes('fetch('),
+ 'Visual redesign must not introduce remote Firestore requests or automatic dealer messages');
 console.log('Motyq IQ simplified home: 4 primary actions, quick navigator, import guide, unchanged old modules, mobile routing and no extra reads passed.');
