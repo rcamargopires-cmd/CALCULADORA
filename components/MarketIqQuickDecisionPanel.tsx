@@ -41,7 +41,7 @@ export default function MarketIqQuickDecisionPanel(p:Props){
   decision.historical!==null?'Referência histórica preliminar':'Ainda sem valor sugerido';
  const mainValue=decision.ceiling??decision.historical;
  const confidence=decision.ceiling!==null?'Anúncios conferidos · simulação':
-  decision.historical!==null?'Modelo estatístico · não é compra comprovada':
+  decision.historical!==null?(p.target.vehicleType==='motorcycle'?'Mediana de valores avaliados · não são compras confirmadas':'Modelo estatístico · não é compra comprovada'):
   'Dados insuficientes';
  return <section aria-label="Decisão de compra em uma tela" className="space-y-3" id="motyq-iq-decision-board">
   <div className="flex flex-wrap items-center justify-between gap-3">
