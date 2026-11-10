@@ -256,6 +256,16 @@ export default function MarketIqDealerRadarPanel(props:Props){
       Exportar alertas CSV
      </button>
     </div>
+    <div role="group" aria-label="Filtros rápidos do estoque" className="mt-4 flex flex-wrap gap-2">
+     {([
+      ['all','Todos'],['aging','Mais de 90 dias'],['noPrice','Sem preço'],['belowCost','Abaixo do custo']
+     ] as const).map(([value,title])=><button type="button" key={value} aria-pressed={filter===value}
+      onClick={()=>{setFilter(value);setVisibleCount(60);}}
+      className={'rounded-full border px-3 py-2 text-xs font-bold '+(filter===value?
+       'border-[#153f51] bg-[#153f51] text-white':'border-slate-200 bg-slate-50 text-slate-700 hover:border-cyan-300')}>
+      {title}
+     </button>)}
+    </div>
     <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
      <label className="text-xs font-bold text-slate-700"><Search size={13} className="mr-1 inline"/> Buscar placa/modelo
       <input className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm font-normal" value={search}
@@ -300,34 +310,41 @@ export default function MarketIqDealerRadarPanel(props:Props){
     </div>}
     <p className="mt-3 text-xs text-slate-600">Exibindo {Math.min(visibleCount,filtered.length)} de {filtered.length} veículos filtrados ({allStats.count} no arquivo).</p>
     <div className="mt-2 overflow-x-auto">
-     <table className="w-full min-w-[780px] text-left text-xs">
+     <table className="w-full min-w-[660px] text-left text-xs">
       <thead className="bg-slate-100 text-slate-700"><tr>
-       {['Veículo / placa','Unidade','Ano','Dias','KM','Valor Custo','Preço sugerido','Diferença bruta','Inteligência'].map(h=>
+       {['Veículo','Unidade','Dias','Valor custo','Preço da planilha','Ações'].map(h=>
         <th key={h} scope="col" className="whitespace-nowrap px-3 py-3 font-black">{h}</th>)}
       </tr></thead>
       <tbody className="divide-y divide-slate-100">
        {filtered.slice(0,visibleCount).map(v=><tr key={v.key}
         className="cursor-pointer hover:bg-cyan-50" onClick={()=>showVehicle(v)}>
-        <td className="min-w-[190px] px-3 py-3"><p className="font-bold text-slate-950">{v.brand} {v.model}</p>
-         <p className="mt-0.5 text-slate-600">{v.plate||'Sem placa'} · <span className="text-cyan-700">Detalhes</span></p></td>
+        <td className="min-w-[200px] px-3 py-3">
+         <p className="font-bold text-slate-950">{v.brand} {v.model}</p>
+         <p className="mt-0.5 text-slate-600">{v.plate||'Sem placa'} · {v.year} · {v.kmValid?v.km.toLocaleString('pt-BR')+' km':'KM a conferir'}</p>
+        </td>
         <td className="px-3 py-3 text-slate-700">{v.store}</td>
-        <td className="px-3 py-3 text-slate-700">{v.year}</td>
-        <td className={'px-3 py-3 font-black '+(v.days>90?'text-rose-700':'text-slate-800')}>{v.days}</td>
-        <td className="px-3 py-3 text-slate-700">{v.kmValid?v.km.toLocaleString('pt-BR'):'A conferir'}</td>
+        <td className={'px-3 py-3 font-black '+(v.days>90?'text-rose-700':'text-slate-800')}>{v.days} d</td>
         <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{brl(v.cost)}</td>
-        <td className="whitespace-nowrap px-3 py-3 text-slate-900">{v.price>0?brl(v.price):'Não informado'}</td>
-        <td className={'whitespace-nowrap px-3 py-3 font-semibold '+(v.price>0&&v.price<v.cost?'text-rose-700':'text-slate-700')}>
-         {v.price>0?brl(v.price-v.cost):'A confirmar'}</td>
+        <td className="whitespace-nowrap px-3 py-3 text-slate-900">
+         <p className="font-semibold">{v.price>0?brl(v.price):'Não informado'}</p>
+         <p className={'mt-1 text-[11px] '+(v.price>0&&v.price<v.cost?'text-rose-700':'text-slate-500')}>
+          {v.price>0?'Diferença bruta: '+brl(v.price-v.cost):'Sem comparação'}
+         </p>
+        </td>
         <td className="px-3 py-3">
-         <button type="button" onClick={e=>{e.stopPropagation();setPurchaseSummaryVehicle(v);}}
-          className="whitespace-nowrap rounded-lg bg-cyan-700 px-3 py-2 text-xs font-black text-white hover:bg-cyan-800">
-          Resumo de Compra
-         </button>
-         {props.onQuoteVehicle&&<button type="button" onClick={e=>{e.stopPropagation();props.onQuoteVehicle?.(v);}}
-          className="ml-2 whitespace-nowrap rounded-lg border border-cyan-300 bg-white px-3 py-2 text-xs font-bold text-cyan-950 hover:bg-cyan-50">Cotar na Mesa</button>}
+         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={e=>{e.stopPropagation();setPurchaseSummaryVehicle(v);}}
+           className="whitespace-nowrap rounded-lg bg-cyan-700 px-3 py-2 text-xs font-black text-white hover:bg-cyan-800">
+           Resumo de Compra
+          </button>
+          {props.onQuoteVehicle&&<button type="button" onClick={e=>{e.stopPropagation();props.onQuoteVehicle?.(v);}}
+           className="whitespace-nowrap rounded-lg border border-cyan-300 bg-white px-3 py-2 text-xs font-bold text-cyan-950 hover:bg-cyan-50">
+           Cotar na Mesa
+          </button>}
+         </div>
         </td>
        </tr>)}
-       {!filtered.length&&<tr><td colSpan={9} className="px-3 py-8 text-center text-sm text-slate-500">Nenhum veículo corresponde aos filtros.</td></tr>}
+       {!filtered.length&&<tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">Nenhum veículo corresponde aos filtros.</td></tr>}
       </tbody>
      </table>
     </div>
