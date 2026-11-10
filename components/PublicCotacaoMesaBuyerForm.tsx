@@ -28,7 +28,7 @@ export default function PublicCotacaoMesaBuyerForm(){
  const [message,setMessage]=useState('');
  const [error,setError]=useState('');
  const [copied,setCopied]=useState(false);
- const set=<K extends keyof PublicBuyerRegistration>(key:K,value:PublicBuyerRegistration[K])=>{
+ function set<K extends keyof PublicBuyerRegistration>(key:K,value:PublicBuyerRegistration[K]){
   setData(old=>({...old,[key]:value}));
   if(message)setMessage('');
   if(error)setError('');
