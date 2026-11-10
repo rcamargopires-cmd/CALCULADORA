@@ -10,6 +10,7 @@ export type MarginMode = 'reais' | 'percentual';
 export type CaseState = 'consulta' | 'negociacao' | 'vendido' | 'arquivado';
 export type ConsultedVehicle = {
   plate: string;
+  vehicleType?: 'car'|'motorcycle';
   brand: string;
   model: string;
   year: string;
@@ -50,6 +51,10 @@ export type ConsultedSale={
  buyer:string;offerId:string;finalValue:number;closedAt:string;
  paymentReceived:boolean;registeredBy:string;
 };
+export type ConsultedOutreach={
+ buyerId:string;buyer:string;preparedAt:string;
+ status:'preparado'|'contatado'|'respondeu'|'recusou';
+};
 export type ConsultedCase = {
   id: string;
   createdAt: string;
@@ -57,6 +62,7 @@ export type ConsultedCase = {
   version: number;
   vehicle: ConsultedVehicle;
   offers: ConsultedOffer[];
+  requests?:ConsultedOutreach[];
   costs: ConsultedCosts;
   selectedOfferId: string;
   proposedBuy: string;
@@ -71,7 +77,7 @@ export const emptyConsultedCosts = (): ConsultedCosts => ({
   marginMode: 'reais', margin: '',
 });
 export const emptyConsultedVehicle = (): ConsultedVehicle => ({
-  plate: '',brand: '',model: '',year: '',km: '',fipe: 0,
+  plate: '',vehicleType:'car',brand: '',model: '',year: '',km: '',fipe: 0,
 });
 export const emptyConsultedOffer = (): ConsultedOffer => ({
   id: makeConsultedId(),buyer: '',value: '',channel: 'telefone',
@@ -183,6 +189,7 @@ export const appendConsultedAudit = (before:ConsultedCase|null, next:ConsultedCa
       ['Oferta selecionada',before.selectedOfferId,next.selectedOfferId],
       ['Situação',before.state,next.state],
       ['Fechamento de venda',before.sale||null,next.sale||null],
+      ['Lojistas consultados',before.requests||[],next.requests||[]],
     ];
     fields.forEach(([label,a,b])=>{const item=describe(label,a,b);if(item)changes.push(item);});
     const prior=new Map(before.offers.map(o=>[o.id,o]));
