@@ -31,10 +31,9 @@ const dependencies=[
  ['./marketIqPurchaseOpinion','buildMesaPurchaseOpinion']
 ];
 for(const [modulePath,exports] of dependencies){
- const sourceLine=new RegExp('^import\\s+\\{[^\\n]+\\}\\s+from\\s+[\\x27\\x22]'+
-  modulePath.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'[\\x27\\x22];?\\s*$','gm');
- assert.ok(sourceLine.test(decisionJs),'Need compiled import for '+modulePath);
- decisionJs=decisionJs.replace(sourceLine,'const {'+exports+'}=globalThis.__marketiqDecisionDeps;');
+ const importLine=decisionJs.split('\n').find(line=>line.startsWith('import ')&&line.includes('from '+String.fromCharCode(39)+modulePath+String.fromCharCode(39)));
+ assert.ok(importLine,'Need compiled import for '+modulePath);
+ decisionJs=decisionJs.replace(importLine,'const {'+exports+'}=globalThis.__marketiqDecisionDeps;');
 }
 assert.ok(!decisionJs.includes("from './marketIq"),'Decision imports must be fully resolved');
 const quick=await toModule(decisionJs);
