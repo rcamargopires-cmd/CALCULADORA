@@ -6,7 +6,7 @@ import {auth} from '../firebase';
 import MarketIqManagementDashboard from './MarketIqManagementDashboard';
 import MarketIqSimpleHome from './MarketIqSimpleHome';
 import type {SimpleIqDestination} from '../services/marketIqSimpleNavigation';
-import {House,Menu,ArrowLeft} from 'lucide-react';
+import {House,Menu} from 'lucide-react';
 import MarketIqMobileExperience from './MarketIqMobileExperience';
 import MarketIqDesktopVoiceSearch from './MarketIqDesktopVoiceSearch';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
