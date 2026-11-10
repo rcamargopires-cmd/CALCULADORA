@@ -4,6 +4,9 @@ type FipeDetail={value:number;brand:string;model:string;year:number;fuel:string;
 import {User} from '../types';
 import {auth} from '../firebase';
 import MarketIqManagementDashboard from './MarketIqManagementDashboard';
+import MarketIqSimpleHome from './MarketIqSimpleHome';
+import type {SimpleIqDestination} from '../services/marketIqSimpleNavigation';
+import {House,Menu,ArrowLeft} from 'lucide-react';
 import MarketIqMobileExperience from './MarketIqMobileExperience';
 import MarketIqDesktopVoiceSearch from './MarketIqDesktopVoiceSearch';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
@@ -91,10 +94,10 @@ const validSource=(a:Ad)=>{try{
 }catch{return false;}};
 export default function ManualPricingWorkspace({user}:{user:User}){
  const key='motyq-iq-local-test-'+user.email.toLowerCase();
- const [deskSection,setDeskSection]=useState<'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar'>(()=>{
+ const [deskSection,setDeskSection]=useState<'home'|'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar'>(()=>{
    if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import'))return 'pricing';
    const previous=sessionStorage.getItem('motyq-iq-active-desk-tab');
-   return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'?previous:'dashboard';
+   return previous==='home'||previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'||previous==='dashboard'?previous:'home';
  });
  const [selectedPlateForHistory,setSelectedPlateForHistory]=useState('');
  const [quoteFromRadar,setQuoteFromRadar]=useState<{token:string;vehicle:Partial<ConsultedVehicle>}|null>(null);
@@ -116,7 +119,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [purchaseSummaryOpen,setPurchaseSummaryOpen]=useState(false);
  const [purchaseSummaryComparable,setPurchaseSummaryComparable]=useState<ComparableEntry|null>(null);
  const [mobileFullDesk,setMobileFullDesk]=useState(false);
- const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar')=>{
+ const [showAllTools,setShowAllTools]=useState(false);
+ const switchDeskSection=(next:'home'|'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar')=>{
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
  };
  const formKey='motyq-iq-preview-inputs-'+user.email.toLowerCase();
@@ -795,9 +799,31 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
+ const navigateSimple=(destination:SimpleIqDestination|'home',lookedUpPlate?:string)=>{
+  if(lookedUpPlate&&destination==='plateHistory')setSelectedPlateForHistory(lookedUpPlate);
+  // Use the guided mobile assessment for pricing, and the original
+  // full-resolution module for all other routes on small screens.
+  setMobileFullDesk(destination!=='home'&&destination!=='pricing');
+  switchDeskSection(destination);
+  window.scrollTo({top:0,behavior:'smooth'});
+ };
+ const selectSimpleImport=(kind:'dealer'|'evaluations')=>navigateSimple(kind==='dealer'?'radar':'archive');
+
  return <>
- <div className={mobileFullDesk?'hidden':'lg:hidden'}>
+ {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
+  <MarketIqSimpleHome
+   onNavigate={navigateSimple}
+   onOpenAdvanced={()=>{setShowAllTools(true);navigateSimple('pricing');}}
+   onSelectImport={selectSimpleImport}
+   stockCount={radarLoadedScope===captureScope&&radarSnapshot?radarSnapshot.vehicles.length:null}
+   stockDate={radarLoadedScope===captureScope?radarSnapshot?.reportDate||null:null}
+   historyCount={saved.length} historyBusy={historyBusy}
+  />
+ </main>}
+ <div className={deskSection==='home'||mobileFullDesk?'hidden':'lg:hidden'}>
   <nav aria-label="Ferramentas de aquisição do Motyq IQ" className="mx-3 mt-3 flex flex-wrap gap-2">
+   <button type="button" onClick={()=>navigateSimple('home')}
+    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-900 shadow-sm">Início</button>
    <button type="button" onClick={()=>{switchDeskSection('radar');setMobileFullDesk(true);}}
     className="rounded-xl border border-cyan-300 bg-white px-3.5 py-2.5 text-xs font-bold text-cyan-950 shadow-sm">Radar de Compra</button>
    <button type="button" onClick={()=>setPurchaseSummaryOpen(true)} disabled={!brand.trim()||!model.trim()}
@@ -834,8 +860,20 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  </div>
  {mobileFullDesk&&<button type="button" className="mx-4 mt-4 rounded-lg bg-[#008bd0] px-4 py-3 text-sm font-bold text-white lg:hidden"
    onClick={()=>setMobileFullDesk(false)}>Voltar ao Motyq IQ Mobile</button>}
- <main className={'mx-auto max-w-7xl space-y-5 p-5 text-slate-900 '+(mobileFullDesk?'block':'hidden lg:block')}>
- <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+ {deskSection!=='home'&&<main className={'mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-5 '+(mobileFullDesk?'block':'hidden lg:block')}>
+ <nav className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Navegação simplificada">
+  <button type="button" onClick={()=>navigateSimple('home')} className="inline-flex items-center gap-2 rounded-xl bg-[#153f51] px-4 py-2.5 text-xs font-black text-white">
+   <House size={16}/>Início</button>
+  {([
+    ['pricing','Avaliar'],['consulted','Cotar'],['radar','Estoque'],['dashboard','Resultados']
+  ] as const).map(([section,label])=>
+   <button key={section} type="button" onClick={()=>navigateSimple(section)} aria-current={deskSection===section?'page':undefined}
+    className={'rounded-xl px-3 py-2.5 text-xs font-bold transition '+(deskSection===section?'bg-cyan-50 text-cyan-950 ring-1 ring-cyan-200':'text-slate-700 hover:bg-slate-100')}>{label}</button>)}
+  <button type="button" onClick={()=>setShowAllTools(value=>!value)} aria-expanded={showAllTools}
+   className="ml-auto inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+   <Menu size={16}/>{showAllTools?'Ocultar ferramentas':'Mais ferramentas'}</button>
+ </nav>
+ <div className={'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm '+(showAllTools?'':'hidden')}>
   <nav className="motyq-iq-tabs flex flex-wrap items-center gap-1.5 p-2" aria-label="Áreas principais do Motyq IQ">
   <button type="button" onClick={()=>switchDeskSection('dashboard')} aria-current={deskSection==='dashboard'?'page':undefined}
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='dashboard'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Painel gerencial</button>
@@ -1280,7 +1318,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  </div>:<p className="text-sm font-semibold text-amber-800">Sem anúncios confiáveis. Para obter o preço histórico, selecione a classificação da avaliação e confira FIPE e KM acima.</p>}</div></section>
  <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">O histórico permanente fica na aba <button type="button" onClick={()=>switchDeskSection('history')} className="font-bold text-cyan-800 underline">Histórico de avaliações</button>. Cada versão salva mantém data, responsável, anúncios, custos e valor registrado.</section>
  </>}
- </main>
+ </main>}
  <MarketIqPurchaseSummaryModal open={purchaseSummaryOpen}
   onClose={()=>setPurchaseSummaryOpen(false)}
   companyId={user.companyId||'abrao-reze'}
