@@ -103,7 +103,7 @@ export default function MarketIqApprovalCenter({user,managerOnly=false}:{user:Us
 
  const create=async()=>{
    setError('');setNotice('');
-   if(!selected){setError('Salve um caso em Repasse Sob Consulta e selecione-o aqui.');return;}
+   if(!selected){setError('Salve uma Cotação Mesa e selecione-a aqui.');return;}
    if(requests.some(x=>x.sourceCaseId===selected.id&&x.sourceCaseVersion===selected.version&&x.status==='pending')){
      setError('Já existe uma solicitação pendente para esta versão da negociação.');return;
    }
@@ -186,13 +186,13 @@ export default function MarketIqApprovalCenter({user,managerOnly=false}:{user:Us
   {!managerOnly&&<section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex items-center gap-2"><Send size={19} className="text-cyan-700"/><h3 className="text-lg font-black">Solicitar revisão à gerência</h3></div>
    <p className="mt-1 text-xs leading-5 text-slate-500">
-    É necessário salvar a negociação na aba “Repasse Sob Consulta” antes de solicitar.
+    É necessário salvar a negociação na aba “Cotação Mesa” antes de solicitar.
     Os dados, os custos, a oferta da loja e o teto serão congelados nesta versão para auditoria.</p>
    <div className="mt-4 grid gap-3 md:grid-cols-2">
     <label><span className="mb-1 block text-xs font-bold text-slate-600">Caso salvo</span>
      <select className={cssInput} value={caseId} onChange={e=>setSelectedCaseId(e.target.value)}>
-      {!cases.length&&<option value="">Nenhum repasse salvo</option>}
-      {cases.filter(x=>x.state!=='arquivado').map(item=><option key={item.id} value={item.id}>{vehicleName(item)} · v{item.version}</option>)}
+      {!cases.length&&<option value="">Nenhuma cotação salva</option>}
+      {cases.filter(x=>x.state!=='arquivado'&&x.state!=='vendido').map(item=><option key={item.id} value={item.id}>{vehicleName(item)} · v{item.version}</option>)}
      </select>
     </label>
     <div className="rounded-xl bg-slate-50 p-3 text-xs">
