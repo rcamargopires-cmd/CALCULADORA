@@ -47,7 +47,7 @@ export default function PublicCotacaoMesaBuyerForm(){
   catch{setCopied(false);setError('Não foi possível copiar automaticamente. Selecione o texto abaixo e copie.');}
  };
  const shareUrl=message?'https://api.whatsapp.com/send?text='+encodeURIComponent(message):'';
- return <main className="min-h-screen bg-[#f2f6f9] pb-16 text-slate-900">
+ return <main className="motyq-buyer-public-page min-h-screen bg-[#f2f6f9] pb-16 text-slate-900">
   <header className="bg-[#153444] px-4 py-6 text-white">
    <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
     <div className="flex items-center gap-3">
@@ -59,14 +59,14 @@ export default function PublicCotacaoMesaBuyerForm(){
    </div>
   </header>
   <div className="mx-auto max-w-3xl px-4 pt-7">
-   <div className="mb-6 rounded-3xl bg-[#153444] p-6 text-white sm:p-8">
-    <p className="mb-2 text-xs font-black uppercase tracking-widest text-cyan-300">Compradores parceiros</p>
-    <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Quais veículos sua loja quer comprar?</h1>
-    <p className="mt-3 max-w-xl text-sm leading-6 text-slate-200">
+   <div className="motyq-buyer-public-hero mb-6 rounded-3xl bg-[#153444] p-6 text-white sm:p-8">
+    <p className="motyq-buyer-hero-eyebrow mb-2 text-xs font-black uppercase tracking-widest text-cyan-300">Compradores parceiros</p>
+    <h1 className="motyq-buyer-hero-heading text-2xl font-black tracking-tight sm:text-3xl">Quais veículos sua loja quer comprar?</h1>
+    <p className="motyq-buyer-hero-description mt-3 max-w-xl text-sm leading-6 text-slate-200">
      Preencha uma única vez e informe os tipos de carros que fazem sentido para sua loja.
      A Mesa poderá priorizar você nas próximas cotações compatíveis com seu perfil.
     </p>
-    <div className="mt-5 flex flex-wrap gap-3 text-xs font-semibold text-cyan-100">
+    <div className="motyq-buyer-hero-benefits mt-5 flex flex-wrap gap-3 text-xs font-semibold text-cyan-100">
      <span className="inline-flex items-center gap-1.5"><CarFront size={15}/>Preferências de compra</span>
      <span className="inline-flex items-center gap-1.5"><ShieldCheck size={15}/>Contato autorizado</span>
      <span className="inline-flex items-center gap-1.5"><MessageCircle size={15}/>Envio por WhatsApp</span>

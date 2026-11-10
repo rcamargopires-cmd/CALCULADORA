@@ -61,4 +61,28 @@ assert.ok(panel.includes('parsePublicBuyerCode(registrationText)'));
 assert.ok(panel.includes('saveCotacaoBuyers(buyerScope,next)'));
 assert.ok(panel.includes('Não há novas leituras ou gravações no Firestore.'));
 assert.ok(panel.includes('Código de importação')===false,'Import code label belongs to public page');
+const heroCss=readFileSync('public-cotacao-mesa.css','utf8');
+assert.ok(index.includes("import './public-cotacao-mesa.css';"),
+ 'Public theme override must be loaded after shared app styles');
+assert.ok(publicSource.includes('motyq-buyer-public-page'));
+for(const selector of ['motyq-buyer-public-hero','motyq-buyer-hero-heading',
+ 'motyq-buyer-hero-description','motyq-buyer-hero-eyebrow','motyq-buyer-hero-benefits']){
+ assert.ok(publicSource.includes(selector),'Hero markup must expose '+selector);
+ assert.ok(heroCss.includes(selector),'Hero override must be scoped to '+selector);
+}
+assert.ok(heroCss.includes('#root main.motyq-buyer-public-page'),'Hero styles must not leak into IQ');
+const luminance=(hex)=>{
+ const rgb=hex.replace('#','').match(/../g).map(n=>parseInt(n,16)/255);
+ return rgb.map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4)
+ .reduce((total,value,i)=>total+value*[0.2126,0.7152,0.0722][i],0);
+};
+const background=luminance('#153444');
+for(const [role,hex] of [['heading','#ffffff'],['description','#e2e8f0'],
+ ['eyebrow','#67e8f9'],['benefits','#cffafe']]){
+ const lum=luminance(hex);
+ const contrast=(Math.max(lum,background)+0.05)/(Math.min(lum,background)+0.05);
+ assert.ok(contrast>=4.5,role+' must be WCAG AA readable on dark blue: '+contrast);
+ assert.ok(heroCss.includes('color: '+hex+' !important;'),
+  role+' needs a strong override to avoid dark-on-navy styles');
+}
 console.log('Cotação Mesa public buyer form: Unicode roundtrip, permissions, buyer interests, invalid inputs, manual WhatsApp share, operator review/import and no Firestore writes passed.');
