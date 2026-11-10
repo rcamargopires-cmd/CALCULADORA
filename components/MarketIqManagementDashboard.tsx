@@ -299,7 +299,7 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
     <Metric label="Ticket mediano" value={fmtCompact(metrics.medianPaid)} detail="Preço efetivamente pago" icon={TrendingUp}/>
   </div>
   <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
-    {([['overview','Visão geral',BarChart3],['stores','Unidades e modelos',Building2],['quality','Qualidade dos dados',ShieldCheck],['repasses','Repasse sob consulta',HandCoins],['approvals','Exceções e decisões',ClipboardCheck]] as const).map(([id,label,Icon])=>
+    {([['overview','Visão geral',BarChart3],['stores','Unidades e modelos',Building2],['quality','Qualidade dos dados',ShieldCheck],['repasses','Cotação Mesa',HandCoins],['approvals','Exceções e decisões',ClipboardCheck]] as const).map(([id,label,Icon])=>
       <button key={id} onClick={()=>setTab(id)} className={'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black '+(tab===id?'bg-[#153f51] text-white':'bg-white text-slate-600 hover:bg-slate-100')}><Icon size={15}/>{label}</button>)}
   </div>
   {tab==='overview'&&<div className="space-y-4">
@@ -434,21 +434,25 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
         </div>
       </div>
       {!consultations.length?<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-        Nenhum repasse sob consulta registrado neste navegador. Abra a aba “Repasse Sob Consulta”, informe as ofertas e salve a negociação.</p>:
+        Nenhuma Cotação Mesa registrada neste navegador. Abra a aba “Cotação Mesa”, selecione o veículo e salve a consulta antes mesmo de receber propostas.</p>:
       <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs">
         <thead><tr className="border-b border-slate-100 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
           <th className="px-3 py-3">Veículo</th><th className="px-3 py-3">Situação</th>
           <th className="px-3 py-3 text-right">Melhor oferta</th><th className="px-3 py-3 text-right">Teto líquido</th>
-          <th className="px-3 py-3 text-right">Proposta Mesa</th><th className="px-3 py-3 text-right">Resultado previsto</th><th className="px-3 py-3">Histórico</th>
+          <th className="px-3 py-3 text-right">Proposta Mesa</th><th className="px-3 py-3 text-right">Resultado previsto</th><th className="px-3 py-3">Comprador / Fechamento</th><th className="px-3 py-3">Histórico</th>
         </tr></thead>
         <tbody>{repasseRows.map(({item,current,proposed,projectedMargin})=>
           <tr key={item.id} className="border-b border-slate-100 text-slate-700">
             <td className="px-3 py-3"><strong>{item.vehicle.brand} {item.vehicle.model}</strong><p className="mt-1 text-[10px] text-slate-500">{item.vehicle.year} · {item.vehicle.km} km</p></td>
-            <td className="px-3 py-3">{item.state==='arquivado'?'Arquivado':current?'Oferta confirmada':'Em consulta'}</td>
+            <td className="px-3 py-3">{item.state==='arquivado'?'Arquivado':item.state==='vendido'?'Vendido':current?'Oferta confirmada':'Em consulta'}</td>
             <td className="px-3 py-3 text-right">{current?formatReais(current.calculation.sale):'—'}</td>
             <td className="px-3 py-3 text-right font-bold">{current?formatReais(current.calculation.ceiling):'—'}</td>
             <td className="px-3 py-3 text-right">{proposed?formatReais(proposed):'—'}</td>
             <td className={'px-3 py-3 text-right font-bold '+(projectedMargin!==null&&projectedMargin<0?'text-red-700':'text-slate-900')}>{projectedMargin!==null?formatReais(projectedMargin):'—'}</td>
+            <td className="px-3 py-3">{item.sale?
+             <><strong>{item.sale.buyer}</strong><p className="mt-1 font-bold text-emerald-800">{formatReais(item.sale.finalValue)}</p>
+               <p className="text-[10px] text-slate-500">{item.sale.paymentReceived?'Pagamento declarado recebido':'Pagamento a confirmar'}</p></>:
+             <span className="text-slate-400">Ainda não fechado</span>}</td>
             <td className="px-3 py-3"><details><summary className="cursor-pointer font-semibold text-cyan-800">v{item.version} · {item.events.length} eventos</summary>
                <div className="mt-2 w-56 space-y-2 rounded-lg bg-slate-50 p-2">
                  {item.events.slice().reverse().slice(0,8).map(e=><div key={e.id} className="border-b border-slate-200 pb-1">
