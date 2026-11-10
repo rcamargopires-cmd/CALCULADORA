@@ -1,0 +1,33 @@
+/* Cotação Mesa: isolated public registration hero.
+   The shared Motyq light-theme stylesheet applies heading/text colors globally;
+   keep those styles off the dark buyer-registration introduction only. */
+#root main.motyq-buyer-public-page .motyq-buyer-public-hero {
+  background-color: #153444 !important;
+  color: #f8fafc !important;
+}
+
+#root main.motyq-buyer-public-page .motyq-buyer-public-hero .motyq-buyer-hero-heading {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+#root main.motyq-buyer-public-page .motyq-buyer-public-hero .motyq-buyer-hero-description {
+  color: #e2e8f0 !important;
+  opacity: 1 !important;
+}
+
+#root main.motyq-buyer-public-page .motyq-buyer-public-hero .motyq-buyer-hero-eyebrow {
+  color: #67e8f9 !important;
+  opacity: 1 !important;
+}
+
+#root main.motyq-buyer-public-page .motyq-buyer-public-hero .motyq-buyer-hero-benefits,
+#root main.motyq-buyer-public-page .motyq-buyer-public-hero .motyq-buyer-hero-benefits span,
+#root main.motyq-buyer-public-page .motyq-buyer-public-hero .motyq-buyer-hero-benefits svg {
+  color: #cffafe !important;
+  opacity: 1 !important;
+}
+
+/* Only the public buyer registration is affected; other Motyq IQ screens
+   and white-background form labels continue using their own theme colors. */
