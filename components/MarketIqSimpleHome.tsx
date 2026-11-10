@@ -1,4 +1,5 @@
 import React,{useState} from 'react';
+import './marketIqSimpleHome.css';
 import {
  ArrowRight,ArrowUpRight,Bot,CarFront,ChartNoAxesCombined,ChevronDown,
  ClipboardList,FileSpreadsheet,History,Layers3,MessageSquareText,
@@ -45,17 +46,19 @@ export default function MarketIqSimpleHome({
   setHint('');
   onNavigate(match.destination,match.plate);
  };
- return <section aria-label="Início simplificado do Motyq IQ" className="space-y-5">
-  <header className="relative overflow-hidden rounded-3xl bg-[#153f51] px-5 py-7 text-white shadow-sm sm:px-8 sm:py-9">
+ return <section aria-label="Início simplificado do Motyq IQ" className="motyq-iq-simple-home space-y-5">
+  <header className="motyq-iq-simple-hero relative overflow-hidden rounded-3xl bg-[#153f51] px-5 py-7 text-white shadow-sm sm:px-8 sm:py-9">
    <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-28 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl"/>
    <div aria-hidden="true" className="pointer-events-none absolute bottom-0 right-28 h-24 w-36 rounded-full bg-indigo-400/10 blur-2xl"/>
    <div className="relative max-w-3xl">
-    <div className="mb-3 inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200">
+    <div className="motyq-iq-simple-kicker mb-3 inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200">
      <Sparkles size={15}/>MOTYQ IQ · Início simplificado
     </div>
-    <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Bom dia, Mesa!</h1>
-    <p className="mt-2 max-w-xl text-sm leading-6 text-[#e0edf4] sm:text-base">O que vamos fazer agora?</p>
-    <p className="mt-3 text-xs leading-5 text-cyan-100">
+    <h1 className="motyq-iq-simple-title text-2xl font-black tracking-tight text-white sm:text-3xl">
+     {new Date().getHours()<12?'Bom dia':new Date().getHours()<18?'Boa tarde':'Boa noite'}, Mesa!
+    </h1>
+    <p className="motyq-iq-simple-subtitle mt-2 max-w-xl text-sm leading-6 text-[#e0edf4] sm:text-base">O que vamos fazer agora?</p>
+    <p className="motyq-iq-simple-note mt-3 text-xs leading-5 text-cyan-100">
      A inteligência continua a mesma. A tela mostra só o próximo passo.
     </p>
    </div>
