@@ -1,4 +1,5 @@
 import React,{useMemo,useRef,useState} from 'react';
+import './marketIqRadarCompact.css';
 import {AlertTriangle,ArrowDownUp,ArrowRight,CarFront,Clock3,FileSpreadsheet,RefreshCw,Search,ShieldCheck,UploadCloud,Warehouse} from 'lucide-react';
 import {
  readDealerWorkbook,dealerRadarStats,dealerRiskFlags,dealerSimilarStock,dealerPlateSuggestions,compareDealerSnapshots,
@@ -124,7 +125,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
   window.setTimeout(()=>document.getElementById('motyq-radar-details')?.scrollIntoView({behavior:'smooth',block:'center'}),0);
  };
  return <div className="space-y-5">
-  <section className="overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-[#0c293d] via-[#123b51] to-[#126083] px-5 py-6 text-white shadow-sm">
+  <section className="motyq-iq-radar-hero overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-[#0c293d] via-[#123b51] to-[#126083] px-5 py-6 text-white shadow-sm">
    <p className="text-[11px] font-black uppercase tracking-[.2em] text-cyan-200">MOTYQ IQ · INTELIGÊNCIA DE AQUISIÇÕES</p>
    <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Meu estoque <span className="text-cyan-200">· Radar</span></h2>
    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100">Encontre um carro, confira o custo e veja o que precisa de atenção.</p>
@@ -279,6 +280,9 @@ export default function MarketIqDealerRadarPanel(props:Props){
        {current.stores.map(s=><option key={s} value={s}>{s}</option>)}
       </select>
      </label>
+     <details className="col-span-full rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <summary className="cursor-pointer text-xs font-bold text-[#153f51]">Mais filtros: categoria e condições</summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
      <label className="text-xs font-bold text-slate-700">Tipo
       <select value={type} onChange={e=>{setType(e.target.value as typeof type);setVisibleCount(60);}}
        className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm font-normal">
@@ -294,6 +298,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
        <option value="os">Com ordens de serviço</option>
       </select>
      </label>
+      </div>
+     </details>
     </div>
     {plateSuggestions.length>0&&<div role="status" aria-live="polite"
      className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">
@@ -389,8 +395,10 @@ export default function MarketIqDealerRadarPanel(props:Props){
      <p className="font-bold text-amber-950">Pontos de atenção</p>
      {dealerRiskFlags(selected).map(f=><p key={f} className="mt-1 text-xs text-amber-950">• {f}</p>)}
     </div>}
-    <div className="mt-4 border-t border-slate-200 pt-4">
-     <h4 className="text-sm font-black text-slate-900">Outros {similar.length} veículo(s) da mesma família no grupo</h4>
+    <details className="mt-4 border-t border-slate-200 pt-4">
+     <summary className="cursor-pointer text-sm font-black text-[#153f51]">Ver {similar.length} veículo(s) semelhantes do grupo</summary>
+     <div className="mt-3">
+     <h4 className="text-xs font-bold text-slate-900">Semelhança por família de modelo</h4>
      <p className="mt-1 text-xs text-slate-600">Comparação por marca e família do modelo. Versões e anos podem diferir e não são tratados como iguais na FIPE.</p>
      {!similar.length?<p className="mt-2 text-sm text-slate-600">Nenhum outro veículo da mesma família aparece neste arquivo.</p>:
       <div className="mt-2 overflow-x-auto"><table className="w-full text-left text-xs">
@@ -402,6 +410,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
        </tr>)}</tbody>
       </table></div>}
     </div>
+    </details>
    </section>}
    <MarketIqPurchaseSummaryModal open={Boolean(purchaseSummaryVehicle)}
     onClose={()=>setPurchaseSummaryVehicle(null)} snapshot={current}
@@ -412,11 +421,11 @@ export default function MarketIqDealerRadarPanel(props:Props){
      vehicleType:purchaseSummaryVehicle?.vehicleType||'car',
      stockVehicle:purchaseSummaryVehicle,preparation:0
     }}/>
-   <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-xs leading-6 text-cyan-950">
-    <strong>Limites do Radar 1.0:</strong> não calcula MDS regional, lucratividade líquida, giro de veículos vendidos nem recomenda automaticamente “Comprar”.
-    Os dados de vendas, as transferências e o mercado Webmotors serão integrados em fases futuras, após validação e recuperação da infraestrutura do Firestore.
-    <span className="block font-semibold">O último relatório e a fotografia anterior são recuperados automaticamente neste navegador. Para atualizar os valores e o estoque real, importe um novo V44. O navegador pode apagar dados locais quando o armazenamento é limpo.</span>
-   </div>
+   <details className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-6 text-slate-700">
+    <summary className="cursor-pointer font-bold text-[#153f51]">Limites técnicos e atualização da planilha</summary>
+    <p className="mt-2">O Radar não calcula lucratividade líquida nem verifica vendas em tempo real, e não recomenda automaticamente “Comprar”. Saídas da fotografia não comprovam vendas.</p>
+    <p className="mt-1">A base fica neste navegador; para atualizar o estoque real, importe um novo relatório V44. Limpar dados do navegador pode apagar a fotografia local.</p>
+   </details>
   </>}
  </div>;
 }
