@@ -39,6 +39,8 @@ for(const [q,route] of Object.entries(checks)){
  assert.equal(result?.destination,route,JSON.stringify({q,result,route}));
 }
 assert.equal(nav.parseSimpleIqIntent('histórico por placa ABC1D23')?.plate,'ABC1D23');
+assert.equal(nav.parseSimpleIqIntent('histórico por placa')?.destination,'plateHistory');
+assert.equal(nav.parseSimpleIqIntent('ABC1D23')?.plate,'ABC1D23');
 assert.equal(nav.parseSimpleIqIntent(''),null);
 assert.equal(nav.parseSimpleIqIntent('o'.repeat(230)),null);
 assert.equal(nav.parseSimpleIqIntent('uma mensagem sem intenção'),null);
@@ -69,4 +71,14 @@ for(const moduleName of ['MarketIqManagementDashboard','MarketIqConsultedRepasse
 }
 assert.ok(workspace.includes("onQuoteVehicle={vehicle=>"),'Radar to quote handoff must survive');
 assert.ok(workspace.includes("switchDeskSection('consulted')"));
+assert.ok(workspace.includes('if(!beginNewMobileValuation())return;'),
+ 'Quick plate valuation must ask before replacing an unfinished quote');
+assert.ok(workspace.includes('setPlate(lookedUpPlate)'),'Quick plate should fill the right field');
+const homeCss=readFileSync('components/marketIqSimpleHome.css','utf8');
+assert.ok(home.includes("import './marketIqSimpleHome.css';"));
+assert.ok(homeCss.includes('#root .motyq-iq-simple-home .motyq-iq-simple-hero'),
+ 'Global light theme must not override home only');
+for(const color of ['#ffffff','#e0edf4','#a5f3fc','#cffafe'])
+ assert.ok(homeCss.includes('color: '+color+' !important;'),'Missing readable hero color '+color);
+
 console.log('Motyq IQ simplified home: 4 primary actions, quick navigator, import guide, unchanged old modules, mobile routing and no extra reads passed.');
