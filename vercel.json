@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/cotacao-mesa/cadastro",
+      "destination": "/index.html"
+    }
+  ]
+}
