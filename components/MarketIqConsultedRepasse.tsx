@@ -204,7 +204,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
   if(!winning||!isValidConsultedMoney(saleFinalAmount,false)||value<=0){
    setError('Selecione uma proposta confirmada e válida e informe o preço final da venda.');return;
   }
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(saleClosingDate)){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(saleClosingDate)){
    setError('Informe a data do fechamento.');return;
   }
   if(!window.confirm('Registrar venda para '+winning.buyer+' por '+formatReais(value)+
