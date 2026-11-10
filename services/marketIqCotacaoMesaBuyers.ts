@@ -8,6 +8,7 @@ export type BuyerProfile={
  id:string;shop:string;contact:string;whatsapp:string;region:string;
  brands:string;models:string;vehicleType:'both'|'car'|'motorcycle';
  yearFrom:string;yearTo:string;optedIn:boolean;active:boolean;updatedAt:string;
+ email?:string;segments?:string;maxKm?:string;budgetTo?:string;
 };
 export type BuyerMatch={buyer:BuyerProfile;score:number;reasons:string[]};
 const normalize=(s:unknown)=>String(s??'').normalize('NFD')
@@ -22,7 +23,8 @@ export const buyerStorageKey=(scope:string)=>'motyq-iq-cotacao-mesa-compradores-
  encodeURIComponent(scope.trim().toLowerCase());
 export const blankBuyer=():BuyerProfile=>({
  id:'',shop:'',contact:'',whatsapp:'',region:'',brands:'',models:'',
- vehicleType:'both',yearFrom:'',yearTo:'',optedIn:false,active:true,updatedAt:''
+ vehicleType:'both',yearFrom:'',yearTo:'',optedIn:false,active:true,updatedAt:'',
+ email:'',segments:'',maxKm:'',budgetTo:''
 });
 export function validBuyerPhone(raw:string):string|null{
  const digits=String(raw||'').replace(/\D/g,'');
@@ -42,7 +44,11 @@ export function safeBuyer(value:unknown):BuyerProfile|null{
   models:String(v.models||'').slice(0,400),
   vehicleType:v.vehicleType==='car'||v.vehicleType==='motorcycle'?v.vehicleType:'both',
   yearFrom:String(v.yearFrom||'').slice(0,4),yearTo:String(v.yearTo||'').slice(0,4),
-  optedIn:v.optedIn===true,active:v.active!==false,updatedAt:String(v.updatedAt||'').slice(0,40)
+  optedIn:v.optedIn===true,active:v.active!==false,updatedAt:String(v.updatedAt||'').slice(0,40),
+  email:String(v.email||'').trim().toLowerCase().slice(0,140),
+  segments:String(v.segments||'').trim().slice(0,240),
+  maxKm:String(v.maxKm||'').replace(/\D/g,'').slice(0,7),
+  budgetTo:String(v.budgetTo||'').replace(/\D/g,'').slice(0,9)
  };
 }
 export function loadCotacaoBuyers(scope:string):BuyerProfile[]{
