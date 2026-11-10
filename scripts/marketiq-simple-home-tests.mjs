@@ -47,7 +47,9 @@ assert.equal(nav.parseSimpleIqIntent('uma mensagem sem intenção'),null);
 assert.ok(home.includes("onNavigate(item.id)"),'All four major action cards must route to existing modules');
 assert.ok(home.includes("id:'pricing'")&&home.includes("id:'consulted'")&&home.includes("id:'radar'")&&home.includes("id:'dashboard'"));
 assert.ok(home.includes('Importar planilha')&&home.includes("onSelectImport('dealer')")&&home.includes("onSelectImport('evaluations')"));
-assert.ok(home.includes('identificação automática do arquivo será a próxima etapa'),'Import guide must not claim automatic import exists');
+assert.ok(home.includes('A identificação é automática, mas você confirma a importação.')&&
+ home.includes('onSmartImport(detected.file,detected.result.kind,detected.result.sheet)'),
+ 'New preview must classify the workbook locally and request explicit confirmation');
 assert.ok(home.includes('Assistente de navegação M.O.T.Y.Q.'),'Assistant must be explicitly described as navigation only');
 assert.ok(home.includes('Não envia mensagens nem toma decisões de compra.'));
 assert.ok(home.includes('stockCount===null')&&home.includes('Registros carregados, não total geral'),'Counts are qualified, no fake KPI');
