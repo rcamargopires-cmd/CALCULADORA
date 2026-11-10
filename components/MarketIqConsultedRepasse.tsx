@@ -302,7 +302,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
      </p>
      <h2 className="motyq-iq-hero-title mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Cotação Mesa</h2>
      <p className="motyq-iq-hero-description mt-2 max-w-2xl text-sm leading-6 text-slate-200">
-      Selecione um veículo da Mesa ou do Radar, encontre os lojistas compatíveis, acompanhe propostas e registre o comprador e o preço fechado. Cálculos de custos e margem permanecem disponíveis.
+      Escolha o veículo, consulte lojistas compatíveis e registre a melhor proposta.
      </p>
     </div>
     <span className="motyq-iq-hero-status rounded-full border border-cyan-200/30 bg-cyan-100/10 px-3 py-1.5 text-xs font-bold text-cyan-200">
@@ -310,20 +310,14 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
     </span>
    </div>
   </section>
-  <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-   <ShieldAlert size={18} className="shrink-0"/>
-   <p><strong>Cotação assistida:</strong> os compradores e as consultas são salvos somente neste navegador. O WhatsApp abre apenas ao seu clique, sem envio ou leitura automática de respostas. Preços, fechamento e recebimento de pagamento são informados manualmente pela Mesa. Impostos/NF, aprovação gerencial e transferência financeira continuam fora desta função.</p>
-  </div>
-  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores da Cotação Mesa">
-   {([
-    ['Casos em consulta',rows.filter(r=>r.state==='consulta').length.toLocaleString('pt-BR')],
-    ['Em negociação',rows.filter(r=>r.state==='negociacao').length.toLocaleString('pt-BR')],
-    ['Vendas fechadas',rows.filter(r=>r.state==='vendido'&&r.sale).length.toLocaleString('pt-BR')],
-    ['Total negociado',formatReais(rows.filter(r=>r.state==='vendido'&&r.sale).reduce((sum,r)=>sum+(r.sale?.finalValue||0),0))]
-   ] as const).map(([name,value])=><div key={name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{name}</p>
-    <p className="mt-1 text-xl font-black text-slate-950">{value}</p>
-   </div>)}
+  <details className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-700">
+   <summary className="cursor-pointer font-bold text-[#153f51]">Como funciona e o que ainda precisa de confirmação</summary>
+   <p className="mt-2">As cotações ficam somente neste navegador. Abrir o WhatsApp não comprova envio ou resposta. Preços e pagamentos são informados pela Mesa; esta tela não aprova compras nem registra movimentações financeiras.</p>
+  </details>
+  <div aria-label="Resumo das cotações nesta conta" className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+   <span><strong className="text-base text-slate-950">{rows.filter(r=>r.state==='consulta'||r.state==='negociacao').length}</strong> em andamento</span>
+   <span><strong className="text-base text-slate-950">{rows.filter(r=>r.state==='vendido'&&r.sale).length}</strong> fechamento(s) informado(s)</span>
+   <span className="text-slate-500">Informações locais, sem confirmação financeira automática</span>
   </div>
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
@@ -355,8 +349,9 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
     <button type="button" className={smallBtn} onClick={()=>{setBuyerForm(blankBuyer());setBuyerFormOpen(v=>!v);setBuyerError('');}}>
      <Plus size={15}/>{buyerFormOpen?'Fechar cadastro':'Cadastrar lojista'}</button>
    </div>
-   <div className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4">
-    <p className="text-sm font-black text-cyan-950">Formulário público para lojistas</p>
+   <details className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4">
+    <summary className="cursor-pointer text-sm font-black text-cyan-950">Convidar e cadastrar novos lojistas</summary>
+    <p className="mt-3 text-xs font-semibold text-cyan-950">Formulário público para lojistas</p>
     <p className="mt-1 text-xs leading-5 text-slate-700">
      Envie o link por WhatsApp. O lojista informa contato, marcas, modelos, categorias, ano, KM e orçamento.
      Ele escolhe compartilhar o cadastro com você. Cole a mensagem recebida abaixo para conferir e importar.
@@ -401,7 +396,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
      Os cadastros não entram automaticamente no banco, exigem sua conferência e continuam neste dispositivo.
      Não há novas leituras ou gravações no Firestore.
     </p>
-   </div>
+   </details>
    <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
     <span className="rounded-lg bg-slate-100 px-2.5 py-1.5">{buyers.length} lojistas cadastrados</span>
     <span className="rounded-lg bg-cyan-50 px-2.5 py-1.5 text-cyan-900">{rankedBuyers.length} compatíveis</span>
@@ -519,8 +514,10 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
   </section>
 
   <section className="grid gap-4 lg:grid-cols-5">
-   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-3">
-    <h3 className="text-lg font-black">4. Custos e margem desta operação</h3>
+   <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-3">
+    <summary className="cursor-pointer text-base font-black text-slate-950">4. Custos e margem <span className="ml-2 text-xs font-semibold text-slate-600">{financialReady?'Informados para a simulação':'Preencher para calcular teto'}</span></summary>
+    <div className="mt-3">
+    <p className="text-xs font-black uppercase tracking-wide text-slate-600">Despesas desta operação</p>
     <p className="mt-1 text-xs leading-5 text-slate-500">A margem é escolhida para cada veículo. Percentuais de imposto são inseridos pela Mesa conforme orientação fiscal. Zero somente quando realmente não houver custo aplicável.</p>
     <div className="mt-4 grid grid-cols-2 gap-3">
      {(['invoice','taxesFixed','taxesPercent','transport','preparation','other'] as (keyof ConsultedCosts)[]).map(key=>
@@ -537,6 +534,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
     <p className="mt-3 rounded-lg bg-slate-50 p-3 text-[11px] leading-5 text-slate-600">
      O imposto percentual é aplicado sobre a oferta da loja compradora. A margem percentual, quando usada, também incide sobre essa oferta. Custos fixos e percentuais se somam. Não há cálculo fiscal automático nem substituição da conferência contábil.</p>
    </div>
+   </details>
    <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-5 lg:col-span-2">
     <h3 className="flex items-center gap-2 text-lg font-black text-slate-900"><Calculator size={18}/>5. Resultado líquido projetado</h3>
     {current?<>
@@ -547,7 +545,7 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
        <div className="flex justify-between gap-2"><span>Margem desejada</span><strong>− {formatReais(current.calculation.margin)}</strong></div>
       </div>
       <div className="mt-4 border-t border-cyan-200 pt-4">
-       <p className="text-[11px] font-black uppercase tracking-wider text-cyan-900">Teto indicado para compra</p>
+       <p className="text-[11px] font-black uppercase tracking-wider text-cyan-900">Teto simulado para compra</p>
        <p className={'mt-1 text-3xl font-black '+(estimatedPrice!==null&&estimatedPrice>0?'text-emerald-800':'text-red-800')}>
          {formatReais(estimatedPrice||0)}
        </p>
@@ -576,6 +574,8 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    </div>
   </section>
 
+  <details className="rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm">
+   <summary className="cursor-pointer p-2 text-sm font-black text-[#153f51]">{draft.sale?'Venda registrada: '+draft.sale.buyer+' · '+formatReais(draft.sale.finalValue):'6. Registrar fechamento quando houver comprador'}</summary>
   <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm" aria-label="Fechamento da cotação">
    <h3 className="flex items-center gap-2 text-lg font-black"><Check size={19} className="text-emerald-700"/>6. Fechamento: quem comprou e por quanto</h3>
    <p className="mt-1 text-xs leading-5 text-slate-600">
@@ -615,9 +615,11 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    </div>}
   </section>
 
+  </details>
+
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
-    <div><h3 className="text-lg font-black">7. Salvar cotação e histórico</h3>
+    <div><h3 className="text-lg font-black">Salvar e acompanhar esta cotação</h3>
      <p className="mt-1 text-xs text-slate-500">Cada salvamento cria uma nova versão do caso, preservando valores anteriores e responsável. Isso não é uma aprovação de compra.</p></div>
     <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">Versão atual: {draft.version||'nova'}</span>
    </div>
@@ -653,6 +655,8 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
    </div>}
   </section>
 
+  <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+   <summary className="cursor-pointer text-sm font-black text-[#153f51]">Ver cotações anteriores ({rows.length}) e exportar relatórios</summary>
   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-start justify-between gap-3">
     <div><h3 className="text-lg font-black">Histórico de Cotações Mesa</h3>
@@ -683,5 +687,6 @@ export default function MarketIqConsultedRepasse({user,vehicleFromDesk,incomingV
     <Info size={15} className="mt-0.5 shrink-0"/>Dados salvos apenas no navegador deste usuário. Logs locais podem ser apagados ou alterados no próprio dispositivo. A trilha auditável de gerentes e notificações será uma integração futura, sujeita a permissões e regras do servidor.
    </p>
   </section>
+  </details>
  </div>;
 }

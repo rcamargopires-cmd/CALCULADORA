@@ -1,0 +1,16 @@
+/* Motyq IQ decision board: explicitly scoped contrast against the global
+   light theme, so navy copy never becomes dark-on-dark. */
+#root .motyq-quick-decision-summary {
+  background-color: #153f51 !important;
+  color: #f8fafc !important;
+}
+#root .motyq-quick-decision-summary > p {
+  color: #cffafe !important;
+  opacity: 1 !important;
+}
+#root .motyq-quick-decision-summary > p:nth-child(2) {
+  color: #ffffff !important;
+}
+#root .motyq-quick-decision-summary > p:last-child {
+  color: #e2e8f0 !important;
+}

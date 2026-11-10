@@ -4,12 +4,17 @@ type FipeDetail={value:number;brand:string;model:string;year:number;fuel:string;
 import {User} from '../types';
 import {auth} from '../firebase';
 import MarketIqManagementDashboard from './MarketIqManagementDashboard';
+import MarketIqSimpleHome from './MarketIqSimpleHome';
+import type {MarketIqIncomingFile,MarketIqWorkbookKind} from '../services/marketIqSmartImport';
+import type {SimpleIqDestination} from '../services/marketIqSimpleNavigation';
+import {House,Menu} from 'lucide-react';
 import MarketIqMobileExperience from './MarketIqMobileExperience';
 import MarketIqDesktopVoiceSearch from './MarketIqDesktopVoiceSearch';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
 import MarketIqDealerRadarPanel from './MarketIqDealerRadarPanel';
 import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
+import MarketIqQuickDecisionPanel from './MarketIqQuickDecisionPanel';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
 import {readDealerLocalArchive,persistDealerLocalArchive} from '../services/marketIqDealerLocalArchive';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
@@ -91,10 +96,10 @@ const validSource=(a:Ad)=>{try{
 }catch{return false;}};
 export default function ManualPricingWorkspace({user}:{user:User}){
  const key='motyq-iq-local-test-'+user.email.toLowerCase();
- const [deskSection,setDeskSection]=useState<'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar'>(()=>{
+ const [deskSection,setDeskSection]=useState<'home'|'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar'>(()=>{
    if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import'))return 'pricing';
    const previous=sessionStorage.getItem('motyq-iq-active-desk-tab');
-   return previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'?previous:'dashboard';
+   return previous==='home'||previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'||previous==='dashboard'?previous:'home';
  });
  const [selectedPlateForHistory,setSelectedPlateForHistory]=useState('');
  const [quoteFromRadar,setQuoteFromRadar]=useState<{token:string;vehicle:Partial<ConsultedVehicle>}|null>(null);
@@ -116,7 +121,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [purchaseSummaryOpen,setPurchaseSummaryOpen]=useState(false);
  const [purchaseSummaryComparable,setPurchaseSummaryComparable]=useState<ComparableEntry|null>(null);
  const [mobileFullDesk,setMobileFullDesk]=useState(false);
- const switchDeskSection=(next:'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar')=>{
+ const [showAllTools,setShowAllTools]=useState(false);
+ // One in-memory File handoff; no raw workbooks stored in browser storage.
+ const [smartIncomingFile,setSmartIncomingFile]=useState<MarketIqIncomingFile|null>(null);
+ const consumeSmartFile=(token:string)=>setSmartIncomingFile(current=>current?.token===token?null:current);
+ const switchDeskSection=(next:'home'|'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar')=>{
    setDeskSection(next);try{sessionStorage.setItem('motyq-iq-active-desk-tab',next);}catch{}
  };
  const formKey='motyq-iq-preview-inputs-'+user.email.toLowerCase();
@@ -174,7 +183,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  // Explicit model reload on re-selecting the same brand. React batches
  // clear-then-select in Quick Search, leaving brandCode unchanged otherwise.
  const [modelCatalogRevision,setModelCatalogRevision]=useState(0);
- const [fipe,setFipe]=useState<FipeDetail|null>(null);const [catalogError,setCatalogError]=useState('');const [catalogLoading,setCatalogLoading]=useState(false);const [km,setKm]=useState<string>(()=>typeof savedForm.km==='string'?savedForm.km:'');const [cost,setCost]=useState<string>(()=>typeof savedForm.cost==='string'?savedForm.cost:'0');const [destinationOverride,setDestinationOverride]=useState<DestinationOverride>(()=>
+ const [fipe,setFipe]=useState<FipeDetail|null>(null);const [catalogError,setCatalogError]=useState('');const [catalogLoading,setCatalogLoading]=useState(false);const [km,setKm]=useState<string>(()=>typeof savedForm.km==='string'?savedForm.km:'');const [cost,setCost]=useState<string>(()=>typeof savedForm.cost==='string'?savedForm.cost:'0');
+ const [decisionOffer,setDecisionOffer]=useState('');
+ const [decisionConfirmedCost,setDecisionConfirmedCost]=useState<string|null>(null);
+ useEffect(()=>{setDecisionOffer('');},[plate,brandCode,modelCode,yearCode,vehicleType]);
+ useEffect(()=>{setDecisionConfirmedCost(null);},[cost,plate,brandCode,modelCode,yearCode,vehicleType]);const [destinationOverride,setDestinationOverride]=useState<DestinationOverride>(()=>
  savedForm.destinationOverride==='repasse'?'repasse':savedForm.destinationOverride==='auto'?'auto':
  savedForm.repasse===true&&['A','B','C'].includes(String(savedForm.classification||classifyByMileage(savedForm.km)?.classification||''))?'repasse':'auto');
  const [ads,setAds]=useState<Ad[]>([]);const [adsVehicleKey,setAdsVehicleKey]=useState('');const [notice,setNotice]=useState('');
@@ -795,13 +808,49 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
+ const navigateSimple=(destination:SimpleIqDestination|'home',lookedUpPlate?:string)=>{
+  if(destination==='home')setShowAllTools(false);
+  if(lookedUpPlate&&destination==='plateHistory')setSelectedPlateForHistory(lookedUpPlate);
+  if(lookedUpPlate&&destination==='pricing'){
+   // A quick command with a plate must not silently overwrite an unsaved
+   // valuation. Reuse the existing explicit confirmation/reset workflow.
+   if(!beginNewMobileValuation())return;
+   setPlate(lookedUpPlate);
+  }
+  // Use the guided mobile assessment for pricing, and the original
+  // full-resolution module for all other routes on small screens.
+  setMobileFullDesk(destination!=='home'&&destination!=='pricing');
+  switchDeskSection(destination);
+  window.scrollTo({top:0,behavior:'smooth'});
+ };
+ const selectSimpleImport=(kind:'dealer'|'evaluations')=>navigateSimple(kind==='dealer'?'radar':'archive');
+ const acceptSmartImport=(file:File,kind:MarketIqWorkbookKind,sheet:string)=>{
+  setSmartIncomingFile({token:Date.now()+'-'+Math.random(),file,kind,sheet});
+  navigateSimple(kind==='dealer'?'radar':'archive');
+ };
+
  return <>
- <div className={mobileFullDesk?'hidden':'lg:hidden'}>
+ {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
+  <MarketIqSimpleHome
+   onNavigate={navigateSimple}
+   onOpenAdvanced={()=>{setShowAllTools(true);navigateSimple('pricing');}}
+   onSelectImport={selectSimpleImport}
+    onSmartImport={acceptSmartImport}
+   stockCount={radarLoadedScope===captureScope&&radarSnapshot?radarSnapshot.vehicles.length:null}
+   stockDate={radarLoadedScope===captureScope?radarSnapshot?.reportDate||null:null}
+   historyCount={saved.length} historyBusy={historyBusy}
+  />
+ </main>}
+ <div className={deskSection==='home'||mobileFullDesk?'hidden':'lg:hidden'}>
   <nav aria-label="Ferramentas de aquisição do Motyq IQ" className="mx-3 mt-3 flex flex-wrap gap-2">
+   <button type="button" onClick={()=>navigateSimple('home')}
+    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-900 shadow-sm">Início</button>
    <button type="button" onClick={()=>{switchDeskSection('radar');setMobileFullDesk(true);}}
     className="rounded-xl border border-cyan-300 bg-white px-3.5 py-2.5 text-xs font-bold text-cyan-950 shadow-sm">Radar de Compra</button>
-   <button type="button" onClick={()=>setPurchaseSummaryOpen(true)} disabled={!brand.trim()||!model.trim()}
-    className="rounded-xl bg-[#0b7199] px-3.5 py-2.5 text-xs font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40">Inteligência de Compra</button>
+   <button type="button" onClick={()=>{
+    setMobileFullDesk(true);switchDeskSection('pricing');
+    window.setTimeout(()=>document.getElementById('motyq-iq-decision-board')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
+   }} className="rounded-xl bg-[#0b7199] px-3.5 py-2.5 text-xs font-bold text-white shadow-sm">Decisão de Compra</button>
   </nav>
   <MarketIqMobileExperience
    user={user}
@@ -833,9 +882,21 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   />
  </div>
  {mobileFullDesk&&<button type="button" className="mx-4 mt-4 rounded-lg bg-[#008bd0] px-4 py-3 text-sm font-bold text-white lg:hidden"
-   onClick={()=>setMobileFullDesk(false)}>Voltar ao Motyq IQ Mobile</button>}
- <main className={'mx-auto max-w-7xl space-y-5 p-5 text-slate-900 '+(mobileFullDesk?'block':'hidden lg:block')}>
- <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+   onClick={()=>navigateSimple('home')}>Voltar ao início do Motyq IQ</button>}
+ {deskSection!=='home'&&<main className={'mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-5 '+(mobileFullDesk?'block':'hidden lg:block')}>
+ <nav className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Navegação simplificada">
+  <button type="button" onClick={()=>navigateSimple('home')} className="inline-flex items-center gap-2 rounded-xl bg-[#153f51] px-4 py-2.5 text-xs font-black text-white">
+   <House size={16}/>Início</button>
+  {([
+    ['pricing','Avaliar'],['consulted','Cotar'],['radar','Estoque'],['dashboard','Resultados']
+  ] as const).map(([section,label])=>
+   <button key={section} type="button" onClick={()=>navigateSimple(section)} aria-current={deskSection===section?'page':undefined}
+    className={'rounded-xl px-3 py-2.5 text-xs font-bold transition '+(deskSection===section?'bg-cyan-50 text-cyan-950 ring-1 ring-cyan-200':'text-slate-700 hover:bg-slate-100')}>{label}</button>)}
+  <button type="button" onClick={()=>setShowAllTools(value=>!value)} aria-expanded={showAllTools}
+   className="ml-auto inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+   <Menu size={16}/>{showAllTools?'Ocultar ferramentas':'Mais ferramentas'}</button>
+ </nav>
+ <div className={'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm '+(showAllTools?'':'hidden')}>
   <nav className="motyq-iq-tabs flex flex-wrap items-center gap-1.5 p-2" aria-label="Áreas principais do Motyq IQ">
   <button type="button" onClick={()=>switchDeskSection('dashboard')} aria-current={deskSection==='dashboard'?'page':undefined}
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='dashboard'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Painel gerencial</button>
@@ -880,6 +941,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     snapshot={radarSnapshot} onSnapshotChange={updateRadarSnapshot}
     previousSnapshot={radarPreviousSnapshot} onPreviousSnapshotChange={updateRadarPreviousSnapshot}
     localArchiveState={radarCacheState} localArchiveWarning={radarCacheNotice}
+    incomingFile={smartIncomingFile?.kind==='dealer'?smartIncomingFile:null}
+    onIncomingFileConsumed={consumeSmartFile}
     onQuoteVehicle={vehicle=>{
      if(!window.confirm('Abrir Cotação Mesa com '+vehicle.brand+' '+vehicle.model+
       '? Um rascunho não salvo poderá ser substituído. Cotações salvas serão preservadas.'))return;
@@ -890,6 +953,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     }}
    />):
   deskSection==='archive'?<MarketIqMonthlyArchivePanel user={user}
+   incomingFile={smartIncomingFile?.kind==='evaluations'?smartIncomingFile:null}
+   onIncomingFileConsumed={consumeSmartFile}
    onOpenPlateHistory={selected=>{setSelectedPlateForHistory(selected);switchDeskSection('plateHistory');}}/>:
   deskSection==='plateHistory'?<MarketIqPlateHistoryPanel user={user}
    initialPlate={selectedPlateForHistory||plate} onOpenArchive={()=>switchDeskSection('archive')}/>:
@@ -975,7 +1040,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
       </div>)}</div>}
   </section>:
   <>
- <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><strong>Piloto oficial:</strong> a busca automática usa páginas indexadas e pode ficar sem anúncios quando a fonte gratuita falhar. A estimativa histórica é independente da Webmotors e recalcula com FIPE, KM, classificação, preparo e destino. Anúncios não auditados não autorizam compras. As avaliações salvas no histórico online podem ser reabertas por perfis autorizados da mesma unidade.</div>
+ <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+  <strong>Avaliação assistida:</strong> o preço de referência usa FIPE e histórico quando disponíveis. Pesquisa de anúncios não é obrigatória.
+  Confira versão, condição e custos antes de aprovar qualquer compra.
+ </div>
  {saveSuccessMessage&&<div role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm font-semibold text-emerald-950">
   {saveSuccessMessage}
  </div>}
@@ -1013,6 +1081,43 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    O preço-alvo pode mudar quando a FIPE atualizar. Confira antes de aprovar a compra.
  </p>}
  {fipe.referenceSource==='tabelafipe.info'&&<p className="mt-1 text-xs text-slate-700">Dados via tabelafipe.info (Tabela FIPE). Fonte independente, conferida por código e ano-modelo.</p>}</>:<p className="text-sm text-slate-600">Selecione marca, modelo/versão e ano para consultar o valor automaticamente.</p>}{catalogError&&<div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-red-700">{catalogError}</p><button type="button" onClick={()=>{setCatalogError("");setRetryCatalog(x=>x+1);if(brandCode){const current=brandCode;setBrandCode('');window.setTimeout(()=>setBrandCode(current),0);}}} className="rounded-lg border border-cyan-700 px-3 py-1 text-sm font-semibold text-cyan-900">Tentar novamente</button></div>}</div></section>
+ <MarketIqQuickDecisionPanel
+  target={{
+   brand,model,year,plate,vehicleType,km:number(km),
+   offer:approvalInputValid(decisionOffer)?number(decisionOffer):undefined,
+   fipe:fipe?.value||0,preparation:number(cost),
+   fipeReferenceMonth:fipe?.referenceMonth||'',fipeCode:fipe?.fipeCode||'',
+   fipeStatus:fipe?.referenceStatus||'unverified',fipeModel:fipe?.model||'',
+   fipeYear:fipe?.year||0,fipeSource:fipe?.referenceSource||''
+  }}
+  stock={radarLoadedScope===captureScope?radarSnapshot:null}
+  history={saved} companyId={user.companyId||'abrao-reze'}
+  offer={decisionOffer} onOffer={setDecisionOffer}
+  costs={cost} onCosts={setCost}
+  costConfirmed={decisionConfirmedCost===cost}
+  onCostConfirmed={accepted=>setDecisionConfirmedCost(accepted?cost:null)}
+  repasse={repasse} marketPrice={marketReady?avg:null} marketAds={marketReady?primary.length:0}
+  historicalEstimate={vehicleType==='motorcycle'?motorcycleReference?.medianIndication||null:
+   historicalEstimate?.target||null}
+  historicalRange={vehicleType==='car'&&historicalEstimate?
+   [historicalEstimate.rangeMin,historicalEstimate.rangeMax]:null}
+  onFullAnalysis={()=>setPurchaseSummaryOpen(true)}
+  onRadar={()=>navigateSimple('radar')}
+  onHistory={()=>navigateSimple('history')}
+  onQuote={()=>{
+   if(!brand.trim()||!model.trim()||!year.trim())return;
+   if(!window.confirm('Abrir Cotação Mesa com '+brand+' '+model+
+     '? Uma cotação não salva poderá ser substituída. As avaliações registradas permanecem intactas.'))return;
+   setQuoteFromRadar({token:'decision:'+Date.now(),vehicle:{
+     plate,brand,model,year,km,vehicleType,fipe:fipe?.value||0}});
+   navigateSimple('consulted');
+  }}
+ />
+ <details className="rounded-2xl border border-slate-200 bg-white p-4">
+  <summary className="cursor-pointer select-none text-sm font-black text-[#153f51]">
+   Ver histórico inteligente, classificação e justificativas
+  </summary>
+  <div className="mt-4 space-y-4">
  <MarketIqIntelligentHistoryPanel
   companyId={user.companyId||'abrao-reze'}
   current={{plate,brand,model,modelYear:marketYear,km:number(km),fipe:fipe?.value||0,
@@ -1032,6 +1137,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   directRepasseReason={directRepasseReason} onDirectRepasseReason={setDirectRepasseReason}
   goodLiquidity={goodLiquidity} onGoodLiquidity={setGoodLiquidity}/>
  <MarketIqConfidencePanel result={confidence}/>
+  </div>
+ </details>
+ <details className="rounded-2xl border border-slate-200 bg-white p-4">
+  <summary className="cursor-pointer text-sm font-black text-[#153f51]">Ver modelo histórico, classificação e cálculos detalhados</summary>
+  <div className="mt-3">
  {vehicleType==='car'? <section className="rounded-xl border border-indigo-100 bg-white p-5">
   <div className="flex flex-wrap items-start justify-between gap-2">
     <div><h2 className="text-xl font-semibold">Preço-alvo histórico · Motyq IQ</h2>
@@ -1086,6 +1196,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    </div>:<p className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-sm font-semibold text-amber-950">Ainda não há amostra suficiente de motos utilizável neste navegador. Importe novamente a planilha original pelo Painel Gerencial para calcular a média histórica, ou confira ofertas individuais da Webmotors.</p>}
    <p className="mt-2 text-sm font-semibold text-amber-950">{marketReady?'Pelo menos dois anúncios Webmotors foram conferidos.':'Para uma média de mercado verificável, confira pelo menos 2 anúncios Webmotors de versão, ano e KM próximos. O botão abaixo tenta localizar anúncios indexados, mas pode retornar poucos resultados.'}</p>
  </section>}
+  </div>
+ </details>
 
 
  <section className="rounded-xl border border-cyan-200 bg-white p-4">
@@ -1158,7 +1270,10 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   />
 }
  </div>}
- <section className="rounded-xl bg-white p-5"><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a captura assistida para trazer ofertas da página da Webmotors sem depender do índice gratuito. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
+ {showAllTools&&<section className="rounded-xl bg-white p-5" aria-label="Ferramentas experimentais de anúncios">
+  <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-950">
+   Pesquisa de anúncios experimental. Ainda pode não retornar ofertas confiáveis e não define automaticamente um preço de compra.
+  </div><div className="mb-3 flex justify-between gap-3"><div><h2 className="text-xl font-semibold">Comparação de anúncios · Webmotors</h2><p className="text-sm text-slate-700">Busque candidatos da Webmotors sem sair do Motyq. O ranking seleciona anúncios individuais com marca, modelo, ano e KM compatíveis. Use a captura assistida para trazer ofertas da página da Webmotors sem depender do índice gratuito. Para torná-los válidos, a conferência humana do anúncio original continua necessária.</p></div><div className="flex shrink-0 flex-wrap gap-2"><button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void searchMarket()} disabled={autoLoading||!searchReady||marketCooldownActive}>{autoLoading?'Pesquisando ofertas...':marketCooldownActive?'Busca pausada · '+marketCooldownMinutes+' min':searchReady?(vehicleType==='motorcycle'?'Pesquisar motos na Webmotors':'Busca indexada (opcional)'):'Complete o veículo'}</button><button className="rounded-lg bg-slate-800 px-3 py-2 text-white" onClick={()=>{setAds(a=>[...(adsVehicleKey===vehicleKey?a:[]),blank()]);setAdsVehicleKey(vehicleKey);}}>+ Anúncio</button></div></div>
  <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-slate-950" aria-label="Busca Webmotors com localização, modelo e versão">
   <div className="flex flex-wrap items-end justify-between gap-3">
    <div>
@@ -1272,15 +1387,15 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  {webmotorsAboveReference&&<p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-900">Atenção: as ofertas Webmotors extraídas ficaram {vehicleType==='motorcycle'?'mais de 60%':'mais de 35%'} acima da FIPE. A busca pode ter ignorado os menores preços. {referenceAvg>0?'Esta é apenas uma simulação indexada da Webmotors, nunca uma cotação definitiva.':'Nenhuma média de mercado foi calculada.'}</p>}<p className="mt-2 text-2xl font-bold text-cyan-950">{money(referenceCeiling)}</p><p className="mt-1 text-xs text-cyan-900">Cálculo: média × 0,86 {repasse?'× 0,95 ':''}− custos {money(number(cost))}. Não é teto definitivo nem aprovação de compra. Anúncios, versão e condições ainda não foram auditados.</p></div>}{currentAds.length===0&&<div className="mb-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-700">
   Ainda não há anúncios associados a este veículo. Nenhum preço foi criado artificialmente.
   {historicalEstimate&&<p className="mt-2 font-bold text-indigo-900">Referência histórica disponível: {money(historicalEstimate.target)} (estimativa de compra, não preço anunciado).</p>}
- </div>}<div className="space-y-3">{currentAds.map((ad,i)=><div key={i} className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-4"><label>Portal{ad.auto&&<span className="ml-2 text-xs font-semibold text-cyan-700">{ad.catalog?'Vitrine indexada':'Anúncio indexado'}</span>}<select className={input} disabled={Boolean(ad.auto)} value={ad.source||"webmotors"} onChange={e=>change(i,{source:e.target.value as Ad["source"],url:"",status:"pending"})}><option value="webmotors">Webmotors</option><option value="olx">OLX</option><option value="napista">NaPista</option></select></label>{ad.title&&<p className="self-end text-xs font-semibold text-slate-600 md:col-span-3">{ad.title}{ad.catalog&&<span className="ml-2 text-amber-700">· preço da vitrine, sem link individual</span>}</p>}<label>Preço R$<input className={input} readOnly={Boolean(ad.auto)} value={ad.price} onChange={e=>change(i,{price:e.target.value})}/></label><label>KM anúncio<input className={input} readOnly={Boolean(ad.auto)} value={ad.km} onChange={e=>change(i,{km:e.target.value})}/></label><label>Link da fonte<input className={input} readOnly={Boolean(ad.auto)} value={ad.url} onChange={e=>change(i,{url:e.target.value})}/>{ad.url&&!portalLink(ad)&&<small className="text-red-700">Link HTTPS do portal selecionado necessário.</small>}{ad.catalog&&<small className="text-amber-700">Página de resultados, sem anúncio individual comprovado.</small>}</label><label>Classificação<select className={input} value={ad.auto&&ad.status==='valid'?'pending':ad.status} onChange={e=>change(i,{status:e.target.value==='excluded'?'excluded':ad.auto?'pending':e.target.value as Ad['status']})}><option value="pending">{ad.auto?'Indexado, sem auditoria':'Pendente'}</option><option value="valid" disabled={Boolean(ad.auto||ad.catalog||!validSource(ad))}>Válido, conferido</option><option value="excluded">Excluir</option></select></label><label className="md:col-span-3">Observação / suspeita de leilão ou sinistro<input className={input} readOnly={Boolean(ad.auto)} value={ad.note} onChange={e=>change(i,{note:e.target.value})}/></label><div className="flex items-end gap-2">{portalLink(ad)&&<a href={ad.url} target="_blank" rel="noopener noreferrer" className="rounded border p-2 text-sm">{ad.catalog?'Ver fonte':'Abrir anúncio'}</a>}<button className="rounded border p-2 text-sm text-red-700" onClick={()=>setAds(a=>a.filter((_,j)=>j!==i))}>Excluir</button></div></div>)}</div><p className="mt-3 text-xs text-amber-800">Um anúncio indexado não comprova procedência nem ausência de sinistro ou leilão. Confira laudo, versão e condições antes de validar.</p>{distantKm.length>0&&<p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Atenção: {distantKm.length} anúncio(s) marcado(s) válido(s) têm diferença superior a 30.000 km do veículo. Revise ou exclua antes de salvar.</p>}{suspectAds.length>0&&<p className="mt-2 rounded-lg bg-red-50 p-3 text-sm text-red-800">Atenção: {suspectAds.length} anúncio(s) válido(s) têm observações de possível leilão, sinistro ou restrição. Exclua da média ou revise a classificação.</p>}</section>
- <section className="grid gap-4 rounded-xl bg-white p-5 md:grid-cols-2"><div><h2 className="mb-3 text-xl font-semibold">Cálculo da Mesa</h2><p className="text-sm text-slate-600">Custos informados: <strong>{money(number(cost))}</strong></p><p className="mt-2 text-sm text-slate-600">Destino: <strong>{repasse?'Repasse · 14% + 5%':'Showroom · 14%'}</strong></p><p className="mt-2 text-xs text-slate-500">Para alterar a classificação, o preparo ou o destino, use os campos no início da análise histórica.</p></div><div className="rounded-xl bg-slate-50 p-4"><p>{valid.length} anúncio(s) válido(s) de {currentAds.length}</p><p className="text-sm">Webmotors: {primary.length} válido(s), média {money(avg)} · OLX: {secondary.length} válido(s), média {money(olxAvg)}</p>{primary.length>0&&secondary.length>0&&<p className="text-xs text-slate-600">Diferença OLX x Webmotors: {money(olxAvg-avg)}. Apenas referência, sem ajuste automático.</p>}<p className="text-xs text-slate-600">Anúncios válidos ordenados do menor preço: {sortedValid.length?sortedValid.map(a=>money(number(a.price))).join(" · "):"nenhuma"}</p>{primary.length>0&&<><p>Média dos menores Webmotors conferidos: <strong>{money(avg)}</strong></p><p>Após 14%: {money(avg*.86)}</p>{repasse&&<p>Após 5% adicionais: {money(avg*.86*.95)}</p>}</>}<p>Custos: {money(number(cost))}</p><p className="mt-3 text-lg font-semibold">Precificação da Mesa</p>{marketReady?<><p className="text-xs font-semibold text-emerald-700">Teto com anúncios conferidos</p><p className="text-3xl font-bold text-emerald-700">{money(ceiling)}</p></>:referenceAvg>0?<><p className="text-xs font-semibold text-amber-800">Estimativa automática, não aprovada · {referenceName}</p><p className="text-3xl font-bold text-cyan-800">{money(referenceCeiling)}</p><p className="mt-1 text-xs text-slate-600">Teto definitivo indisponível até conferir 2 anúncios individuais Webmotors. {marketSample.sampleContainsCatalogPages?'Os dados podem reunir preços de vitrines sem anúncios individuais confirmados.':''}</p></>:historicalEstimate?<div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+ </div>}<div className="space-y-3">{currentAds.map((ad,i)=><div key={i} className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-4"><label>Portal{ad.auto&&<span className="ml-2 text-xs font-semibold text-cyan-700">{ad.catalog?'Vitrine indexada':'Anúncio indexado'}</span>}<select className={input} disabled={Boolean(ad.auto)} value={ad.source||"webmotors"} onChange={e=>change(i,{source:e.target.value as Ad["source"],url:"",status:"pending"})}><option value="webmotors">Webmotors</option><option value="olx">OLX</option><option value="napista">NaPista</option></select></label>{ad.title&&<p className="self-end text-xs font-semibold text-slate-600 md:col-span-3">{ad.title}{ad.catalog&&<span className="ml-2 text-amber-700">· preço da vitrine, sem link individual</span>}</p>}<label>Preço R$<input className={input} readOnly={Boolean(ad.auto)} value={ad.price} onChange={e=>change(i,{price:e.target.value})}/></label><label>KM anúncio<input className={input} readOnly={Boolean(ad.auto)} value={ad.km} onChange={e=>change(i,{km:e.target.value})}/></label><label>Link da fonte<input className={input} readOnly={Boolean(ad.auto)} value={ad.url} onChange={e=>change(i,{url:e.target.value})}/>{ad.url&&!portalLink(ad)&&<small className="text-red-700">Link HTTPS do portal selecionado necessário.</small>}{ad.catalog&&<small className="text-amber-700">Página de resultados, sem anúncio individual comprovado.</small>}</label><label>Classificação<select className={input} value={ad.auto&&ad.status==='valid'?'pending':ad.status} onChange={e=>change(i,{status:e.target.value==='excluded'?'excluded':ad.auto?'pending':e.target.value as Ad['status']})}><option value="pending">{ad.auto?'Indexado, sem auditoria':'Pendente'}</option><option value="valid" disabled={Boolean(ad.auto||ad.catalog||!validSource(ad))}>Válido, conferido</option><option value="excluded">Excluir</option></select></label><label className="md:col-span-3">Observação / suspeita de leilão ou sinistro<input className={input} readOnly={Boolean(ad.auto)} value={ad.note} onChange={e=>change(i,{note:e.target.value})}/></label><div className="flex items-end gap-2">{portalLink(ad)&&<a href={ad.url} target="_blank" rel="noopener noreferrer" className="rounded border p-2 text-sm">{ad.catalog?'Ver fonte':'Abrir anúncio'}</a>}<button className="rounded border p-2 text-sm text-red-700" onClick={()=>setAds(a=>a.filter((_,j)=>j!==i))}>Excluir</button></div></div>)}</div><p className="mt-3 text-xs text-amber-800">Um anúncio indexado não comprova procedência nem ausência de sinistro ou leilão. Confira laudo, versão e condições antes de validar.</p>{distantKm.length>0&&<p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Atenção: {distantKm.length} anúncio(s) marcado(s) válido(s) têm diferença superior a 30.000 km do veículo. Revise ou exclua antes de salvar.</p>}{suspectAds.length>0&&<p className="mt-2 rounded-lg bg-red-50 p-3 text-sm text-red-800">Atenção: {suspectAds.length} anúncio(s) válido(s) têm observações de possível leilão, sinistro ou restrição. Exclua da média ou revise a classificação.</p>}</section>}
+ {showAllTools&&<section className="grid gap-4 rounded-xl bg-white p-5 md:grid-cols-2"><div><h2 className="mb-3 text-xl font-semibold">Cálculo da Mesa</h2><p className="text-sm text-slate-600">Custos informados: <strong>{money(number(cost))}</strong></p><p className="mt-2 text-sm text-slate-600">Destino: <strong>{repasse?'Repasse · 14% + 5%':'Showroom · 14%'}</strong></p><p className="mt-2 text-xs text-slate-500">Para alterar a classificação, o preparo ou o destino, use os campos no início da análise histórica.</p></div><div className="rounded-xl bg-slate-50 p-4"><p>{valid.length} anúncio(s) válido(s) de {currentAds.length}</p><p className="text-sm">Webmotors: {primary.length} válido(s), média {money(avg)} · OLX: {secondary.length} válido(s), média {money(olxAvg)}</p>{primary.length>0&&secondary.length>0&&<p className="text-xs text-slate-600">Diferença OLX x Webmotors: {money(olxAvg-avg)}. Apenas referência, sem ajuste automático.</p>}<p className="text-xs text-slate-600">Anúncios válidos ordenados do menor preço: {sortedValid.length?sortedValid.map(a=>money(number(a.price))).join(" · "):"nenhuma"}</p>{primary.length>0&&<><p>Média dos menores Webmotors conferidos: <strong>{money(avg)}</strong></p><p>Após 14%: {money(avg*.86)}</p>{repasse&&<p>Após 5% adicionais: {money(avg*.86*.95)}</p>}</>}<p>Custos: {money(number(cost))}</p><p className="mt-3 text-lg font-semibold">Precificação da Mesa</p>{marketReady?<><p className="text-xs font-semibold text-emerald-700">Teto com anúncios conferidos</p><p className="text-3xl font-bold text-emerald-700">{money(ceiling)}</p></>:referenceAvg>0?<><p className="text-xs font-semibold text-amber-800">Estimativa automática, não aprovada · {referenceName}</p><p className="text-3xl font-bold text-cyan-800">{money(referenceCeiling)}</p><p className="mt-1 text-xs text-slate-600">Teto definitivo indisponível até conferir 2 anúncios individuais Webmotors. {marketSample.sampleContainsCatalogPages?'Os dados podem reunir preços de vitrines sem anúncios individuais confirmados.':''}</p></>:historicalEstimate?<div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
  <p className="text-xs font-bold uppercase tracking-wider text-indigo-800">Sem anúncios indexados · usando histórico de compras</p>
  <p className="mt-1 text-3xl font-black text-indigo-950">{money(historicalEstimate.target)}</p>
  <p className="mt-1 text-xs text-indigo-900">Faixa estimada {money(historicalEstimate.rangeMin)} a {money(historicalEstimate.rangeMax)}. Ajusta automaticamente com FIPE, KM, classificação, custos e destino. Não é preço de anúncio nem compra aprovada.</p>
- </div>:<p className="text-sm font-semibold text-amber-800">Sem anúncios confiáveis. Para obter o preço histórico, selecione a classificação da avaliação e confira FIPE e KM acima.</p>}</div></section>
+ </div>:<p className="text-sm font-semibold text-amber-800">Sem anúncios confiáveis. Para obter o preço histórico, selecione a classificação da avaliação e confira FIPE e KM acima.</p>}</div></section>}
  <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">O histórico permanente fica na aba <button type="button" onClick={()=>switchDeskSection('history')} className="font-bold text-cyan-800 underline">Histórico de avaliações</button>. Cada versão salva mantém data, responsável, anúncios, custos e valor registrado.</section>
  </>}
- </main>
+ </main>}
  <MarketIqPurchaseSummaryModal open={purchaseSummaryOpen}
   onClose={()=>setPurchaseSummaryOpen(false)}
   companyId={user.companyId||'abrao-reze'}

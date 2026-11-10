@@ -1,0 +1,24 @@
+/* Preview-only simplified IQ start.
+   Scoped explicit contrast so the global Motyq light theme does not turn the
+   headline dark on navy, as happened in the earlier public form. */
+#root .motyq-iq-simple-home .motyq-iq-simple-hero {
+  background-color: #153f51 !important;
+  color: #f8fafc !important;
+}
+#root .motyq-iq-simple-home .motyq-iq-simple-hero .motyq-iq-simple-title {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+#root .motyq-iq-simple-home .motyq-iq-simple-hero .motyq-iq-simple-subtitle {
+  color: #e0edf4 !important;
+  opacity: 1 !important;
+}
+#root .motyq-iq-simple-home .motyq-iq-simple-hero .motyq-iq-simple-kicker,
+#root .motyq-iq-simple-home .motyq-iq-simple-hero .motyq-iq-simple-kicker svg {
+  color: #a5f3fc !important;
+  opacity: 1 !important;
+}
+#root .motyq-iq-simple-home .motyq-iq-simple-hero .motyq-iq-simple-note {
+  color: #cffafe !important;
+  opacity: 1 !important;
+}

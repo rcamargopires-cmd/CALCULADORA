@@ -1,0 +1,13 @@
+/* Preview-only compact Dealer Radar. Keep dark header readable even when
+   the legacy global light theme applies heading and paragraph colors. */
+#root .motyq-iq-radar-hero {
+  background: linear-gradient(125deg,#0c293d 0%,#123b51 56%,#126083 100%) !important;
+  color: #ffffff !important;
+}
+#root .motyq-iq-radar-hero h2 { color: #ffffff !important; }
+#root .motyq-iq-radar-hero h2 span { color: #a5f3fc !important; }
+#root .motyq-iq-radar-hero > p { color: #e2e8f0 !important; }
+#root .motyq-iq-radar-hero > p:first-child { color: #a5f3fc !important; }
+#root .motyq-iq-radar-hero details,
+#root .motyq-iq-radar-hero details summary,
+#root .motyq-iq-radar-hero details p { color: #cffafe !important; }

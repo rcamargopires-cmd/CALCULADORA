@@ -1,4 +1,6 @@
-import React,{useMemo,useRef,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import type {MarketIqIncomingFile} from '../services/marketIqSmartImport';
+import './marketIqRadarCompact.css';
 import {AlertTriangle,ArrowDownUp,ArrowRight,CarFront,Clock3,FileSpreadsheet,RefreshCw,Search,ShieldCheck,UploadCloud,Warehouse} from 'lucide-react';
 import {
  readDealerWorkbook,dealerRadarStats,dealerRiskFlags,dealerSimilarStock,dealerPlateSuggestions,compareDealerSnapshots,
@@ -22,9 +24,12 @@ type Props={
  localArchiveState?:'loading'|'empty'|'restored'|'saving'|'saved'|'error';
  localArchiveWarning?:string;
  onQuoteVehicle?:(vehicle:DealerStockVehicle)=>void;
+ incomingFile?:MarketIqIncomingFile|null;
+ onIncomingFileConsumed?:(token:string)=>void;
 };
 export default function MarketIqDealerRadarPanel(props:Props){
  const fileInput=useRef<HTMLInputElement|null>(null);
+ const processedIncomingToken=useRef('');
  const [localCurrent,setLocalCurrent]=useState<DealerStockSnapshot|null>(null);
  const [localPrevious,setLocalPrevious]=useState<DealerStockSnapshot|null>(null);
  const current=props.snapshot===undefined?localCurrent:props.snapshot;
@@ -100,6 +105,15 @@ export default function MarketIqDealerRadarPanel(props:Props){
   }catch(err){setError(err instanceof Error?err.message:'Não foi possível ler este arquivo do Dealer.');}
   finally{setLoading(false);}
  };
+ // A confirmed smart import uses the original importer, with all existing
+ // stock-date and local-archive safeguards. React strict replays cannot re-import.
+ useEffect(()=>{
+  const incoming=props.incomingFile;
+  if(!incoming||incoming.kind!=='dealer'||processedIncomingToken.current===incoming.token)return;
+  processedIncomingToken.current=incoming.token;
+  props.onIncomingFileConsumed?.(incoming.token);
+  void importFile(incoming.file);
+ },[props.incomingFile?.token]);
  const clear=()=>{
   if(current&&!window.confirm('Apagar as fotografias do estoque SALVAS NESTE NAVEGADOR? Você precisará importar a planilha novamente. Nenhum registro oficial será afetado.'))return;
   setCurrent(null);setPrevious(null);setSelectedKey('');setError('');setFileName('');
@@ -124,10 +138,10 @@ export default function MarketIqDealerRadarPanel(props:Props){
   window.setTimeout(()=>document.getElementById('motyq-radar-details')?.scrollIntoView({behavior:'smooth',block:'center'}),0);
  };
  return <div className="space-y-5">
-  <section className="overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-[#0c293d] via-[#123b51] to-[#126083] px-5 py-6 text-white shadow-sm">
+  <section className="motyq-iq-radar-hero overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-[#0c293d] via-[#123b51] to-[#126083] px-5 py-6 text-white shadow-sm">
    <p className="text-[11px] font-black uppercase tracking-[.2em] text-cyan-200">MOTYQ IQ · INTELIGÊNCIA DE AQUISIÇÕES</p>
-   <h2 className="mt-2 text-2xl font-black tracking-tight">Radar de Compra <span className="text-cyan-300">1.0</span></h2>
-   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100">Transforme o arquivo de estoque do Dealer em decisões de gestão: capital imobilizado, veículos parados, risco de preço e concorrência interna entre unidades.</p>
+   <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Meu estoque <span className="text-cyan-200">· Radar</span></h2>
+   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100">Encontre um carro, confira o custo e veja o que precisa de atenção.</p>
    <div className="mt-4 flex flex-wrap items-center gap-3">
     <button type="button" disabled={loading} onClick={()=>fileInput.current?.click()}
      className="inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-extrabold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
@@ -140,10 +154,10 @@ export default function MarketIqDealerRadarPanel(props:Props){
      className="rounded-lg border border-white/30 px-3 py-2.5 text-xs font-semibold text-white hover:bg-white/10">
      Limpar dados locais</button>}
    </div>
-   <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-cyan-100">
-    <ShieldCheck size={16} className="mt-0.5 shrink-0"/>
-    Dados salvos somente neste navegador e nesta conta, sem envio da planilha à nuvem. Nenhuma macro é executada e nenhuma avaliação oficial é alterada. Em computador compartilhado, use «Limpar dados locais» ao terminar.
-   </p>
+   <details className="mt-3 rounded-lg border border-white/20 px-3 py-2 text-xs text-cyan-100">
+    <summary className="cursor-pointer font-bold text-cyan-100">Origem dos dados e privacidade</summary>
+    <p className="mt-2 leading-5 text-cyan-100">Base importada manualmente do Dealer, salva somente neste navegador e conta. Não há conferência em tempo real. Nenhuma macro é executada e nenhuma avaliação oficial é alterada. Em computador compartilhado, use «Limpar dados locais» ao terminar.</p>
+   </details>
   </section>
   {props.localArchiveWarning&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">{props.localArchiveWarning}</p>}
   {current&&<div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-950">
@@ -168,13 +182,15 @@ export default function MarketIqDealerRadarPanel(props:Props){
     </div>
    </div>
   </div>:<>
-   <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
-    <p><strong className="text-slate-900">Arquivo carregado:</strong> {cap(savedFileName)} · fotografia de {date(current.reportDate)} · {current.vehicles.length.toLocaleString('pt-BR')} veículos válidos</p>
-    <span className="rounded-lg bg-cyan-50 px-3 py-1.5 font-bold text-cyan-900">Somente leitura</span>
-   </div>
-   {current.warnings.length>0&&<div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-6 text-amber-950">
-    <strong>Validação do arquivo:</strong> {current.warnings.join(' ')}
-   </div>}
+   <details className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+    <summary className="cursor-pointer font-bold text-[#153f51]">
+     Dados da importação: {date(current.reportDate)} · {current.vehicles.length.toLocaleString('pt-BR')} veículos · {current.warnings.length} alerta(s)
+    </summary>
+    <p className="mt-2"><strong>Arquivo:</strong> {cap(savedFileName)} · somente leitura · dados informados na planilha, não sincronizados em tempo real</p>
+    {current.warnings.length>0&&<p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 font-semibold text-amber-950">
+     <strong>Validação do arquivo:</strong> {current.warnings.join(' ')}
+    </p>}
+   </details>
    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
     <article className={card}><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500"><CarFront size={17}/> Veículos</div>
      <p className="mt-2 text-3xl font-black text-slate-950">{stats.count}</p>
@@ -189,6 +205,9 @@ export default function MarketIqDealerRadarPanel(props:Props){
      <p className="mt-2 text-3xl font-black text-amber-700">{stats.over90}</p>
      <p className="mt-1 text-xs text-slate-600">Veículos exigindo revisão de giro</p></article>
    </div>
+   <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <summary className="cursor-pointer text-sm font-black text-[#153f51]">Análises adicionais: giro, alertas e comparação entre relatórios</summary>
+    <div className="mt-4 space-y-4">
    <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
     <section className={card}>
      <h3 className="font-black text-slate-950">Tempo em estoque</h3>
@@ -240,6 +259,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
     </div>
     <p className="mt-2 text-xs text-amber-800">A classificação de venda, repasse, devolução ou transferência exige relatório de movimentação ou vendas.</p>
    </section>}
+    </div>
+   </details>
    <section className={card}>
     <div className="flex flex-wrap items-start justify-between gap-3">
      <div><h3 className="text-lg font-black text-slate-950">Estoque por veículo</h3>
@@ -248,6 +269,16 @@ export default function MarketIqDealerRadarPanel(props:Props){
      <button type="button" onClick={exportAlerts} className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100">
       Exportar alertas CSV
      </button>
+    </div>
+    <div role="group" aria-label="Filtros rápidos do estoque" className="mt-4 flex flex-wrap gap-2">
+     {([
+      ['all','Todos'],['aging','Mais de 90 dias'],['noPrice','Sem preço'],['belowCost','Abaixo do custo']
+     ] as const).map(([value,title])=><button type="button" key={value} aria-pressed={filter===value}
+      onClick={()=>{setFilter(value);setVisibleCount(60);}}
+      className={'rounded-full border px-3 py-2 text-xs font-bold '+(filter===value?
+       'border-[#153f51] bg-[#153f51] text-white':'border-slate-200 bg-slate-50 text-slate-700 hover:border-cyan-300')}>
+      {title}
+     </button>)}
     </div>
     <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
      <label className="text-xs font-bold text-slate-700"><Search size={13} className="mr-1 inline"/> Buscar placa/modelo
@@ -262,6 +293,9 @@ export default function MarketIqDealerRadarPanel(props:Props){
        {current.stores.map(s=><option key={s} value={s}>{s}</option>)}
       </select>
      </label>
+     <details className="col-span-full rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <summary className="cursor-pointer text-xs font-bold text-[#153f51]">Mais filtros: categoria e condições</summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
      <label className="text-xs font-bold text-slate-700">Tipo
       <select value={type} onChange={e=>{setType(e.target.value as typeof type);setVisibleCount(60);}}
        className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm font-normal">
@@ -277,6 +311,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
        <option value="os">Com ordens de serviço</option>
       </select>
      </label>
+      </div>
+     </details>
     </div>
     {plateSuggestions.length>0&&<div role="status" aria-live="polite"
      className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">
@@ -293,34 +329,41 @@ export default function MarketIqDealerRadarPanel(props:Props){
     </div>}
     <p className="mt-3 text-xs text-slate-600">Exibindo {Math.min(visibleCount,filtered.length)} de {filtered.length} veículos filtrados ({allStats.count} no arquivo).</p>
     <div className="mt-2 overflow-x-auto">
-     <table className="w-full min-w-[780px] text-left text-xs">
+     <table className="w-full min-w-[660px] text-left text-xs">
       <thead className="bg-slate-100 text-slate-700"><tr>
-       {['Veículo / placa','Unidade','Ano','Dias','KM','Valor Custo','Preço sugerido','Diferença bruta','Inteligência'].map(h=>
+       {['Veículo','Unidade','Dias','Valor custo','Preço da planilha','Ações'].map(h=>
         <th key={h} scope="col" className="whitespace-nowrap px-3 py-3 font-black">{h}</th>)}
       </tr></thead>
       <tbody className="divide-y divide-slate-100">
        {filtered.slice(0,visibleCount).map(v=><tr key={v.key}
         className="cursor-pointer hover:bg-cyan-50" onClick={()=>showVehicle(v)}>
-        <td className="min-w-[190px] px-3 py-3"><p className="font-bold text-slate-950">{v.brand} {v.model}</p>
-         <p className="mt-0.5 text-slate-600">{v.plate||'Sem placa'} · <span className="text-cyan-700">Detalhes</span></p></td>
+        <td className="min-w-[200px] px-3 py-3">
+         <p className="font-bold text-slate-950">{v.brand} {v.model}</p>
+         <p className="mt-0.5 text-slate-600">{v.plate||'Sem placa'} · {v.year} · {v.kmValid?v.km.toLocaleString('pt-BR')+' km':'KM a conferir'}</p>
+        </td>
         <td className="px-3 py-3 text-slate-700">{v.store}</td>
-        <td className="px-3 py-3 text-slate-700">{v.year}</td>
-        <td className={'px-3 py-3 font-black '+(v.days>90?'text-rose-700':'text-slate-800')}>{v.days}</td>
-        <td className="px-3 py-3 text-slate-700">{v.kmValid?v.km.toLocaleString('pt-BR'):'A conferir'}</td>
+        <td className={'px-3 py-3 font-black '+(v.days>90?'text-rose-700':'text-slate-800')}>{v.days} d</td>
         <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{brl(v.cost)}</td>
-        <td className="whitespace-nowrap px-3 py-3 text-slate-900">{v.price>0?brl(v.price):'Não informado'}</td>
-        <td className={'whitespace-nowrap px-3 py-3 font-semibold '+(v.price>0&&v.price<v.cost?'text-rose-700':'text-slate-700')}>
-         {v.price>0?brl(v.price-v.cost):'A confirmar'}</td>
+        <td className="whitespace-nowrap px-3 py-3 text-slate-900">
+         <p className="font-semibold">{v.price>0?brl(v.price):'Não informado'}</p>
+         <p className={'mt-1 text-[11px] '+(v.price>0&&v.price<v.cost?'text-rose-700':'text-slate-500')}>
+          {v.price>0?'Diferença bruta: '+brl(v.price-v.cost):'Sem comparação'}
+         </p>
+        </td>
         <td className="px-3 py-3">
-         <button type="button" onClick={e=>{e.stopPropagation();setPurchaseSummaryVehicle(v);}}
-          className="whitespace-nowrap rounded-lg bg-cyan-700 px-3 py-2 text-xs font-black text-white hover:bg-cyan-800">
-          Resumo de Compra
-         </button>
-         {props.onQuoteVehicle&&<button type="button" onClick={e=>{e.stopPropagation();props.onQuoteVehicle?.(v);}}
-          className="ml-2 whitespace-nowrap rounded-lg border border-cyan-300 bg-white px-3 py-2 text-xs font-bold text-cyan-950 hover:bg-cyan-50">Cotar na Mesa</button>}
+         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={e=>{e.stopPropagation();setPurchaseSummaryVehicle(v);}}
+           className="whitespace-nowrap rounded-lg bg-cyan-700 px-3 py-2 text-xs font-black text-white hover:bg-cyan-800">
+           Resumo de Compra
+          </button>
+          {props.onQuoteVehicle&&<button type="button" onClick={e=>{e.stopPropagation();props.onQuoteVehicle?.(v);}}
+           className="whitespace-nowrap rounded-lg border border-cyan-300 bg-white px-3 py-2 text-xs font-bold text-cyan-950 hover:bg-cyan-50">
+           Cotar na Mesa
+          </button>}
+         </div>
         </td>
        </tr>)}
-       {!filtered.length&&<tr><td colSpan={9} className="px-3 py-8 text-center text-sm text-slate-500">Nenhum veículo corresponde aos filtros.</td></tr>}
+       {!filtered.length&&<tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">Nenhum veículo corresponde aos filtros.</td></tr>}
       </tbody>
      </table>
     </div>
@@ -365,8 +408,10 @@ export default function MarketIqDealerRadarPanel(props:Props){
      <p className="font-bold text-amber-950">Pontos de atenção</p>
      {dealerRiskFlags(selected).map(f=><p key={f} className="mt-1 text-xs text-amber-950">• {f}</p>)}
     </div>}
-    <div className="mt-4 border-t border-slate-200 pt-4">
-     <h4 className="text-sm font-black text-slate-900">Outros {similar.length} veículo(s) da mesma família no grupo</h4>
+    <details className="mt-4 border-t border-slate-200 pt-4">
+     <summary className="cursor-pointer text-sm font-black text-[#153f51]">Ver {similar.length} veículo(s) semelhantes do grupo</summary>
+     <div className="mt-3">
+     <h4 className="text-xs font-bold text-slate-900">Semelhança por família de modelo</h4>
      <p className="mt-1 text-xs text-slate-600">Comparação por marca e família do modelo. Versões e anos podem diferir e não são tratados como iguais na FIPE.</p>
      {!similar.length?<p className="mt-2 text-sm text-slate-600">Nenhum outro veículo da mesma família aparece neste arquivo.</p>:
       <div className="mt-2 overflow-x-auto"><table className="w-full text-left text-xs">
@@ -378,6 +423,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
        </tr>)}</tbody>
       </table></div>}
     </div>
+    </details>
    </section>}
    <MarketIqPurchaseSummaryModal open={Boolean(purchaseSummaryVehicle)}
     onClose={()=>setPurchaseSummaryVehicle(null)} snapshot={current}
@@ -388,11 +434,11 @@ export default function MarketIqDealerRadarPanel(props:Props){
      vehicleType:purchaseSummaryVehicle?.vehicleType||'car',
      stockVehicle:purchaseSummaryVehicle,preparation:0
     }}/>
-   <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-xs leading-6 text-cyan-950">
-    <strong>Limites do Radar 1.0:</strong> não calcula MDS regional, lucratividade líquida, giro de veículos vendidos nem recomenda automaticamente “Comprar”.
-    Os dados de vendas, as transferências e o mercado Webmotors serão integrados em fases futuras, após validação e recuperação da infraestrutura do Firestore.
-    <span className="block font-semibold">O último relatório e a fotografia anterior são recuperados automaticamente neste navegador. Para atualizar os valores e o estoque real, importe um novo V44. O navegador pode apagar dados locais quando o armazenamento é limpo.</span>
-   </div>
+   <details className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-6 text-slate-700">
+    <summary className="cursor-pointer font-bold text-[#153f51]">Limites técnicos e atualização da planilha</summary>
+    <p className="mt-2">O Radar não calcula lucratividade líquida nem verifica vendas em tempo real, e não recomenda automaticamente “Comprar”. Saídas da fotografia não comprovam vendas.</p>
+    <p className="mt-1">O último relatório e a fotografia anterior são recuperados automaticamente neste navegador. Para atualizar o estoque real, importe um novo V44. Limpar dados do navegador pode apagar a fotografia local.</p>
+   </details>
   </>}
  </div>;
 }
