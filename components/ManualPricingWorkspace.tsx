@@ -887,6 +887,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onOpenFullDesk={()=>setMobileFullDesk(true)}
    onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');setMobileFullDesk(true);}}
    onStartNew={beginNewMobileValuation}
+   onQuickQuote={quickQuoteCurrent}
    onOpenApprovals={()=>{setMobileFullDesk(true);switchDeskSection('approvals');}}
   />
  </div>
