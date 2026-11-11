@@ -65,6 +65,11 @@ assert.ok(radar.includes('Cotar na Mesa'));
 // Direct quote shortcut must use the existing opted-in buyer directory, never auto-send.
 const quickQuotePanel=readFileSync('components/MarketIqQuickBuyerQuote.tsx','utf8');
 transpile(quickQuotePanel);
+const mobileQuote=readFileSync('components/MarketIqMobileExperience.tsx','utf8');
+transpile(mobileQuote);
+assert.ok(mobileQuote.includes('onQuickQuote:()=>void'));
+assert.ok(mobileQuote.includes('onClick={p.onQuickQuote}'));
+assert.ok(desk.includes('onQuickQuote={quickQuoteCurrent}'));
 assert.ok(desk.includes('Cotar com lojista'));
 assert.ok(desk.includes('<MarketIqQuickBuyerQuote scope={captureScope}'));
 assert.ok(desk.includes('onQuote={quickQuoteCurrent}'));
