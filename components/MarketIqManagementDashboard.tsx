@@ -8,6 +8,8 @@ import {aggregateDashboard,dashboardOptions,emptyFilters,filterDashboardRows,
   parseDashboardData,type DashboardFilters,type DashboardRow,type DashboardImportResult}
   from '../services/marketIqManagementData';
 import {OCT2026_SNAPSHOT} from '../services/marketIqManagementSnapshot';
+import {extractUtilizedAuditRows,type UtilizedAuditRow} from '../services/marketIqUtilizedAudit';
+import MarketIqUtilizedAuditPanel from './MarketIqUtilizedAuditPanel';
 import {attachDashboardKeys,planDashboardMerge,readDashboardArchive,emptyDashboardArchive}
  from '../services/marketIqDashboardPeriods';
 import {chooseBestConfirmedOffer,calculateConsultedOffer,offerIsEligible,
@@ -25,7 +27,7 @@ const fmtCompact=(v:number)=>new Intl.NumberFormat('pt-BR',{notation:'compact',m
 const fmtInt=(v:number)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(v);
 const fmtPct=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'percent',maximumFractionDigits:1}).format(v);
 const COLORS=['#147d89','#6366f1','#e3a04c','#e36d6d','#94a3b8'];
-type Tab='overview'|'stores'|'quality'|'repasses'|'approvals';
+type Tab='overview'|'stores'|'quality'|'repasses'|'approvals'|'utilized';
 const classNameSelect='w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100';
 const panelClass='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const Header=({title,description}:{title:string;description?:string})=><div className="mb-4">
@@ -61,6 +63,8 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
  const sourceName=Object.entries(archive.months).sort(([a],[b])=>b.localeCompare(a))[0]?.[1].fileName||'';
  const [importInfo,setImportInfo]=useState<Omit<DashboardImportResult,'rows'|'sourceIds'>|null>(null);
  const [importNotice,setImportNotice]=useState('');
+ // Plate-level audit data is intentionally session-only: never persisted or sent to cloud.
+ const [utilizedAudit,setUtilizedAudit]=useState<{rows:UtilizedAuditRow[];fileName:string}|null>(null);
  const periods=Object.keys(archive.months).sort();
  useEffect(()=>{
    const sync=(event:StorageEvent)=>{
@@ -159,6 +163,7 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
      const input=XLSX.utils.sheet_to_json<Record<string,unknown>>(worksheet,{defval:null,raw:true});
      const source=Object.keys(input[0]||{}).some(k=>k.toLowerCase().includes('situação analítica'))?'filtered':'original';
      const parsed=parseDashboardData(input,source);
+     const utilizedRows=extractUtilizedAuditRows(input,source);
      if(!parsed.rows.length)throw Error('Nenhuma avaliação de carro ou moto válida foi identificada no arquivo.');
      const keyed=await attachDashboardKeys(parsed.rows,parsed.sourceIds,String(user.email||'local').toLowerCase());
      // Always reconcile with current browser storage, including imports made in a second tab.
@@ -175,6 +180,7 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
      // and the previous on-screen data unchanged.
      localStorage.setItem(periodStorageKey,JSON.stringify(planned.next));
      setArchive(planned.next);
+     setUtilizedAudit({rows:utilizedRows,fileName:file.name});
      const {rows:discardRows,sourceIds:discardIds,...info}=parsed;
      setImportInfo(info);
      setImportNotice('Histórico acumulado: '+planned.months.join(', ')+
@@ -194,7 +200,7 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
      localStorage.removeItem(periodStorageKey);
      localStorage.removeItem(storageKey);
      localStorage.removeItem(storageKey+'-name');
-     setArchive(emptyDashboardArchive());setImportInfo(null);setImportNotice('');
+     setArchive(emptyDashboardArchive());setUtilizedAudit(null);setImportInfo(null);setImportNotice('');
      setFilters({...emptyFilters});setError('');setTab('overview');
    }catch(e:any){setError('Não foi possível limpar o histórico local: '+String(e?.message||e));}
  };
@@ -317,9 +323,15 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
     <p className="mt-2 text-slate-500">O painel e o Arquivo Mensal usam bases separadas. Importar no Arquivo Mensal não atualiza automaticamente este painel. Para comparar com o AutoAvaliar, use o mesmo período, as mesmas unidades e o mesmo arquivo de exportação.</p>
   </section>
   <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
-    {([['overview','Visão geral',BarChart3],['stores','Unidades e modelos',Building2],['quality','Qualidade dos dados',ShieldCheck],['repasses','Cotação Mesa',HandCoins],['approvals','Exceções e decisões',ClipboardCheck]] as const).map(([id,label,Icon])=>
+    {([['overview','Visão geral',BarChart3],['stores','Unidades e modelos',Building2],['quality','Qualidade dos dados',ShieldCheck],['repasses','Cotação Mesa',HandCoins],['approvals','Exceções e decisões',ClipboardCheck],['utilized','Utilizados por placa',CarFront]] as const).map(([id,label,Icon])=>
       <button key={id} onClick={()=>setTab(id)} className={'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black '+(tab===id?'bg-[#153f51] text-white':'bg-white text-slate-600 hover:bg-slate-100')}><Icon size={15}/>{label}</button>)}
   </div>
+  {tab==='utilized'&&(utilizedAudit
+   ?<MarketIqUtilizedAuditPanel rows={utilizedAudit.rows} sourceName={utilizedAudit.fileName}/>
+   :<section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-700">
+     <h3 className="font-black text-slate-900">Utilizados por dia e placa</h3>
+     <p className="mt-2">Para proteger as placas, os dados detalhados não são gravados no histórico. Reimporte aqui o arquivo original do AutoAvaliar pelo botão “Atualizar planilha” acima; depois volte a esta aba para ver e exportar os utilizados por dia.</p>
+    </section>)}
   {tab==='overview'&&<div className="space-y-4">
     <div className="grid gap-4 lg:grid-cols-5">
       <section className={panelClass+' lg:col-span-2'}>
