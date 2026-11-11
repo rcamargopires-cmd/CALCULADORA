@@ -836,7 +836,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
 
  return <>
- {quickBuyerQuote&&<MarketIqQuickBuyerQuote scope={captureScope} vehicle={quickBuyerQuote}
+ {quickBuyerQuote&&<MarketIqQuickBuyerQuote scope={captureScope} email={user.email} vehicle={quickBuyerQuote}
   onClose={()=>setQuickBuyerQuote(null)}
   onOpenDirectory={()=>{setQuickBuyerQuote(null);setQuoteFromRadar({token:'buyer-directory:'+Date.now(),vehicle:quickBuyerQuote});navigateSimple('consulted');}}/>}
  {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
