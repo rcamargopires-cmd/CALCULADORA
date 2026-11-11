@@ -133,6 +133,11 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
  const brands=metrics.brands.slice(0,10).map(x=>({name:x.name,count:x.count}));
  const units=metrics.units;
  const timeline=metrics.dates.map(x=>({caption:x.caption,compras:x.purchases,cotacoes:x.quotes}));
+ const reconciliation=metrics.status.map(item=>({name:item.name,count:item.value}));
+ const accounted=reconciliation.reduce((sum,item)=>sum+item.count,0);
+ const pendingAndOther=reconciliation.filter(item=>!['COMPRA','COTACAO'].includes(item.name))
+   .reduce((sum,item)=>sum+item.count,0);
+ const difference=count-purchases-metrics.quoteCount;
  const summaryIndex=purchases+metrics.quoteCount>0?purchases/(purchases+metrics.quoteCount):0;
  const filterActive=ready&&Object.values(filters).some(Boolean);
  const changeFilter=(name:keyof DashboardFilters,value:string)=>setFilters(prev=>({
@@ -298,6 +303,19 @@ export default function MarketIqManagementDashboard({user,onOpenArchive}:{user:U
     <Metric label="Preparo previsto" value={fmtCompact(metrics.preparation)} detail="Estimativa, não gasto realizado" icon={Layers3}/>
     <Metric label="Ticket mediano" value={fmtCompact(metrics.medianPaid)} detail="Preço efetivamente pago" icon={TrendingUp}/>
   </div>
+  <section className="rounded-2xl border border-slate-200 bg-white p-4 text-xs leading-5 text-slate-700" aria-label="Conciliação de avaliações">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <strong className="text-sm text-slate-900">Conciliação dos registros</strong>
+      <span className="text-slate-500">{ready?'Fonte: importação local do navegador':'Fonte: resumo demonstrativo de outubro/2026'}</span>
+    </div>
+    <p className="mt-2">{fmtInt(count)} avaliações = {fmtInt(purchases)} adquiridos + {fmtInt(metrics.quoteCount)} cotações + {fmtInt(difference)} em outras situações.</p>
+    <div className="mt-2 flex flex-wrap gap-2">
+      {reconciliation.map(item=><span key={item.name} className="rounded-lg bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">{item.name}: {fmtInt(item.count)}</span>)}
+    </div>
+    {accounted!==count&&<p role="alert" className="mt-2 font-bold text-rose-700">Atenção: a soma dos status ({fmtInt(accounted)}) não corresponde ao total de avaliações ({fmtInt(count)}).</p>}
+    {pendingAndOther>0&&<p className="mt-2 text-amber-800">{fmtInt(pendingAndOther)} registro(s) estão em repasse pendente, revisão ou outros status. Eles não devem ser somados automaticamente às compras ou cotações.</p>}
+    <p className="mt-2 text-slate-500">O painel e o Arquivo Mensal usam bases separadas. Importar no Arquivo Mensal não atualiza automaticamente este painel. Para comparar com o AutoAvaliar, use o mesmo período, as mesmas unidades e o mesmo arquivo de exportação.</p>
+  </section>
   <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
     {([['overview','Visão geral',BarChart3],['stores','Unidades e modelos',Building2],['quality','Qualidade dos dados',ShieldCheck],['repasses','Cotação Mesa',HandCoins],['approvals','Exceções e decisões',ClipboardCheck]] as const).map(([id,label,Icon])=>
       <button key={id} onClick={()=>setTab(id)} className={'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black '+(tab===id?'bg-[#153f51] text-white':'bg-white text-slate-600 hover:bg-slate-100')}><Icon size={15}/>{label}</button>)}
