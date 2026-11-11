@@ -81,6 +81,35 @@ assert.ok(quickQuotePanel.includes('Abrir WhatsApp'));
 assert.ok(!quickQuotePanel.includes('fetch(')&&!quickQuotePanel.includes('window.open('));
 assert.ok(!quickQuotePanel.includes('localStorage.setItem'));
 assert.equal(buyers.buyerWhatsAppUrl({...first,optedIn:false},v),null);
+// Multi-buyer follow-up is tied to the existing local case history, never automatic messaging.
+const followup=readFileSync('services/marketIqMultiBuyerFollowup.ts','utf8');
+transpile(followup);
+const followupTest=await import('data:text/javascript;base64,'+Buffer.from(
+ transpile(followup)
+ .replace(/import .*? from ['"]\.\/marketIqConsultedRepasse['"];?/g,
+  'const moneyNumber=(v)=>Number(v);const offerIsEligible=o=>o.status==="confirmada"&&o.validUntil>="2026-11-11"&&Number(o.value)>0;')
+).toString('base64'));
+const vehicleOne={...v,plate:'ABC1D23'};
+const vehicleTwo={...v,plate:'XYZ9K99'};
+assert.ok(followupTest.sameQuotedVehicle(vehicleOne,{...vehicleOne,plate:'abc-1d23'}));
+assert.ok(!followupTest.sameQuotedVehicle(vehicleOne,vehicleTwo));
+assert.ok(!followupTest.sameQuotedVehicle(vehicleOne,{...v,plate:''}));
+const caseForVehicle={...caseRowPlaceholder(),id:'match',updatedAt:'2026-11-11T12:00:00Z',state:'consulta',vehicle:vehicleOne};
+function caseRowPlaceholder(){return {vehicle:vehicleOne,offers:[],requests:[],costs:{},events:[]};}
+assert.equal(followupTest.findActiveQuotation([caseForVehicle],vehicleOne)?.id,'match');
+assert.equal(followupTest.findActiveQuotation([{...caseForVehicle,state:'vendido'}],vehicleOne),null);
+const highest=followupTest.confirmedBuyerQuotes([
+ {buyer:'A',value:'70000',validUntil:'2026-12-01',status:'confirmada'},
+ {buyer:'B',value:'78000',validUntil:'2026-12-01',status:'confirmada'},
+ {buyer:'C',value:'90000',validUntil:'2026-10-01',status:'confirmada'}
+]);
+assert.equal(highest[0].buyer,'B');
+assert.ok(quickQuotePanel.includes('Selecionar compatíveis'));
+assert.ok(quickQuotePanel.includes('Salvar acompanhamento'));
+assert.ok(quickQuotePanel.includes('appendConsultedAudit('));
+assert.ok(quickQuotePanel.includes('saveConsultedCases('));
+assert.ok(quickQuotePanel.includes('confirm('),'Unsaved changes must require confirmation');
+assert.ok(desk.includes('email={user.email}'));
 const caseRow={
  id:'c1',createdAt:'2026-11-10T09:00:00Z',updatedAt:'2026-11-10T09:00:00Z',
  version:0,vehicle:v,
