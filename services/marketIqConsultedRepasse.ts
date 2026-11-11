@@ -19,6 +19,7 @@ export type ConsultedVehicle = {
 };
 export type ConsultedOffer = {
   id: string;
+  buyerId?: string;
   buyer: string;
   value: string;
   channel: OfferChannel;
