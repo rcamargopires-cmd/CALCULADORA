@@ -87,4 +87,38 @@ assert.ok(ui.includes('Meses disponíveis:'));
 assert.ok(ui.includes('onOpenArchive'));
 assert.ok(workspace.includes("onOpenArchive={()=>switchDeskSection('archive')}"));
 assert.ok(!ui.includes("localStorage.setItem(storageKey,compact)"),'Legacy overwrite must be retired');
+// Reconciliation must remain visible even when purchases and quotes do not cover all statuses.
+const reconciliationUi=readFileSync('components/MarketIqManagementDashboard.tsx','utf8');
+assert.ok(reconciliationUi.includes('Conciliação dos registros'));
+assert.ok(reconciliationUi.includes('count-purchases-metrics.quoteCount'));
+assert.ok(reconciliationUi.includes('accounted!==count'));
+assert.ok(reconciliationUi.includes('Importar no Arquivo Mensal não atualiza automaticamente este painel'));
+const statusesExample=aggregateDashboardFixture();
+function aggregateDashboardFixture(){
+  return parseDashboardData([
+    entry('R1','11/11/2026','UTILIZADO',55000),
+    entry('R2','11/11/2026','AVALIADO',54000),
+    entry('R3','11/11/2026','REPASSE',53000)
+  ],'original').rows;
+}
+assert.equal(statusesExample.length,3);
+assert.deepEqual(statusesExample.map(r=>r.status),['COMPRA','COTACAO','REPASSE PENDENTE']);
+// Utilized audit uses original statuses, keeps excluded purchases visible and never persists plates.
+const auditSource=readFileSync('services/marketIqUtilizedAudit.ts','utf8');
+const auditUi=readFileSync('components/MarketIqUtilizedAuditPanel.tsx','utf8');
+assert.equal((compile(auditSource).diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error).length,0);
+assert.equal((compile(auditUi).diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error).length,0);
+const auditApi=await import('data:text/javascript;base64,'+Buffer.from(compile(auditSource).outputText).toString('base64'));
+const auditRecords=auditApi.extractUtilizedAuditRows([
+ {...entry('U1','09/11/2026','UTILIZADO',50000), 'Placa da Avaliação':'ABC1D23','Data de compra':'10/11/2026','Avaliador':'Daniel Barruchelli da Silva'},
+ {...entry('U2','09/11/2026','UTILIZADO',60000), 'Placa da Avaliação':'DEF2G34','Data de compra':'11/11/2026'},
+ {...entry('U3','10/11/2026','AVALIADO',55000),'Placa da Avaliação':'HIJ3K45'}
+],'original');
+assert.equal(auditRecords.length,2);
+assert.equal(auditRecords.filter(r=>r.excludedByManagementRule).length,1);
+assert.equal(auditApi.countUtilizedByDay(auditRecords,'purchase').length,2);
+assert.equal(auditApi.countUtilizedByDay(auditRecords,'assessment')[0].count,2);
+assert.ok(ui.includes('extractUtilizedAuditRows(input,source)'));
+assert.ok(ui.includes('Utilizados por placa'));
+assert.ok(!auditSource.includes('localStorage')&&!auditSource.includes('fetch(')&&!auditUi.includes('localStorage'));
 console.log('Motyq IQ dashboard multi-month: October/November preservation, hashed-ID update, legacy migration, same-month safeguards, privacy and Archive link passed.');
