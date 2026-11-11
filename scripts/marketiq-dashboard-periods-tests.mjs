@@ -87,4 +87,20 @@ assert.ok(ui.includes('Meses disponíveis:'));
 assert.ok(ui.includes('onOpenArchive'));
 assert.ok(workspace.includes("onOpenArchive={()=>switchDeskSection('archive')}"));
 assert.ok(!ui.includes("localStorage.setItem(storageKey,compact)"),'Legacy overwrite must be retired');
+// Reconciliation must remain visible even when purchases and quotes do not cover all statuses.
+const reconciliationUi=readFileSync('components/MarketIqManagementDashboard.tsx','utf8');
+assert.ok(reconciliationUi.includes('Conciliação dos registros'));
+assert.ok(reconciliationUi.includes('count-purchases-metrics.quoteCount'));
+assert.ok(reconciliationUi.includes('accounted!==count'));
+assert.ok(reconciliationUi.includes('Importar no Arquivo Mensal não atualiza automaticamente este painel'));
+const statusesExample=aggregateDashboardFixture();
+function aggregateDashboardFixture(){
+  return parseDashboardData([
+    entry('R1','11/11/2026','UTILIZADO',55000),
+    entry('R2','11/11/2026','AVALIADO',54000),
+    entry('R3','11/11/2026','REPASSE',53000)
+  ],'original').rows;
+}
+assert.equal(statusesExample.length,3);
+assert.deepEqual(statusesExample.map(r=>r.status),['COMPRA','COTACAO','REPASSE PENDENTE']);
 console.log('Motyq IQ dashboard multi-month: October/November preservation, hashed-ID update, legacy migration, same-month safeguards, privacy and Archive link passed.');
