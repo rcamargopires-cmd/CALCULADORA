@@ -4,7 +4,7 @@ import {appendConsultedAudit,emptyConsultedCosts,emptyConsultedOffer,loadConsult
  makeConsultedId,moneyNumber,saveConsultedCases} from '../services/marketIqConsultedRepasse';
 import {buyerWhatsAppUrl,loadCotacaoBuyers,rankCotacaoBuyers,validBuyerPhone,type BuyerProfile}
  from '../services/marketIqCotacaoMesaBuyers';
-import {findActiveQuotation,confirmedBuyerQuotes} from '../services/marketIqMultiBuyerFollowup';
+import {findActiveQuotation} from '../services/marketIqMultiBuyerFollowup';
 
 type Props={scope:string;email:string;vehicle:ConsultedVehicle;onClose:()=>void;onOpenDirectory:()=>void};
 type ContactStatus=ConsultedOutreach['status']|'';
@@ -20,11 +20,10 @@ const statusOptions:{key:ContactStatus;label:string}[]=[
  {key:'recusou',label:'Sem interesse'}
 ];
 const quoteOf=(rows:ConsultedOffer[],buyer:BuyerProfile)=>
- rows.find(row=>norm(row.buyer)===norm(buyer.shop))||null;
+ rows.find(row=>row.buyerId===buyer.id)||rows.find(row=>!row.buyerId&&norm(row.buyer)===norm(buyer.shop))||null;
 export default function MarketIqQuickBuyerQuote({scope,email,vehicle,onClose,onOpenDirectory}:Props){
  const [buyers]=useState<BuyerProfile[]>(()=>loadCotacaoBuyers(scope));
  const [cases,setCases]=useState<ConsultedCase[]>(()=>loadConsultedCases(email));
- const existing=useMemo(()=>findActiveQuotation(cases,vehicle),[cases,vehicle]);
  const [baseVersion,setBaseVersion]=useState<number|null>(()=>findActiveQuotation(loadConsultedCases(email),vehicle)?.version??null);
  const [search,setSearch]=useState('');
  const [selected,setSelected]=useState<string[]>(()=>{
@@ -116,7 +115,7 @@ export default function MarketIqQuickBuyerQuote({scope,email,vehicle,onClose,onO
     const value=moneyNumber(edited.value);
     const next:ConsultedOffer={
      ...(prior||emptyConsultedOffer()),
-     buyer:b.shop,value:String(value),channel:'whatsapp',
+     buyerId:b.id,buyer:b.shop,value:String(value),channel:'whatsapp',
      receivedAt:prior?.receivedAt||today(),
      validUntil:edited.validUntil,
      status:edited.confirmed?'confirmada':'cotada',
@@ -178,7 +177,7 @@ export default function MarketIqQuickBuyerQuote({scope,email,vehicle,onClose,onO
       {checked&&<div className="mt-3 space-y-3">
        <div className="flex flex-wrap items-end gap-2">
         {url?<a href={url} target="_blank" rel="noopener noreferrer"
-         onClick={()=>setStatus(b.id,'preparado')}
+         onClick={()=>{if(!statuses[b.id])setStatus(b.id,'preparado');}}
          className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-black text-white">Abrir WhatsApp</a>:
          <span className="text-xs font-bold text-amber-800">Sem WhatsApp autorizado ou número válido</span>}
         <label className="flex-1 text-xs font-bold">Retorno da loja
