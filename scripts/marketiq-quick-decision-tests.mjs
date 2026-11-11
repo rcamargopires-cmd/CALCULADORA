@@ -108,7 +108,7 @@ assert.ok(component.includes('Conferir fontes completas'));
 assert.ok(workspace.includes('<MarketIqQuickDecisionPanel'));
 assert.ok(workspace.includes('setDecisionOffer(\'\')')&&workspace.includes('setDecisionConfirmedCost(null)'),
  'Different vehicles and preparation costs must reset previous user confirmations');
-assert.ok(workspace.includes('setQuoteFromRadar({token:\'decision:\''));
+assert.ok(workspace.includes('onQuote={quickQuoteCurrent}'),'Quote from quick decision must use direct registered-buyer picker');
 assert.ok(workspace.includes('Ver modelo histórico, classificação e cálculos detalhados'));
 assert.ok(workspace.includes('MarketIqPurchaseSummaryModal open={purchaseSummaryOpen}'));
 assert.ok(home.includes("label:'Decisão de Compra'"));
