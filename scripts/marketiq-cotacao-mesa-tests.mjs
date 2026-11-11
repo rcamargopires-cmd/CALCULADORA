@@ -62,6 +62,20 @@ assert.ok(desk.includes('incomingVehicle={quoteFromRadar}'));
 assert.ok(desk.includes("switchDeskSection('consulted')"));
 assert.ok(radar.includes('onQuoteVehicle?:(vehicle:DealerStockVehicle)=>void'));
 assert.ok(radar.includes('Cotar na Mesa'));
+// Direct quote shortcut must use the existing opted-in buyer directory, never auto-send.
+const quickQuotePanel=readFileSync('components/MarketIqQuickBuyerQuote.tsx','utf8');
+transpile(quickQuotePanel);
+assert.ok(desk.includes('Cotar com lojista'));
+assert.ok(desk.includes('<MarketIqQuickBuyerQuote scope={captureScope}'));
+assert.ok(desk.includes('onQuote={quickQuoteCurrent}'));
+assert.ok(quickQuotePanel.includes('loadCotacaoBuyers(scope)'));
+assert.ok(quickQuotePanel.includes('rankCotacaoBuyers('));
+assert.ok(quickQuotePanel.includes('buyerWhatsAppUrl(b,vehicle)'));
+assert.ok(quickQuotePanel.includes('target="_blank"'));
+assert.ok(quickQuotePanel.includes('Abrir WhatsApp'));
+assert.ok(!quickQuotePanel.includes('fetch(')&&!quickQuotePanel.includes('window.open('));
+assert.ok(!quickQuotePanel.includes('localStorage.setItem'));
+assert.equal(buyers.buyerWhatsAppUrl({...first,optedIn:false},v),null);
 const caseRow={
  id:'c1',createdAt:'2026-11-10T09:00:00Z',updatedAt:'2026-11-10T09:00:00Z',
  version:0,vehicle:v,
