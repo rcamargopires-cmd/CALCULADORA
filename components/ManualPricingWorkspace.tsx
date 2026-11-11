@@ -1118,14 +1118,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   onFullAnalysis={()=>setPurchaseSummaryOpen(true)}
   onRadar={()=>navigateSimple('radar')}
   onHistory={()=>navigateSimple('history')}
-  onQuote={()=>{
-   if(!brand.trim()||!model.trim()||!year.trim())return;
-   if(!window.confirm('Abrir Cotação Mesa com '+brand+' '+model+
-     '? Uma cotação não salva poderá ser substituída. As avaliações registradas permanecem intactas.'))return;
-   setQuoteFromRadar({token:'decision:'+Date.now(),vehicle:{
-     plate,brand,model,year,km,vehicleType,fipe:fipe?.value||0}});
-   navigateSimple('consulted');
-  }}
+  onQuote={quickQuoteCurrent}
  />
  <details className="rounded-2xl border border-slate-200 bg-white p-4">
   <summary className="cursor-pointer select-none text-sm font-black text-[#153f51]">
