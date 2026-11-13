@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
-const api=readFileSync('api/aqua.ts','utf8');
+const api=readFileSync('server/motyqAquaGateway.ts','utf8');
 const mesa=readFileSync('components/MarketIqAquaPilotPanel.tsx','utf8');
 const directory=readFileSync('components/MarketIqAquaBuyersManager.tsx','utf8');
 const buyer=readFileSync('components/MarketIqAquaBuyerConnected.tsx','utf8');
@@ -11,7 +11,10 @@ for(const [name,src] of Object.entries({api,mesa,directory,buyer,client})){
  const result=ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX},reportDiagnostics:true});
  assert.equal(result.diagnostics.filter(x=>x.category===ts.DiagnosticCategory.Error).length,0,name+' syntax');
 }
-assert.ok(api.includes('verifyFirebaseToken')||api.includes('identitytoolkit.googleapis.com'), 'Token verification required');
+assert.ok(api.includes('identitytoolkit.googleapis.com'),'Token verification required');
+assert.ok(readFileSync('api/analyze-deal.ts','utf8').includes("motyqAquaGateway(req,res)"));
+assert.ok(client.includes("/api/analyze-deal?action=aqua-"));
+
 assert.ok(api.includes('emailVerified')&&api.includes("account?.disabled"),'Verified email required');
 assert.ok(api.includes('status')&&api.includes('pricingDeskAccess'),'Mesa role scope required');
 assert.ok(api.includes('scopedBuyerKey(actor.companyId,actor.storeId'), 'Buyer records scoped by tenant');
