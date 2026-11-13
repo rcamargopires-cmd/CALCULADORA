@@ -2,7 +2,7 @@
  * Never call Firestore directly or persist buyer tokens.
  */
 import {auth} from '../firebase';
-const base='/api/aqua?action=';
+const base='/api/analyze-deal?action=aqua-';
 export async function aquaCloudRequest<T=any>(action:string,payload?:Record<string,unknown>):Promise<T>{
  const user=auth.currentUser;
  if(!user||!user.emailVerified)throw new Error('Entre com seu e-mail confirmado para sincronizar o AQUA.');
