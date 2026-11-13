@@ -1,4 +1,5 @@
 import React,{useMemo,useState} from 'react';
+import MarketIqAquaBuyersManager from './MarketIqAquaBuyersManager';
 import type {ConsultedVehicle} from '../services/marketIqConsultedRepasse';
 import {loadCotacaoBuyers,rankCotacaoBuyers,type BuyerProfile} from '../services/marketIqCotacaoMesaBuyers';
 import {createAquaLot,loadAquaLots,saveAquaLots,simulateAquaBid,closeAquaLot,
@@ -8,9 +9,9 @@ type Props={scope:string;vehicle:ConsultedVehicle;onClose:()=>void};
 const money=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const dateInput=(hours:number)=>{const d=new Date(Date.now()+hours*3600000);return d.toISOString();};
 export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
- const [buyers]=useState<BuyerProfile[]>(()=>loadCotacaoBuyers(scope));
+ const [buyers,setBuyers]=useState<BuyerProfile[]>(()=>loadCotacaoBuyers(scope));
  const [lots,setLots]=useState<AquaLot[]>(()=>loadAquaLots(scope));
- const [screen,setScreen]=useState<'mesa'|'lojista'>('mesa');
+ const [screen,setScreen]=useState<'mesa'|'lojista'|'cadastro'>('mesa');
  const [mode,setMode]=useState<AquaMode>('open');
  const [hours,setHours]=useState(24);
  const [autoSelect,setAutoSelect]=useState(true);
@@ -66,15 +67,17 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
       <p className="mt-1 text-xs text-slate-600">Operação simples, sem leilão real ou mensagens automáticas.</p></div>
      <button type="button" onClick={onClose} className={small}>Fechar</button>
     </div>
-    <div className="mt-3 grid grid-cols-2 gap-2">
+    <div className="mt-3 grid grid-cols-3 gap-2">
      <button type="button" onClick={()=>setScreen('mesa')}
       className={'rounded-xl p-3 text-sm font-black '+(screen==='mesa'?'bg-cyan-800 text-white':'bg-slate-100 text-slate-800')}>Minha Mesa</button>
      <button type="button" onClick={()=>setScreen('lojista')}
-      className={'rounded-xl p-3 text-sm font-black '+(screen==='lojista'?'bg-cyan-800 text-white':'bg-slate-100 text-slate-800')}>Visão do lojista (simular)</button>
+      className={'rounded-xl p-2 text-xs font-black sm:p-3 sm:text-sm '+(screen==='lojista'?'bg-cyan-800 text-white':'bg-slate-100 text-slate-800')}>Visão do lojista</button>
+     <button type="button" onClick={()=>setScreen('cadastro')}
+      className={'rounded-xl p-2 text-xs font-black sm:p-3 sm:text-sm '+(screen==='cadastro'?'bg-cyan-800 text-white':'bg-slate-100 text-slate-800')}>Meus lojistas</button>
     </div>
    </header>
    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-    {screen==='mesa'?<>
+    {screen==='cadastro'?<MarketIqAquaBuyersManager scope={scope} onSaved={setBuyers}/>:screen==='mesa'?<>
      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
       <div><p className="text-xs font-bold text-slate-500">1. VEÍCULO PRONTO</p>
        <h3 className="text-lg font-black">{vehicle.brand} {vehicle.model} · {vehicle.year}</h3>
@@ -101,7 +104,8 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
        {!autoSelect&&<div className="mt-2 max-h-32 space-y-1 overflow-auto">{eligible.map(b=><label key={b.id} className="flex items-center gap-2 py-1 text-xs">
         <input type="checkbox" checked={manualInvites.includes(b.id)} onChange={e=>setManualInvites(v=>e.target.checked?[...new Set([...v,b.id])]:v.filter(id=>id!==b.id))}/>{b.shop}
        </label>)}</div>}
-       {!eligible.length&&<p className="mt-2 text-xs text-amber-800">Cadastre lojistas autorizados na Cotação Mesa.</p>}
+       {!eligible.length&&<button type="button" onClick={()=>setScreen('cadastro')} className="mt-2 text-xs font-bold text-cyan-800">Cadastre seus lojistas aqui</button>}
+       <button type="button" onClick={()=>setScreen('cadastro')} className="ml-2 mt-2 text-xs font-bold text-cyan-800">Cadastrar ou editar lojista</button>
        <button type="button" onClick={()=>setShowAdvanced(v=>!v)} className="mt-2 text-xs font-bold text-cyan-800">
         {showAdvanced?'Ocultar detalhes':'Adicionar observações (opcional)'}</button>
        {showAdvanced&&<textarea rows={2} maxLength={500} value={notes} onChange={e=>setNotes(e.target.value)}
