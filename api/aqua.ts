@@ -132,12 +132,31 @@ export default async function handler(req:any,res:any){
    if(matched.length!==invited.length)throw bad(400,'Um ou mais lojistas ainda não estão habilitados ou não são compatíveis.');
    const buyNowPrice=input.buyNowPrice===undefined?undefined:money(input.buyNowPrice);
    if(input.buyNowPrice!==undefined&&buyNowPrice===null)throw bad(400,'Preço de arremate inválido.');
-   const docId=randomUUID().replace(/-/g,'');
+   const clientId=safeId(input.clientLotId);
+   if(!clientId)throw bad(400,'Identificador da oportunidade inválido.');
+   const docId=digest(actor.companyId+'|'+actor.storeId+'|'+clientId).slice(0,52);
+   const existing=await motyqFirestore.get(LOTS,docId);
+   if(existing){
+    if(existing.companyId!==actor.companyId||existing.storeId!==actor.storeId||existing.createdBy!==user.email)
+     throw bad(403,'Oportunidade indisponível.');
+    return json(res,200,{ok:true,lotId:docId,invitedCount:existing.visibleBuyerIds?.length||0,alreadyPublished:true});
+   }
    const lot={id:docId,companyId:actor.companyId,storeId:actor.storeId,
     createdBy:user.email,createdAt:new Date().toISOString(),state:'open',vehicle,mode,endsAt,
     visibleBuyerIds:invited, ...(buyNowPrice?{buyNowPrice}:{}), highestBid:null};
    await motyqFirestore.patch(LOTS,docId,lot);
    return json(res,200,{ok:true,lotId:docId,invitedCount:matched.length});
+  }
+  if(action==='close-lot'&&req.method==='POST'){
+   const actor=await staff(user),lotId=safeId(req.body?.lotId);
+   if(!lotId)throw bad(400,'Oportunidade inválida.');
+   const lot=await motyqFirestore.get(LOTS,lotId);
+   if(!lot||lot.companyId!==actor.companyId||lot.storeId!==actor.storeId)
+    throw bad(404,'Oportunidade não localizada.');
+   if(lot.createdBy!==user.email)throw bad(403,'Somente quem publicou pode encerrar.');
+   if(lot.state!=='open')return json(res,200,{ok:true,alreadyClosed:true});
+   await motyqFirestore.patch(LOTS,lotId,{state:'closed',closedAt:new Date().toISOString()});
+   return json(res,200,{ok:true});
   }
   if(action==='enable-buyer'&&req.method==='POST'){
    const actor=await staff(user),buyer=buyerClean(req.body?.buyer);
