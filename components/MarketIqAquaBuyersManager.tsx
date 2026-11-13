@@ -1,4 +1,5 @@
 import React,{useMemo,useState} from 'react';
+import {aquaCloudRequest} from '../services/motyqAquaCloudClient';
 import {blankBuyer,loadCotacaoBuyers,saveCotacaoBuyers,safeBuyer,validBuyerPhone,
  type BuyerProfile} from '../services/marketIqCotacaoMesaBuyers';
 
@@ -18,6 +19,7 @@ export default function MarketIqAquaBuyersManager({scope,onSaved}:Props){
  const [buyers,setBuyers]=useState<BuyerProfile[]>(()=>loadCotacaoBuyers(scope));
  const [draft,setDraft]=useState<BuyerProfile|null>(null);
  const [query,setQuery]=useState('');
+ const [syncingId,setSyncingId]=useState('');
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
  const shown=useMemo(()=>buyers.filter(b=>(b.shop+' '+b.contact+' '+b.region+' '+b.brands+' '+b.models)
@@ -46,6 +48,14 @@ export default function MarketIqAquaBuyersManager({scope,onSaved}:Props){
    setNotice('Ficha do lojista salva. A mesma carteira é utilizada na Cotação Mesa e no AQUA.');
   }catch(e){setError(e instanceof Error?e.message:'Não foi possível salvar o cadastro.');}
  };
+ const enableOnline=async(buyer:BuyerProfile)=>{
+  if(!buyer.active||!buyer.optedIn||!buyer.email){setError('Informe e-mail válido, mantenha o lojista ativo e confirme a autorização para oportunidades.');return;}
+  if(!window.confirm('Habilitar '+buyer.shop+' para acessar oportunidades com a conta '+buyer.email+'?'))return;
+  setSyncingId(buyer.id);setError('');setNotice('');
+  try{await aquaCloudRequest('enable-buyer',{buyer});setNotice('Acesso online habilitado para '+buyer.email+'. O lojista deverá entrar com essa conta.');}
+  catch(e){setError(e instanceof Error?e.message:'Falha na habilitação.');}
+  finally{setSyncingId('');}
+ };
  const toggleActive=(buyer:BuyerProfile)=>{
   const next=buyers.map(b=>b.id===buyer.id?{...b,active:!b.active,updatedAt:new Date().toISOString()}:b);
   try{saveCotacaoBuyers(scope,next);setBuyers(next);onSaved(next);
@@ -72,6 +82,7 @@ export default function MarketIqAquaBuyersManager({scope,onSaved}:Props){
     <div className="flex gap-2">
      <button type="button" onClick={()=>{setDraft({...b});setError('');}} className="rounded-lg border border-cyan-700 px-3 py-2 text-xs font-bold text-cyan-900">Editar ficha</button>
      <button type="button" onClick={()=>toggleActive(b)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold">{b.active?'Desativar':'Ativar'}</button>
+     <button type="button" disabled={syncingId===b.id} onClick={()=>void enableOnline(b)} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">{syncingId===b.id?'Habilitando...':'Habilitar no app'}</button>
     </div>
    </div>)}
    {!shown.length&&<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">Nenhum lojista encontrado. Clique em Novo lojista para cadastrar.</p>}
