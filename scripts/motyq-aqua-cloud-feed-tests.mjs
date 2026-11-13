@@ -21,7 +21,11 @@ assert.ok(api.includes('scopedBuyerKey(actor.companyId,actor.storeId'), 'Buyer r
 assert.ok(api.includes("await myAccess(user.email)"),'Buyer access must come from verified token identity');
 assert.ok(api.includes("lot.storeId!==a.storeId"),'Store isolation before releasing listings');
 assert.ok(api.includes("lot.visibleBuyerIds.includes(a.buyerId)"),'Lojista must be invited');
-assert.ok(api.includes("compatible(lot.vehicle,{...a.interest})"),'Vehicle must match buyer interests');
+assert.ok(api.includes('compatible({...lot.vehicle,buyNowPrice:lot.buyNowPrice},a.interest)'),'Vehicle must match buyer interests');
+assert.ok(api.includes("motyqFirestore.get(INBOX,a.id)"),'Buyer feed must use scoped inbox, not scan company inventory');
+assert.ok(api.includes("motyqFirestore.appendToArray(INBOX,key,'lots'"),'Inbox entries must append atomically');
+assert.ok(!api.includes('motyqFirestore.query(LOTS,'),'Never query all company listings on buyer refresh');
+assert.ok(readFileSync('server/motyqFirestore.ts','utf8').includes('appendMissingElements'),'Firestore inbox requires atomic appendMissingElements');
 assert.ok(api.includes("lot.mode==='open'"),'Only open bidding mode shares best price');
 assert.ok(!api.includes('allowOrigin: *')&&!api.includes('Access-Control-Allow-Origin'),'No public CORS');
 assert.ok(api.includes("action==='publish'")&&api.includes("action==='enable-buyer'"));
