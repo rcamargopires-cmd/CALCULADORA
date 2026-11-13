@@ -10,8 +10,11 @@ const transpile=s=>{const r=ts.transpileModule(s,{compilerOptions,reportDiagnost
 transpile(ui);transpile(quick);
 assert.ok(quick.includes('MarketIqAquaPilotPanel'));
 assert.ok(quick.includes('AQUA · Laboratório'));
-assert.ok(ui.includes('Simular lance')&&ui.includes('Criar oportunidade de teste'));
-assert.ok(ui.includes('Lojistas externos ainda não têm acesso'));
+assert.ok(ui.includes('Simular meu lance')&&ui.includes('Colocar carro no Aquário de teste'));
+assert.ok(ui.includes('Convidar automaticamente os lojistas compatíveis'));
+assert.ok(ui.includes('Visão do lojista (simular)'));
+assert.ok(ui.includes('Oferta secreta: outros lances ficam ocultos'));
+assert.ok(ui.includes('Ainda não existe login externo nem disputa em tempo real'));
 assert.ok(!src.includes('fetch(')&&!ui.includes('window.open('));
 const aqua=await import('data:text/javascript;base64,'+Buffer.from(transpile(src)).toString('base64'));
 const start='2026-11-12T12:00:00.000Z';
