@@ -32,6 +32,8 @@ assert.equal(m.loadAquaInterest().brands,'Fiat');
 assert.ok(!panel.includes('loadAquaLots('),'Never expose Mesa local lots through public buyer route');
 assert.ok(!panel.includes('db.')&&!panel.includes('onSnapshot('),'No unauthenticated access to Firestore');
 assert.ok(panel.includes('Notification.requestPermission()'),'Permission must require buyer action');
+assert.ok(panel.includes('navigator.serviceWorker.ready')&&panel.includes('reg.showNotification('));
+assert.ok(readFileSync('public/motyq-iq-sw.js','utf8').includes("self.clients.openWindow('/aqua/lojista')"));
 assert.ok(panel.includes('Simular carro novo'));
 assert.ok(panel.includes('Ainda não existe login')||panel.includes('após autenticação'),'Must label demo');
 assert.ok(panel.includes('Notificações em segundo plano virão com o serviço de push.'));
