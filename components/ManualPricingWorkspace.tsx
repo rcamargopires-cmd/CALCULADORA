@@ -895,6 +895,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');setMobileFullDesk(true);}}
    onStartNew={beginNewMobileValuation}
    onQuickQuote={quickQuoteCurrent}
+   onOpenAqua={openAquaCurrent}
    onOpenApprovals={()=>{setMobileFullDesk(true);switchDeskSection('approvals');}}
   />
  </div>
