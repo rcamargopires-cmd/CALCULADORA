@@ -23,7 +23,7 @@ assert.ok(roster.includes('Desativar')&&roster.includes('Ativar'));
 assert.ok(quick.includes('AQUA · Laboratório'));
 assert.ok(ui.includes('Simular meu lance')&&ui.includes('Colocar carro no Aquário de teste'));
 assert.ok(ui.includes('Convidar automaticamente os lojistas compatíveis'));
-assert.ok(ui.includes('Visão do lojista (simular)'));
+assert.ok(ui.includes('Visão do lojista')&&ui.includes("setScreen('lojista')"));
 assert.ok(ui.includes('Oferta secreta: outros lances ficam ocultos'));
 assert.ok(ui.includes('Ainda não existe login externo nem disputa em tempo real'));
 assert.ok(!src.includes('fetch(')&&!ui.includes('window.open('));
