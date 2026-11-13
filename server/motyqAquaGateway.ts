@@ -7,7 +7,7 @@ import {motyqFirestore} from './motyqFirestore.js';
 import firebaseConfig from '../firebase-applet-config.json';
 import {sendAquaPush} from './motyqAquaPush.js';
 
-const BUYERS='aqua_buyer_access_v1',LOTS='aqua_live_lots_v1',PUSH='aqua_push_tokens_v1';
+const BUYERS='aqua_buyer_access_v1',LOTS='aqua_live_lots_v1',PUSH='aqua_push_tokens_v1',INBOX='aqua_buyer_inbox_v1';
 // Prevent Preview data sharing production documents even on a shared Firebase project.
 const aquaEnvironment=()=>process.env.VERCEL_ENV==='production'?'production':'preview';
 const ALLOWED_ORIGIN=''; // same-origin only; never enable wildcard CORS.
@@ -88,23 +88,37 @@ async function myAccess(email:string){
  const rows:any[]=await motyqFirestore.query(BUYERS,[{field:'email',value:email}],40);
  return rows.filter((x:any)=>x.email===email&&x.environment===aquaEnvironment()&&x.active===true&&x.optedIn===true);
 }
+async function ensureBuyerInbox(buyer:any,lotId:string,endsAt:string){
+ const key=buyer.id;
+ const prior:any=await motyqFirestore.get(INBOX,key);
+ if(!prior){
+  await motyqFirestore.patch(INBOX,key,{id:key,environment:aquaEnvironment(),
+   companyId:buyer.companyId,storeId:buyer.storeId,buyerId:buyer.buyerId,lots:[]});
+ }else if(prior.environment!==aquaEnvironment()||prior.companyId!==buyer.companyId||prior.storeId!==buyer.storeId){
+  throw bad(403,'Carteira online incompatível.');
+ }
+ await motyqFirestore.appendToArray(INBOX,key,'lots',{lotId,endsAt});
+}
 async function listForBuyer(email:string){
  const accounts=await myAccess(email);
  if(!accounts.length)return {linked:false,items:[],interest:null};
  const items:any[]=[];
  for(const a of accounts.slice(0,8)){
-  // Scoped server-side to tenant; never return non-invited lots.
-  const rows:any[]=await motyqFirestore.query(LOTS,[{field:'companyId',value:a.companyId}],150);
-  for(const lot of rows){
-   if(lot.environment!==aquaEnvironment()||lot.storeId!==a.storeId||lot.state!=='open'||Date.parse(lot.endsAt)<=Date.now())continue;
+  const inbox:any=await motyqFirestore.get(INBOX,a.id);
+  if(!inbox||inbox.environment!==aquaEnvironment()||inbox.companyId!==a.companyId||inbox.storeId!==a.storeId)continue;
+  const candidates=Array.isArray(inbox.lots)?inbox.lots.filter((item:any)=>
+   item&&safeId(item.lotId)&&Date.parse(item.endsAt)>Date.now()).slice(-30):[];
+  for(const candidate of candidates){
+   const lot:any=await motyqFirestore.get(LOTS,candidate.lotId);
+   if(!lot||lot.environment!==aquaEnvironment()||lot.companyId!==a.companyId||
+    lot.storeId!==a.storeId||lot.state!=='open'||Date.parse(lot.endsAt)<=Date.now())continue;
    if(!Array.isArray(lot.visibleBuyerIds)||!lot.visibleBuyerIds.includes(a.buyerId))continue;
-   if(!compatible(lot.vehicle,{...a.interest}))continue;
+   if(!compatible({...lot.vehicle,buyNowPrice:lot.buyNowPrice},a.interest))continue;
+   if(items.some(x=>x.id===lot.id))continue;
    items.push({id:lot.id,brand:lot.vehicle.brand,model:lot.vehicle.model,year:lot.vehicle.year,
     km:lot.vehicle.km,vehicleType:lot.vehicle.vehicleType,notes:lot.vehicle.notes,
     mode:lot.mode,endsAt:lot.endsAt,buyNowPrice:lot.buyNowPrice??undefined,
-    // Closed offers never leak competitor bids or buyer identities.
-    ...(lot.mode==='open'?{highestBid:lot.highestBid??undefined}:{}),
-    shop: a.shop});
+    ...(lot.mode==='open'?{highestBid:lot.highestBid??undefined}:{}),shop:a.shop});
   }
  }
  return {linked:true,items:items.slice(0,100),interest:accounts[0].interest||null};
