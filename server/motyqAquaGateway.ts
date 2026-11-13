@@ -5,8 +5,9 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {motyqFirestore} from './motyqFirestore.js';
 import firebaseConfig from '../firebase-applet-config.json';
+import {sendAquaPush} from './motyqAquaPush.js';
 
-const BUYERS='aqua_buyer_access_v1',LOTS='aqua_live_lots_v1';
+const BUYERS='aqua_buyer_access_v1',LOTS='aqua_live_lots_v1',PUSH='aqua_push_tokens_v1';
 // Prevent Preview data sharing production documents even on a shared Firebase project.
 const aquaEnvironment=()=>process.env.VERCEL_ENV==='production'?'production':'preview';
 const ALLOWED_ORIGIN=''; // same-origin only; never enable wildcard CORS.
@@ -147,7 +148,39 @@ export default async function handler(req:any,res:any){
     createdBy:user.email,createdAt:new Date().toISOString(),state:'open',vehicle,mode,endsAt,
     visibleBuyerIds:invited, ...(buyNowPrice?{buyNowPrice}:{}), highestBid:null};
    await motyqFirestore.patch(LOTS,docId,lot);
-   return json(res,200,{ok:true,lotId:docId,invitedCount:matched.length});
+   // Background push is best-effort; buyers still see opportunities in the feed.
+   let pushSent=0;
+   try{
+    const registered:any[]=await motyqFirestore.query(PUSH,[{field:'environment',value:aquaEnvironment()}],500);
+    const emails=new Set(matched.map((b:any)=>b.email));
+    const destinations=registered.filter((p:any)=>emails.has(p.email)&&p.enabled===true).slice(0,60);
+    const host=str(req.headers.host,200);
+    const results=await Promise.allSettled(destinations.map((p:any)=>sendAquaPush(
+     p.token,vehicle,'https://'+host+'/aqua/lojista'
+    )));
+    pushSent=results.filter(x=>x.status==='fulfilled').length;
+    if(results.some(x=>x.status==='rejected'))console.warn('aqua_push_partial_delivery',results.length,pushSent);
+   }catch(err:any){console.warn('aqua_push_unavailable',String(err?.message||'error').slice(0,80));}
+   return json(res,200,{ok:true,lotId:docId,invitedCount:matched.length,pushSent});
+  }
+  if(action==='push-subscribe'&&req.method==='POST'){
+   const accounts=await myAccess(user.email);
+   if(!accounts.length)throw bad(403,'Seu lojista não foi habilitado pela Mesa.');
+   const token=str(req.body?.token,2400);
+   if(!/^[A-Za-z0-9:_~.-]{30,2400}$/.test(token))throw bad(400,'Token de notificação inválido.');
+   const key=digest(aquaEnvironment()+'|'+user.email+'|'+token).slice(0,52);
+   await motyqFirestore.patch(PUSH,key,{id:key,environment:aquaEnvironment(),
+    email:user.email,token,enabled:true,updatedAt:new Date().toISOString()});
+   return json(res,200,{ok:true});
+  }
+  if(action==='push-unsubscribe'&&req.method==='POST'){
+   const token=str(req.body?.token,2400);
+   if(!/^[A-Za-z0-9:_~.-]{30,2400}$/.test(token))throw bad(400,'Token inválido.');
+   const key=digest(aquaEnvironment()+'|'+user.email+'|'+token).slice(0,52);
+   const previous:any=await motyqFirestore.get(PUSH,key);
+   if(previous&&previous.email===user.email&&previous.environment===aquaEnvironment())
+    await motyqFirestore.patch(PUSH,key,{enabled:false,updatedAt:new Date().toISOString()});
+   return json(res,200,{ok:true});
   }
   if(action==='close-lot'&&req.method==='POST'){
    const actor=await staff(user),lotId=safeId(req.body?.lotId);
