@@ -1,0 +1,39 @@
+{
+  "id": "/aqua/lojista",
+  "name": "Motyq AQUA | Oportunidades para Lojistas",
+  "short_name": "Motyq AQUA",
+  "description": "Oportunidades para lojistas: descubra veículos compatíveis com seus interesses.",
+  "lang": "pt-BR",
+  "start_url": "/aqua/lojista",
+  "scope": "/aqua/",
+  "display": "standalone",
+  "background_color": "#f2f8fa",
+  "theme_color": "#12475b",
+  "orientation": "portrait-primary",
+  "categories": [
+    "business",
+    "shopping",
+    "productivity"
+  ],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icons/motyq-iq-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/motyq-iq-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/motyq-iq-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
