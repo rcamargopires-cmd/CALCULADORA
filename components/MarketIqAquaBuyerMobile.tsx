@@ -59,8 +59,11 @@ export default function MarketIqAquaBuyerMobile(){
   setScreen('feed');setOnlyMine(true);
   if(relevant.length){
    setNotice('🔔 Nova oportunidade compatível: '+brand+' '+model+'. Aviso exibido no app.');
-   if(alertEnabled&&'Notification' in window&&Notification.permission==='granted'){
-    try{new Notification('Motyq AQUA · Oportunidade de teste',{body:brand+' '+model+' '+year+' combina com seu perfil.',tag:newLot.id});}catch{}
+   if(alertEnabled&&'Notification' in window&&Notification.permission==='granted'&&'serviceWorker' in navigator){
+    void navigator.serviceWorker.ready.then(reg=>reg.showNotification('Motyq AQUA · Oportunidade de teste',{
+     body:brand+' '+model+' '+year+' combina com seu perfil.',tag:newLot.id,
+     icon:'/icons/motyq-iq-192.png'
+    })).catch(()=>{setNotice('Nova oportunidade compatível! O alerta do sistema não foi exibido neste navegador.');});
    }
   }else setNotice('Veículo de demonstração adicionado, mas fora do perfil. Ajuste seus interesses.');
  };
