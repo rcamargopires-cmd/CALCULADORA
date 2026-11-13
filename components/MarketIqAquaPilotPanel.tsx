@@ -66,7 +66,8 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
   try{
    const result=await aquaCloudRequest<{lotId:string;invitedCount:number}>('publish',{
     lot:{vehicle:current.vehicle,mode:current.mode,endsAt:current.endsAt,
-     visibleBuyerIds:current.visibleBuyerIds,...(current.buyNowPrice?{buyNowPrice:current.buyNowPrice}:{})}
+     visibleBuyerIds:current.visibleBuyerIds,clientLotId:current.id,
+     ...(current.buyNowPrice?{buyNowPrice:current.buyNowPrice}:{})}
    });
    const next=lots.map(l=>l.id===current.id?{...l,cloudLotId:result.lotId}:l);
    commit(next,'Publicado na nuvem para '+result.invitedCount+' lojista(s) habilitado(s). Este painel local ainda simula os lances.');
@@ -89,10 +90,13 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
    commit(lots.map(x=>x.id===lot.id?lot:x),decision==='approved'?'Arremate confirmado somente no teste. O carro não foi vendido no sistema.':'Solicitação recusada no teste.');
   }catch(e){setError(e instanceof Error?e.message:'Não foi possível processar a decisão.');}
  };
- const finish=()=>{
-  if(!current||!window.confirm('Encerrar esta oportunidade de teste?'))return;
-  try{const lot=closeAquaLot(current);commit(lots.map(x=>x.id===lot.id?lot:x),'Rodada encerrada. Nenhuma venda foi realizada.');}
-  catch(e){setError(e instanceof Error?e.message:'Erro ao encerrar.');}
+ const finish=async()=>{
+  if(!current||!window.confirm(current.cloudLotId?'Encerrar esta oportunidade também no aplicativo online dos lojistas?':'Encerrar esta oportunidade de teste?'))return;
+  try{
+   if(current.cloudLotId)await aquaCloudRequest('close-lot',{lotId:current.cloudLotId});
+   const lot=closeAquaLot(current);
+   commit(lots.map(x=>x.id===lot.id?lot:x),current.cloudLotId?'Oportunidade encerrada também na nuvem.':'Rodada de teste encerrada.');
+  }catch(e){setError(e instanceof Error?e.message:'Erro ao encerrar.');}
  };
  const small='rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800';
  return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-3" role="dialog" aria-modal="true" aria-label="Motyq AQUA teste simplificado">
