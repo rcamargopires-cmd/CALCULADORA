@@ -3,7 +3,7 @@ import MarketIqAquaBuyersManager from './MarketIqAquaBuyersManager';
 import type {ConsultedVehicle} from '../services/marketIqConsultedRepasse';
 import {loadCotacaoBuyers,rankCotacaoBuyers,type BuyerProfile} from '../services/marketIqCotacaoMesaBuyers';
 import {createAquaLot,loadAquaLots,saveAquaLots,simulateAquaBid,closeAquaLot,
- highestAquaBid,visibleAquaBidSummary,publicAquaVehicle,type AquaLot,type AquaMode} from '../services/motyqAquaPilot';
+ highestAquaBid,visibleAquaBidSummary,publicAquaVehicle,requestAquaBuyNow,resolveAquaBuyNow,type AquaLot,type AquaMode} from '../services/motyqAquaPilot';
 
 type Props={scope:string;vehicle?:ConsultedVehicle;onClose:()=>void};
 const money=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -20,6 +20,8 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
  const [manualInvites,setManualInvites]=useState<string[]>([]);
  const [showAdvanced,setShowAdvanced]=useState(false);
  const [notes,setNotes]=useState('');
+ const [buyNowEnabled,setBuyNowEnabled]=useState(false);
+ const [buyNowInput,setBuyNowInput]=useState('');
  const [activeId,setActiveId]=useState('');
  const [buyerId,setBuyerId]=useState('');
  const [bidAmount,setBidAmount]=useState('');
@@ -40,7 +42,8 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
    if(invited.some(id=>!valid.has(id)))throw new Error('Escolha somente lojistas autorizados.');
    const lot=createAquaLot({
     vehicle:publicAquaVehicle({...currentVehicle,vehicleType:currentVehicle.vehicleType||'car'},notes),
-    mode,endsAt:dateInput(hours),visibleBuyerIds:invited,minimumIncrement:500
+    mode,endsAt:dateInput(hours),visibleBuyerIds:invited,minimumIncrement:500,
+    buyNowPrice:buyNowEnabled?Number(buyNowInput):undefined
    });
    commit([lot,...lots],'Oportunidade de teste criada. Ainda não foi enviada aos lojistas.');
    setActiveId(lot.id);setScreen('mesa');setBuyerId('');setBidAmount('');
@@ -53,6 +56,22 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
    commit(lots.map(x=>x.id===lot.id?lot:x),'Lance simulado registrado neste navegador.');
    setBidAmount('');
   }catch(e){setError(e instanceof Error?e.message:'Lance inválido.');}
+ };
+ const buyNow=()=>{
+  if(!current||!viewedBuyer||!current.buyNowPrice)return;
+  if(!window.confirm('Simular solicitação de arremate de '+money(current.buyNowPrice)+'? Não é uma compra real.'))return;
+  try{
+   const lot=requestAquaBuyNow(current,{id:viewedBuyer.id,shop:viewedBuyer.shop});
+   commit(lots.map(x=>x.id===lot.id?lot:x),'Solicitação fictícia registrada. A Mesa precisa analisar e confirmar. Outros lances ficaram bloqueados.');
+   setScreen('mesa');
+  }catch(e){setError(e instanceof Error?e.message:'Não foi possível solicitar o arremate.');}
+ };
+ const decideBuyNow=(decision:'approved'|'rejected')=>{
+  if(!current||!window.confirm(decision==='approved'?'Aprovar esta solicitação apenas na simulação? Não registra venda.':'Recusar a solicitação simulada e liberar o carro se houver prazo?'))return;
+  try{
+   const lot=resolveAquaBuyNow(current,decision);
+   commit(lots.map(x=>x.id===lot.id?lot:x),decision==='approved'?'Arremate confirmado somente no teste. O carro não foi vendido no sistema.':'Solicitação recusada no teste.');
+  }catch(e){setError(e instanceof Error?e.message:'Não foi possível processar a decisão.');}
  };
  const finish=()=>{
   if(!current||!window.confirm('Encerrar esta oportunidade de teste?'))return;
@@ -99,6 +118,17 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
        <div className="flex flex-wrap gap-2">{[2,6,24,48].map(h=><button type="button" key={h} onClick={()=>setHours(h)}
         className={'rounded-xl px-4 py-2 text-sm font-bold '+(hours===h?'bg-cyan-800 text-white':'border border-slate-300')}>{h}h</button>)}</div>
       </div>
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+       <label className="flex items-center gap-2 text-sm font-black text-emerald-950">
+        <input type="checkbox" checked={buyNowEnabled} onChange={e=>setBuyNowEnabled(e.target.checked)}/>
+        Permitir arremate imediato pelo valor definido pela Mesa
+       </label>
+       {buyNowEnabled&&<label className="mt-3 block text-xs font-bold text-emerald-950">Valor para arrematar (R$)
+        <input type="number" min={1000} max={10000000} step={1} value={buyNowInput} onChange={e=>setBuyNowInput(e.target.value)}
+         placeholder="Ex.: 95000" className="mt-1 w-full rounded-xl border border-emerald-400 bg-white p-3 text-base"/>
+       </label>}
+       <p className="mt-2 text-xs text-emerald-900">O lojista poderá solicitar o arremate nesse valor. A Mesa confirma antes de concluir. Sem compra automática.</p>
+      </div>
       <div className="rounded-xl bg-slate-50 p-3">
        <label className="flex items-center gap-2 text-sm font-bold">
         <input type="checkbox" checked={autoSelect} onChange={e=>setAutoSelect(e.target.checked)}/>
@@ -115,7 +145,7 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
         placeholder="Conservação, vistoria e observações sem dados pessoais"
         className="mt-2 w-full rounded-lg border border-slate-300 p-2 text-sm"/>}
       </div>
-      <button type="button" onClick={create} disabled={!hasVehicle||!invited.length}
+      <button type="button" onClick={create} disabled={!hasVehicle||!invited.length||(buyNowEnabled&&(!Number.isSafeInteger(Number(buyNowInput))||Number(buyNowInput)<1000))}
        className="w-full rounded-xl bg-emerald-700 p-4 text-base font-black text-white disabled:opacity-50">
        Colocar carro no Aquário de teste</button>
       <p className="text-xs text-slate-500">Não publica na internet. Placa, FIPE e custos internos não entram na oportunidade.</p>
@@ -125,13 +155,23 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
       {lots.map(l=><div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3">
        <button type="button" onClick={()=>setActiveId(l.id)} className="text-left">
         <strong className="block text-sm">{l.vehicle.brand} {l.vehicle.model} · {l.vehicle.year}</strong>
-        <span className="text-xs text-slate-600">{l.mode==='open'?'Aberta':'Secreta'} · {l.bids.length} lance(s) fictício(s) · {l.state==='open'?'Em andamento':'Encerrada'}</span>
+        <span className="text-xs text-slate-600">{l.mode==='open'?'Aberta':'Secreta'} · {l.bids.length} lance(s) fictício(s) · {l.state==='reserved'?'Aguardando Mesa':l.state==='open'?'Em andamento':'Encerrada'}</span>
+        {l.buyNowPrice&&<span className="mt-1 block text-xs font-bold text-emerald-800">Arremate imediato: {money(l.buyNowPrice)}</span>}
        </button>
        <button type="button" onClick={()=>{setActiveId(l.id);setBuyerId('');setScreen('lojista');}} className={small}>Ver como lojista</button>
       </div>)}
       {current&&<div className="rounded-xl bg-slate-50 p-3 text-sm">
        <strong>Resultado: {current.vehicle.brand} {current.vehicle.model}</strong>
        <p className="mt-1">Lances simulados: {current.bids.length} · Maior lance: {highestAquaBid(current)?money(highestAquaBid(current)!.amount):'Nenhum'}</p>
+       {current.buyNowRequest?.status==='pending'&&<div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+        <strong className="block text-sm text-amber-950">Solicitação de arremate pendente</strong>
+        <p className="mt-1 text-xs text-amber-900">{current.buyNowRequest.buyerShop} · {money(current.buyNowRequest.amount)} · Exclusiva enquanto a Mesa decide</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+         <button type="button" onClick={()=>decideBuyNow('approved')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-black text-white">Confirmar no teste</button>
+         <button type="button" onClick={()=>decideBuyNow('rejected')} className="rounded-lg border border-slate-400 px-3 py-2 text-xs font-bold">Recusar e liberar</button>
+        </div>
+       </div>}
+       {current.buyNowRequest?.status==='approved'&&<p className="mt-2 text-xs font-bold text-emerald-800">Arremate aprovado na simulação. Não é compra efetivada.</p>}
        {current.state==='open'&&<button type="button" onClick={finish} className="mt-2 text-xs font-bold text-rose-700">Encerrar oportunidade</button>}
       </div>}
      </section>
@@ -149,7 +189,8 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
        onClick={()=>{setActiveId(l.id);setBidAmount('');}} className={'w-full rounded-xl border p-4 text-left '+(activeId===l.id?'border-cyan-600 bg-cyan-50':'border-slate-200')}>
        <strong className="block">{l.vehicle.brand} {l.vehicle.model} · {l.vehicle.year}</strong>
        <span className="mt-1 block text-sm text-slate-600">{l.vehicle.km} km · {l.mode==='open'?'Disputa aberta':'Oferta fechada'}</span>
-       <span className="mt-1 block text-xs font-bold">{l.state==='open'&&Date.parse(l.endsAt)>Date.now()?'Recebendo lances':'Encerrado'}</span>
+       <span className="mt-1 block text-xs font-bold">{l.state==='reserved'?'Arremate em análise':l.state==='open'&&Date.parse(l.endsAt)>Date.now()?'Recebendo lances':'Encerrado'}</span>
+       {l.buyNowPrice&&<span className="mt-1 block text-xs font-bold text-emerald-800">Arremate: {money(l.buyNowPrice)}</span>}
       </button>)}
       {!lots.some(l=>l.visibleBuyerIds.includes(buyerId))&&<p className="text-sm text-slate-600">Nenhuma oportunidade disponível para esta loja.</p>}
      </>}
@@ -158,6 +199,13 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
       <p className="text-sm text-slate-600">{current.vehicle.notes||'Confira as condições do veículo antes de ofertar.'}</p>
       <p className="text-sm font-bold">{current.mode==='open'?('Maior lance: '+(summary.highest?money(summary.highest):'Sem lances')):'Oferta secreta: outros lances ficam ocultos'}</p>
       <p className="text-xs text-slate-600">Suas ofertas: {summary.ownBids.length}</p>
+      {current.buyNowPrice&&current.state==='open'&&Date.parse(current.endsAt)>Date.now()&&<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+       <p className="text-xs font-bold text-emerald-900">Preço para arremate imediato</p>
+       <strong className="mt-1 block text-2xl text-emerald-950">{money(current.buyNowPrice)}</strong>
+       <button type="button" onClick={buyNow} className="mt-3 w-full rounded-xl bg-emerald-700 p-4 text-base font-black text-white">Solicitar arremate agora</button>
+       <p className="mt-2 text-xs text-emerald-900">Sujeito à confirmação da Mesa. Nesta versão, apenas simulação.</p>
+      </div>}
+      {current.state==='reserved'&&<p className="rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">Arremate em análise pela Mesa. Novos lances bloqueados.</p>}
       {current.state==='open'&&Date.parse(current.endsAt)>Date.now()?<>
        <label className="block text-sm font-bold">Seu lance (R$)
         <input type="number" inputMode="numeric" value={bidAmount} min={1000} placeholder="Ex.: 85000"
