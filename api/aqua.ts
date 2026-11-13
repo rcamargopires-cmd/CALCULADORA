@@ -84,7 +84,7 @@ async function myAccess(email:string){
 }
 async function listForBuyer(email:string){
  const accounts=await myAccess(email);
- if(!accounts.length)return {linked:false,items:[]};
+ if(!accounts.length)return {linked:false,items:[],interest:null};
  const items:any[]=[];
  for(const a of accounts.slice(0,8)){
   // Scoped server-side to tenant; never return non-invited lots.
@@ -101,7 +101,7 @@ async function listForBuyer(email:string){
     shop: a.shop});
   }
  }
- return {linked:true,items:items.slice(0,100)};
+ return {linked:true,items:items.slice(0,100),interest:accounts[0].interest||null};
 }
 const json=(res:any,status:number,value:any)=>res.status(status).setHeader('Cache-Control','no-store').json(value);
 export default async function handler(req:any,res:any){
@@ -168,6 +168,15 @@ export default async function handler(req:any,res:any){
     await motyqFirestore.patch(BUYERS,item.id,{interest,updatedAt:new Date().toISOString()});
    }
    return json(res,200,{ok:true,updated:Math.min(8,accounts.length)});
+  }
+  if(action==='disable-buyer'&&req.method==='POST'){
+   const actor=await staff(user),id=safeId(req.body?.buyerId);
+   if(!id)throw bad(400,'Identificador de lojista inválido.');
+   const key=scopedBuyerKey(actor.companyId,actor.storeId,id);
+   const previous=await motyqFirestore.get(BUYERS,key);
+   if(!previous||previous.companyId!==actor.companyId||previous.storeId!==actor.storeId)throw bad(404,'Lojista online não localizado.');
+   await motyqFirestore.patch(BUYERS,key,{active:false,updatedBy:user.email,updatedAt:new Date().toISOString()});
+   return json(res,200,{ok:true});
   }
   if(action==='my-access'&&req.method==='GET'){
    const accounts=await myAccess(user.email);
