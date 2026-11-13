@@ -4,7 +4,9 @@
  */
 import {createHash,randomUUID} from 'node:crypto';
 import {motyqFirestore} from './motyqFirestore.js';
-import firebaseConfig from '../firebase-applet-config.json';
+// Firebase Web API key is public configuration and already used by analyze-deal.ts.
+// Do not import JSON into Node ESM (Vercel Node 24 needs explicit import attributes).
+const FIREBASE_API_KEY='AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
 import {sendAquaPush} from './motyqAquaPush.js';
 
 const BUYERS='aqua_buyer_access_v1',LOTS='aqua_live_lots_v1',PUSH='aqua_push_tokens_v1',INBOX='aqua_buyer_inbox_v1';
@@ -38,7 +40,7 @@ const verified=async(req:any)=>{
  const authorization=str(req.headers?.authorization||'',6000);
  const token=authorization.startsWith('Bearer ')?authorization.slice(7):'';
  if(!token)throw bad(401,'Entre na conta para acessar o AQUA.');
- const response=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key='+firebaseConfig.apiKey,{
+ const response=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key='+FIREBASE_API_KEY,{
   method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({idToken:token})});
  if(!response.ok)throw bad(401,'Sessão inválida.');
  const result:any=await response.json().catch(()=>({}));
