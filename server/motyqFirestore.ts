@@ -187,6 +187,25 @@ export const motyqFirestore = {
     return true;
   },
 
+  /** Firestore atomic arrayUnion, safe for concurrent Mesa publications.
+   * The target document must exist (create the buyer inbox during enrollment).
+   */
+  appendToArray: async (collection:string,id:string,field:string,value:any) => {
+    if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(field))throw Error('firestore_field_invalid');
+    const {projectId,databaseId}=ctx();
+    const base='projects/'+projectId+'/databases/'+databaseId+'/documents';
+    const document=base+'/'+collection+'/'+id;
+    const url='https://firestore.googleapis.com/v1/'+base+':commit';
+    const response=await fetchWithRetry(url,{
+      method:'POST',headers:await authHeaders(),
+      body:JSON.stringify({writes:[{transform:{document,fieldTransforms:[{
+        fieldPath:field,appendMissingElements:{values:[toValue(value)]}
+      }]}}]})
+    },'firestore_array_union');
+    if(!response.ok)throw Error('firestore_array_union_'+response.status);
+    return true;
+  },
+
   query: async (
     collection: string,
     filters: Array<{ field: string; op?: 'EQUAL'; value: any }>,

@@ -17,7 +17,7 @@ import './services/monthCycleAdapter';
 import RoleAwareRoot from './components/RoleAwareRoot';
 import { isPublicCatalogRoute, PublicCatalogPage } from './components/CrmPersonalizedCatalog';
 import PublicCotacaoMesaBuyerForm from './components/PublicCotacaoMesaBuyerForm';
-import MarketIqAquaBuyerMobile from './components/MarketIqAquaBuyerMobile';
+import MarketIqAquaBuyerConnected from './components/MarketIqAquaBuyerConnected';
 import {PUBLIC_BUYER_PATH} from './services/marketIqBuyerRegistration';
 
 const rootElement = document.getElementById('root');
@@ -28,7 +28,7 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    {window.location.pathname.replace(/\/+$/,'')==='/aqua/lojista'?<MarketIqAquaBuyerMobile/>:
+    {window.location.pathname.replace(/\/+$/,'')==='/aqua/lojista'?<MarketIqAquaBuyerConnected/>:
      window.location.pathname.replace(/\/+$/,'')===PUBLIC_BUYER_PATH?
       <PublicCotacaoMesaBuyerForm />:
       isPublicCatalogRoute()?<PublicCatalogPage />:<RoleAwareRoot />}

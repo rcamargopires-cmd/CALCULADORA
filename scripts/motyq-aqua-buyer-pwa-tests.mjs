@@ -38,7 +38,7 @@ assert.ok(panel.includes('Simular carro novo'));
 assert.ok(panel.includes('Ainda não existe login')||panel.includes('após autenticação'),'Must label demo');
 assert.ok(panel.includes('Notificações em segundo plano virão com o serviço de push.'));
 assert.ok(panel.includes('Instalar'));
-assert.ok(entry.includes("==='/aqua/lojista'?<MarketIqAquaBuyerMobile/>"));
+assert.ok(entry.includes("==='/aqua/lojista'?<MarketIqAquaBuyerConnected/>"));
 assert.ok(vercel.rewrites.some(r=>r.source==='/aqua/lojista'&&r.destination==='/index.html'));
 assert.equal(manifest.display,'standalone');
 assert.equal(manifest.start_url,'/aqua/lojista');

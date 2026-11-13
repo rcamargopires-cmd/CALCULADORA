@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { motyqFirestore } from '../server/motyqFirestore.js';
+import motyqAquaGateway from '../server/motyqAquaGateway.js';
 
 // Per-function-instance circuit breaker to stop a burst of failed Firestore
 // profile reads after quota exhaustion. Does not cache roles or authorize users.
@@ -428,6 +429,7 @@ const handleUserManagement=async(req:any,res:any)=>{
 };
 
 export default async function handler(req: any, res: any) {
+  if(String(req.query?.action||'').startsWith('aqua-'))return motyqAquaGateway(req,res);
   if (String(req.query?.action || '') === 'current-user') {
     try {
       const authHeader=String(req.headers?.authorization||'');

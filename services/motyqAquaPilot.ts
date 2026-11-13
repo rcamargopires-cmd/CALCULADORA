@@ -10,7 +10,7 @@ export type AquaBid={id:string;buyerId:string;buyerShop:string;amount:number;cre
 export type AquaLot={
  id:string;vehicle:AquaLotVehicle;mode:AquaMode;state:AquaLotState;
  visibleBuyerIds:string[];createdAt:string;endsAt:string;minimumIncrement:number;
- bids:AquaBid[];version:number;closedAt?:string;buyNowPrice?:number;buyNowRequest?:AquaBuyNowRequest;
+ bids:AquaBid[];version:number;closedAt?:string;buyNowPrice?:number;buyNowRequest?:AquaBuyNowRequest;cloudLotId?:string;
 };
 const id=()=>typeof crypto!=='undefined'&&'randomUUID' in crypto?crypto.randomUUID():
  Math.random().toString(36).slice(2)+Date.now().toString(36);
