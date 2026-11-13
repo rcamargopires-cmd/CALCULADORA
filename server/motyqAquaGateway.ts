@@ -79,7 +79,7 @@ const compatible=(car:any,prefs:any)=>{
 };
 async function myAccess(email:string){
  // Lookup is by exact verified email, not a buyerId submitted by the caller.
- const rows=await motyqFirestore.query(BUYERS,[{field:'email',value:email}],40);
+ const rows:any[]=await motyqFirestore.query(BUYERS,[{field:'email',value:email}],40);
  return rows.filter((x:any)=>x.email===email&&x.active===true&&x.optedIn===true);
 }
 async function listForBuyer(email:string){
@@ -88,7 +88,7 @@ async function listForBuyer(email:string){
  const items:any[]=[];
  for(const a of accounts.slice(0,8)){
   // Scoped server-side to tenant; never return non-invited lots.
-  const rows=await motyqFirestore.query(LOTS,[{field:'companyId',value:a.companyId}],150);
+  const rows:any[]=await motyqFirestore.query(LOTS,[{field:'companyId',value:a.companyId}],150);
   for(const lot of rows){
    if(lot.storeId!==a.storeId||lot.state!=='open'||Date.parse(lot.endsAt)<=Date.now())continue;
    if(!Array.isArray(lot.visibleBuyerIds)||!lot.visibleBuyerIds.includes(a.buyerId))continue;
@@ -127,7 +127,7 @@ export default async function handler(req:any,res:any){
    if(!mode)throw bad(400,'Tipo de disputa inválido.');
    const invited=Array.isArray(input.visibleBuyerIds)?[...new Set(input.visibleBuyerIds.map((x:any)=>safeId(x)).filter(Boolean))]:[];
    if(!invited.length||invited.length>250)throw bad(400,'Selecione lojistas habilitados.');
-   const all=await motyqFirestore.query(BUYERS,[{field:'companyId',value:actor.companyId}],250);
+   const all:any[]=await motyqFirestore.query(BUYERS,[{field:'companyId',value:actor.companyId}],250);
    const matched=all.filter((b:any)=>b.storeId===actor.storeId&&b.active&&b.optedIn&&invited.includes(b.buyerId)&&compatible({...vehicle,buyNowPrice:input.buyNowPrice},b.interest));
    if(matched.length!==invited.length)throw bad(400,'Um ou mais lojistas ainda não estão habilitados ou não são compatíveis.');
    const buyNowPrice=input.buyNowPrice===undefined?undefined:money(input.buyNowPrice);
@@ -135,7 +135,7 @@ export default async function handler(req:any,res:any){
    const clientId=safeId(input.clientLotId);
    if(!clientId)throw bad(400,'Identificador da oportunidade inválido.');
    const docId=digest(actor.companyId+'|'+actor.storeId+'|'+clientId).slice(0,52);
-   const existing=await motyqFirestore.get(LOTS,docId);
+   const existing:any=await motyqFirestore.get(LOTS,docId);
    if(existing){
     if(existing.companyId!==actor.companyId||existing.storeId!==actor.storeId||existing.createdBy!==user.email)
      throw bad(403,'Oportunidade indisponível.');
@@ -150,7 +150,7 @@ export default async function handler(req:any,res:any){
   if(action==='close-lot'&&req.method==='POST'){
    const actor=await staff(user),lotId=safeId(req.body?.lotId);
    if(!lotId)throw bad(400,'Oportunidade inválida.');
-   const lot=await motyqFirestore.get(LOTS,lotId);
+   const lot:any=await motyqFirestore.get(LOTS,lotId);
    if(!lot||lot.companyId!==actor.companyId||lot.storeId!==actor.storeId)
     throw bad(404,'Oportunidade não localizada.');
    if(lot.createdBy!==user.email)throw bad(403,'Somente quem publicou pode encerrar.');
@@ -192,7 +192,7 @@ export default async function handler(req:any,res:any){
    const actor=await staff(user),id=safeId(req.body?.buyerId);
    if(!id)throw bad(400,'Identificador de lojista inválido.');
    const key=scopedBuyerKey(actor.companyId,actor.storeId,id);
-   const previous=await motyqFirestore.get(BUYERS,key);
+   const previous:any=await motyqFirestore.get(BUYERS,key);
    if(!previous||previous.companyId!==actor.companyId||previous.storeId!==actor.storeId)throw bad(404,'Lojista online não localizado.');
    await motyqFirestore.patch(BUYERS,key,{active:false,updatedBy:user.email,updatedAt:new Date().toISOString()});
    return json(res,200,{ok:true});
