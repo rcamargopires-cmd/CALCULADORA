@@ -56,6 +56,14 @@ export default function MarketIqAquaBuyersManager({scope,onSaved}:Props){
   catch(e){setError(e instanceof Error?e.message:'Falha na habilitação.');}
   finally{setSyncingId('');}
  };
+ const disableOnline=async(buyer:BuyerProfile)=>{
+  if(!window.confirm('Bloquear acesso online de '+buyer.shop+'?'))return;
+  setSyncingId(buyer.id);setError('');setNotice('');
+  try{await aquaCloudRequest('disable-buyer',{buyerId:buyer.id});
+   setNotice('Acesso online bloqueado para '+buyer.shop+'.');}
+  catch(e){setError(e instanceof Error?e.message:'Falha ao bloquear acesso online.');}
+  finally{setSyncingId('');}
+ };
  const toggleActive=(buyer:BuyerProfile)=>{
   const next=buyers.map(b=>b.id===buyer.id?{...b,active:!b.active,updatedAt:new Date().toISOString()}:b);
   try{saveCotacaoBuyers(scope,next);setBuyers(next);onSaved(next);
@@ -83,6 +91,7 @@ export default function MarketIqAquaBuyersManager({scope,onSaved}:Props){
      <button type="button" onClick={()=>{setDraft({...b});setError('');}} className="rounded-lg border border-cyan-700 px-3 py-2 text-xs font-bold text-cyan-900">Editar ficha</button>
      <button type="button" onClick={()=>toggleActive(b)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold">{b.active?'Desativar':'Ativar'}</button>
      <button type="button" disabled={syncingId===b.id} onClick={()=>void enableOnline(b)} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">{syncingId===b.id?'Habilitando...':'Habilitar no app'}</button>
+     <button type="button" disabled={syncingId===b.id} onClick={()=>void disableOnline(b)} className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-800 disabled:opacity-50">Bloquear no app</button>
     </div>
    </div>)}
    {!shown.length&&<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">Nenhum lojista encontrado. Clique em Novo lojista para cadastrar.</p>}
