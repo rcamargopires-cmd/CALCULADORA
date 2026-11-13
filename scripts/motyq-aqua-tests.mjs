@@ -60,6 +60,33 @@ assert.equal(aqua.visibleAquaBidSummary(s2,'a').bidCount,null);
 assert.throws(()=>aqua.simulateAquaBid(s2,{id:'a',shop:'Loja A'},71000,'2026-11-14T12:00:00Z'),/encerrada/);
 assert.throws(()=>aqua.createAquaLot({vehicle:pub,mode:'open',endsAt:'2026-11-11T12:00:00Z',visibleBuyerIds:['a']},start),/encerramento/);
 assert.throws(()=>aqua.createAquaLot({vehicle:pub,mode:'open',endsAt:'2026-11-14T12:00:00Z',visibleBuyerIds:[]},start),/lojista/);
+// Buy-now is opt-in, exclusive and requires Mesa confirmation. Never an automatic sale.
+const withBuyNow=aqua.createAquaLot({vehicle:pub,mode:'sealed',endsAt:'2026-11-14T12:00:00Z',
+ visibleBuyerIds:['a','b'],buyNowPrice:78000},start);
+assert.equal(withBuyNow.buyNowPrice,78000);
+assert.throws(()=>aqua.createAquaLot({vehicle:pub,mode:'open',endsAt:'2026-11-14T12:00:00Z',
+ visibleBuyerIds:['a'],buyNowPrice:900},start),/arremate inválido/);
+assert.throws(()=>aqua.requestAquaBuyNow(withBuyNow,{id:'x',shop:'Intruso'},'2026-11-13T12:00:00Z'),/não autorizado/);
+assert.throws(()=>aqua.requestAquaBuyNow(open,{id:'a',shop:'Loja A'},'2026-11-13T12:00:00Z'),/indisponível/);
+const reserved=aqua.requestAquaBuyNow(withBuyNow,{id:'a',shop:'Loja A'},'2026-11-13T12:00:00Z');
+assert.equal(reserved.state,'reserved');
+assert.equal(reserved.buyNowRequest.status,'pending');
+assert.equal(reserved.buyNowRequest.amount,78000);
+assert.throws(()=>aqua.requestAquaBuyNow(reserved,{id:'b',shop:'Loja B'},'2026-11-13T12:01:00Z'),/reservada/);
+assert.throws(()=>aqua.simulateAquaBid(reserved,{id:'b',shop:'Loja B'},80000,'2026-11-13T12:01:00Z'),/reservada/);
+const rejected=aqua.resolveAquaBuyNow(reserved,'rejected','2026-11-13T12:30:00Z');
+assert.equal(rejected.state,'open');
+const reservedAgain=aqua.requestAquaBuyNow(rejected,{id:'b',shop:'Loja B'},'2026-11-13T12:40:00Z');
+const approved=aqua.resolveAquaBuyNow(reservedAgain,'approved','2026-11-13T12:41:00Z');
+assert.equal(approved.state,'closed');
+assert.equal(approved.buyNowRequest.status,'approved');
+assert.throws(()=>aqua.requestAquaBuyNow(approved,{id:'a',shop:'Loja A'},'2026-11-13T12:42:00Z'),/encerrada/);
+assert.throws(()=>aqua.requestAquaBuyNow(withBuyNow,{id:'a',shop:'Loja A'},'2026-11-14T12:00:00Z'),/encerrada/);
+assert.ok(ui.includes('Solicitar arremate agora'));
+assert.ok(ui.includes('Confirmar no teste')&&ui.includes('Recusar e liberar'));
+assert.ok(ui.includes('buyNowPrice:buyNowEnabled?Number(buyNowInput):undefined'));
+assert.ok(ui.includes('Novos lances bloqueados'));
+
 const closed=aqua.closeAquaLot(second,'2026-11-13T13:00:00Z');
 assert.throws(()=>aqua.simulateAquaBid(closed,{id:'a',shop:'Loja A'},72000,'2026-11-13T13:01:00Z'),/encerrada/);
 const store=new Map();
