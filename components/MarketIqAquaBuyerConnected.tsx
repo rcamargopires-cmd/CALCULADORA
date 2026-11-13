@@ -5,7 +5,7 @@ import MarketIqAquaBuyerMobile from './MarketIqAquaBuyerMobile';
 import {aquaCloudRequest} from '../services/motyqAquaCloudClient';
 import {defaultAquaInterest,type AquaBuyerListing,type AquaInterest} from '../services/motyqAquaBuyerPreview';
 
-type Feed={linked:boolean;items:AquaBuyerListing[]};
+type Feed={linked:boolean;items:AquaBuyerListing[];interest?:AquaInterest|null};
 const brl=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const formClass='w-full rounded-lg border border-slate-300 p-3 text-sm';
 export default function MarketIqAquaBuyerConnected(){
@@ -35,6 +35,7 @@ export default function MarketIqAquaBuyerConnected(){
     const response=await aquaCloudRequest<Feed>('buyer-feed');
     if(stopped)return;
     setLinked(response.linked);setLots(response.items);setError('');
+    if(response.interest)setPrefs(response.interest);
     const known=new Set(response.items.map(x=>x.id));
     const newly=observed.current?response.items.filter(x=>!observed.current!.has(x.id)):[];
     observed.current=known;
