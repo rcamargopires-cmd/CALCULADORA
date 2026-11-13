@@ -148,6 +148,27 @@ export default async function handler(req:any,res:any){
    await motyqFirestore.patch(BUYERS,key,doc);
    return json(res,200,{ok:true,shop:buyer.shop});
   }
+  if(action==='save-interests'&&req.method==='POST'){
+   const accounts=await myAccess(user.email);
+   if(!accounts.length)throw bad(403,'Seu e-mail ainda não foi habilitado por uma Mesa.');
+   const input=req.body?.interest||{};
+   const interest={
+    vehicleType:['car','motorcycle','both'].includes(input.vehicleType)?input.vehicleType:'both',
+    brands:str(input.brands,400),models:str(input.models,400),
+    yearFrom:str(input.yearFrom,4),yearTo:str(input.yearTo,4),
+    maxKm:str(input.maxKm,8).replace(/\D/g,''),
+    budgetTo:str(input.budgetTo,10).replace(/\D/g,'')
+   };
+   if((interest.yearFrom&&!/^(19|20)\d{2}$/.test(interest.yearFrom))||
+    (interest.yearTo&&!/^(19|20)\d{2}$/.test(interest.yearTo))||
+    (interest.yearFrom&&interest.yearTo&&+interest.yearFrom>+interest.yearTo))
+    throw bad(400,'Faixa de anos inválida.');
+   for(const item of accounts.slice(0,8)){
+    // Only mutate interests of the verified buyer's existing authorized links.
+    await motyqFirestore.patch(BUYERS,item.id,{interest,updatedAt:new Date().toISOString()});
+   }
+   return json(res,200,{ok:true,updated:Math.min(8,accounts.length)});
+  }
   if(action==='my-access'&&req.method==='GET'){
    const accounts=await myAccess(user.email);
    return json(res,200,{linked:accounts.length>0,shops:accounts.map((x:any)=>x.shop)});
