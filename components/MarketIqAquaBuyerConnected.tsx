@@ -1,6 +1,8 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {onAuthStateChanged,signInWithPopup,signOut} from 'firebase/auth';
 import {auth,googleProvider} from '../firebase';
+import {getApp} from 'firebase/app';
+import {deleteToken,getMessaging,getToken,isSupported} from 'firebase/messaging';
 import MarketIqAquaBuyerMobile from './MarketIqAquaBuyerMobile';
 import {aquaCloudRequest} from '../services/motyqAquaCloudClient';
 import {defaultAquaInterest,type AquaBuyerListing,type AquaInterest} from '../services/motyqAquaBuyerPreview';
@@ -18,6 +20,7 @@ export default function MarketIqAquaBuyerConnected(){
  const [prefs,setPrefs]=useState<AquaInterest>(()=>defaultAquaInterest());
  const [screen,setScreen]=useState<'feed'|'preferences'>('feed');
  const [alerts,setAlerts]=useState(false);
+ const [pushReady,setPushReady]=useState(false);
  const [installEvent,setInstallEvent]=useState<(Event&{prompt:()=>Promise<void>})|null>(null);
  const observed=useRef<Set<string>|null>(null);
  useEffect(()=>{
@@ -70,11 +73,35 @@ export default function MarketIqAquaBuyerConnected(){
    setScreen('feed');window.location.reload();
   }catch(e){setError(e instanceof Error?e.message:'Não foi possível salvar interesses.');}
  };
+ const worker=()=>navigator.serviceWorker.register('/aqua/aqua-sw.js',{scope:'/aqua/'});
  const allow=async()=>{
-  if(!('Notification' in window)){setNotice('Este dispositivo não oferece avisos pelo navegador.');return;}
-  try{const result=await Notification.requestPermission();setAlerts(result==='granted');
-   setNotice(result==='granted'?'Avisos permitidos enquanto o app estiver aberto. Push com app fechado ainda não está ativo.':'O aplicativo continua mostrando suas oportunidades sem notificações.');}
-  catch{setNotice('Não foi possível ativar avisos neste celular.');}
+  if(!('Notification' in window)||!('serviceWorker' in navigator)||!window.isSecureContext){
+   setNotice('Este navegador não oferece notificações em segundo plano para o AQUA.');return;
+  }
+  try{
+   const allowed=await Notification.requestPermission();
+   if(allowed!=='granted'){setNotice('Notificações não autorizadas. As oportunidades continuam disponíveis no aplicativo.');return;}
+   if(!await isSupported()){setNotice('Seu navegador não é compatível com o Firebase Messaging.');return;}
+   const registration=await worker();
+   const token=await getToken(getMessaging(getApp()),{serviceWorkerRegistration:registration});
+   if(!token)throw Error('O celular não gerou um token para notificações.');
+   await aquaCloudRequest('push-subscribe',{token});
+   setAlerts(true);setPushReady(true);
+   setNotice('Avisos de novos carros ativados para este celular. O recebimento em segundo plano depende do suporte do aparelho.');
+  }catch(err){setNotice(err instanceof Error?err.message:'Não foi possível ativar os avisos.');}
+ };
+ const logout=async()=>{
+  try{
+   if('serviceWorker' in navigator&&await isSupported()&&'Notification' in window&&Notification.permission==='granted'){
+    const registration=await navigator.serviceWorker.getRegistration('/aqua/').catch(()=>undefined);
+    if(registration){
+     const messaging=getMessaging(getApp());
+     const token=await getToken(messaging,{serviceWorkerRegistration:registration}).catch(()=>'');
+     if(token)await aquaCloudRequest('push-unsubscribe',{token}).catch(()=>{});
+     await deleteToken(messaging).catch(()=>{});
+    }
+   }
+  }finally{await signOut(auth);setPushReady(false);setAlerts(false);}
  };
  const install=async()=>{
   if(installEvent){try{await installEvent.prompt();return;}catch{}}
@@ -101,7 +128,7 @@ export default function MarketIqAquaBuyerConnected(){
     <h1 className="text-xl font-black">Oportunidades para sua loja</h1>
     <div className="mt-3 flex items-center justify-between gap-2 text-xs">
      <span className="truncate">{email}</span>
-     <button type="button" onClick={()=>void signOut(auth)} className="rounded-lg border border-cyan-300 px-3 py-2 font-bold">Sair</button>
+     <button type="button" onClick={()=>void logout()} className="rounded-lg border border-cyan-300 px-3 py-2 font-bold">Sair</button>
     </div>
    </header>
    {notice&&<p role="status" className="rounded-xl bg-cyan-50 p-3 text-sm font-bold text-cyan-950">{notice}</p>}
@@ -122,7 +149,7 @@ export default function MarketIqAquaBuyerConnected(){
         <strong className="text-sm text-cyan-950">Avisos de oportunidades</strong>
         <button type="button" onClick={()=>void allow()} className="rounded-lg bg-cyan-800 px-3 py-2 text-xs font-black text-white">Permitir avisos</button>
        </div>
-       <p className="mt-2 text-xs text-cyan-950">Novos carros aparecem ao atualizar o aplicativo ou durante a consulta automática com ele aberto. Alertas com o app fechado ainda exigem push em segundo plano.</p>
+       <p className="mt-2 text-xs text-cyan-950">Novos carros aparecem ao atualizar o aplicativo ou durante a consulta automática com ele aberto. {pushReady?'Notificações ativadas neste aparelho. A entrega com o app fechado depende do suporte do navegador.':'Ative os avisos para receber notificações quando entrar um carro compatível. A entrega com o app fechado depende do suporte do navegador.'}</p>
       </section>
       {lots.map(l=><article key={l.id} className="rounded-2xl border border-slate-200 p-4 shadow-sm">
        <h3 className="text-lg font-black">{l.brand} {l.model}</h3>
