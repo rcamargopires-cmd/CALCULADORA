@@ -1,6 +1,15 @@
 /* Motyq IQ PWA: intentionally network-first and no persistent asset, API or
  * customer-data caches. Online authorization and live financial values remain
  * authoritative, including after installing the app. */
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();
+ // Only the explicit AQUA buyer preview test notification uses this path.
+ if(!String(event.notification.tag||'').startsWith('DEMO-'))return;
+ event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(clients=>{
+  const found=clients.find(c=>new URL(c.url).pathname==='/aqua/lojista');
+  return found?found.focus():self.clients.openWindow('/aqua/lojista');
+ }));
+});
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',event=>{
