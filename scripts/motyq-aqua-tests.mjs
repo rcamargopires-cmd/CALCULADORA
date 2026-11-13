@@ -4,6 +4,8 @@ import ts from 'typescript';
 const src=readFileSync('services/motyqAquaPilot.ts','utf8');
 const ui=readFileSync('components/MarketIqAquaPilotPanel.tsx','utf8');
 const quick=readFileSync('components/MarketIqQuickBuyerQuote.tsx','utf8');
+const workspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
+const home=readFileSync('components/MarketIqSimpleHome.tsx','utf8');
 const roster=readFileSync('components/MarketIqAquaBuyersManager.tsx','utf8');
 
 const compilerOptions={module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX};
@@ -12,6 +14,13 @@ const transpile=s=>{const r=ts.transpileModule(s,{compilerOptions,reportDiagnost
 transpile(ui);transpile(quick);transpile(roster);
 assert.ok(quick.includes('MarketIqAquaPilotPanel'));
 assert.ok(ui.includes('MarketIqAquaBuyersManager')&&ui.includes('Meus lojistas'));
+assert.ok(ui.includes('vehicle?:ConsultedVehicle'),'Aquário must open without an active valuation');
+assert.ok(ui.includes('disabled={!hasVehicle||!invited.length}'),'No empty-vehicle lots');
+assert.ok(workspace.includes('onOpenAqua={openAquaDashboard}'),'Home opens Aqua without evaluation');
+assert.ok(workspace.includes('onClick={openAquaDashboard}'),'Desktop navigation opens Aqua');
+assert.ok(home.includes('Reabrir oportunidades e gerenciar lojistas sem lançar outro carro'));
+assert.ok(home.includes('onClick={onOpenAqua}'));
+
 assert.ok(ui.includes('onSaved={setBuyers}'),'Update eligible buyers after editing');
 assert.ok(roster.includes('saveCotacaoBuyers(scope,next)'),'The roster must persist in the existing Mesa directory');
 assert.ok(roster.includes('loadCotacaoBuyers(scope)'));
