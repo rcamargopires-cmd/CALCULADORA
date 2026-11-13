@@ -53,14 +53,16 @@ export default function MarketIqAquaBuyerConnected(){
    }catch(e){if(!stopped)setError(e instanceof Error?e.message:'Não foi possível buscar oportunidades.');}
    finally{if(!stopped)setChecking(false);}
   };
+  const onFocus=()=>{if(document.visibilityState==='visible')void refresh();};
+  document.addEventListener('visibilitychange',onFocus);
   const unsub=onAuthStateChanged(auth,user=>{
    if(timer)clearInterval(timer);
    currentEmail=user?.emailVerified?user.email||'':'';
    setEmail(currentEmail);setLinked(false);setChecking(Boolean(currentEmail));setLots([]);
    setError('');observed.current=null;
-   if(currentEmail){void refresh();timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},60000);}
+   if(currentEmail){void refresh();timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},300000);}
   });
-  return ()=>{stopped=true;unsub();if(timer)clearInterval(timer);};
+  return ()=>{stopped=true;unsub();if(timer)clearInterval(timer);document.removeEventListener('visibilitychange',onFocus);};
  },[alerts]);
  const logIn=async()=>{setError('');try{await signInWithPopup(auth,googleProvider);}
  catch{setError('Não foi possível entrar com Google. Confirme a conta autorizada e tente novamente.');}};
