@@ -4,11 +4,22 @@ import ts from 'typescript';
 const src=readFileSync('services/motyqAquaPilot.ts','utf8');
 const ui=readFileSync('components/MarketIqAquaPilotPanel.tsx','utf8');
 const quick=readFileSync('components/MarketIqQuickBuyerQuote.tsx','utf8');
+const roster=readFileSync('components/MarketIqAquaBuyersManager.tsx','utf8');
+
 const compilerOptions={module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX};
 const transpile=s=>{const r=ts.transpileModule(s,{compilerOptions,reportDiagnostics:true});
  assert.equal(r.diagnostics.filter(x=>x.category===ts.DiagnosticCategory.Error).length,0);return r.outputText;};
-transpile(ui);transpile(quick);
+transpile(ui);transpile(quick);transpile(roster);
 assert.ok(quick.includes('MarketIqAquaPilotPanel'));
+assert.ok(ui.includes('MarketIqAquaBuyersManager')&&ui.includes('Meus lojistas'));
+assert.ok(ui.includes('onSaved={setBuyers}'),'Update eligible buyers after editing');
+assert.ok(roster.includes('saveCotacaoBuyers(scope,next)'),'The roster must persist in the existing Mesa directory');
+assert.ok(roster.includes('loadCotacaoBuyers(scope)'));
+assert.ok(roster.includes('Editar ficha')&&roster.includes('Salvar ficha'));
+assert.ok(roster.includes('budgetTo')||roster.includes('fields.map'),'All optional profile fields editable');
+assert.ok(roster.includes('validBuyerPhone')&&roster.includes('optedIn'));
+assert.ok(roster.includes('Desativar')&&roster.includes('Ativar'));
+
 assert.ok(quick.includes('AQUA · Laboratório'));
 assert.ok(ui.includes('Simular meu lance')&&ui.includes('Colocar carro no Aquário de teste'));
 assert.ok(ui.includes('Convidar automaticamente os lojistas compatíveis'));
