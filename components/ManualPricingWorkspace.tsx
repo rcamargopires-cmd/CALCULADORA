@@ -818,6 +818,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   if(!brand.trim()||!model.trim()||!year.trim())return;
   setAquaVehicle({plate,brand,model,year,km,vehicleType,fipe:fipe?.value||0});
  };
+ const openAquaDashboard=()=>setAquaVehicle({plate:'',brand:'',model:'',year:'',km:'',vehicleType:'car',fipe:0});
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
  const navigateSimple=(destination:SimpleIqDestination|'home',lookedUpPlate?:string)=>{
@@ -848,6 +849,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   onOpenDirectory={()=>{setQuickBuyerQuote(null);setQuoteFromRadar({token:'buyer-directory:'+Date.now(),vehicle:quickBuyerQuote});navigateSimple('consulted');}}/>}
  {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
   <MarketIqSimpleHome
+   onOpenAqua={openAquaDashboard}
    onNavigate={navigateSimple}
    onOpenAdvanced={()=>{setShowAllTools(true);navigateSimple('pricing');}}
    onSelectImport={selectSimpleImport}
@@ -922,6 +924,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(mesaActive?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Mesa de precificação</button>
   <button type="button" onClick={()=>switchDeskSection('radar')} aria-current={deskSection==='radar'?'page':undefined}
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='radar'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Radar de Compra <span className="ml-1 rounded bg-cyan-100 px-1.5 py-0.5 text-[10px] font-black text-cyan-900">NOVO</span></button>
+  <button type="button" onClick={openAquaDashboard}
+   className="rounded-lg border border-cyan-300 bg-cyan-50 px-3.5 py-2.5 text-[13px] font-black text-cyan-950">Aquário</button>
   <button type="button" onClick={()=>switchDeskSection('consulted')} aria-current={deskSection==='consulted'?'page':undefined}
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='consulted'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Cotação Mesa</button>
   <button type="button" onClick={()=>switchDeskSection('approvals')} aria-current={deskSection==='approvals'?'page':undefined}
