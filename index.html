@@ -9,6 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="/motyq-iq.webmanifest" />
+    <script>if(location.pathname.replace(/\\/+$/,'')==='/aqua/lojista'){
+      document.querySelector('link[rel="manifest"]').setAttribute('href','/aqua-lojista.webmanifest');
+      document.querySelector('meta[name="application-name"]').setAttribute('content','Motyq AQUA');
+      document.querySelector('meta[name="theme-color"]').setAttribute('content','#12475b');
+    }</script>
     <link rel="apple-touch-icon" href="/icons/motyq-iq-192.png" />
     <meta name="description" content="Motyq — inteligência para operação automotiva." />
     <link rel="icon" type="image/svg+xml" href="/motyq-icon.svg" />
