@@ -15,7 +15,7 @@ transpile(ui);transpile(quick);transpile(roster);
 assert.ok(quick.includes('MarketIqAquaPilotPanel'));
 assert.ok(ui.includes('MarketIqAquaBuyersManager')&&ui.includes('Meus lojistas'));
 assert.ok(ui.includes('vehicle?:ConsultedVehicle'),'Aquário must open without an active valuation');
-assert.ok(ui.includes('disabled={!hasVehicle||!invited.length}'),'No empty-vehicle lots');
+assert.ok(ui.includes('disabled={!hasVehicle||!invited.length||(buyNowEnabled'),'No empty-vehicle lots');
 assert.ok(workspace.includes('onOpenAqua={openAquaDashboard}'),'Home opens Aqua without evaluation');
 assert.ok(workspace.includes('onClick={openAquaDashboard}'),'Desktop navigation opens Aqua');
 assert.ok(home.includes('Reabrir oportunidades e gerenciar lojistas sem lançar outro carro'));
