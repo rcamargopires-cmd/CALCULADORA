@@ -5,10 +5,12 @@ import {loadCotacaoBuyers,rankCotacaoBuyers,type BuyerProfile} from '../services
 import {createAquaLot,loadAquaLots,saveAquaLots,simulateAquaBid,closeAquaLot,
  highestAquaBid,visibleAquaBidSummary,publicAquaVehicle,type AquaLot,type AquaMode} from '../services/motyqAquaPilot';
 
-type Props={scope:string;vehicle:ConsultedVehicle;onClose:()=>void};
+type Props={scope:string;vehicle?:ConsultedVehicle;onClose:()=>void};
 const money=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const dateInput=(hours:number)=>{const d=new Date(Date.now()+hours*3600000);return d.toISOString();};
 export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
+ const currentVehicle=vehicle||{plate:'',brand:'',model:'',year:'',km:'',fipe:0,vehicleType:'car' as const};
+ const hasVehicle=Boolean(currentVehicle.brand.trim()&&currentVehicle.model.trim()&&currentVehicle.year.trim());
  const [buyers,setBuyers]=useState<BuyerProfile[]>(()=>loadCotacaoBuyers(scope));
  const [lots,setLots]=useState<AquaLot[]>(()=>loadAquaLots(scope));
  const [screen,setScreen]=useState<'mesa'|'lojista'|'cadastro'>('mesa');
@@ -23,7 +25,7 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
  const [bidAmount,setBidAmount]=useState('');
  const [notice,setNotice]=useState('');
  const [error,setError]=useState('');
- const matches=useMemo(()=>rankCotacaoBuyers(buyers,vehicle,vehicle.vehicleType||'car'),[buyers,vehicle]);
+ const matches=useMemo(()=>rankCotacaoBuyers(buyers,currentVehicle,currentVehicle.vehicleType||'car'),[buyers,currentVehicle.brand,currentVehicle.model,currentVehicle.year,currentVehicle.vehicleType]);
  const eligible=buyers.filter(b=>b.active&&b.optedIn);
  const compatible=matches.filter(m=>eligible.some(b=>b.id===m.buyer.id)).map(m=>m.buyer.id);
  const invited=autoSelect?compatible:manualInvites;
@@ -37,7 +39,7 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
    const valid=new Set(eligible.map(b=>b.id));
    if(invited.some(id=>!valid.has(id)))throw new Error('Escolha somente lojistas autorizados.');
    const lot=createAquaLot({
-    vehicle:publicAquaVehicle({...vehicle,vehicleType:vehicle.vehicleType||'car'},notes),
+    vehicle:publicAquaVehicle({...currentVehicle,vehicleType:currentVehicle.vehicleType||'car'},notes),
     mode,endsAt:dateInput(hours),visibleBuyerIds:invited,minimumIncrement:500
    });
    commit([lot,...lots],'Oportunidade de teste criada. Ainda não foi enviada aos lojistas.');
@@ -79,9 +81,10 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
     {screen==='cadastro'?<MarketIqAquaBuyersManager scope={scope} onSaved={setBuyers}/>:screen==='mesa'?<>
      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-      <div><p className="text-xs font-bold text-slate-500">1. VEÍCULO PRONTO</p>
-       <h3 className="text-lg font-black">{vehicle.brand} {vehicle.model} · {vehicle.year}</h3>
-       <p className="text-sm text-slate-600">{vehicle.km||'KM não informada'} km · Informações copiadas da Mesa</p></div>
+      <div><p className="text-xs font-bold text-slate-500">1. VEÍCULO</p>
+       {hasVehicle?<><h3 className="text-lg font-black">{currentVehicle.brand} {currentVehicle.model} · {currentVehicle.year}</h3>
+       <p className="text-sm text-slate-600">{currentVehicle.km||'KM não informada'} km · Informações copiadas da Mesa</p></>:
+       <p className="mt-2 rounded-lg bg-cyan-50 p-3 text-sm text-cyan-950">Você pode consultar oportunidades e editar lojistas aqui. Para criar uma nova oportunidade, abra a avaliação do carro e clique em Colocar no Aquário.</p>}</div>
       <div><p className="mb-2 text-xs font-bold text-slate-500">2. COMO RECEBER OFERTAS?</p>
        <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={()=>setMode('open')} className={'rounded-xl border p-3 text-left '+(mode==='open'?'border-cyan-700 bg-cyan-50':'border-slate-200')}>
@@ -112,7 +115,7 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
         placeholder="Conservação, vistoria e observações sem dados pessoais"
         className="mt-2 w-full rounded-lg border border-slate-300 p-2 text-sm"/>}
       </div>
-      <button type="button" onClick={create} disabled={!invited.length}
+      <button type="button" onClick={create} disabled={!hasVehicle||!invited.length}
        className="w-full rounded-xl bg-emerald-700 p-4 text-base font-black text-white disabled:opacity-50">
        Colocar carro no Aquário de teste</button>
       <p className="text-xs text-slate-500">Não publica na internet. Placa, FIPE e custos internos não entram na oportunidade.</p>
