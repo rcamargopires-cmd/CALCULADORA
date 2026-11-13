@@ -16,6 +16,7 @@ export default function MarketIqAquaBuyerConnected(){
  const [linked,setLinked]=useState(false);
  const [lots,setLots]=useState<AquaBuyerListing[]>([]);
  const [error,setError]=useState('');
+ const [retryKey,setRetryKey]=useState(0);
  const [notice,setNotice]=useState('');
  const [prefs,setPrefs]=useState<AquaInterest>(()=>defaultAquaInterest());
  const [screen,setScreen]=useState<'feed'|'preferences'>('feed');
@@ -63,7 +64,7 @@ export default function MarketIqAquaBuyerConnected(){
    if(currentEmail){void refresh();timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},300000);}
   });
   return ()=>{stopped=true;unsub();if(timer)clearInterval(timer);document.removeEventListener('visibilitychange',onFocus);};
- },[alerts]);
+ },[alerts,retryKey]);
  const logIn=async()=>{setError('');try{await signInWithPopup(auth,googleProvider);}
  catch{setError('Não foi possível entrar com Google. Confirme a conta autorizada e tente novamente.');}};
  const save=async()=>{
@@ -134,8 +135,14 @@ export default function MarketIqAquaBuyerConnected(){
     </div>
    </header>
    {notice&&<p role="status" className="rounded-xl bg-cyan-50 p-3 text-sm font-bold text-cyan-950">{notice}</p>}
-   {error&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-900">{error}</p>}
    {checking?<p className="rounded-xl bg-slate-100 p-4 text-sm">Conferindo cadastro e oportunidades autorizadas...</p>:
+    error?<section role="alert" className="space-y-3 rounded-xl bg-rose-50 p-4 text-rose-950">
+     <h2 className="font-black">Não foi possível consultar o AQUA</h2>
+     <p className="text-sm">{error}</p>
+     <p className="text-xs">Sua conta não foi classificada como não habilitada. A consulta ao servidor falhou.</p>
+     <button type="button" onClick={()=>setRetryKey(value=>value+1)}
+      className="rounded-lg bg-rose-800 px-4 py-2 text-sm font-black text-white">Tentar novamente</button>
+    </section>:
     !linked?<section className="space-y-2 rounded-xl bg-amber-50 p-4">
      <h2 className="font-black text-amber-950">Conta aguardando habilitação</h2>
      <p className="text-sm text-amber-900">Peça à Mesa para cadastrar e habilitar exatamente este e-mail na ficha do lojista. Por segurança, carros de outras lojas não são exibidos.</p>
