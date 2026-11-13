@@ -146,7 +146,7 @@ export default async function handler(req:any,res:any){
    const mode=input.mode==='sealed'?'sealed':input.mode==='open'?'open':null;
    if(!mode)throw bad(400,'Tipo de disputa inválido.');
    const invited=Array.isArray(input.visibleBuyerIds)?[...new Set(input.visibleBuyerIds.map((x:any)=>safeId(x)).filter(Boolean))]:[];
-   if(!invited.length||invited.length>250)throw bad(400,'Selecione lojistas habilitados.');
+   if(!invited.length||invited.length>60)throw bad(400,'Selecione até 60 lojistas por oportunidade nesta etapa.');
    const all:any[]=await motyqFirestore.query(BUYERS,[{field:'companyId',value:actor.companyId}],250);
    const matched=all.filter((b:any)=>b.environment===aquaEnvironment()&&b.storeId===actor.storeId&&b.active&&b.optedIn&&invited.includes(b.buyerId)&&compatible({...vehicle,buyNowPrice:input.buyNowPrice},b.interest));
    if(matched.length!==invited.length)throw bad(400,'Um ou mais lojistas ainda não estão habilitados ou não são compatíveis.');
@@ -159,12 +159,14 @@ export default async function handler(req:any,res:any){
    if(existing){
     if(existing.companyId!==actor.companyId||existing.storeId!==actor.storeId||existing.createdBy!==user.email)
      throw bad(403,'Oportunidade indisponível.');
-    return json(res,200,{ok:true,lotId:docId,invitedCount:existing.visibleBuyerIds?.length||0,alreadyPublished:true});
+    await Promise.all(matched.map((b:any)=>ensureBuyerInbox(b,docId,existing.endsAt)));
+    return json(res,200,{ok:true,lotId:docId,invitedCount:matched.length,alreadyPublished:true});
    }
    const lot={id:docId,environment:aquaEnvironment(),companyId:actor.companyId,storeId:actor.storeId,
     createdBy:user.email,createdAt:new Date().toISOString(),state:'open',vehicle,mode,endsAt,
     visibleBuyerIds:invited, ...(buyNowPrice?{buyNowPrice}:{}), highestBid:null};
    await motyqFirestore.patch(LOTS,docId,lot);
+   await Promise.all(matched.map((b:any)=>ensureBuyerInbox(b,docId,endsAt)));
    // Background push is best-effort; buyers still see opportunities in the feed.
    let pushSent=0;
    try{
@@ -217,6 +219,9 @@ export default async function handler(req:any,res:any){
     shop:buyer.shop,email:buyer.email,interest:buyer.interest,active:true,optedIn:true,
     updatedBy:user.email,updatedAt:new Date().toISOString()};
    await motyqFirestore.patch(BUYERS,key,doc);
+   const inbox:any=await motyqFirestore.get(INBOX,key);
+   if(!inbox)await motyqFirestore.patch(INBOX,key,{id:key,environment:aquaEnvironment(),
+    companyId:actor.companyId,storeId:actor.storeId,buyerId:buyer.id,lots:[]});
    return json(res,200,{ok:true,shop:buyer.shop});
   }
   if(action==='save-interests'&&req.method==='POST'){
