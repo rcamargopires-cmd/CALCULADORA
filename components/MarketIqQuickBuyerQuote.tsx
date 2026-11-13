@@ -1,4 +1,5 @@
 import React,{useMemo,useState} from 'react';
+import MarketIqAquaPilotPanel from './MarketIqAquaPilotPanel';
 import type {ConsultedVehicle,ConsultedOutreach,ConsultedCase,ConsultedOffer} from '../services/marketIqConsultedRepasse';
 import {appendConsultedAudit,emptyConsultedCosts,emptyConsultedOffer,loadConsultedCases,
  makeConsultedId,moneyNumber,saveConsultedCases} from '../services/marketIqConsultedRepasse';
@@ -26,6 +27,7 @@ export default function MarketIqQuickBuyerQuote({scope,email,vehicle,onClose,onO
  const [cases,setCases]=useState<ConsultedCase[]>(()=>loadConsultedCases(email));
  const [baseVersion,setBaseVersion]=useState<number|null>(()=>findActiveQuotation(loadConsultedCases(email),vehicle)?.version??null);
  const [search,setSearch]=useState('');
+ const [aquaOpen,setAquaOpen]=useState(false);
  const [selected,setSelected]=useState<string[]>(()=>{
   const match=findActiveQuotation(loadConsultedCases(email),vehicle);
   return match?.requests?.map(request=>request.buyerId)||[];
@@ -133,7 +135,8 @@ export default function MarketIqQuickBuyerQuote({scope,email,vehicle,onClose,onO
    setError('Não foi possível salvar. Confira o espaço e as permissões de armazenamento do navegador.');
   }
  };
- return <div role="dialog" aria-modal="true" aria-label="Central de cotação para lojistas cadastrados"
+ return <>{aquaOpen&&<MarketIqAquaPilotPanel scope={scope} vehicle={vehicle} onClose={()=>setAquaOpen(false)}/>}
+ <div role="dialog" aria-modal="true" aria-label="Central de cotação para lojistas cadastrados"
   className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 p-3"
   onKeyDown={e=>{if(e.key==='Escape'&&!dirty)onClose();}}>
   <section className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white text-slate-900 shadow-2xl">
@@ -213,6 +216,7 @@ export default function MarketIqQuickBuyerQuote({scope,email,vehicle,onClose,onO
     {error&&<p role="alert" className="mb-2 rounded-lg bg-rose-50 p-2 text-xs font-bold text-rose-800">{error}</p>}
     {notice&&<p role="status" className="mb-2 rounded-lg bg-emerald-50 p-2 text-xs font-bold text-emerald-900">{notice}</p>}
     <div className="flex flex-wrap items-center justify-between gap-2">
+     <button type="button" onClick={()=>setAquaOpen(true)} className="rounded-lg border border-cyan-700 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-950">AQUA · Laboratório</button>
      <button type="button" onClick={()=>{if(!dirty||window.confirm('Sair sem salvar?'))onOpenDirectory();}}
       className="rounded-lg border border-cyan-700 px-3 py-2 text-xs font-bold text-cyan-900">Gerenciar cadastro</button>
      <button type="button" onClick={save} className="rounded-xl bg-[#153f51] px-5 py-3 text-sm font-black text-white">Salvar acompanhamento</button>
@@ -220,5 +224,5 @@ export default function MarketIqQuickBuyerQuote({scope,email,vehicle,onClose,onO
     <p className="mt-2 text-[11px] text-slate-500">O acompanhamento fica neste navegador e usa o histórico da Cotação Mesa. Abrir o WhatsApp não confirma envio. A placa, FIPE, custos e dados de clientes não entram nas mensagens.</p>
    </div>
   </section>
- </div>;
+ </div></>;
 }

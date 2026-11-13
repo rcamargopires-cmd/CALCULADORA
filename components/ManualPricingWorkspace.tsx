@@ -28,6 +28,7 @@ import {classifyByMileage,resolveFleetPolicy,type FleetClass,type DestinationOve
 import {assessMarketIqEvidence} from '../services/marketIqConfidence';
 import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import MarketIqQuickBuyerQuote from './MarketIqQuickBuyerQuote';
+import MarketIqAquaPilotPanel from './MarketIqAquaPilotPanel';
 import type {ConsultedVehicle} from '../services/marketIqConsultedRepasse';
 import MarketIqApprovalCenter from './MarketIqApprovalCenter';
 import {calculateHistoricalPrice, MOTYQ_HISTORY_MODEL, HistoricalClass} from '../services/marketIqHistoricalPricing';
@@ -105,6 +106,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [selectedPlateForHistory,setSelectedPlateForHistory]=useState('');
  const [quoteFromRadar,setQuoteFromRadar]=useState<{token:string;vehicle:Partial<ConsultedVehicle>}|null>(null);
  const [quickBuyerQuote,setQuickBuyerQuote]=useState<ConsultedVehicle|null>(null);
+ const [aquaVehicle,setAquaVehicle]=useState<ConsultedVehicle|null>(null);
  // Local-only IndexedDB cache. Each account/company/unit owns an isolated key.
  // The parsed snapshot never leaves this device and is never uploaded.
  const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join('|');
@@ -812,6 +814,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   if(!brand.trim()||!model.trim()||!year.trim())return;
   setQuickBuyerQuote({plate,brand,model,year,km,vehicleType,fipe:fipe?.value||0});
  };
+ const openAquaCurrent=()=>{
+  if(!brand.trim()||!model.trim()||!year.trim())return;
+  setAquaVehicle({plate,brand,model,year,km,vehicleType,fipe:fipe?.value||0});
+ };
+ const openAquaDashboard=()=>setAquaVehicle({plate:'',brand:'',model:'',year:'',km:'',vehicleType:'car',fipe:0});
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
  const navigateSimple=(destination:SimpleIqDestination|'home',lookedUpPlate?:string)=>{
@@ -836,11 +843,13 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
 
  return <>
+ {aquaVehicle&&<MarketIqAquaPilotPanel scope={captureScope} vehicle={aquaVehicle} onClose={()=>setAquaVehicle(null)}/>}
  {quickBuyerQuote&&<MarketIqQuickBuyerQuote scope={captureScope} email={user.email} vehicle={quickBuyerQuote}
   onClose={()=>setQuickBuyerQuote(null)}
   onOpenDirectory={()=>{setQuickBuyerQuote(null);setQuoteFromRadar({token:'buyer-directory:'+Date.now(),vehicle:quickBuyerQuote});navigateSimple('consulted');}}/>}
  {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
   <MarketIqSimpleHome
+   onOpenAqua={openAquaDashboard}
    onNavigate={navigateSimple}
    onOpenAdvanced={()=>{setShowAllTools(true);navigateSimple('pricing');}}
    onSelectImport={selectSimpleImport}
@@ -888,6 +897,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onOpenPlateHistory={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');setMobileFullDesk(true);}}
    onStartNew={beginNewMobileValuation}
    onQuickQuote={quickQuoteCurrent}
+   onOpenAqua={openAquaCurrent}
    onOpenApprovals={()=>{setMobileFullDesk(true);switchDeskSection('approvals');}}
   />
  </div>
@@ -902,6 +912,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   ] as const).map(([section,label])=>
    <button key={section} type="button" onClick={()=>navigateSimple(section)} aria-current={deskSection===section?'page':undefined}
     className={'rounded-xl px-3 py-2.5 text-xs font-bold transition '+(deskSection===section?'bg-cyan-50 text-cyan-950 ring-1 ring-cyan-200':'text-slate-700 hover:bg-slate-100')}>{label}</button>)}
+  <button type="button" onClick={openAquaDashboard}
+   className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2.5 text-xs font-black text-cyan-950">🐠 Aquário</button>
   <button type="button" onClick={()=>setShowAllTools(value=>!value)} aria-expanded={showAllTools}
    className="ml-auto inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
    <Menu size={16}/>{showAllTools?'Ocultar ferramentas':'Mais ferramentas'}</button>
@@ -1063,6 +1075,11 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <p className="mt-1 text-sm text-slate-600">Selecione a versão FIPE ou fale o veículo no assistente M.O.T.Y.Q.</p>
   </div>
   <div className="flex flex-wrap items-center gap-2">
+   <button type="button" onClick={openAquaCurrent}
+    disabled={!brand.trim()||!model.trim()||!year.trim()}
+    className="rounded-xl border border-cyan-700 bg-cyan-50 px-4 py-3 text-sm font-black text-cyan-950 disabled:opacity-50">
+    Colocar no Aquário
+   </button>
    <button type="button" onClick={quickQuoteCurrent}
     disabled={!brand.trim()||!model.trim()||!year.trim()}
     className="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">

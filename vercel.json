@@ -3,6 +3,10 @@
     {
       "source": "/cotacao-mesa/cadastro",
       "destination": "/index.html"
+    },
+    {
+      "source": "/aqua/lojista",
+      "destination": "/index.html"
     }
   ]
 }

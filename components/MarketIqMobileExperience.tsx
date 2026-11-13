@@ -34,7 +34,7 @@ export type Props={
  historicalTarget:number;historicalMin:number;historicalMax:number;motorcycleReference:number;
  marketBrowseUrl:string|null;onSearchMarket:()=>void;marketBusy:boolean;marketNotice:string;
  onSave:(proposal?:NegotiatedProposal,suggested?:number,source?:'mesa'|'verified'|'historical'|'missing')=>void;saveBusy:boolean;saveNotice:string;saveError:string;onOpenFullDesk:()=>void;
- onStartNew:()=>boolean;onOpenApprovals:()=>void;onQuickQuote:()=>void;onOpenPlateHistory?:()=>void;
+ onStartNew:()=>boolean;onOpenApprovals:()=>void;onQuickQuote:()=>void;onOpenAqua:()=>void;onOpenPlateHistory?:()=>void;
  resetAfterSaveSignal?:number;
 };
 type Tab='home'|'pricing'|'history'|'stock'|'repasse'|'settings';
@@ -601,6 +601,10 @@ export default function MarketIqMobileExperience(p:Props){
      <p className="mt-2 text-xs leading-5 text-slate-600">Tabela FIPE, anúncios individuais conferidos, custos, 14% de desconto e 5% adicionais para repasse.
      Sem amostra validada, mostramos o histórico identificado como estimativa, nunca como oferta real de lojistas.</p></div>
     {p.marketNotice&&<p role="status" className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">{p.marketNotice}</p>}
+    <button type="button" onClick={p.onOpenAqua}
+      disabled={!p.brand.trim()||!p.model.trim()||!p.year.trim()}
+      className="mb-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-cyan-50 px-4 py-4 text-base font-black text-cyan-950 disabled:opacity-50">
+      Colocar no Aquário</button>
     <button type="button" onClick={p.onQuickQuote}
       disabled={!p.brand.trim()||!p.model.trim()||!p.year.trim()}
       className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-4 text-base font-black text-white disabled:opacity-50">

@@ -11,6 +11,7 @@ import type {MarketIqWorkbookDetection,MarketIqWorkbookKind} from '../services/m
 type HomeProps={
  onNavigate:(section:SimpleIqDestination,plate?:string)=>void;
  onOpenAdvanced:()=>void;
+ onOpenAqua:()=>void;
  onSelectImport:(kind:'dealer'|'evaluations')=>void;
  onSmartImport:(file:File,kind:MarketIqWorkbookKind,sheet:string)=>void;
  stockCount:number|null;
@@ -34,7 +35,7 @@ const formatDate=(raw:string|null)=>{
  return day+'/'+month+'/'+year;
 };
 export default function MarketIqSimpleHome({
- onNavigate,onOpenAdvanced,onSelectImport,onSmartImport,stockCount,stockDate,historyCount,historyBusy
+ onNavigate,onOpenAdvanced,onOpenAqua,onSelectImport,onSmartImport,stockCount,stockDate,historyCount,historyBusy
 }:HomeProps){
  const [command,setCommand]=useState('');
  const [hint,setHint]=useState('');
@@ -81,6 +82,12 @@ export default function MarketIqSimpleHome({
    </div>
   </header>
 
+  <button type="button" onClick={onOpenAqua}
+   className="flex w-full items-center justify-between rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-left shadow-sm hover:bg-cyan-100">
+   <span><strong className="block text-base text-cyan-950">🐠 Aquário de Oportunidades</strong>
+   <span className="mt-1 block text-xs text-cyan-900">Reabrir oportunidades e gerenciar lojistas sem lançar outro carro</span></span>
+   <ArrowUpRight size={20} className="shrink-0 text-cyan-800"/>
+  </button>
   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Quatro tarefas principais">
    {primary.map(item=>{
     const Icon=item.icon;
