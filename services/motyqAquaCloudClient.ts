@@ -13,6 +13,10 @@ export async function aquaCloudRequest<T=any>(action:string,payload?:Record<stri
   ...(payload?{body:JSON.stringify(payload)}:{})
  });
  const data=await response.json().catch(()=>({}));
- if(!response.ok)throw new Error(String(data.error||'Falha na sincronização.'));
+ if(!response.ok)throw new Error(String(data.error||(
+  response.status>=500?'Servidor do AQUA temporariamente indisponível. Tente novamente.':
+  response.status===401?'Sessão expirada. Entre novamente no aplicativo.':
+  'A consulta ao AQUA não foi concluída.'
+ )));
  return data as T;
 }
