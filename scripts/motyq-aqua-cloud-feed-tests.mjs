@@ -12,6 +12,11 @@ for(const [name,src] of Object.entries({api,mesa,directory,buyer,client})){
  assert.equal(result.diagnostics.filter(x=>x.category===ts.DiagnosticCategory.Error).length,0,name+' syntax');
 }
 assert.ok(api.includes('identitytoolkit.googleapis.com'),'Token verification required');
+assert.ok(!api.includes("from '../firebase-applet-config.json'"),'Node 24 server ESM must not import JSON without an import attribute');
+assert.ok(api.includes('FIREBASE_API_KEY'),'Gateway must retain Firebase token validation after JSON import removal');
+assert.ok(buyer.includes('error?<section role="alert"'),'Failed sync must not show account awaiting activation');
+assert.ok(buyer.includes('setRetryKey(value=>value+1)'),'Buyer must be able to retry without clearing account');
+assert.ok(client.includes('Servidor do AQUA temporariamente indisponível'),'Show useful API outage message');
 assert.ok(readFileSync('api/analyze-deal.ts','utf8').includes("motyqAquaGateway(req,res)"));
 assert.ok(client.includes("/api/analyze-deal?action=aqua-"));
 
