@@ -28,6 +28,8 @@ assert.ok(api.includes("action==='publish'")&&api.includes("action==='enable-buy
 assert.ok(api.includes("action==='disable-buyer'")&&api.includes("action==='close-lot'"));
 assert.ok(api.includes("action==='save-interests'")&&api.includes('await myAccess(user.email)'));
 assert.ok(api.includes('clientLotId')&&api.includes('alreadyPublished:true'),'Idempotent online publishing');
+assert.ok(api.includes('aquaEnvironment()')&&api.includes('lot.environment!==aquaEnvironment()'),'Preview and production feeds must not mix');
+assert.ok(api.includes('environment:aquaEnvironment()'),'Cloud docs must explicitly store environment');
 assert.ok(api.includes("input.buyNowPrice")&&api.includes("money(input.buyNowPrice)"));
 assert.ok(api.includes('return json(res,200,{linked:true')||api.includes('return {linked:true'),'Feed requires buyer link');
 assert.ok(mesa.includes('publishOnline')&&mesa.includes("aquaCloudRequest<{lotId:string;invitedCount:number}>('publish'"));
