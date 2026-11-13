@@ -7,13 +7,15 @@ import {motyqFirestore} from './motyqFirestore.js';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const BUYERS='aqua_buyer_access_v1',LOTS='aqua_live_lots_v1';
+// Prevent Preview data sharing production documents even on a shared Firebase project.
+const aquaEnvironment=()=>process.env.VERCEL_ENV==='production'?'production':'preview';
 const ALLOWED_ORIGIN=''; // same-origin only; never enable wildcard CORS.
 const norm=(v:any)=>String(v??'').trim().toLowerCase();
 const str=(v:any,n=120)=>String(v??'').trim().slice(0,n);
 const safeId=(v:any)=>/^[a-zA-Z0-9_-]{6,140}$/.test(String(v??''))?String(v):'';
 const bool=(v:any)=>v===true;
 const digest=(v:string)=>createHash('sha256').update(v).digest('hex');
-const scopedBuyerKey=(company:string,store:string,id:string)=>digest(company+'|'+store+'|'+id).slice(0,52);
+const scopedBuyerKey=(company:string,store:string,id:string)=>digest(aquaEnvironment()+'|'+company+'|'+store+'|'+id).slice(0,52);
 const scope=(v:any)=>[str(v.companyId,80),str(v.storeId,80)];
 const bad=(status:number,message:string)=>Object.assign(new Error(message),{status});
 const publicVehicle=(v:any)=>{
@@ -80,7 +82,7 @@ const compatible=(car:any,prefs:any)=>{
 async function myAccess(email:string){
  // Lookup is by exact verified email, not a buyerId submitted by the caller.
  const rows:any[]=await motyqFirestore.query(BUYERS,[{field:'email',value:email}],40);
- return rows.filter((x:any)=>x.email===email&&x.active===true&&x.optedIn===true);
+ return rows.filter((x:any)=>x.email===email&&x.environment===aquaEnvironment()&&x.active===true&&x.optedIn===true);
 }
 async function listForBuyer(email:string){
  const accounts=await myAccess(email);
@@ -90,7 +92,7 @@ async function listForBuyer(email:string){
   // Scoped server-side to tenant; never return non-invited lots.
   const rows:any[]=await motyqFirestore.query(LOTS,[{field:'companyId',value:a.companyId}],150);
   for(const lot of rows){
-   if(lot.storeId!==a.storeId||lot.state!=='open'||Date.parse(lot.endsAt)<=Date.now())continue;
+   if(lot.environment!==aquaEnvironment()||lot.storeId!==a.storeId||lot.state!=='open'||Date.parse(lot.endsAt)<=Date.now())continue;
    if(!Array.isArray(lot.visibleBuyerIds)||!lot.visibleBuyerIds.includes(a.buyerId))continue;
    if(!compatible(lot.vehicle,{...a.interest}))continue;
    items.push({id:lot.id,brand:lot.vehicle.brand,model:lot.vehicle.model,year:lot.vehicle.year,
@@ -128,20 +130,20 @@ export default async function handler(req:any,res:any){
    const invited=Array.isArray(input.visibleBuyerIds)?[...new Set(input.visibleBuyerIds.map((x:any)=>safeId(x)).filter(Boolean))]:[];
    if(!invited.length||invited.length>250)throw bad(400,'Selecione lojistas habilitados.');
    const all:any[]=await motyqFirestore.query(BUYERS,[{field:'companyId',value:actor.companyId}],250);
-   const matched=all.filter((b:any)=>b.storeId===actor.storeId&&b.active&&b.optedIn&&invited.includes(b.buyerId)&&compatible({...vehicle,buyNowPrice:input.buyNowPrice},b.interest));
+   const matched=all.filter((b:any)=>b.environment===aquaEnvironment()&&b.storeId===actor.storeId&&b.active&&b.optedIn&&invited.includes(b.buyerId)&&compatible({...vehicle,buyNowPrice:input.buyNowPrice},b.interest));
    if(matched.length!==invited.length)throw bad(400,'Um ou mais lojistas ainda não estão habilitados ou não são compatíveis.');
    const buyNowPrice=input.buyNowPrice===undefined?undefined:money(input.buyNowPrice);
    if(input.buyNowPrice!==undefined&&buyNowPrice===null)throw bad(400,'Preço de arremate inválido.');
    const clientId=safeId(input.clientLotId);
    if(!clientId)throw bad(400,'Identificador da oportunidade inválido.');
-   const docId=digest(actor.companyId+'|'+actor.storeId+'|'+clientId).slice(0,52);
+   const docId=digest(aquaEnvironment()+'|'+actor.companyId+'|'+actor.storeId+'|'+clientId).slice(0,52);
    const existing:any=await motyqFirestore.get(LOTS,docId);
    if(existing){
     if(existing.companyId!==actor.companyId||existing.storeId!==actor.storeId||existing.createdBy!==user.email)
      throw bad(403,'Oportunidade indisponível.');
     return json(res,200,{ok:true,lotId:docId,invitedCount:existing.visibleBuyerIds?.length||0,alreadyPublished:true});
    }
-   const lot={id:docId,companyId:actor.companyId,storeId:actor.storeId,
+   const lot={id:docId,environment:aquaEnvironment(),companyId:actor.companyId,storeId:actor.storeId,
     createdBy:user.email,createdAt:new Date().toISOString(),state:'open',vehicle,mode,endsAt,
     visibleBuyerIds:invited, ...(buyNowPrice?{buyNowPrice}:{}), highestBid:null};
    await motyqFirestore.patch(LOTS,docId,lot);
@@ -151,7 +153,7 @@ export default async function handler(req:any,res:any){
    const actor=await staff(user),lotId=safeId(req.body?.lotId);
    if(!lotId)throw bad(400,'Oportunidade inválida.');
    const lot:any=await motyqFirestore.get(LOTS,lotId);
-   if(!lot||lot.companyId!==actor.companyId||lot.storeId!==actor.storeId)
+   if(!lot||lot.environment!==aquaEnvironment()||lot.companyId!==actor.companyId||lot.storeId!==actor.storeId)
     throw bad(404,'Oportunidade não localizada.');
    if(lot.createdBy!==user.email)throw bad(403,'Somente quem publicou pode encerrar.');
    if(lot.state!=='open')return json(res,200,{ok:true,alreadyClosed:true});
@@ -161,7 +163,7 @@ export default async function handler(req:any,res:any){
   if(action==='enable-buyer'&&req.method==='POST'){
    const actor=await staff(user),buyer=buyerClean(req.body?.buyer);
    const key=scopedBuyerKey(actor.companyId,actor.storeId,buyer.id);
-   const doc={id:key,companyId:actor.companyId,storeId:actor.storeId,buyerId:buyer.id,
+   const doc={id:key,environment:aquaEnvironment(),companyId:actor.companyId,storeId:actor.storeId,buyerId:buyer.id,
     shop:buyer.shop,email:buyer.email,interest:buyer.interest,active:true,optedIn:true,
     updatedBy:user.email,updatedAt:new Date().toISOString()};
    await motyqFirestore.patch(BUYERS,key,doc);
@@ -193,7 +195,7 @@ export default async function handler(req:any,res:any){
    if(!id)throw bad(400,'Identificador de lojista inválido.');
    const key=scopedBuyerKey(actor.companyId,actor.storeId,id);
    const previous:any=await motyqFirestore.get(BUYERS,key);
-   if(!previous||previous.companyId!==actor.companyId||previous.storeId!==actor.storeId)throw bad(404,'Lojista online não localizado.');
+   if(!previous||previous.environment!==aquaEnvironment()||previous.companyId!==actor.companyId||previous.storeId!==actor.storeId)throw bad(404,'Lojista online não localizado.');
    await motyqFirestore.patch(BUYERS,key,{active:false,updatedBy:user.email,updatedAt:new Date().toISOString()});
    return json(res,200,{ok:true});
   }
