@@ -24,8 +24,11 @@ const publicVehicle=(v:any)=>{
  if(!brand||!model||!/(?:19|20)\d{2}/.test(year))throw bad(400,'Dados do veículo incompletos.');
  const km=str(v?.km,16).replace(/[^\d]/g,'');
  if(!km||Number(km)>2000000)throw bad(400,'Quilometragem inválida.');
- return {brand,model,year,km,vehicleType:v?.vehicleType==='motorcycle'?'motorcycle':'car',
-  notes:str(v?.notes,500)};
+ const notes=str(v?.notes,500)
+  .replace(/\b[A-Z]{3}-?\d{4}\b/gi,'[placa omitida]')
+  .replace(/\b[A-Z]{3}\d[A-Z]\d{2}\b/gi,'[placa omitida]')
+  .replace(/\b\d{3}[-. ]?\d{3}[-. ]?\d{3}[-. ]?\d{2}\b/g,'[documento omitido]');
+ return {brand,model,year,km,vehicleType:v?.vehicleType==='motorcycle'?'motorcycle':'car',notes};
 };
 const money=(n:any)=>Number.isSafeInteger(Number(n))&&Number(n)>=1000&&Number(n)<=10000000?Number(n):null;
 const permission=(profile:any)=>profile?.status==='active'&&(
