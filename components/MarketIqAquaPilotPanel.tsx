@@ -1,5 +1,6 @@
 import React,{useMemo,useState} from 'react';
 import MarketIqAquaBuyersManager from './MarketIqAquaBuyersManager';
+import {aquaCloudRequest} from '../services/motyqAquaCloudClient';
 import type {ConsultedVehicle} from '../services/marketIqConsultedRepasse';
 import {loadCotacaoBuyers,rankCotacaoBuyers,type BuyerProfile} from '../services/marketIqCotacaoMesaBuyers';
 import {createAquaLot,loadAquaLots,saveAquaLots,simulateAquaBid,closeAquaLot,
@@ -27,6 +28,7 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
  const [bidAmount,setBidAmount]=useState('');
  const [notice,setNotice]=useState('');
  const [error,setError]=useState('');
+ const [publishing,setPublishing]=useState(false);
  const matches=useMemo(()=>rankCotacaoBuyers(buyers,currentVehicle,currentVehicle.vehicleType||'car'),[buyers,currentVehicle.brand,currentVehicle.model,currentVehicle.year,currentVehicle.vehicleType]);
  const eligible=buyers.filter(b=>b.active&&b.optedIn);
  const compatible=matches.filter(m=>eligible.some(b=>b.id===m.buyer.id)).map(m=>m.buyer.id);
@@ -56,6 +58,20 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
    commit(lots.map(x=>x.id===lot.id?lot:x),'Lance simulado registrado neste navegador.');
    setBidAmount('');
   }catch(e){setError(e instanceof Error?e.message:'Lance inválido.');}
+ };
+ const publishOnline=async()=>{
+  if(!current||current.cloudLotId||current.state!=='open')return;
+  if(!window.confirm('Publicar este carro ONLINE para os lojistas habilitados e compatíveis? Os dados do veículo e o valor de arremate ficarão visíveis para eles.'))return;
+  setPublishing(true);setError('');setNotice('');
+  try{
+   const result=await aquaCloudRequest<{lotId:string;invitedCount:number}>('publish',{
+    lot:{vehicle:current.vehicle,mode:current.mode,endsAt:current.endsAt,
+     visibleBuyerIds:current.visibleBuyerIds,...(current.buyNowPrice?{buyNowPrice:current.buyNowPrice}:{})}
+   });
+   const next=lots.map(l=>l.id===current.id?{...l,cloudLotId:result.lotId}:l);
+   commit(next,'Publicado na nuvem para '+result.invitedCount+' lojista(s) habilitado(s). Este painel local ainda simula os lances.');
+  }catch(e){setError(e instanceof Error?e.message:'Não foi possível publicar online.');}
+  finally{setPublishing(false);}
  };
  const buyNow=()=>{
   if(!current||!viewedBuyer||!current.buyNowPrice)return;
@@ -163,6 +179,12 @@ export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
       {current&&<div className="rounded-xl bg-slate-50 p-3 text-sm">
        <strong>Resultado: {current.vehicle.brand} {current.vehicle.model}</strong>
        <p className="mt-1">Lances simulados: {current.bids.length} · Maior lance: {highestAquaBid(current)?money(highestAquaBid(current)!.amount):'Nenhum'}</p>
+       {current.cloudLotId?<p className="mt-2 text-xs font-black text-emerald-800">Publicado para lojistas habilitados · código {current.cloudLotId.slice(0,8)}</p>:
+        current.state==='open'&&Date.parse(current.endsAt)>Date.now()&&<div className="mt-3 rounded-xl border border-cyan-300 bg-cyan-50 p-3">
+         <p className="mb-2 text-xs text-cyan-900">Para publicar de verdade, habilite previamente os lojistas com e-mail na aba Meus lojistas.</p>
+         <button type="button" disabled={publishing} onClick={()=>void publishOnline()} className="w-full rounded-xl bg-cyan-800 p-3 text-sm font-black text-white disabled:opacity-50">{publishing?'Publicando...':'Publicar online para lojistas'}</button>
+        </div>}
+       {current.cloudLotId&&<p className="mt-2 text-xs text-slate-600">A publicação na nuvem é independente da simulação local. Lances e arremates reais ainda não foram liberados.</p>}
        {current.buyNowRequest?.status==='pending'&&<div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
         <strong className="block text-sm text-amber-950">Solicitação de arremate pendente</strong>
         <p className="mt-1 text-xs text-amber-900">{current.buyNowRequest.buyerShop} · {money(current.buyNowRequest.amount)} · Exclusiva enquanto a Mesa decide</p>
