@@ -912,6 +912,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   ] as const).map(([section,label])=>
    <button key={section} type="button" onClick={()=>navigateSimple(section)} aria-current={deskSection===section?'page':undefined}
     className={'rounded-xl px-3 py-2.5 text-xs font-bold transition '+(deskSection===section?'bg-cyan-50 text-cyan-950 ring-1 ring-cyan-200':'text-slate-700 hover:bg-slate-100')}>{label}</button>)}
+  <button type="button" onClick={openAquaDashboard}
+   className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2.5 text-xs font-black text-cyan-950">🐠 Aquário</button>
   <button type="button" onClick={()=>setShowAllTools(value=>!value)} aria-expanded={showAllTools}
    className="ml-auto inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
    <Menu size={16}/>{showAllTools?'Ocultar ferramentas':'Mais ferramentas'}</button>
@@ -924,8 +926,6 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(mesaActive?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Mesa de precificação</button>
   <button type="button" onClick={()=>switchDeskSection('radar')} aria-current={deskSection==='radar'?'page':undefined}
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='radar'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Radar de Compra <span className="ml-1 rounded bg-cyan-100 px-1.5 py-0.5 text-[10px] font-black text-cyan-900">NOVO</span></button>
-  <button type="button" onClick={openAquaDashboard}
-   className="rounded-lg border border-cyan-300 bg-cyan-50 px-3.5 py-2.5 text-[13px] font-black text-cyan-950">Aquário</button>
   <button type="button" onClick={()=>switchDeskSection('consulted')} aria-current={deskSection==='consulted'?'page':undefined}
    className={'rounded-lg px-3.5 py-2.5 text-[13px] font-bold transition-colors '+(deskSection==='consulted'?'bg-[#153f51] text-white shadow-sm':'text-slate-700 hover:bg-slate-100')}>Cotação Mesa</button>
   <button type="button" onClick={()=>switchDeskSection('approvals')} aria-current={deskSection==='approvals'?'page':undefined}
