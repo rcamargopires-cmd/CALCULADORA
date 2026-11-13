@@ -6,148 +6,162 @@ import {createAquaLot,loadAquaLots,saveAquaLots,simulateAquaBid,closeAquaLot,
 
 type Props={scope:string;vehicle:ConsultedVehicle;onClose:()=>void};
 const money=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
-const formatDate=(v:string)=>new Date(v).toLocaleString('pt-BR');
-const dateInput=(d:Date)=>{const n=new Date(d.getTime()-d.getTimezoneOffset()*60000);return n.toISOString().slice(0,16)};
+const dateInput=(hours:number)=>{const d=new Date(Date.now()+hours*3600000);return d.toISOString();};
 export default function MarketIqAquaPilotPanel({scope,vehicle,onClose}:Props){
  const [buyers]=useState<BuyerProfile[]>(()=>loadCotacaoBuyers(scope));
  const [lots,setLots]=useState<AquaLot[]>(()=>loadAquaLots(scope));
+ const [screen,setScreen]=useState<'mesa'|'lojista'>('mesa');
  const [mode,setMode]=useState<AquaMode>('open');
- const [duration,setDuration]=useState(()=>dateInput(new Date(Date.now()+24*3600000)));
- const [invited,setInvited]=useState<string[]>([]);
+ const [hours,setHours]=useState(24);
+ const [autoSelect,setAutoSelect]=useState(true);
+ const [manualInvites,setManualInvites]=useState<string[]>([]);
+ const [showAdvanced,setShowAdvanced]=useState(false);
  const [notes,setNotes]=useState('');
- const [minimumIncrement,setMinimumIncrement]=useState('500');
  const [activeId,setActiveId]=useState('');
  const [buyerId,setBuyerId]=useState('');
  const [bidAmount,setBidAmount]=useState('');
  const [notice,setNotice]=useState('');
  const [error,setError]=useState('');
- const [buyerPreview,setBuyerPreview]=useState(false);
- const matching=useMemo(()=>rankCotacaoBuyers(buyers,vehicle,vehicle.vehicleType||'car'),[buyers,vehicle]);
+ const matches=useMemo(()=>rankCotacaoBuyers(buyers,vehicle,vehicle.vehicleType||'car'),[buyers,vehicle]);
  const eligible=buyers.filter(b=>b.active&&b.optedIn);
+ const compatible=matches.filter(m=>eligible.some(b=>b.id===m.buyer.id)).map(m=>m.buyer.id);
+ const invited=autoSelect?compatible:manualInvites;
  const current=lots.find(x=>x.id===activeId)||null;
- const chosenBuyer=buyers.find(x=>x.id===buyerId);
- const commit=(next:AquaLot[],message:string)=>{
-  saveAquaLots(scope,next);setLots(next);setNotice(message);setError('');
- };
- const launch=()=>{
+ const viewedBuyer=buyers.find(x=>x.id===buyerId)||null;
+ const summary=current&&buyerId?visibleAquaBidSummary(current,buyerId):null;
+ const openLots=lots.filter(l=>l.state==='open'&&Date.parse(l.endsAt)>Date.now());
+ const commit=(next:AquaLot[],text:string)=>{saveAquaLots(scope,next);setLots(next);setNotice(text);setError('');};
+ const create=()=>{
   try{
-   const available=new Set(eligible.map(b=>b.id));
-   if(invited.some(id=>!available.has(id)))throw Error('Só lojistas ativos e autorizados podem receber oportunidades.');
-   const increment=Number(minimumIncrement);
+   const valid=new Set(eligible.map(b=>b.id));
+   if(invited.some(id=>!valid.has(id)))throw new Error('Escolha somente lojistas autorizados.');
    const lot=createAquaLot({
     vehicle:publicAquaVehicle({...vehicle,vehicleType:vehicle.vehicleType||'car'},notes),
-    mode,endsAt:new Date(duration).toISOString(),visibleBuyerIds:invited,minimumIncrement:increment
+    mode,endsAt:dateInput(hours),visibleBuyerIds:invited,minimumIncrement:500
    });
-   commit([lot,...lots],'Oportunidade criada no laboratório local. Não foi publicada para lojistas reais.');
-   setActiveId(lot.id);setBuyerId('');setBidAmount('');setBuyerPreview(false);
+   commit([lot,...lots],'Oportunidade de teste criada. Ainda não foi enviada aos lojistas.');
+   setActiveId(lot.id);setScreen('mesa');setBuyerId('');setBidAmount('');
   }catch(e){setError(e instanceof Error?e.message:'Não foi possível criar a oportunidade.');}
  };
- const simulatedBid=()=>{
-  if(!current||!chosenBuyer)return;
+ const bid=()=>{
+  if(!current||!viewedBuyer)return;
   try{
-   const updated=simulateAquaBid(current,{id:chosenBuyer.id,shop:chosenBuyer.shop},Number(bidAmount));
-   commit(lots.map(l=>l.id===updated.id?updated:l),'Lance fictício registrado somente no laboratório.');
+   const lot=simulateAquaBid(current,{id:viewedBuyer.id,shop:viewedBuyer.shop},Number(bidAmount));
+   commit(lots.map(x=>x.id===lot.id?lot:x),'Lance simulado registrado neste navegador.');
    setBidAmount('');
   }catch(e){setError(e instanceof Error?e.message:'Lance inválido.');}
  };
  const finish=()=>{
-  if(!current||!window.confirm('Encerrar esta rodada de teste? Os lances não podem ser reabertos.'))return;
-  try{const updated=closeAquaLot(current);
-   commit(lots.map(l=>l.id===updated.id?updated:l),'Rodada encerrada. Nenhuma compra ou venda foi realizada.');
-  }catch(e){setError(e instanceof Error?e.message:'Falha ao encerrar.');}
+  if(!current||!window.confirm('Encerrar esta oportunidade de teste?'))return;
+  try{const lot=closeAquaLot(current);commit(lots.map(x=>x.id===lot.id?lot:x),'Rodada encerrada. Nenhuma venda foi realizada.');}
+  catch(e){setError(e instanceof Error?e.message:'Erro ao encerrar.');}
  };
- const summary=current&&buyerId?visibleAquaBidSummary(current,buyerId):null;
- return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-3" role="dialog" aria-modal="true" aria-label="Motyq AQUA laboratório de oportunidades">
-  <section className="flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white text-slate-900">
-   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-4">
-    <div><p className="text-xs font-black tracking-widest text-cyan-800">MOTYQ AQUA · LABORATÓRIO</p>
-     <h2 className="text-xl font-black">Aquário de Oportunidades</h2>
-     <p className="mt-1 text-xs text-slate-600">Teste privado neste navegador. Lojistas externos ainda não têm acesso; lances nesta tela são fictícios.</p></div>
-    <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">Fechar</button>
-   </div>
-   <div className="min-h-0 flex-1 overflow-y-auto p-4">
-    <div className="grid gap-4 lg:grid-cols-2">
-     <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-      <h3 className="text-sm font-black">Nova oportunidade</h3>
-      <p className="text-sm font-semibold">{vehicle.brand} {vehicle.model} · {vehicle.year} · {vehicle.km} km</p>
-      <p className="text-xs text-slate-600">Placa, FIPE, valores internos e dados pessoais não são incluídos no lote.</p>
-      <fieldset className="space-y-2"><legend className="text-xs font-black">Modelo de disputa</legend>
-       <label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==='open'} onChange={()=>setMode('open')}/> Aberta: maior lance visível e incremento mínimo</label>
-       <label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==='sealed'} onChange={()=>setMode('sealed')}/> Fechada: cada lojista vê apenas suas propostas</label>
-      </fieldset>
-      <div className="grid grid-cols-2 gap-3">
-       <label className="text-xs font-bold">Encerramento<input type="datetime-local" value={duration} onChange={e=>setDuration(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-slate-300 p-2"/></label>
-       <label className="text-xs font-bold">Incremento na disputa aberta (R$)<input type="number" min={100} step={100} value={minimumIncrement} onChange={e=>setMinimumIncrement(e.target.value)}
-        disabled={mode==='sealed'} className="mt-1 w-full rounded-lg border border-slate-300 p-2"/></label>
-      </div>
-      <label className="block text-xs font-bold">Observações públicas, sem dados pessoais
-       <textarea rows={2} maxLength={500} value={notes} onChange={e=>setNotes(e.target.value)}
-        placeholder="Ex.: conservação, detalhes de preparação, condições de vistoria"
-        className="mt-1 w-full rounded-lg border border-slate-300 p-2"/></label>
-      <div className="flex items-center justify-between gap-2"><strong className="text-xs">Lojistas convidados ({invited.length})</strong>
-       <button type="button" className="text-xs font-black text-cyan-800" onClick={()=>
-        setInvited(matching.filter(x=>eligible.some(b=>b.id===x.buyer.id)).map(x=>x.buyer.id))
-       }>Selecionar compatíveis</button></div>
-      <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
-       {eligible.map(b=><label key={b.id} className="flex items-center gap-2 p-1 text-xs">
-        <input type="checkbox" checked={invited.includes(b.id)}
-         onChange={e=>setInvited(v=>e.target.checked?[...new Set([...v,b.id])]:v.filter(id=>id!==b.id))}/>
-        {b.shop} {matching.some(x=>x.buyer.id===b.id)?'· compatível':''}
-       </label>)}
-       {!eligible.length&&<p className="text-xs text-amber-800">Não há lojistas ativos com autorização de contato nesta carteira.</p>}
-      </div>
-      <button type="button" onClick={launch} className="w-full rounded-xl bg-cyan-800 px-4 py-3 text-sm font-black text-white">
-       Criar oportunidade de teste</button>
-     </section>
-     <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-      <h3 className="text-sm font-black">Rodadas criadas ({lots.length})</h3>
-      <div className="max-h-44 space-y-2 overflow-y-auto">
-       {lots.map(l=><button type="button" key={l.id} onClick={()=>{setActiveId(l.id);setBuyerId('');setBuyerPreview(false);setNotice('');}}
-        className={'w-full rounded-lg border p-3 text-left text-xs '+(current?.id===l.id?'border-cyan-700 bg-cyan-50':'border-slate-200')}>
-        <span className="font-black">{l.vehicle.brand} {l.vehicle.model} · {l.vehicle.year}</span>
-        <span className="block text-slate-600">{l.mode==='open'?'Disputa aberta':'Propostas fechadas'} · {l.state==='open'&&Date.parse(l.endsAt)<=Date.now()?'Prazo expirado':l.state==='open'?'Recebendo propostas':'Encerrada'} · {l.bids.length} lance(s) fictício(s)</span>
-       </button>)}
-       {!lots.length&&<p className="text-xs text-slate-600">Crie uma rodada para testar os dois formatos.</p>}
-      </div>
-      {current&&<div className="space-y-3 border-t border-slate-200 pt-3">
-       <div className="flex flex-wrap items-center justify-between gap-2">
-        <strong className="text-sm">{current.mode==='open'?'Disputa aberta':'Propostas fechadas'}</strong>
-        <span className="text-xs text-slate-600">Até {formatDate(current.endsAt)}</span>
+ const small='rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800';
+ return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-3" role="dialog" aria-modal="true" aria-label="Motyq AQUA teste simplificado">
+  <section className="flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white text-slate-900">
+   <header className="border-b border-slate-200 p-4">
+    <div className="flex items-start justify-between gap-3">
+     <div><p className="text-xs font-black tracking-wider text-cyan-800">MOTYQ AQUA · TESTE PRIVADO</p>
+      <h2 className="text-xl font-black">Aquário de Oportunidades</h2>
+      <p className="mt-1 text-xs text-slate-600">Operação simples, sem leilão real ou mensagens automáticas.</p></div>
+     <button type="button" onClick={onClose} className={small}>Fechar</button>
+    </div>
+    <div className="mt-3 grid grid-cols-2 gap-2">
+     <button type="button" onClick={()=>setScreen('mesa')}
+      className={'rounded-xl p-3 text-sm font-black '+(screen==='mesa'?'bg-cyan-800 text-white':'bg-slate-100 text-slate-800')}>Minha Mesa</button>
+     <button type="button" onClick={()=>setScreen('lojista')}
+      className={'rounded-xl p-3 text-sm font-black '+(screen==='lojista'?'bg-cyan-800 text-white':'bg-slate-100 text-slate-800')}>Visão do lojista (simular)</button>
+    </div>
+   </header>
+   <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+    {screen==='mesa'?<>
+     <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
+      <div><p className="text-xs font-bold text-slate-500">1. VEÍCULO PRONTO</p>
+       <h3 className="text-lg font-black">{vehicle.brand} {vehicle.model} · {vehicle.year}</h3>
+       <p className="text-sm text-slate-600">{vehicle.km||'KM não informada'} km · Informações copiadas da Mesa</p></div>
+      <div><p className="mb-2 text-xs font-bold text-slate-500">2. COMO RECEBER OFERTAS?</p>
+       <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={()=>setMode('open')} className={'rounded-xl border p-3 text-left '+(mode==='open'?'border-cyan-700 bg-cyan-50':'border-slate-200')}>
+         <strong className="block text-sm">Disputa aberta</strong><span className="text-xs text-slate-600">Lojista vê o maior valor</span>
+        </button>
+        <button type="button" onClick={()=>setMode('sealed')} className={'rounded-xl border p-3 text-left '+(mode==='sealed'?'border-cyan-700 bg-cyan-50':'border-slate-200')}>
+         <strong className="block text-sm">Oferta secreta</strong><span className="text-xs text-slate-600">Cada um envia a sua</span>
+        </button>
        </div>
-       <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 text-xs">
-        <div>Convidados <strong className="block text-lg">{current.visibleBuyerIds.length}</strong></div>
-        <div>Lances fictícios <strong className="block text-lg">{current.bids.length}</strong></div>
-        <div className="col-span-2">Maior oferta registrada <strong className="block text-lg text-emerald-800">
-         {highestAquaBid(current)?money(highestAquaBid(current)!.amount):'Sem ofertas'}</strong></div>
-       </div>
-       <label className="block text-xs font-black">Simular visão de um lojista convidado
-        <select value={buyerId} onChange={e=>{setBuyerId(e.target.value);setBuyerPreview(true);}}
-         className="mt-1 w-full rounded-lg border border-slate-300 p-2">
-         <option value="">Selecione um lojista</option>
-         {current.visibleBuyerIds.map(id=>{const b=buyers.find(x=>x.id===id);return b?<option key={id} value={id}>{b.shop}</option>:null;})}
-        </select>
+      </div>
+      <div><p className="mb-2 text-xs font-bold text-slate-500">3. QUANDO TERMINA?</p>
+       <div className="flex flex-wrap gap-2">{[2,6,24,48].map(h=><button type="button" key={h} onClick={()=>setHours(h)}
+        className={'rounded-xl px-4 py-2 text-sm font-bold '+(hours===h?'bg-cyan-800 text-white':'border border-slate-300')}>{h}h</button>)}</div>
+      </div>
+      <div className="rounded-xl bg-slate-50 p-3">
+       <label className="flex items-center gap-2 text-sm font-bold">
+        <input type="checkbox" checked={autoSelect} onChange={e=>setAutoSelect(e.target.checked)}/>
+        Convidar automaticamente os lojistas compatíveis ({compatible.length})
        </label>
-       {buyerId&&buyerPreview&&summary&&<div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-xs">
-        <strong>Prévia do lojista: {chosenBuyer?.shop}</strong>
-        <p className="mt-1">Modo: {current.mode==='open'?'aberto':'propostas fechadas'}</p>
-        {current.mode==='open'?<p>Maior lance visível: <strong>{summary.highest?money(summary.highest):'Nenhum'}</strong></p>:
-         <p>Outras propostas e identidades ficam ocultas. Suas propostas: {summary.ownBids.length}.</p>}
-       </div>}
-       {current.state==='open'&&Date.parse(current.endsAt)>Date.now()&&chosenBuyer&&current.visibleBuyerIds.includes(chosenBuyer.id)&&
-        <div className="flex flex-wrap items-end gap-2">
-         <label className="flex-1 text-xs font-bold">Lance fictício (R$)
-          <input inputMode="numeric" type="number" min={1000} value={bidAmount} onChange={e=>setBidAmount(e.target.value)}
-           className="mt-1 w-full rounded-lg border border-slate-300 p-2"/></label>
-         <button type="button" onClick={simulatedBid} className="rounded-lg bg-emerald-700 px-4 py-2.5 text-xs font-black text-white">Simular lance</button>
-        </div>}
-       {current.state==='open'&&<button type="button" onClick={finish} className="rounded-lg border border-slate-400 px-3 py-2 text-xs font-black">Encerrar rodada de teste</button>}
-       <p className="text-[11px] text-slate-500">A Mesa pode analisar o resultado. O sistema não arremata, aceita ofertas ou realiza pagamentos automaticamente.</p>
+       {!autoSelect&&<div className="mt-2 max-h-32 space-y-1 overflow-auto">{eligible.map(b=><label key={b.id} className="flex items-center gap-2 py-1 text-xs">
+        <input type="checkbox" checked={manualInvites.includes(b.id)} onChange={e=>setManualInvites(v=>e.target.checked?[...new Set([...v,b.id])]:v.filter(id=>id!==b.id))}/>{b.shop}
+       </label>)}</div>}
+       {!eligible.length&&<p className="mt-2 text-xs text-amber-800">Cadastre lojistas autorizados na Cotação Mesa.</p>}
+       <button type="button" onClick={()=>setShowAdvanced(v=>!v)} className="mt-2 text-xs font-bold text-cyan-800">
+        {showAdvanced?'Ocultar detalhes':'Adicionar observações (opcional)'}</button>
+       {showAdvanced&&<textarea rows={2} maxLength={500} value={notes} onChange={e=>setNotes(e.target.value)}
+        placeholder="Conservação, vistoria e observações sem dados pessoais"
+        className="mt-2 w-full rounded-lg border border-slate-300 p-2 text-sm"/>}
+      </div>
+      <button type="button" onClick={create} disabled={!invited.length}
+       className="w-full rounded-xl bg-emerald-700 p-4 text-base font-black text-white disabled:opacity-50">
+       Colocar carro no Aquário de teste</button>
+      <p className="text-xs text-slate-500">Não publica na internet. Placa, FIPE e custos internos não entram na oportunidade.</p>
+     </section>
+     <section className="space-y-2">
+      <h3 className="text-sm font-black">Minhas oportunidades ({lots.length})</h3>
+      {lots.map(l=><div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3">
+       <button type="button" onClick={()=>setActiveId(l.id)} className="text-left">
+        <strong className="block text-sm">{l.vehicle.brand} {l.vehicle.model} · {l.vehicle.year}</strong>
+        <span className="text-xs text-slate-600">{l.mode==='open'?'Aberta':'Secreta'} · {l.bids.length} lance(s) fictício(s) · {l.state==='open'?'Em andamento':'Encerrada'}</span>
+       </button>
+       <button type="button" onClick={()=>{setActiveId(l.id);setBuyerId('');setScreen('lojista');}} className={small}>Ver como lojista</button>
+      </div>)}
+      {current&&<div className="rounded-xl bg-slate-50 p-3 text-sm">
+       <strong>Resultado: {current.vehicle.brand} {current.vehicle.model}</strong>
+       <p className="mt-1">Lances simulados: {current.bids.length} · Maior lance: {highestAquaBid(current)?money(highestAquaBid(current)!.amount):'Nenhum'}</p>
+       {current.state==='open'&&<button type="button" onClick={finish} className="mt-2 text-xs font-bold text-rose-700">Encerrar oportunidade</button>}
       </div>}
      </section>
-    </div>
-    {error&&<p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-900">{error}</p>}
-    {notice&&<p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</p>}
+    </>:<>
+     <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">Esta é apenas a simulação do celular do comprador dentro da Mesa. Ainda não existe login externo nem disputa em tempo real.</p>
+     <label className="block text-sm font-bold">Simular qual lojista?
+      <select value={buyerId} onChange={e=>{setBuyerId(e.target.value);setActiveId('');}} className="mt-1 w-full rounded-xl border border-slate-300 p-3">
+       <option value="">Escolha um lojista convidado</option>
+       {eligible.map(b=><option key={b.id} value={b.id}>{b.shop}</option>)}
+      </select>
+     </label>
+     {buyerId&&<>
+      <h3 className="text-lg font-black">Oportunidades para sua loja</h3>
+      {(lots.filter(l=>l.visibleBuyerIds.includes(buyerId))).map(l=><button type="button" key={l.id}
+       onClick={()=>{setActiveId(l.id);setBidAmount('');}} className={'w-full rounded-xl border p-4 text-left '+(activeId===l.id?'border-cyan-600 bg-cyan-50':'border-slate-200')}>
+       <strong className="block">{l.vehicle.brand} {l.vehicle.model} · {l.vehicle.year}</strong>
+       <span className="mt-1 block text-sm text-slate-600">{l.vehicle.km} km · {l.mode==='open'?'Disputa aberta':'Oferta fechada'}</span>
+       <span className="mt-1 block text-xs font-bold">{l.state==='open'&&Date.parse(l.endsAt)>Date.now()?'Recebendo lances':'Encerrado'}</span>
+      </button>)}
+      {!lots.some(l=>l.visibleBuyerIds.includes(buyerId))&&<p className="text-sm text-slate-600">Nenhuma oportunidade disponível para esta loja.</p>}
+     </>}
+     {current&&summary&&<section className="space-y-3 rounded-2xl border border-slate-200 p-4">
+      <strong className="text-lg">{current.vehicle.brand} {current.vehicle.model} {current.vehicle.year}</strong>
+      <p className="text-sm text-slate-600">{current.vehicle.notes||'Confira as condições do veículo antes de ofertar.'}</p>
+      <p className="text-sm font-bold">{current.mode==='open'?('Maior lance: '+(summary.highest?money(summary.highest):'Sem lances')):'Oferta secreta: outros lances ficam ocultos'}</p>
+      <p className="text-xs text-slate-600">Suas ofertas: {summary.ownBids.length}</p>
+      {current.state==='open'&&Date.parse(current.endsAt)>Date.now()?<>
+       <label className="block text-sm font-bold">Seu lance (R$)
+        <input type="number" inputMode="numeric" value={bidAmount} min={1000} placeholder="Ex.: 85000"
+         onChange={e=>setBidAmount(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-4 text-lg"/></label>
+       <button type="button" onClick={bid} disabled={!bidAmount}
+        className="w-full rounded-xl bg-emerald-700 p-4 text-base font-black text-white disabled:opacity-50">Simular meu lance</button>
+      </>:<p className="text-sm font-bold text-slate-600">Prazo encerrado</p>}
+     </section>}
+    </>}
+    {error&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-900">{error}</p>}
+    {notice&&<p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-900">{notice}</p>}
    </div>
   </section>
  </div>;
