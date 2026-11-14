@@ -35,6 +35,8 @@ assert.ok(repasse.reason.includes('Cautelar reprovada'));
 assert.equal(repasse.policyConflict,false);
 const missing=lib.cleanExpressVehicle({brand:'VW',model:'GOL',yearModel:'2020',km:null,fipeReference:null,conditionScore:null});
 assert.equal(missing.km,null);assert.equal(missing.fipeReference,null);assert.equal(missing.conditionScore,null);
+const blanks=lib.cleanExpressVehicle({brand:'GM',model:'PRISMA',km:'',fipeReference:'',conditionScore:''});
+assert.equal(blanks.km,null);assert.equal(blanks.fipeReference,null);assert.equal(blanks.conditionScore,null);
 const noConfidence=lib.assessExpressCommercial(missing,{demandConfirmed:false,stockZeroConfirmed:false});
 assert.equal(noConfidence.priority,'NORMAL');assert.equal(noConfidence.needsReview,true);
 assert.equal(lib.cleanExpressVehicle({plate:'INVALID#123',km:1234567}).plate,'');
