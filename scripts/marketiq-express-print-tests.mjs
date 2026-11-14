@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import ts from 'typescript';
+const opts={module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX};
+const src=(path)=>readFileSync(path,'utf8');
+const transpile=(file)=>{
+ const result=ts.transpileModule(src(file),{compilerOptions:opts,reportDiagnostics:true});
+ assert.equal((result.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error).length,0,file+' syntax');
+ return result.outputText;
+};
+const fleet='data:text/javascript;base64,'+Buffer.from(transpile('services/marketIqFleetClassification.ts')).toString('base64');
+const expressTranspiled=transpile('services/marketIqExpress.ts');
+const actual=expressTranspiled.replace(/from ['"]\.\/marketIqFleetClassification['"]/,"from '"+fleet+"'");
+assert.ok(actual.includes(fleet),'Run fleet policy from real module, not mock');
+const lib=await import('data:text/javascript;base64,'+Buffer.from(actual).toString('base64'));
+const prisma=lib.cleanExpressVehicle({
+ brand:'CHEVROLET',model:'PRISMA LTZ 1.4 FLEX AUTOMÁTICO',yearManufacture:'2017',yearModel:'2018',
+ km:95800,plate:'FOT9835',fipeReference:62291,conditionScore:5.8,repairTotal:2000,
+ repairDetails:['Lataria R$ 1.500','Motor R$ 500'],warnings:[]
+});
+assert.equal(prisma.yearModel,'2018');assert.equal(prisma.km,95800);
+assert.equal(prisma.fipeReference,62291);assert.equal(prisma.repairTotal,2000);
+const showroom=lib.assessExpressCommercial(prisma,{demandConfirmed:true,stockZeroConfirmed:true});
+assert.equal(showroom.priority,'SHOWROOM');
+assert.equal(showroom.source,'operator_signals');
+assert.equal(showroom.fleetClass,'D');
+assert.equal(showroom.fleetGuideline,'REPASSE');
+assert.equal(showroom.policyConflict,true);
+assert.equal(showroom.needsReview,true);
+assert.equal(lib.assessExpressCommercial(prisma,{demandConfirmed:true,stockZeroConfirmed:false}).priority,'NORMAL');
+assert.equal(lib.assessExpressCommercial(prisma,{demandConfirmed:false,stockZeroConfirmed:true}).priority,'NORMAL');
+const repasse=lib.assessExpressCommercial(prisma,{demandConfirmed:true,stockZeroConfirmed:true,manualClass:'REPASSE',manualReason:'Cautelar reprovada'});
+assert.equal(repasse.priority,'REPASSE');assert.equal(repasse.source,'operator_override');
+assert.ok(repasse.reason.includes('Cautelar reprovada'));
+assert.equal(repasse.policyConflict,false);
+const missing=lib.cleanExpressVehicle({brand:'VW',model:'GOL',yearModel:'2020',km:null,fipeReference:null,conditionScore:null});
+assert.equal(missing.km,null);assert.equal(missing.fipeReference,null);assert.equal(missing.conditionScore,null);
+const noConfidence=lib.assessExpressCommercial(missing,{demandConfirmed:false,stockZeroConfirmed:false});
+assert.equal(noConfidence.priority,'NORMAL');assert.equal(noConfidence.needsReview,true);
+assert.equal(lib.cleanExpressVehicle({plate:'INVALID#123',km:1234567}).plate,'');
+const api=src('api/analyze-deal.ts');
+const backend=src('server/motyqIqExpressPrint.ts');
+const ui=src('components/MarketIqExpressPrintPanel.tsx');
+const workspace=src('components/ManualPricingWorkspace.tsx');
+const home=src('components/MarketIqSimpleHome.tsx');
+transpile('server/motyqIqExpressPrint.ts');transpile('components/MarketIqExpressPrintPanel.tsx');
+assert.ok(api.includes("action||'')==='iq-express-print'"));
+assert.ok(api.includes('await managementActor(req)'),'Only authenticated Mesa staff may read screenshots');
+assert.ok(api.includes('actor.pricingDeskAccess===true'));
+assert.ok(backend.includes('GEMINI_API_KEY')&&backend.includes('gemini-2.5-flash'));
+assert.ok(backend.includes('NÃO extraia dados do cliente')&&backend.includes('NÃO atribua alta procura'));
+assert.ok(backend.includes("if(data.length<200||data.length>2450000"));
+assert.ok(!backend.includes('motyqFirestore.patch')&&!backend.includes('writeFile('),'Images should never be persisted');
+assert.ok(ui.includes("window.addEventListener('paste',handler)"));
+assert.ok(ui.includes('Selecionar print ou colar Ctrl+V'));
+assert.ok(ui.includes('setDemand(true);setZeroStock(true)'),'Explicitly approved Prisma demo');
+assert.ok(ui.includes('setOverride(e.target.value')&&ui.includes('option value="SHOWROOM"'));
+assert.ok(ui.includes('Diretriz técnica por KM')&&ui.includes('Requer análise e autorização do gestor'));
+assert.ok(ui.includes('Usar dados conferidos na Mesa'));
+assert.ok(workspace.includes('onApply={acceptExpressPrint}')&&workspace.includes("setYearCode('');setFipe(null)"));
+assert.ok(workspace.includes('Exceção: SHOWROOM')&&workspace.includes('destino oficial não foi alterado'));
+assert.ok(home.includes('onOpenExpress')&&home.includes('Motyq IQ Express · Prévia por print'));
+console.log('Motyq IQ Express: Prisma Showroom + Fleet D conflict, editable strategy, image privacy, authenticated Gemini extraction, copy/paste and Mesa handoff passed.');
