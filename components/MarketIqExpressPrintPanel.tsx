@@ -3,7 +3,7 @@ import {auth} from '../firebase';
 import {assessExpressCommercial,cleanExpressVehicle,type ExpressVehicleExtract,
  type ExpressAssessment,type ExpressCommercialClass} from '../services/marketIqExpress';
 
-type Props={onClose:()=>void;onApply:(vehicle:ExpressVehicleExtract,assessment:ExpressAssessment)=>void};
+type Props={onClose:()=>void;onApply:(vehicle:ExpressVehicleExtract,assessment:ExpressAssessment)=>void;demoOnly?:boolean};
 const money=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 async function prepareImage(file:File):Promise<{mimeType:string;imageBase64:string}>{
  if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Envie um print PNG, JPEG ou WebP.');
@@ -30,7 +30,7 @@ const initialVehicle=():ExpressVehicleExtract=>({
  fipeReference:null,conditionScore:null,repairTotal:null,repairDetails:[],warnings:[]
 });
 const input='mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950';
-export default function MarketIqExpressPrintPanel({onClose,onApply}:Props){
+export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=false}:Props){
  const fileRef=useRef<HTMLInputElement>(null);
  const [vehicle,setVehicle]=useState<ExpressVehicleExtract|null>(null);
  const [reading,setReading]=useState(false);
@@ -45,7 +45,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply}:Props){
   manualClass:override==='auto'?null:override,manualReason:reason
  }):null,[vehicle,demand,zeroStock,override,reason]);
  const read=async(file?:File)=>{
-  if(!file||reading)return;
+  if(!file||reading||demoOnly)return;
   setError('');setVehicle(null);setReading(true);setSample(false);setDemand(false);setZeroStock(false);setOverride('auto');
   try{
    const image=await prepareImage(file);
@@ -65,11 +65,11 @@ export default function MarketIqExpressPrintPanel({onClose,onApply}:Props){
  useEffect(()=>{
   const handler=(event:ClipboardEvent)=>{
    const file=[...(event.clipboardData?.files||[])].find(x=>x.type.startsWith('image/'));
-   if(file){event.preventDefault();void read(file);}
+   if(file&&!demoOnly){event.preventDefault();void read(file);}
   };
   window.addEventListener('paste',handler);
   return ()=>window.removeEventListener('paste',handler);
- },[reading]);
+ },[reading,demoOnly]);
  const loadExample=()=>{
   setVehicle({brand:'CHEVROLET',model:'PRISMA LTZ 1.4 FLEX AUTOMÁTICO',yearManufacture:'2017',
    yearModel:'2018',km:95800,plate:'',fipeReference:62291,conditionScore:5.8,
@@ -82,19 +82,23 @@ export default function MarketIqExpressPrintPanel({onClose,onApply}:Props){
    <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
     <div><p className="text-xs font-black tracking-wider text-cyan-800">MOTYQ IQ EXPRESS · LABORATÓRIO</p>
      <h2 className="text-xl font-black">Prévia rápida por print</h2>
-     <p className="mt-1 text-xs text-slate-600">Cole um recorte da avaliação e revise os dados antes de aproveitar na Mesa.</p></div>
+     <p className="mt-1 text-xs text-slate-600">{demoOnly?'Teste o exemplo do Prisma e a classificação comercial sem precisar entrar na conta.':'Cole um recorte da avaliação e revise os dados antes de aproveitar na Mesa.'}</p></div>
     <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">Fechar</button>
    </header>
    <main className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
     <section className="space-y-3 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
-     <h3 className="text-sm font-black text-cyan-950">1. Capturar dados</h3>
-     <p className="text-xs leading-5 text-cyan-950">No AutoAvaliar, use <strong>Win + Shift + S</strong> e selecione somente os dados do carro e as referências. Evite incluir nome, telefone, CPF ou outros dados do cliente. A imagem é enviada para leitura pela IA, sem ser arquivada no Motyq.</p>
-     <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
-      aria-label="Selecionar print do AutoAvaliar" onChange={e=>{const file=e.target.files?.[0];e.currentTarget.value='';void read(file);}}/>
+     <h3 className="text-sm font-black text-cyan-950">1. {demoOnly?'Carregar exemplo':'Capturar dados'}</h3>
+     {demoOnly?<p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-950">
+      Este laboratório é apenas uma demonstração, sem login e sem dados reais. A leitura de prints novos está desativada aqui porque a chave da IA não está disponível no Preview.
+     </p>:<>
+      <p className="text-xs leading-5 text-cyan-950">No AutoAvaliar, use <strong>Win + Shift + S</strong> e selecione somente os dados do carro e as referências. Evite incluir nome, telefone, CPF ou outros dados do cliente. A imagem é enviada para leitura pela IA, sem ser arquivada no Motyq.</p>
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
+       aria-label="Selecionar print do AutoAvaliar" onChange={e=>{const file=e.target.files?.[0];e.currentTarget.value='';void read(file);}}/>
+     </>}
      <div className="flex flex-wrap gap-2">
-      <button type="button" disabled={reading} onClick={()=>fileRef.current?.click()}
+      {!demoOnly&&<button type="button" disabled={reading} onClick={()=>fileRef.current?.click()}
        className="rounded-xl bg-cyan-800 px-4 py-3 text-sm font-black text-white disabled:opacity-50">
-       {reading?'Lendo imagem...':'Selecionar print ou colar Ctrl+V'}</button>
+       {reading?'Lendo imagem...':'Selecionar print ou colar Ctrl+V'}</button>}
       <button type="button" disabled={reading} onClick={loadExample}
        className="rounded-xl border border-cyan-700 bg-white px-4 py-3 text-xs font-bold text-cyan-950">Testar com o Prisma do exemplo</button>
      </div>
@@ -158,8 +162,8 @@ export default function MarketIqExpressPrintPanel({onClose,onApply}:Props){
      <button type="button" disabled={!vehicle.brand.trim()||!vehicle.model.trim()||!vehicle.yearModel||vehicle.km===null||vehicle.km<0||vehicle.km>999999||(override!=='auto'&&!reason.trim())}
       onClick={()=>assessment&&onApply(vehicle,assessment)}
       className="w-full rounded-xl bg-[#153f51] p-4 text-sm font-black text-white disabled:opacity-50">
-      Usar dados conferidos na Mesa</button>
-     <p className="text-center text-xs text-slate-600">Não salva avaliação, não aprova valor e não muda a classificação técnica automaticamente.</p>
+      {demoOnly?'Concluir demonstração':'Usar dados conferidos na Mesa'}</button>
+     <p className="text-center text-xs text-slate-600">{demoOnly?'Demonstração sem gravação ou envio de dados.':'Não salva avaliação, não aprova valor e não muda a classificação técnica automaticamente.'}</p>
     </>}
    </main>
   </section>
