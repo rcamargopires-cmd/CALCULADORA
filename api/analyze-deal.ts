@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { motyqFirestore } from '../server/motyqFirestore.js';
 import motyqAquaGateway from '../server/motyqAquaGateway.js';
+import {analyzeIqExpressPrint} from '../server/motyqIqExpressPrint.js';
 
 // Per-function-instance circuit breaker to stop a burst of failed Firestore
 // profile reads after quota exhaustion. Does not cache roles or authorize users.
@@ -430,6 +431,23 @@ const handleUserManagement=async(req:any,res:any)=>{
 
 export default async function handler(req: any, res: any) {
   if(String(req.query?.action||'').startsWith('aqua-'))return motyqAquaGateway(req,res);
+  if(String(req.query?.action||'')==='iq-express-print'){
+    res.setHeader('Cache-Control','no-store');
+    if(req.method!=='POST')return res.status(405).json({error:'Método não permitido.'});
+    try{
+      const actor=await managementActor(req);
+      if(!actor||actor.status!=='active'||!(
+        roleOf(actor)==='admin'||roleOf(actor)==='manager'||roleOf(actor)==='pricing'||
+        actor.pricingDeskAccess===true||actor.pricingDeskOnly===true
+      ))return res.status(403).json({error:'A leitura de print é restrita aos usuários autorizados da Mesa.'});
+      const result=await analyzeIqExpressPrint(req.body);
+      return res.status(200).json(result);
+    }catch(error:any){
+      const status=[400,403,413,422,503].includes(Number(error?.status))?Number(error.status):500;
+      console.error('iq_express_print',status,String(error?.message||'error').slice(0,120));
+      return res.status(status).json({error:status===500?'Não foi possível ler o print agora. Tente novamente.':String(error?.message||'Falha ao ler print.')});
+    }
+  }
   if (String(req.query?.action || '') === 'current-user') {
     try {
       const authHeader=String(req.headers?.authorization||'');
