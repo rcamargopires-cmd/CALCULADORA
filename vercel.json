@@ -7,6 +7,10 @@
     {
       "source": "/aqua/lojista",
       "destination": "/index.html"
+    },
+    {
+      "source": "/iq-express/laboratorio",
+      "destination": "/index.html"
     }
   ]
 }
