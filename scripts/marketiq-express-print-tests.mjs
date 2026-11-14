@@ -15,7 +15,7 @@ assert.ok(actual.includes(fleet),'Run fleet policy from real module, not mock');
 const lib=await import('data:text/javascript;base64,'+Buffer.from(actual).toString('base64'));
 const prisma=lib.cleanExpressVehicle({
  brand:'CHEVROLET',model:'PRISMA LTZ 1.4 FLEX AUTOMÁTICO',yearManufacture:'2017',yearModel:'2018',
- km:95800,plate:'FOT9835',fipeReference:62291,conditionScore:5.8,repairTotal:2000,
+ km:95800,plate:'ABC1D23',fipeReference:62291,conditionScore:5.8,repairTotal:2000,
  repairDetails:['Lataria R$ 1.500','Motor R$ 500'],warnings:[]
 });
 assert.equal(prisma.yearModel,'2018');assert.equal(prisma.km,95800);
