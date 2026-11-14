@@ -13,7 +13,7 @@ export default function MarketIqExpressDemoRoute(){
    <p className="text-xs font-black uppercase tracking-widest text-cyan-800">Motyq IQ Express</p>
    <h1 className="text-2xl font-black">Laboratório de classificação</h1>
    <p className="text-sm text-slate-700">Esta página é um teste isolado, sem login, sem leitura de imagens e sem acesso ao histórico real do Motyq.</p>
-   <button onClick={()=>setOpen(true)} type="button" className="w-full rounded-xl bg-cyan-800 px-4 py-3 font-black text-white">Abrir teste com o Prisma</button>
+   <button onClick={()=>setOpen(true)} type="button" style={{backgroundColor:"#155e75",color:"#ffffff"}} className="w-full rounded-xl px-4 py-3 font-black !text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-800">Abrir teste com o Prisma</button>
    {last&&<section role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 p-4">
     <p className="text-sm font-black text-emerald-900">Classificação concluída (somente demonstração)</p>
     <h2 className="mt-2 text-lg font-bold">{last.vehicle.brand} {last.vehicle.model}</h2>
