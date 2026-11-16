@@ -30,7 +30,10 @@ const knownModels:[RegExp,string][]=[
  [/\b(KWID|SANDERO|DUSTER|KARDIAN|LOGAN|CAPTUR)\b/,'RENAULT'],
  [/\b(KICKS|VERSA|SENTRA|FRONTIER)\b/,'NISSAN'],
  [/\b(CIVIC|FIT|CITY|HR-V|WR-V)\b/,'HONDA'],
- [/\b(ECOSPORT|KA|RANGER|TERRITORY|FIESTA)\b/,'FORD']
+ [/\b(ECOSPORT|KA|RANGER|TERRITORY|FIESTA)\b/,'FORD'],
+ // AutoAvaliar often shows an Audi Q3 model without explicitly writing AUDI.
+ // Match distinctive model identifiers, never guess the make from "TFSI".
+ [/\b(Q2|Q3|Q5|Q7|Q8|A1|A3|A4|A5|A6|A7|A8|TT|E-TRON)\b/,'AUDI']
 ];
 const chooseTitle=(line:string)=>{
  const normalized=fold(line).replace(/^\s*[#*]+\s*/,'');
@@ -311,8 +314,11 @@ export function parseAutoAvaliarOcrText(
  const initialTitle=knownIndex>=0?vehicleTitle(lines[knownIndex]):fallbackIndex>=0?genericVehicleTitle(fallbackLines[fallbackIndex]):'';
  // AutoAvaliar wraps long versions onto the next display line.
  const suffix=knownIndex>=0?fold(lines[knownIndex+1]||''):fallbackIndex>=0?fold(fallbackLines[fallbackIndex+1]||''):'';
- const title=initialTitle+(/^(?:AUTOMATICO|MANUAL|AT6|AT8|CVT)$/.test(suffix)&&!initialTitle.endsWith(suffix)?' '+suffix:'');
- const labelBrand=fieldValue(lines,/^(?:MARCA|FABRICANTE)\s*[:|.-]?\s*/,/^(?:VOLKSWAGEN|CHEVROLET|FIAT|TOYOTA|HYUNDAI|JEEP|RENAULT|NISSAN|HONDA|FORD|VW|GM)\b/);
+ // Long versions (e.g. Audi Q3 Sportback) wrap trim/drivetrain onto a
+ // second line. Never append unrelated fields such as Placa, Ano or FIPE.
+ const titleContinuation=/^(?:AUTOMATICO|MANUAL|AT6|AT8|CVT|(?:PERFORMANCE|QUATTRO|TIPTRONIC|S[ -]?LINE|PRESTIGE|PREMIUM|ADVANCED|ATTRACTION|AMBIENTE|AMBITION)(?:\s+(?:PERFORMANCE|QUATTRO|TIPTRONIC|S[ -]?LINE|PRESTIGE|PREMIUM|ADVANCED|ATTRACTION|AMBIENTE|AMBITION)){0,5})$/;
+ const title=initialTitle+(titleContinuation.test(suffix)&&!initialTitle.endsWith(suffix)?' '+suffix:'');
+ const labelBrand=fieldValue(lines,/^(?:MARCA|FABRICANTE)\s*[:|.-]?\s*/,/^(?:VOLKSWAGEN|CHEVROLET|FIAT|TOYOTA|HYUNDAI|JEEP|RENAULT|NISSAN|HONDA|FORD|AUDI|VW|GM)\b/);
  let brand=knownModels.find(([re])=>re.test(title))?.[1]||fullMake(title)?.brand||'';
  if(labelBrand)brand=labelBrand.startsWith('VW')?'VOLKSWAGEN':labelBrand.startsWith('GM')?'CHEVROLET':labelBrand.split(/\s+/)[0];
  const modelLabel=fieldValue(lines,/^(?:MODELO|VERSAO)\s*[:|.-]?\s*/,/[A-Z]{2,}/);
