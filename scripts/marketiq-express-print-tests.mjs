@@ -111,6 +111,26 @@ const noAccidentalMileage=parser.parseAutoAvaliarOcrText(
  'TAOS 1.4 250 TSI AUTOMATICO\nRenavam 0114101016\nMotor 1395'
 );
 assert.equal(noAccidentalMileage.km,null);
+// Diagnostic reproduction from the real Taos screenshot: targeted OCR on
+// the narrow plate crop reads SVPGAG3, substituting G for numeric zeros.
+assert.deepEqual(parser.normalizePlateFromIsolatedCrop('SVPGAG3'),{plate:'SVP0A03',corrected:true});
+assert.deepEqual(parser.normalizePlateFromIsolatedCrop('SVP0A03'),{plate:'SVP0A03',corrected:false});
+assert.equal(parser.normalizePlateFromIsolatedCrop('116583889'),null,'Never accept evaluation ID as a plate');
+assert.equal(parser.normalizePlateFromIsolatedCrop('WAVB6B2B8A817868'),null,'Never accept a chassis as a plate');
+assert.equal(parser.normalizePlateFromIsolatedCrop('TAOS 1.4 250 TSI'),null,'Never guess a plate from model description');
+const taosPlateFallback=parser.parseAutoAvaliarOcrText(
+ 'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO\\nNOTAS 7,1/10',
+ '',
+ 'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO\\n2024/2024\\n26.472',
+ '',
+ 'REFERENCIAS\\nFIPE\\nR$ 133.328,00',
+ '',
+ 'SVPGAG3'
+);
+assert.equal(taosPlateFallback.plate,'SVP0A03');
+assert.equal(taosPlateFallback.km,26472);
+assert.equal(taosPlateFallback.fipeReference,133328);
+assert.ok(taosPlateFallback.warnings.some(w=>w.includes('Confirma')||w.includes('Confira visualmente')));
 const taosIncomplete=parser.parseAutoAvaliarOcrText('FOTOS LISTA TAOS 1.4 250 TSI TOTAL FLE');
 assert.equal(taosIncomplete.brand,'VOLKSWAGEN');
 assert.ok(taosIncomplete.model.startsWith('TAOS'));
@@ -151,6 +171,11 @@ assert.ok(browserOcr.includes("recognize(image,{}, {tsv:true})"),'Collect word c
 assert.ok(browserOcr.includes('screenshotRegions(file)'),'Full AutoAvaliar screenshots need magnified vehicle crop');
 assert.ok(browserOcr.includes('detail:crop(0.555,0.005,0.215,0.745)'),'Detail crop must include plate and KM rows');
 assert.ok(browserOcr.includes('reference:crop(0.775,0.59,0.21,0.41)'),'FIPE crop must reach the bottom of short AutoAvaliar screenshots');
+assert.ok(browserOcr.includes('plate:crop(0.708,0.153,0.058,0.047,10)'),'Target the plate value row at 10x');
+assert.ok(browserOcr.includes("if(!extracted.plate&&regions)"),'Avoid slow plate OCR when first pass succeeds');
+assert.ok(browserOcr.includes("tessedit_pageseg_mode:'7'"),'Single-line Tesseract mode for 7-char plate');
+assert.ok(browserOcr.includes("tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'"),'Plate OCR should avoid symbols');
+
 assert.ok(browserOcr.includes('detailText,detailTsv,referenceText,referenceTsv'),'Regional OCR must be passed to parser');
 
 assert.ok(!browserOcr.includes('fetch('),'Local print engine must not upload images');
