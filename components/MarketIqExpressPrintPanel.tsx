@@ -1,5 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {auth} from '../firebase';
+import {readExpressPrintLocally} from '../services/marketIqExpressBrowserOcr';
 import {assessExpressCommercial,cleanExpressVehicle,type ExpressVehicleExtract,
  type ExpressAssessment,type ExpressCommercialClass} from '../services/marketIqExpress';
 
@@ -34,6 +35,8 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
  const fileRef=useRef<HTMLInputElement>(null);
  const [vehicle,setVehicle]=useState<ExpressVehicleExtract|null>(null);
  const [reading,setReading]=useState(false);
+ const [readStatus,setReadStatus]=useState('');
+ const [method,setMethod]=useState<'local'|'ai'|'sample'|null>(null);
  const [error,setError]=useState('');
  const [sample,setSample]=useState(false);
  const [demand,setDemand]=useState(false);
@@ -45,27 +48,41 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
   manualClass:override==='auto'?null:override,manualReason:reason
  }):null,[vehicle,demand,zeroStock,override,reason]);
  const read=async(file?:File)=>{
-  if(!file||reading||demoOnly)return;
+  if(!file||reading)return;
   setError('');setVehicle(null);setReading(true);setSample(false);setDemand(false);setZeroStock(false);setOverride('auto');
+  setReadStatus('Preparando print…');setMethod(null);
   try{
-   const image=await prepareImage(file);
-   const user=auth.currentUser;
-   if(!user)throw Error('Entre no Motyq para analisar o print.');
-   const token=await user.getIdToken();
-   const response=await fetch('/api/analyze-deal?action=iq-express-print',{
-    method:'POST',cache:'no-store',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-    body:JSON.stringify(image)
-   });
-   const data=await response.json().catch(()=>({}));
-   if(!response.ok)throw Error(String(data.error||'Não foi possível ler a imagem.'));
-   setVehicle(cleanExpressVehicle(data.vehicle));
+   if(demoOnly){
+    const extracted=await readExpressPrintLocally(file,setReadStatus);
+    setVehicle(extracted);setMethod('local');
+   }else{
+    const image=await prepareImage(file);
+    const user=auth.currentUser;
+    if(!user)throw Error('Entre no Motyq para analisar o print.');
+    const token=await user.getIdToken();
+    setReadStatus('Lendo o print com IA…');
+    const response=await fetch('/api/analyze-deal?action=iq-express-print',{
+     method:'POST',cache:'no-store',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+     body:JSON.stringify(image)
+    });
+    if(response.ok){
+     const data=await response.json();
+     setVehicle(cleanExpressVehicle(data.vehicle));setMethod('ai');
+    }else{
+     const data=await response.json().catch(()=>({}));
+     if(response.status!==503)throw Error(String(data.error||'Não foi possível ler a imagem.'));
+     setReadStatus('IA do servidor indisponível. Tentando OCR local no navegador…');
+     const extracted=await readExpressPrintLocally(file,setReadStatus);
+     setVehicle(extracted);setMethod('local');
+    }
+   }
   }catch(err){setError(err instanceof Error?err.message:'Falha ao ler a captura.');}
-  finally{setReading(false);}
+  finally{setReading(false);setReadStatus('');}
  };
  useEffect(()=>{
   const handler=(event:ClipboardEvent)=>{
    const file=[...(event.clipboardData?.files||[])].find(x=>x.type.startsWith('image/'));
-   if(file&&!demoOnly){event.preventDefault();void read(file);}
+   if(file){event.preventDefault();void read(file);}
   };
   window.addEventListener('paste',handler);
   return ()=>window.removeEventListener('paste',handler);
@@ -82,7 +99,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
    <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
     <div><p className="text-xs font-black tracking-wider text-cyan-800">MOTYQ IQ EXPRESS · LABORATÓRIO</p>
      <h2 className="text-xl font-black">Prévia rápida por print</h2>
-     <p className="mt-1 text-xs text-slate-600">{demoOnly?'Teste o exemplo do Prisma e a classificação comercial sem precisar entrar na conta.':'Cole um recorte da avaliação e revise os dados antes de aproveitar na Mesa.'}</p></div>
+     <p className="mt-1 text-xs text-slate-600">{demoOnly?'Cole prints reais para testar a leitura local, sem login nem envio da imagem ao servidor.':'Cole um recorte da avaliação e revise os dados antes de aproveitar na Mesa.'}</p></div>
     <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">Fechar</button>
    </header>
    <main className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
