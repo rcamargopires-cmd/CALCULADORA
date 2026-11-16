@@ -68,7 +68,7 @@ async function toHighResolutionDataUrl(file:File):Promise<string>{
  * that text read in page order remains adjacent to its label.
  */
 type ScreenshotRegions={
- detail:string;reference:string;plateContext:string;
+ detail:string;reference:string;rating:string;plateContext:string;
  plateAt:(anchor:{top:number;height:number})=>string;
  plateValueAt:(anchor:{top:number;height:number;left?:number;width?:number})=>string;
 };
@@ -101,6 +101,8 @@ async function screenshotRegions(file:File):Promise<ScreenshotRegions|null>{
   return {
    detail:crop(detailRect.x,detailRect.y,detailRect.w,detailRect.h),
    reference:crop(0.775,0.59,0.21,0.41),
+   // Blue/green condition score card is separate from vehicle table.
+   rating:crop(0.765,0.18,0.23,0.49),
    // If OCR misses the label, show a wider context rather than the WRONG row.
    plateContext:crop(0.50,0.06,0.27,0.22,6),
    plateAt:(anchor)=>{
@@ -156,6 +158,16 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
    referenceText=ref.data.text;referenceTsv=ref.data.tsv||'';
  }
  let extracted=parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv);
+ let ratingText='';
+ if(extracted.conditionScore===null&&regions){
+  onStatus('Lendo a nota de avaliação no quadro lateral…');
+  try{
+   const scoreResult=await worker.recognize(regions.rating);
+   ratingText=scoreResult.data.text||'';
+   if(ratingText.trim())extracted=parseAutoAvaliarOcrText(
+    output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv,undefined,ratingText);
+  }catch{/* Rating is optional; never discard vehicle data. */}
+ }
  // A full-image OCR can read a small plate like SVP0A03 as SVPGAG3, and then
  // discard it. Only when that happens, analyze its narrow value row at high scale.
  if(!extracted.plate&&regions){
@@ -187,7 +199,7 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
    }catch{}
   }
   if(isolatedPlateText.trim())
-   extracted=parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv,isolatedPlateText);
+   extracted=parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv,isolatedPlateText,ratingText);
  }
  return extracted;
 }
