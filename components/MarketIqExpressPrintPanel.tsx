@@ -6,7 +6,7 @@ import type {ExpressHistoryRecord} from '../services/marketIqExpressHistory';
 import {assessExpressCommercial,cleanExpressVehicle,type ExpressVehicleExtract,
  type ExpressAssessment,type ExpressCommercialClass} from '../services/marketIqExpress';
 
-type Props={onClose:()=>void;onApply:(vehicle:ExpressVehicleExtract,assessment:ExpressAssessment)=>void;demoOnly?:boolean;history?:readonly ExpressHistoryRecord[];historyLoading?:boolean;historyIncomplete?:boolean};
+type Props={onClose:()=>void;onApply:(vehicle:ExpressVehicleExtract,assessment:ExpressAssessment)=>void;demoOnly?:boolean;history?:readonly ExpressHistoryRecord[];historyLoading?:boolean;historyIncomplete?:boolean;historyError?:string};
 const money=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 
 const initialVehicle=():ExpressVehicleExtract=>({
@@ -14,7 +14,7 @@ const initialVehicle=():ExpressVehicleExtract=>({
  fipeReference:null,conditionScore:null,repairTotal:null,repairDetails:[],warnings:[]
 });
 const input='mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950';
-export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=false,history=[],historyLoading=false,historyIncomplete=false}:Props){
+export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=false,history=[],historyLoading=false,historyIncomplete=false,historyError=''}:Props){
  const fileRef=useRef<HTMLInputElement>(null);
  const clipboardArea=useRef<HTMLDivElement>(null);
  const [vehicle,setVehicle]=useState<ExpressVehicleExtract|null>(null);
@@ -156,7 +156,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
       {vehicle.repairDetails.length>0&&<p className="text-xs text-slate-600">Itens: {vehicle.repairDetails.join(' · ')}</p>}
       {vehicle.warnings.length>0&&<p className="text-xs text-amber-800">Conferir: {vehicle.warnings.join('; ')}</p>}
       <p className="text-xs font-semibold text-amber-900">A FIPE do print não substitui a consulta do mês vigente. O valor de compra ainda depende do mercado, custos e histórico pago.</p>
-      {!demoOnly&&<MarketIqExpressHistoryCard vehicle={vehicle} history={history} loading={historyLoading} incomplete={historyIncomplete}/>}
+      {!demoOnly&&<MarketIqExpressHistoryCard vehicle={vehicle} history={history} loading={historyLoading} incomplete={historyIncomplete} error={historyError}/>}
      </section>
      <section className="space-y-3 rounded-xl border border-slate-200 p-4">
       <h3 className="text-sm font-black">3. Prioridade comercial</h3>
