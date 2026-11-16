@@ -1,31 +1,11 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
-import {auth} from '../firebase';
 import {readExpressPrintLocally} from '../services/marketIqExpressBrowserOcr';
 import {assessExpressCommercial,cleanExpressVehicle,type ExpressVehicleExtract,
  type ExpressAssessment,type ExpressCommercialClass} from '../services/marketIqExpress';
 
 type Props={onClose:()=>void;onApply:(vehicle:ExpressVehicleExtract,assessment:ExpressAssessment)=>void;demoOnly?:boolean};
 const money=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
-async function prepareImage(file:File):Promise<{mimeType:string;imageBase64:string}>{
- if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Envie um print PNG, JPEG ou WebP.');
- if(file.size>12*1024*1024)throw Error('Imagem muito grande. Selecione um recorte menor.');
- const url=URL.createObjectURL(file);
- try{
-  const img=new Image();
-  await new Promise<void>((resolve,reject)=>{img.onload=()=>resolve();img.onerror=()=>reject(new Error('Não foi possível abrir a imagem.'));img.src=url;});
-  const scale=Math.min(1,1900/Math.max(img.naturalWidth,img.naturalHeight));
-  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
-  canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
-  const context=canvas.getContext('2d');
-  if(!context)throw Error('O navegador não conseguiu preparar o print.');
-  context.fillStyle='#ffffff';context.fillRect(0,0,canvas.width,canvas.height);
-  context.drawImage(img,0,0,canvas.width,canvas.height);
-  let data=canvas.toDataURL('image/jpeg',0.89).split(',')[1];
-  if(data.length>2400000)data=canvas.toDataURL('image/jpeg',0.72).split(',')[1];
-  if(data.length>2400000)throw Error('Recorte uma área menor da tela para enviar.');
-  return {mimeType:'image/jpeg',imageBase64:data};
- }finally{URL.revokeObjectURL(url);}
-}
+
 const initialVehicle=():ExpressVehicleExtract=>({
  brand:'',model:'',yearManufacture:'',yearModel:'',km:null,plate:'',
  fipeReference:null,conditionScore:null,repairTotal:null,repairDetails:[],warnings:[]
@@ -54,30 +34,10 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
   setError('');setVehicle(null);setReading(true);setSample(false);setDemand(false);setZeroStock(false);setOverride('auto');
   setReadStatus('Preparando print…');setMethod(null);setPlateZoom(null);
   try{
-   if(demoOnly){
-    const extracted=await readExpressPrintLocally(file,setReadStatus,setPlateZoom);
-    setVehicle(extracted);setMethod('local');
-   }else{
-    const image=await prepareImage(file);
-    const user=auth.currentUser;
-    if(!user)throw Error('Entre no Motyq para analisar o print.');
-    const token=await user.getIdToken();
-    setReadStatus('Lendo o print com IA…');
-    const response=await fetch('/api/analyze-deal?action=iq-express-print',{
-     method:'POST',cache:'no-store',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-     body:JSON.stringify(image)
-    });
-    if(response.ok){
-     const data=await response.json();
-     setVehicle(cleanExpressVehicle(data.vehicle));setMethod('ai');
-    }else{
-     const data=await response.json().catch(()=>({}));
-     if(response.status!==503)throw Error(String(data.error||'Não foi possível ler a imagem.'));
-     setReadStatus('IA do servidor indisponível. Tentando OCR local no navegador…');
-     const extracted=await readExpressPrintLocally(file,setReadStatus,setPlateZoom);
-     setVehicle(extracted);setMethod('local');
-    }
-   }
+   // Free local OCR is the default both in Preview and inside the Mesa.
+   // No image upload and no paid Gemini call during routine screenshot reading.
+   const extracted=await readExpressPrintLocally(file,setReadStatus,setPlateZoom);
+   setVehicle(extracted);setMethod('local');
   }catch(err){setError(err instanceof Error?err.message:'Falha ao ler a captura.');}
   finally{setReading(false);setReadStatus('');}
  };
@@ -110,7 +70,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
      {demoOnly?<p className="rounded-lg border border-cyan-300 bg-white p-3 text-xs font-semibold text-cyan-950">
       Novo: neste laboratório, o print é lido por OCR no próprio navegador. Não precisa de chave de IA nem de login, e a imagem não é enviada ao Motyq. Como a leitura é experimental, todos os campos precisam ser conferidos.
      </p>:<p className="text-xs leading-5 text-cyan-950">
-      No AutoAvaliar, use <strong>Win + Shift + S</strong> e selecione a ficha do carro, incluindo marca, modelo, ano, KM e referências. Evite dados pessoais do cliente. A versão com IA envia o recorte para extração; caso fique indisponível, utiliza o OCR local.
+      No AutoAvaliar, use <strong>Win + Shift + S</strong> e selecione a ficha do carro, incluindo marca, modelo, ano, KM e referências. Evite dados pessoais do cliente. O OCR roda localmente no navegador, sem enviar a imagem à IA ou gerar custo por chamada.
      </p>}
      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
       aria-label="Selecionar print do AutoAvaliar" onChange={e=>{const file=e.target.files?.[0];e.currentTarget.value='';void read(file);}}/>
