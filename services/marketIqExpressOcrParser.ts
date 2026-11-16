@@ -59,8 +59,38 @@ const likelyPlate=(s:string):string=>{
  const m=fold(s).replace(/[\s-]/g,'').match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/);
  return m?m[0]:'';
 };
-export function parseAutoAvaliarOcrText(rawText:string):ExpressVehicleExtract{
- const lines=String(rawText||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+/** Reconstruct label/value rows using OCR coordinates when the engine splits the
+ * AutoAvaliar left labels from right-aligned values into different text columns.
+ */
+export function spatialOcrRows(tsv:string):string[]{
+ const rows=String(tsv||'').split(/\r?\n/);
+ if(rows.length<2)return [];
+ const keys=rows[0].split('\t');
+ const at=(key:string)=>keys.indexOf(key);
+ const idx={level:at('level'),left:at('left'),top:at('top'),height:at('height'),conf:at('conf'),text:at('text')};
+ if(Object.values(idx).some(x=>x<0))return [];
+ const words:{value:string;x:number;y:number;h:number}[]=[];
+ for(const entry of rows.slice(1)){
+  const cols=entry.split('\t');
+  if(cols[idx.level]!=='5')continue;
+  const value=cols.slice(idx.text).join('\t').trim();
+  const x=Number(cols[idx.left]),top=Number(cols[idx.top]),h=Number(cols[idx.height]),conf=Number(cols[idx.conf]);
+  if(!value||!Number.isFinite(x)||!Number.isFinite(top)||!Number.isFinite(h)||h<1||conf<10)continue;
+  words.push({value,x,y:top+h/2,h});
+ }
+ words.sort((a,b)=>a.y-b.y||a.x-b.x);
+ const groups:{center:number;height:number;words:typeof words}[]=[];
+ for(const word of words){
+  const last=groups[groups.length-1];
+  if(last&&Math.abs(last.center-word.y)<=Math.max(6,Math.min(last.height,word.h)*0.42)){
+   last.words.push(word);last.center=(last.center*(last.words.length-1)+word.y)/last.words.length;
+  }else groups.push({center:word.y,height:word.h,words:[word]});
+ }
+ return groups.map(g=>g.words.sort((a,b)=>a.x-b.x).map(w=>w.value).join(' ')).filter(Boolean);
+}
+export function parseAutoAvaliarOcrText(rawText:string,tsv?:string):ExpressVehicleExtract{
+ const spatial=spatialOcrRows(tsv||'');
+ const lines=[...spatial,...String(rawText||'').split(/\r?\n/)].map(x=>x.trim()).filter(Boolean);
  const upper=lines.map(fold);
  const warnings:string[]=['Leitura local experimental: revise todos os campos antes de utilizar na Mesa.'];
  const title=upper.find(chooseTitle)||'';
