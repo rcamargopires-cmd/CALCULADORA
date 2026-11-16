@@ -56,6 +56,29 @@ const spatialTsv=[
 assert.deepEqual(parser.spatialOcrRows(spatialTsv),['Ano 2017/2018','Km 95.800']);
 const spatialVehicle=parser.parseAutoAvaliarOcrText('PRISMA LTZ AUTOMATICO',spatialTsv);
 assert.equal(spatialVehicle.yearModel,'2018');assert.equal(spatialVehicle.km,95800);
+// Regression from the Taos screenshot feedback: photo tabs must not become model.
+const taosNoisy=parser.parseAutoAvaliarOcrText(
+  'AUT OAVALIAR\nBIA FOTOS LISTA TAOS 1.4 250 TSI TOTAL FLE\nNOTAS DA AVALIACAO 7,1/10',
+  '',
+  'TAOS 1.4 250 TSI TOTAL FLEX AUTOMATICO\nPlaca ABC1D23\nAno 2022/2023\nKm 43.500',
+  '',
+  'REFERENCIAS\nFIPE R$ 151.500,00'
+);
+assert.equal(taosNoisy.brand,'VOLKSWAGEN');
+assert.equal(taosNoisy.model,'TAOS 1.4 250 TSI TOTAL FLEX AUTOMATICO');
+assert.ok(!taosNoisy.model.includes('FOTOS'));
+assert.equal(taosNoisy.yearModel,'2023');
+assert.equal(taosNoisy.km,43500);
+assert.equal(taosNoisy.plate,'ABC1D23');
+assert.equal(taosNoisy.fipeReference,151500);
+assert.equal(taosNoisy.conditionScore,7.1);
+const taosIncomplete=parser.parseAutoAvaliarOcrText('FOTOS LISTA TAOS 1.4 250 TSI TOTAL FLE');
+assert.equal(taosIncomplete.brand,'VOLKSWAGEN');
+assert.ok(taosIncomplete.model.startsWith('TAOS'));
+assert.ok(!taosIncomplete.model.includes('FOTOS'));
+assert.equal(taosIncomplete.yearModel,'');
+assert.equal(taosIncomplete.km,null);
+assert.ok(taosIncomplete.warnings.some(w=>w.includes('cortado')));
 const exampleOcr=[
  'PRISMA 1.4 MPFI LTZ 8V FLEX 4P AUTOMATICO',
  'Placa FOT9835',
@@ -86,6 +109,11 @@ transpile('services/marketIqExpressBrowserOcr.ts');
 assert.ok(browserOcr.includes('tesseract.js@7.0.0/dist/tesseract.min.js'));
 assert.ok(browserOcr.includes("createWorker(['por','eng']"));
 assert.ok(browserOcr.includes("recognize(image,{}, {tsv:true})"),'Collect word coordinates from OCR to reconstruct right-aligned values');
+assert.ok(browserOcr.includes('screenshotRegions(file)'),'Full AutoAvaliar screenshots need magnified vehicle crop');
+assert.ok(browserOcr.includes('detail:crop(0.53,0.115,0.235,0.47)'));
+assert.ok(browserOcr.includes('reference:crop(0.765,0.62,0.23,0.29)'));
+assert.ok(browserOcr.includes('detailText,detailTsv,referenceText,referenceTsv'),'Regional OCR must be passed to parser');
+
 assert.ok(!browserOcr.includes('fetch('),'Local print engine must not upload images');
 assert.ok(!browserOcr.includes('localStorage')&&!browserOcr.includes('indexedDB'),'OCR must not store screenshots in app storage');
 
