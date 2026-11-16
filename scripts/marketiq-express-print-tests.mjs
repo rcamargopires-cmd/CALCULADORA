@@ -40,6 +40,62 @@ assert.equal(blanks.km,null);assert.equal(blanks.fipeReference,null);assert.equa
 const noConfidence=lib.assessExpressCommercial(missing,{demandConfirmed:false,stockZeroConfirmed:false});
 assert.equal(noConfidence.priority,'NORMAL');assert.equal(noConfidence.needsReview,true);
 assert.equal(lib.cleanExpressVehicle({plate:'INVALID#123',km:1234567}).plate,'');
+// Authenticated Desk only: summarize paid / approved outcomes, never
+// confuse preliminary valuations with actual purchases.
+const historyJs=transpile('services/marketIqExpressHistory.ts');
+const history=await import('data:text/javascript;base64,'+Buffer.from(historyJs).toString('base64'));
+const demoVehicle=lib.cleanExpressVehicle({
+ brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',yearModel:'2020',yearManufacture:'2020',
+ plate:'ABC1D23',km:34042,fipeReference:151680
+});
+const paidHistory=[
+ {id:'1',plate:'ABC1D23',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2020',km:'32000',date:'2026-10-05',approvedValue:120000},
+ {id:'2',plate:'ABC1D23',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2020',km:'34500',paidAt:'2026-11-10',paidValue:118000},
+ {id:'2',plate:'ABC1D23',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2020',km:'34500',paidAt:'2026-11-10',paidValue:118000},
+ {id:'3',plate:'XYZ2A34',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2020',km:'33000',paidAt:'2026-11-09',paidValue:121000},
+ {id:'4',plate:'ABZ9Z88',brand:'TOYOTA',model:'RAV4 2.0 GASOLINA CVT',year:'2020',km:'33000',paidAt:'2026-11-02',paidValue:90000},
+ {id:'5',plate:'ABC1D23',brand:'HYUNDAI',model:'HB20S 1.6 AUTOMATICO',year:'2020',km:'33000',paidAt:'2026-11-11',paidValue:70000},
+ {id:'6',plate:'ABC1D23',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2020',km:'36000',value:115000}
+];
+const exact=history.summarizeExpressHistory(demoVehicle,paidHistory);
+assert.equal(exact.matchBy,'plate');assert.equal(exact.evaluations,3,'Duplicate ID and incompatible model excluded');
+assert.equal(exact.paidCount,2,'Provisional value is not purchase');
+assert.equal(exact.minPaid,118000);assert.equal(exact.maxPaid,120000);
+assert.equal(exact.lastPaid,118000);
+assert.equal(exact.repeatedPaid,null,'Never call repeated values from same plate a cross-vehicle pattern');
+const otherPlate={...demoVehicle,plate:'DEF2G45'};
+const comparable=history.summarizeExpressHistory(otherPlate,[
+ ...paidHistory,
+ {id:'7',plate:'QWE3R56',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2020',km:'34000',approvedAt:'2026-11-12',approvedValue:121000},
+ {id:'8',plate:'RTY4U67',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2019',km:'34000',approvedValue:88000},
+ {id:'9',plate:'BNM5K78',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2020',km:'99000',approvedValue:91000},
+ {id:'10',plate:'TYU6L89',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2020',km:'35000',value:125000}
+],true);
+assert.equal(comparable.matchBy,'model');
+assert.equal(comparable.paidCount,4);
+assert.equal(comparable.repeatedPaid,121000);assert.equal(comparable.repeatCount,2);
+assert.equal(comparable.incomplete,true);
+const noHistory=history.summarizeExpressHistory({...demoVehicle,plate:'',model:'RAV4 2.0 GASOLINA CVT'},paidHistory);
+assert.equal(noHistory.paidCount,1,'Trim-specific purchase should not leak from another version');
+assert.equal(history.summarizeExpressHistory({...demoVehicle,brand:'JEEP'},paidHistory).paidCount,0);
+const noPaid=history.summarizeExpressHistory(demoVehicle,[
+ {id:'a',plate:'ABC1D23',brand:'TOYOTA',model:'RAV4 2.5 HYBRID AWD CVT',year:'2020',km:'34042',value:118000}
+]);
+assert.equal(noPaid.evaluations,1);
+assert.equal(noPaid.paidCount,0);
+assert.equal(noPaid.lastPaid,null);
+const historyCard=src('components/MarketIqExpressHistoryCard.tsx');
+transpile('components/MarketIqExpressHistoryCard.tsx');
+assert.ok(historyCard.includes('Histórico rápido · valores efetivamente pagos'));
+assert.ok(historyCard.includes('Último pagamento registrado'));
+assert.ok(historyCard.includes('Não encontrei avaliações pagas comparáveis'));
+const deskSrc=src('components/ManualPricingWorkspace.tsx');
+assert.ok(deskSrc.includes('history={saved} historyLoading={historyBusy} historyIncomplete={historyMore}'),
+ 'Express history must be passed from authenticated Desk scope only');
+assert.ok(deskSrc.includes('setBrandCode(brandMatches.length===1?brandMatches[0].code:'),'Auto-select only exact brand');
+assert.ok(deskSrc.includes("setModelCode('');setYearCode('');setFipe(null);"),'Never guess FIPE trim and price');
+assert.ok(deskSrc.includes("switchDeskSection('plateHistory')"),'Plate history accessible without duplicating a screen');
+
 const api=src('api/analyze-deal.ts');
 const localParserTranspiled=transpile('services/marketIqExpressOcrParser.ts');
 const expressionUrl='data:text/javascript;base64,'+Buffer.from(actual).toString('base64');
@@ -371,6 +427,7 @@ assert.ok(!browserOcr.includes('localStorage')&&!browserOcr.includes('indexedDB'
 const backend=src('server/motyqIqExpressPrint.ts');
 const ui=src('components/MarketIqExpressPrintPanel.tsx');
 assert.ok(ui.includes('readExpressPrintLocally(file,setReadStatus,setPlateZoom)'),'Show the isolated plate only in local UI');
+assert.ok(ui.includes('history={history} loading={historyLoading} incomplete={historyIncomplete}'),'Same-screen preview includes paid history');
 assert.ok(ui.includes('src={plateZoom}')&&ui.includes('Placa ampliada diretamente do seu print'),'Allow quick visual correction when OCR fails');
 assert.ok(ui.includes("setMethod('local')"),'OCR local should be the normal workflow');
 assert.ok(!ui.includes("fetch('/api/analyze-deal?action=iq-express-print'"),'No paid image API call by default');
