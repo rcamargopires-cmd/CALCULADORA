@@ -100,7 +100,7 @@ assert.ok(backend.includes('NÃO extraia dados do cliente')&&backend.includes('N
 assert.ok(backend.includes("if(data.length<200||data.length>2450000"));
 assert.ok(!backend.includes('motyqFirestore.patch')&&!backend.includes('writeFile('),'Images should never be persisted');
 assert.ok(ui.includes("window.addEventListener('paste',handler)"));
-assert.ok(ui.includes('Selecionar print ou colar Ctrl+V'));
+assert.ok(ui.includes('Escolher print ou colar Ctrl+V'));
 assert.ok(ui.includes('setDemand(true);setZeroStock(true)'),'Explicitly approved Prisma demo');
 assert.ok(ui.includes('setOverride(e.target.value')&&ui.includes('option value="SHOWROOM"'));
 assert.ok(ui.includes('Diretriz técnica por KM')&&ui.includes('Requer análise e autorização do gestor'));
