@@ -77,13 +77,14 @@ assert.ok(browserOcr.includes('tesseract.js@7.0.0/dist/tesseract.min.js'));
 assert.ok(browserOcr.includes("createWorker(['por','eng']"));
 assert.ok(!browserOcr.includes('fetch('),'Local print engine must not upload images');
 assert.ok(!browserOcr.includes('localStorage')&&!browserOcr.includes('indexedDB'),'OCR must not store screenshots in app storage');
+
+const backend=src('server/motyqIqExpressPrint.ts');
+const ui=src('components/MarketIqExpressPrintPanel.tsx');
 assert.ok(ui.includes('readExpressPrintLocally(file,setReadStatus)'));
 assert.ok(ui.includes("setMethod('local')")&&ui.includes("setMethod('ai')"));
 assert.ok(ui.includes("response.status!==503"),'Use local OCR when server AI is unavailable');
 assert.ok(ui.includes("if(file){event.preventDefault();void read(file);}"),'Ctrl+V works also in demo');
 
-const backend=src('server/motyqIqExpressPrint.ts');
-const ui=src('components/MarketIqExpressPrintPanel.tsx');
 const workspace=src('components/ManualPricingWorkspace.tsx');
 const home=src('components/MarketIqSimpleHome.tsx');
 const demo=src('components/MarketIqExpressDemoRoute.tsx');
