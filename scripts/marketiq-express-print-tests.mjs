@@ -187,14 +187,14 @@ assert.ok(taosIncomplete.warnings.some(w=>w.includes('cortado')));
 // Model header wraps "AUTOMATICO" to a second line, and 7,1/10 is inside
 // the separate colored sidebar. The plate/year/KM/FIPE are already legible.
 const hb20s=parser.parseAutoAvaliarOcrText(
- 'FOTOS FOTOS LISTA\\nHB20S 1.6 COMFORT PLUS 16V FLEX 4P\\nAUTOMATICO\\nNOTAS DA AVALIACAO',
+ 'FOTOS FOTOS LISTA\nHB20S 1.6 COMFORT PLUS 16V FLEX 4P\nAUTOMATICO\nNOTAS DA AVALIACAO',
  '',
- 'HB20S 1.6 COMFORT PLUS 16V FLEX 4P\\nAUTOMATICO\\nPlaca PXN3664\\nAno 2016/2016\\nKm 154.027',
+ 'HB20S 1.6 COMFORT PLUS 16V FLEX 4P\nAUTOMATICO\nPlaca PXN3664\nAno 2016/2016\nKm 154.027',
  '',
- 'REFERENCIAS\\nFIPE\\nValor R$ 60.921,00',
+ 'REFERENCIAS\nFIPE\nValor R$ 60.921,00',
  '',
  '',
- 'NOTAS DA AVALIACAO\\n7,1/10'
+ 'NOTAS DA AVALIACAO\n7,1/10'
 );
 assert.equal(hb20s.brand,'HYUNDAI');
 assert.equal(hb20s.model,'HB20S 1.6 COMFORT PLUS 16V FLEX 4P AUTOMATICO');
@@ -204,10 +204,10 @@ assert.equal(hb20s.yearModel,'2016');
 assert.equal(hb20s.km,154027);
 assert.equal(hb20s.fipeReference,60921);
 assert.equal(hb20s.conditionScore,7.1);
-const hb20x=parser.parseAutoAvaliarOcrText('HB20X 1.6 PREMIUM FLEX AUTOMATICO\\nAno 2018/2019\\nKm 35.000');
+const hb20x=parser.parseAutoAvaliarOcrText('HB20X 1.6 PREMIUM FLEX AUTOMATICO\nAno 2018/2019\nKm 35.000');
 assert.equal(hb20x.brand,'HYUNDAI');
 assert.ok(hb20x.model.startsWith('HB20X'));
-const hb20NoScore=parser.parseAutoAvaliarOcrText('HB20S 1.6 COMFORT PLUS\\nAno 2016/2016');
+const hb20NoScore=parser.parseAutoAvaliarOcrText('HB20S 1.6 COMFORT PLUS\nAno 2016/2016');
 assert.equal(hb20NoScore.conditionScore,null,'Never invent a score when the rating region cannot be read');
 const exampleOcr=[
  'PRISMA 1.4 MPFI LTZ 8V FLEX 4P AUTOMATICO',
