@@ -4,7 +4,7 @@ import type {ExpressVehicleExtract} from './marketIqExpress';
 /** OCR stays on the buyer's browser/device. No screenshots are sent to Motyq servers.
  * Downloaded Tesseract engine and Portuguese/English language files are cached by the browser.
  */
-type OcrWorker={recognize:(source:string)=>Promise<{data:{text:string;confidence?:number}}>;terminate:()=>Promise<void>};
+type OcrWorker={recognize:(source:string,options?:object,output?:{tsv?:boolean})=>Promise<{data:{text:string;tsv?:string;confidence?:number}}>;terminate:()=>Promise<void>};
 type Engine={createWorker:(langs:string|string[],mode?:number,opts?:{logger?:(event:any)=>void})=>Promise<OcrWorker>};
 const SCRIPT='https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js';
 let loader:Promise<Engine>|null=null,workerPromise:Promise<OcrWorker>|null=null;
@@ -70,7 +70,7 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  const image=await toHighResolutionDataUrl(file);
  onStatus('Carregando reconhecimento local. Na primeira leitura, pode baixar os idiomas…');
  const worker=await getWorker(onStatus);
- const output=await worker.recognize(image);
+ const output=await worker.recognize(image,{}, {tsv:true});
  if(!output.data.text.trim())throw new Error('A imagem não contém texto reconhecível. Amplie a área do veículo e tente novamente.');
- return parseAutoAvaliarOcrText(output.data.text);
+ return parseAutoAvaliarOcrText(output.data.text,output.data.tsv);
 }
