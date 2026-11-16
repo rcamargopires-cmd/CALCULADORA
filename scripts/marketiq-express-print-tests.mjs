@@ -119,11 +119,11 @@ assert.equal(parser.normalizePlateFromIsolatedCrop('116583889'),null,'Never acce
 assert.equal(parser.normalizePlateFromIsolatedCrop('WAVB6B2B8A817868'),null,'Never accept a chassis as a plate');
 assert.equal(parser.normalizePlateFromIsolatedCrop('TAOS 1.4 250 TSI'),null,'Never guess a plate from model description');
 const taosPlateFallback=parser.parseAutoAvaliarOcrText(
- 'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO\\nNOTAS 7,1/10',
+ 'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO\nNOTAS 7,1/10',
  '',
- 'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO\\n2024/2024\\n26.472',
+ 'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO\n2024/2024\n26.472',
  '',
- 'REFERENCIAS\\nFIPE\\nR$ 133.328,00',
+ 'REFERENCIAS\nFIPE\nR$ 133.328,00',
  '',
  'SVPGAG3'
 );
