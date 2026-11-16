@@ -1,4 +1,4 @@
-import {parseAutoAvaliarOcrText,plateLabelFromTsv} from './marketIqExpressOcrParser';
+import {parseAutoAvaliarOcrText,plateAnchorFromVehicleTsv,normalizePlateFromIsolatedCrop} from './marketIqExpressOcrParser';
 import type {ExpressVehicleExtract} from './marketIqExpress';
 
 /** OCR stays on the buyer's browser/device. No screenshots are sent to Motyq servers.
@@ -131,6 +131,28 @@ async function screenshotRegions(file:File):Promise<ScreenshotRegions|null>{
   };
  }finally{URL.revokeObjectURL(url);}
 }
+/** One extra local pass for low-contrast plate characters. Kept in memory. */
+async function enhancePlateContrast(source:string):Promise<string>{
+ const image=new Image();
+ await new Promise<void>((resolve,reject)=>{
+  image.onload=()=>resolve();image.onerror=()=>reject(new Error('Falha na ampliação da placa.'));
+  image.src=source;
+ });
+ const canvas=document.createElement('canvas');
+ canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});
+ if(!ctx)return source;
+ ctx.drawImage(image,0,0);
+ const pixels=ctx.getImageData(0,0,canvas.width,canvas.height);
+ for(let i=0;i<pixels.data.length;i+=4){
+  const gray=pixels.data[i]*0.299+pixels.data[i+1]*0.587+pixels.data[i+2]*0.114;
+  const boosted=Math.max(0,Math.min(255,Math.round((gray-140)*2+140)));
+  pixels.data[i]=boosted;pixels.data[i+1]=boosted;pixels.data[i+2]=boosted;
+ }
+ ctx.putImageData(pixels,0,0);
+ return canvas.toDataURL('image/png');
+}
+
 export async function readExpressPrintLocally(file:File,onStatus:(status:string)=>void,onPlateZoom?:(image:string|null)=>void):Promise<ExpressVehicleExtract>{
  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Selecione um print PNG, JPG ou WebP.');
  if(file.size>12*1024*1024)throw new Error('Recorte uma imagem menor que 12 MB.');
@@ -151,7 +173,7 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
    onStatus('Conferindo a ficha do veículo em tamanho ampliado…');
    const detail=await worker.recognize(regions.detail,{}, {tsv:true});
    detailText=detail.data.text;detailTsv=detail.data.tsv||'';
-   const plateAnchor=plateLabelFromTsv(detailTsv);
+   const plateAnchor=plateAnchorFromVehicleTsv(detailTsv);
    onPlateZoom?.(plateAnchor?regions.plateAt(plateAnchor):regions.plateContext);
    onStatus('Conferindo FIPE e referências no painel direito…');
    const ref=await worker.recognize(regions.reference,{}, {tsv:true});
@@ -172,7 +194,7 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  // discard it. Only when that happens, analyze its narrow value row at high scale.
  if(!extracted.plate&&regions){
   onStatus('Ampliando a linha da placa para uma última conferência…');
-  const label=plateLabelFromTsv(detailTsv);
+  const label=plateAnchorFromVehicleTsv(detailTsv);
   const plateImage=label?regions.plateValueAt(label):regions.plateContext;
   let isolatedPlateText='';
   // Changing page segmentation can fail on some Tesseract.js workers.
@@ -190,15 +212,42 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
   }finally{
    if(configured)await worker.setParameters({tessedit_pageseg_mode:'3',tessedit_char_whitelist:''}).catch(()=>{});
   }
-  // OCR often adds whitespace or punctuation to the tiny plate, so try
-  // a tightly normalized single value before treating it as missing.
-  if(!isolatedPlateText.trim()){
+  // Retry with high contrast when single-line OCR misses the seven characters.
+  // These extra reads run only on the user's device, with no paid AI.
+  if(!normalizePlateFromIsolatedCrop(isolatedPlateText)){
    try{
-    const basic=await worker.recognize(plateImage);
-    isolatedPlateText=basic.data.text||'';
+    onStatus('Conferindo a placa com contraste ampliado…');
+    const enhanced=await enhancePlateContrast(plateImage);
+    let configuredContrast=false;
+    try{
+     await worker.setParameters({tessedit_pageseg_mode:'8',tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'});
+     configuredContrast=true;
+    }catch{}
+    try{
+     const contrastResult=await worker.recognize(enhanced);
+     if(normalizePlateFromIsolatedCrop(contrastResult.data.text||''))isolatedPlateText=contrastResult.data.text;
+    }finally{
+     if(configuredContrast)await worker.setParameters({tessedit_pageseg_mode:'3',tessedit_char_whitelist:''}).catch(()=>{});
+    }
+   }catch{/* OCR fallback cannot invalidate other recognized vehicle details. */}
+  }
+  // One final contextual pass helps when the value crop clipped a character.
+  // The wider crop is allowed only when anchored to the vehicle-card label.
+  if(!normalizePlateFromIsolatedCrop(isolatedPlateText)&&label){
+   try{
+    let configuredContext=false;
+    try{await worker.setParameters({tessedit_pageseg_mode:'6'});configuredContext=true;}catch{}
+    try{
+     const contextual=await worker.recognize(regions.plateAt(label));
+     if(normalizePlateFromIsolatedCrop(contextual.data.text||''))isolatedPlateText=contextual.data.text;
+    }finally{
+     if(configuredContext)await worker.setParameters({tessedit_pageseg_mode:'3',tessedit_char_whitelist:''}).catch(()=>{});
+    }
    }catch{}
   }
-  if(isolatedPlateText.trim())
+  // Reject cropped text unless it normalizes to an exact Brazilian plate
+  // shape; otherwise keep the manual plate review.
+  if(normalizePlateFromIsolatedCrop(isolatedPlateText))
    extracted=parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv,isolatedPlateText,ratingText);
  }
  return extracted;
