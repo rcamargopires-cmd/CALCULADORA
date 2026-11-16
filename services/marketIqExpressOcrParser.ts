@@ -23,7 +23,7 @@ const mileage=(x:string):number|null=>{
 const knownModels:[RegExp,string][]=[
  [/\b(PRISMA|ONIX|TRACKER|SPIN|CRUZE|S10|MONTANA)\b/,'CHEVROLET'],
  [/\b(T-CROSS|TCROSS|POLO|VIRTUS|NIVUS|GOL|SAVEIRO|JETTA|TAOS|AMAROK)\b/,'VOLKSWAGEN'],
- [/\b(CRETA|HB20|TUCSON|IX35)\b/,'HYUNDAI'],
+ [/\b(CRETA|HB20S|HB20X|HB20|TUCSON|IX35)\b/,'HYUNDAI'],
  [/\b(YARIS|COROLLA|HILUX|ETIOS|SW4)\b/,'TOYOTA'],
  [/\b(COMPASS|RENEGADE|COMMANDER)\b/,'JEEP'],
  [/\b(ARGO|MOBI|PULSE|FASTBACK|TORO|STRADA|CRONOS)\b/,'FIAT'],
@@ -228,7 +228,7 @@ export function normalizePlateFromIsolatedCrop(raw:string):{plate:string;correct
  return /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)?{plate,corrected}:null;
 }
 export function parseAutoAvaliarOcrText(
- rawText:string,tsv?:string,detailsText?:string,detailsTsv?:string,referencesText?:string,referencesTsv?:string,isolatedPlateText?:string
+ rawText:string,tsv?:string,detailsText?:string,detailsTsv?:string,referencesText?:string,referencesTsv?:string,isolatedPlateText?:string,ratingText?:string
 ):ExpressVehicleExtract{
  const detailLines=[...spatialOcrRows(detailsTsv||''),...String(detailsText||'').split(/\r?\n/)].map(x=>x.trim()).filter(Boolean);
  const mainLines=[...spatialOcrRows(tsv||''),...String(rawText||'').split(/\r?\n/)].map(x=>x.trim()).filter(Boolean);
@@ -236,7 +236,11 @@ export function parseAutoAvaliarOcrText(
  const lines=[...detailLines,...mainLines];
  const upper=lines.map(fold);
  const warnings:string[]=['Leitura local experimental: revise todos os campos antes de utilizar na Mesa.'];
- const title=lines.map(vehicleTitle).find(Boolean)||'';
+ const titleIndex=lines.findIndex(row=>Boolean(vehicleTitle(row)));
+ const initialTitle=titleIndex>=0?vehicleTitle(lines[titleIndex]):'';
+ // AutoAvaliar wraps long versions onto the next display line.
+ const suffix=titleIndex>=0?fold(lines[titleIndex+1]||''):'';
+ const title=initialTitle+(/^(?:AUTOMATICO|MANUAL|AT6|AT8|CVT)$/.test(suffix)&&!initialTitle.endsWith(suffix)?' '+suffix:'');
  const labelBrand=fieldValue(lines,/^(?:MARCA|FABRICANTE)\s*[:|.-]?\s*/,/^(?:VOLKSWAGEN|CHEVROLET|FIAT|TOYOTA|HYUNDAI|JEEP|RENAULT|NISSAN|HONDA|FORD|VW|GM)\b/);
  let brand=knownModels.find(([re])=>re.test(title))?.[1]||'';
  if(labelBrand)brand=labelBrand.startsWith('VW')?'VOLKSWAGEN':labelBrand.startsWith('GM')?'CHEVROLET':labelBrand.split(/\s+/)[0];
@@ -282,8 +286,13 @@ export function parseAutoAvaliarOcrText(
    if(value!==null&&value>=1000){fipeReference=value;break;}
   }
  }
- const scoreMatch=upper.join('\n').match(/\b(\d{1,2}(?:[.,]\d)?)\s*\/\s*10\b/);
- const conditionScore=scoreMatch?Number(scoreMatch[1].replace(',','.')):null;
+ const findScore=(value:string):number|null=>{
+  const match=fold(value).match(/\b(\d{1,2}(?:[.,]\s*\d)?)\s*\/\s*(?:10|1O|IO)\b/);
+  if(!match)return null;
+  const n=Number(match[1].replace(/\s/g,'').replace(',','.'));
+  return Number.isFinite(n)&&n>=0&&n<=10?n:null;
+ };
+ const conditionScore=findScore(ratingText||'')??findScore(upper.join('\n'));
  const repairDetails:string[]=[];
  let repairTotal:number|null=null;
  // Only count lines in item section that name a repair. This avoids FIPE and buyer bids.
