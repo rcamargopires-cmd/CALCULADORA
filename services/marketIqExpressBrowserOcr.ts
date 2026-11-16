@@ -103,9 +103,10 @@ async function screenshotRegions(file:File):Promise<{detail:string;reference:str
   };
  }finally{URL.revokeObjectURL(url);}
 }
-export async function readExpressPrintLocally(file:File,onStatus:(status:string)=>void):Promise<ExpressVehicleExtract>{
+export async function readExpressPrintLocally(file:File,onStatus:(status:string)=>void,onPlateZoom?:(image:string|null)=>void):Promise<ExpressVehicleExtract>{
  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Selecione um print PNG, JPG ou WebP.');
  if(file.size>12*1024*1024)throw new Error('Recorte uma imagem menor que 12 MB.');
+ onPlateZoom?.(null);
  onStatus('Preparando a imagem no navegador…');
  const image=await toHighResolutionDataUrl(file);
  onStatus('Carregando reconhecimento local. Na primeira leitura, pode baixar os idiomas…');
@@ -114,17 +115,18 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  if(!output.data.text.trim())throw new Error('A imagem não contém texto reconhecível. Amplie a área do veículo e tente novamente.');
  let detailText='',detailTsv='',referenceText='',referenceTsv='';
  let regions:{detail:string;reference:string;plate:string}|null=null;
- const isAutoAvaliar=/AUTO\s*AVALIAR|FOTOS\s+LISTA|ITENS\s+AVALIADOS/i.test(output.data.text);
- if(isAutoAvaliar){
-  regions=await screenshotRegions(file);
-  if(regions){
+ // In real screenshots the first OCR pass can miss "Fotos Lista" and
+ // "Itens avaliados". Use the known geometric layout instead of gating all
+ // enlarged reads on those tiny labels.
+ regions=await screenshotRegions(file);
+ if(regions){
+  onPlateZoom?.(regions.plate);
    onStatus('Conferindo a ficha do veículo em tamanho ampliado…');
    const detail=await worker.recognize(regions.detail,{}, {tsv:true});
    detailText=detail.data.text;detailTsv=detail.data.tsv||'';
    onStatus('Conferindo FIPE e referências no painel direito…');
    const ref=await worker.recognize(regions.reference,{}, {tsv:true});
    referenceText=ref.data.text;referenceTsv=ref.data.tsv||'';
-  }
  }
  let extracted=parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv);
  // A full-image OCR can read a small plate like SVP0A03 as SVPGAG3, and then
@@ -132,14 +134,28 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  if(!extracted.plate&&regions){
   onStatus('Ampliando a linha da placa para uma última conferência…');
   let isolatedPlateText='';
+  // Changing page segmentation can fail on some Tesseract.js workers.
+  // OCR itself must STILL run with default settings if that happens.
+  let configured=false;
   try{
    await worker.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'});
+   configured=true;
+  }catch{ /* Retry recognition with the worker's current settings. */ }
+  try{
    const plateResult=await worker.recognize(regions.plate);
-   isolatedPlateText=plateResult.data.text;
+   isolatedPlateText=plateResult.data.text||'';
   }catch{
-   // Keep the other confirmed fields even if optional plate OCR is unsupported.
+   // Optional plate recognition must not discard year, KM or FIPE.
   }finally{
-   await worker.setParameters({tessedit_pageseg_mode:'3',tessedit_char_whitelist:''}).catch(()=>{});
+   if(configured)await worker.setParameters({tessedit_pageseg_mode:'3',tessedit_char_whitelist:''}).catch(()=>{});
+  }
+  // OCR often adds whitespace or punctuation to the tiny plate, so try
+  // a tightly normalized single value before treating it as missing.
+  if(!isolatedPlateText.trim()){
+   try{
+    const basic=await worker.recognize(regions.plate);
+    isolatedPlateText=basic.data.text||'';
+   }catch{}
   }
   if(isolatedPlateText.trim())
    extracted=parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv,isolatedPlateText);
