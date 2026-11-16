@@ -72,6 +72,45 @@ assert.equal(taosNoisy.km,43500);
 assert.equal(taosNoisy.plate,'ABC1D23');
 assert.equal(taosNoisy.fipeReference,151500);
 assert.equal(taosNoisy.conditionScore,7.1);
+// Synthetic values shaped like the real AutoAvaliar Taos print (2024/2024,
+// short screen where the FIPE amount is below 90% of the screenshot height).
+const taosLayout=parser.parseAutoAvaliarOcrText(
+  'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO\nNOTAS 7,1/10',
+  '',
+  'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO\nPlaca ABC1D23\nAno 2024/2024\nKm 26.472',
+  '',
+  'REFERENCIAS\nFIPE\nValor R$ 133.328,00\nFIPE 0KM'
+);
+assert.equal(taosLayout.brand,'VOLKSWAGEN');
+assert.equal(taosLayout.yearModel,'2024');
+assert.equal(taosLayout.plate,'ABC1D23');
+assert.equal(taosLayout.km,26472);
+assert.equal(taosLayout.fipeReference,133328);
+// When OCR recognizes only the printed values, don't invent data outside
+// the cropped vehicle card, but allow a strong standalone plate/km there.
+const taosValuesOnly=parser.parseAutoAvaliarOcrText(
+ 'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO',
+ '',
+ 'TAOS 1.4 250 TSI TOTAL FLEX COMFORTLINE AUTOMATICO\nABC1D23\n2024/2024\n26.472',
+ '',
+ 'REFERENCIAS\nFIPE\nValor RS 133.328,00'
+);
+assert.equal(taosValuesOnly.plate,'ABC1D23');
+assert.equal(taosValuesOnly.km,26472);
+assert.equal(taosValuesOnly.fipeReference,133328);
+const taosO0=parser.parseAutoAvaliarOcrText(
+ 'TAOS 1.4 250 TSI AUTOMATICO',
+ '',
+ 'TAOS 1.4 250 TSI AUTOMATICO\nABCOA03\n2024/2024\n26.472'
+);
+assert.equal(taosO0.plate,'ABC0A03');
+assert.ok(taosO0.warnings.some(w=>w.includes('O e 0')));
+const noAccidentalMileage=parser.parseAutoAvaliarOcrText(
+ 'TAOS 1.4 250 TSI AUTOMATICO\nFIPE R$ 133.328,00\nRenavam 0114101016',
+ '',
+ 'TAOS 1.4 250 TSI AUTOMATICO\nRenavam 0114101016\nMotor 1395'
+);
+assert.equal(noAccidentalMileage.km,null);
 const taosIncomplete=parser.parseAutoAvaliarOcrText('FOTOS LISTA TAOS 1.4 250 TSI TOTAL FLE');
 assert.equal(taosIncomplete.brand,'VOLKSWAGEN');
 assert.ok(taosIncomplete.model.startsWith('TAOS'));
@@ -110,8 +149,8 @@ assert.ok(browserOcr.includes('tesseract.js@7.0.0/dist/tesseract.min.js'));
 assert.ok(browserOcr.includes("createWorker(['por','eng']"));
 assert.ok(browserOcr.includes("recognize(image,{}, {tsv:true})"),'Collect word coordinates from OCR to reconstruct right-aligned values');
 assert.ok(browserOcr.includes('screenshotRegions(file)'),'Full AutoAvaliar screenshots need magnified vehicle crop');
-assert.ok(browserOcr.includes('detail:crop(0.53,0.115,0.235,0.47)'));
-assert.ok(browserOcr.includes('reference:crop(0.765,0.62,0.23,0.29)'));
+assert.ok(browserOcr.includes('detail:crop(0.555,0.005,0.215,0.745)'),'Detail crop must include plate and KM rows');
+assert.ok(browserOcr.includes('reference:crop(0.775,0.59,0.21,0.41)'),'FIPE crop must reach the bottom of short AutoAvaliar screenshots');
 assert.ok(browserOcr.includes('detailText,detailTsv,referenceText,referenceTsv'),'Regional OCR must be passed to parser');
 
 assert.ok(!browserOcr.includes('fetch('),'Local print engine must not upload images');
