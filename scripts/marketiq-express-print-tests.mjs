@@ -183,6 +183,32 @@ assert.ok(!taosIncomplete.model.includes('FOTOS'));
 assert.equal(taosIncomplete.yearModel,'');
 assert.equal(taosIncomplete.km,null);
 assert.ok(taosIncomplete.warnings.some(w=>w.includes('cortado')));
+// Regression based on the supplied 1129x537 AutoAvaliar HB20S screenshot.
+// Model header wraps "AUTOMATICO" to a second line, and 7,1/10 is inside
+// the separate colored sidebar. The plate/year/KM/FIPE are already legible.
+const hb20s=parser.parseAutoAvaliarOcrText(
+ 'FOTOS FOTOS LISTA\\nHB20S 1.6 COMFORT PLUS 16V FLEX 4P\\nAUTOMATICO\\nNOTAS DA AVALIACAO',
+ '',
+ 'HB20S 1.6 COMFORT PLUS 16V FLEX 4P\\nAUTOMATICO\\nPlaca PXN3664\\nAno 2016/2016\\nKm 154.027',
+ '',
+ 'REFERENCIAS\\nFIPE\\nValor R$ 60.921,00',
+ '',
+ '',
+ 'NOTAS DA AVALIACAO\\n7,1/10'
+);
+assert.equal(hb20s.brand,'HYUNDAI');
+assert.equal(hb20s.model,'HB20S 1.6 COMFORT PLUS 16V FLEX 4P AUTOMATICO');
+assert.equal(hb20s.plate,'PXN3664');
+assert.equal(hb20s.yearManufacture,'2016');
+assert.equal(hb20s.yearModel,'2016');
+assert.equal(hb20s.km,154027);
+assert.equal(hb20s.fipeReference,60921);
+assert.equal(hb20s.conditionScore,7.1);
+const hb20x=parser.parseAutoAvaliarOcrText('HB20X 1.6 PREMIUM FLEX AUTOMATICO\\nAno 2018/2019\\nKm 35.000');
+assert.equal(hb20x.brand,'HYUNDAI');
+assert.ok(hb20x.model.startsWith('HB20X'));
+const hb20NoScore=parser.parseAutoAvaliarOcrText('HB20S 1.6 COMFORT PLUS\\nAno 2016/2016');
+assert.equal(hb20NoScore.conditionScore,null,'Never invent a score when the rating region cannot be read');
 const exampleOcr=[
  'PRISMA 1.4 MPFI LTZ 8V FLEX 4P AUTOMATICO',
  'Placa FOT9835',
@@ -221,6 +247,10 @@ assert.ok(browserOcr.includes('let configured=false;')&&browserOcr.includes('con
 
 assert.ok(browserOcr.includes('detailRect={x:0.49,y:0.005,w:0.28,h:0.745}'),'Include left label and right plate in detail OCR for menu/crop variants');
 assert.ok(browserOcr.includes('reference:crop(0.775,0.59,0.21,0.41)'),'FIPE crop must reach the bottom of short AutoAvaliar screenshots');
+assert.ok(browserOcr.includes('rating:crop(0.765,0.18,0.23,0.49)'),'Scan separate condition-score card if first pass misses it');
+assert.ok(browserOcr.includes('if(extracted.conditionScore===null&&regions)'),'No extra rating OCR call when already read');
+assert.ok(browserOcr.includes('ratingText'),'Pass sidebar OCR text to parser');
+
 assert.ok(browserOcr.includes('plateContext:crop(0.50,0.06,0.27,0.22,6)'),'When label unreadable, show vehicle table not unrelated year row');
 assert.ok(browserOcr.includes('plateAt:(anchor)=>')&&browserOcr.includes('const center=height*detailRect.y+(anchor.top+anchor.height/2)/detailScale;'),'Crop plate using detected text row rather than fixed screenshot coordinates');
 assert.ok(browserOcr.includes('plateValueAt:(anchor)=>')&&browserOcr.includes('regions.plateValueAt(label)'), 'Target plate value only to avoid Placa label contamination');
