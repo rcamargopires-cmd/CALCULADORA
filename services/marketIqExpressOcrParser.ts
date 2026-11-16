@@ -140,6 +140,44 @@ export function plateLabelFromTsv(tsv:string):{top:number;height:number}|null{
  }
  return null;
 }
+/** Read the plate by matching the value *on the same OCR row* as its
+ * label. Right-aligned AutoAvaliar values are often outside Tesseract's text
+ * reading order. Reconstruct from coordinates, never from Renavam or chassis.
+ */
+export function plateFromVehicleTsv(tsv:string):{plate:string;corrected:boolean}|null{
+ const lines=String(tsv||'').split(/\r?\n/);
+ if(lines.length<2)return null;
+ const cols=lines[0].split('\t');
+ const col=(name:string)=>cols.indexOf(name);
+ const c={level:col('level'),left:col('left'),top:col('top'),width:col('width'),
+  height:col('height'),conf:col('conf'),text:col('text')};
+ if(Object.values(c).some(n=>n<0))return null;
+ const words:{value:string;x:number;y:number;w:number;h:number;conf:number}[]=[];
+ for(const line of lines.slice(1)){
+  const p=line.split('\t');
+  if(p[c.level]!=='5')continue;
+  const value=String(p.slice(c.text).join('\t')).trim(),x=Number(p[c.left]),
+   top=Number(p[c.top]),w=Number(p[c.width]),h=Number(p[c.height]),conf=Number(p[c.conf]);
+  if(!value||![x,top,w,h,conf].every(Number.isFinite)||w<=0||h<=0||conf<10)continue;
+  words.push({value,x,y:top+h/2,w,h,conf});
+ }
+ const label=words.find(x=>fold(x.value).replace(/[^A-Z]/g,'')==='PLACA');
+ if(!label)return null;
+ const right=words.filter(x=>x!==label&&x.x>=label.x+label.w+3&&
+  Math.abs(x.y-label.y)<=Math.max(9,Math.max(x.h,label.h)*0.68) &&
+  x.x<label.x+2400).sort((a,b)=>a.x-b.x);
+ if(!right.length)return null;
+ // Split plate tokens, e.g. OCR recognizes "URC" + "6A47".
+ for(let i=0;i<right.length;i++){
+  for(let n=1;n<=Math.min(3,right.length-i);n++){
+   const parts=right.slice(i,i+n);
+   if(parts.some((v,j)=>j>0&&v.x-(parts[j-1].x+parts[j-1].w)>Math.max(60,label.h*4)))break;
+   const candidate=normalizePlateFromIsolatedCrop(parts.map(v=>v.value).join(''));
+   if(candidate)return candidate;
+  }
+ }
+ return null;
+}
 /** Recover a plate from the enlarged vehicle-only region when the OCR misses
  * the tiny label. Do not scan chassi, Renavam, customer or other full-page text.
  */
@@ -212,11 +250,12 @@ export function parseAutoAvaliarOcrText(
  }
  const kmRaw=fieldValue(lines,/^(?:KM|KRN|QUILOMETRAGEM|KMS)\s*[:|.-]?\s*/,/\d{1,3}[., ]\d{3}|\b\d{4,6}\b/);
  const km=mileage(kmRaw)??regionMileage(detailLines);
+ const positionedPlate=plateFromVehicleTsv(detailsTsv||'');
  const labelledPlate=likelyPlate(fieldValue(lines,/^(?:PLACA)\s*[:|.-]?\s*/,/[A-Z]{3}\s*[- ]?[0-9O][A-Z0-9][0-9O]{2}/));
  const isolatedPlate=normalizePlateFromIsolatedCrop(isolatedPlateText||'');
- const rescuedPlate=labelledPlate||isolatedPlate?null:regionPlate(detailLines);
- const plate=labelledPlate||isolatedPlate?.plate||rescuedPlate?.plate||'';
- if((isolatedPlate?.corrected&&!labelledPlate)||rescuedPlate?.corrected)
+ const rescuedPlate=labelledPlate||positionedPlate||isolatedPlate?null:regionPlate(detailLines);
+ const plate=positionedPlate?.plate||labelledPlate||isolatedPlate?.plate||rescuedPlate?.plate||'';
+ if(positionedPlate?.corrected||(isolatedPlate?.corrected&&!labelledPlate&&!positionedPlate)||rescuedPlate?.corrected)
   warnings.push('Placa recuperada com caracteres possivelmente confundidos pelo OCR (O e 0, G e 0). Confira visualmente antes de consultar histórico.');
  if(!plate)warnings.push('Placa não identificada. Confira e preencha manualmente.');
  // Read FIPE only from a line explicitly labeled "FIPE" (never "FIPE 0KM").
