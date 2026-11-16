@@ -148,8 +148,28 @@ const regionMileage=(lines:string[]):number|null=>{
  }
  return null;
 };
+/** Narrow crop OCR may read numeric plate positions as letters (SVPGAG3
+ * instead of SVP0A03). Only numeric positions 4, 6, 7 are corrected,
+ * never the three-letter prefix or the flexible Mercosul fifth character.
+ * A recovered plate is a suggested value and always requires visual review.
+ */
+export function normalizePlateFromIsolatedCrop(raw:string):{plate:string;corrected:boolean}|null{
+ const normalized=String(raw||'').toUpperCase().replace(/\bPLACA\b/g,'').replace(/[^A-Z0-9]/g,'');
+ if(!/^[A-Z]{3}[A-Z0-9]{4}$/.test(normalized))return null;
+ const numeric:Record<string,string>={O:'0',Q:'0',D:'0',G:'0',I:'1',L:'1',Z:'2',S:'5',B:'8'};
+ const chars=[...normalized];
+ let corrected=false;
+ for(const position of [3,5,6]){
+  if(/[0-9]/.test(chars[position]))continue;
+  const replacement=numeric[chars[position]];
+  if(!replacement)return null;
+  chars[position]=replacement;corrected=true;
+ }
+ const plate=chars.join('');
+ return /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)?{plate,corrected}:null;
+}
 export function parseAutoAvaliarOcrText(
- rawText:string,tsv?:string,detailsText?:string,detailsTsv?:string,referencesText?:string,referencesTsv?:string
+ rawText:string,tsv?:string,detailsText?:string,detailsTsv?:string,referencesText?:string,referencesTsv?:string,isolatedPlateText?:string
 ):ExpressVehicleExtract{
  const detailLines=[...spatialOcrRows(detailsTsv||''),...String(detailsText||'').split(/\r?\n/)].map(x=>x.trim()).filter(Boolean);
  const mainLines=[...spatialOcrRows(tsv||''),...String(rawText||'').split(/\r?\n/)].map(x=>x.trim()).filter(Boolean);
@@ -172,9 +192,12 @@ export function parseAutoAvaliarOcrText(
  const kmRaw=fieldValue(lines,/^(?:KM|KRN|QUILOMETRAGEM|KMS)\s*[:|.-]?\s*/,/\d{1,3}[., ]\d{3}|\b\d{4,6}\b/);
  const km=mileage(kmRaw)??regionMileage(detailLines);
  const labelledPlate=likelyPlate(fieldValue(lines,/^(?:PLACA)\s*[:|.-]?\s*/,/[A-Z]{3}\s*[- ]?[0-9O][A-Z0-9][0-9O]{2}/));
- const rescuedPlate=labelledPlate?null:regionPlate(detailLines);
- const plate=labelledPlate||rescuedPlate?.plate||'';
- if(rescuedPlate?.corrected)warnings.push('A placa contém caracteres que o OCR pode ter confundido (O e 0); confirme visualmente.');
+ const isolatedPlate=normalizePlateFromIsolatedCrop(isolatedPlateText||'');
+ const rescuedPlate=labelledPlate||isolatedPlate?null:regionPlate(detailLines);
+ const plate=labelledPlate||isolatedPlate?.plate||rescuedPlate?.plate||'';
+ if((isolatedPlate?.corrected&&!labelledPlate)||rescuedPlate?.corrected)
+  warnings.push('Placa recuperada com correções em caracteres confundidos pelo OCR. Confira visualmente antes de consultar histórico.');
+ if(!plate)warnings.push('Placa não identificada. Confira e preencha manualmente.');
  // Read FIPE only from a line explicitly labeled "FIPE" (never "FIPE 0KM").
  let fipeReference:number|null=null;
  const fipeCandidates=[referenceLines,mainLines];
