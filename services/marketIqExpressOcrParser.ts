@@ -256,11 +256,11 @@ export function parseAutoAvaliarOcrText(
  const upper=lines.map(fold);
  const warnings:string[]=['Leitura local experimental: revise todos os campos antes de utilizar na Mesa.'];
  const knownIndex=lines.findIndex(row=>Boolean(vehicleTitle(row)));
- const fallbackIndex=detailLines.findIndex(row=>Boolean(genericVehicleTitle(row)));
- const titleIndex=knownIndex>=0?knownIndex:fallbackIndex;
- const initialTitle=knownIndex>=0?vehicleTitle(lines[knownIndex]):fallbackIndex>=0?genericVehicleTitle(detailLines[fallbackIndex]):'';
+ const fallbackLines=detailLines.length?detailLines:mainLines;
+ const fallbackIndex=fallbackLines.findIndex(row=>Boolean(genericVehicleTitle(row)));
+ const initialTitle=knownIndex>=0?vehicleTitle(lines[knownIndex]):fallbackIndex>=0?genericVehicleTitle(fallbackLines[fallbackIndex]):'';
  // AutoAvaliar wraps long versions onto the next display line.
- const suffix=knownIndex>=0?fold(lines[knownIndex+1]||''):fallbackIndex>=0?fold(detailLines[fallbackIndex+1]||''):'';
+ const suffix=knownIndex>=0?fold(lines[knownIndex+1]||''):fallbackIndex>=0?fold(fallbackLines[fallbackIndex+1]||''):'';
  const title=initialTitle+(/^(?:AUTOMATICO|MANUAL|AT6|AT8|CVT)$/.test(suffix)&&!initialTitle.endsWith(suffix)?' '+suffix:'');
  const labelBrand=fieldValue(lines,/^(?:MARCA|FABRICANTE)\s*[:|.-]?\s*/,/^(?:VOLKSWAGEN|CHEVROLET|FIAT|TOYOTA|HYUNDAI|JEEP|RENAULT|NISSAN|HONDA|FORD|VW|GM)\b/);
  let brand=knownModels.find(([re])=>re.test(title))?.[1]||fullMake(title)?.brand||'';
