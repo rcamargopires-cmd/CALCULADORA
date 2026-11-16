@@ -91,7 +91,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
   setVehicle({brand:'CHEVROLET',model:'PRISMA LTZ 1.4 FLEX AUTOMÁTICO',yearManufacture:'2017',
    yearModel:'2018',km:95800,plate:'',fipeReference:62291,conditionScore:5.8,
    repairTotal:2000,repairDetails:['Lataria R$ 1.500','Motor R$ 500'],warnings:[]});
-  setDemand(true);setZeroStock(true);setOverride('auto');setReason('');setError('');setSample(true);
+  setDemand(true);setZeroStock(true);setOverride('auto');setReason('');setError('');setSample(true);setMethod('sample');
  };
  const edit=(key:keyof ExpressVehicleExtract,value:any)=>setVehicle(previous=>previous?{...previous,[key]:value}:previous);
  return <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Motyq IQ Express por print">
@@ -105,20 +105,21 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
    <main className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
     <section className="space-y-3 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
      <h3 className="text-sm font-black text-cyan-950">1. {demoOnly?'Carregar exemplo':'Capturar dados'}</h3>
-     {demoOnly?<p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-950">
-      Este laboratório é apenas uma demonstração, sem login e sem dados reais. A leitura de prints novos está desativada aqui porque a chave da IA não está disponível no Preview.
-     </p>:<>
-      <p className="text-xs leading-5 text-cyan-950">No AutoAvaliar, use <strong>Win + Shift + S</strong> e selecione somente os dados do carro e as referências. Evite incluir nome, telefone, CPF ou outros dados do cliente. A imagem é enviada para leitura pela IA, sem ser arquivada no Motyq.</p>
-      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
-       aria-label="Selecionar print do AutoAvaliar" onChange={e=>{const file=e.target.files?.[0];e.currentTarget.value='';void read(file);}}/>
-     </>}
+     {demoOnly?<p className="rounded-lg border border-cyan-300 bg-white p-3 text-xs font-semibold text-cyan-950">
+      Novo: neste laboratório, o print é lido por OCR no próprio navegador. Não precisa de chave de IA nem de login, e a imagem não é enviada ao Motyq. Como a leitura é experimental, todos os campos precisam ser conferidos.
+     </p>:<p className="text-xs leading-5 text-cyan-950">
+      No AutoAvaliar, use <strong>Win + Shift + S</strong> e selecione a ficha do carro, incluindo marca, modelo, ano, KM e referências. Evite dados pessoais do cliente. A versão com IA envia o recorte para extração; caso fique indisponível, utiliza o OCR local.
+     </p>}
+     <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
+      aria-label="Selecionar print do AutoAvaliar" onChange={e=>{const file=e.target.files?.[0];e.currentTarget.value='';void read(file);}}/>
      <div className="flex flex-wrap gap-2">
-      {!demoOnly&&<button type="button" disabled={reading} onClick={()=>fileRef.current?.click()}
+      <button type="button" disabled={reading} onClick={()=>fileRef.current?.click()}
        className="rounded-xl bg-cyan-800 px-4 py-3 text-sm font-black text-white disabled:opacity-50">
-       {reading?'Lendo imagem...':'Selecionar print ou colar Ctrl+V'}</button>}
+       {reading?'Lendo print...':'Escolher print ou colar Ctrl+V'}</button>
       <button type="button" disabled={reading} onClick={loadExample}
-       className="rounded-xl border border-cyan-700 bg-white px-4 py-3 text-xs font-bold text-cyan-950">Testar com o Prisma do exemplo</button>
+       className="rounded-xl border border-cyan-700 bg-white px-4 py-3 text-xs font-bold text-cyan-950">Exemplo do Prisma</button>
      </div>
+     {reading&&<p role="status" className="rounded-lg bg-white p-3 text-xs font-bold text-cyan-900">{readStatus||'Reconhecendo os campos…'}</p>}
      {sample&&<p className="text-xs font-bold text-cyan-950">Demonstração preenchida com os dados do print enviado e as informações de procura/estoque confirmadas por você. Não é uma consulta atualizada.</p>}
      {error&&<p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-900">{error}</p>}
     </section>
@@ -142,7 +143,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
         <strong className="text-lg">{vehicle.repairTotal!==null?money(vehicle.repairTotal):'A conferir'}</strong></div>
        <div><p className="text-xs text-slate-600">Nota visual da avaliação</p>
         <strong>{vehicle.conditionScore===null?'Não identificada':vehicle.conditionScore.toLocaleString('pt-BR')+'/10'}</strong></div>
-       <div><p className="text-xs text-slate-600">Origem</p><strong>{sample?'Exemplo validado':'Leitura IA para conferência'}</strong></div>
+       <div><p className="text-xs text-slate-600">Origem</p><strong>{method==='sample'?'Exemplo do Prisma':method==='local'?'OCR local (experimental)':'IA para conferência'}</strong></div>
       </div>
       {vehicle.repairDetails.length>0&&<p className="text-xs text-slate-600">Itens: {vehicle.repairDetails.join(' · ')}</p>}
       {vehicle.warnings.length>0&&<p className="text-xs text-amber-800">Conferir: {vehicle.warnings.join('; ')}</p>}
@@ -179,8 +180,8 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
      <button type="button" disabled={!vehicle.brand.trim()||!vehicle.model.trim()||!vehicle.yearModel||vehicle.km===null||vehicle.km<0||vehicle.km>999999||(override!=='auto'&&!reason.trim())}
       onClick={()=>assessment&&onApply(vehicle,assessment)}
       className="w-full rounded-xl bg-[#153f51] p-4 text-sm font-black text-white disabled:opacity-50">
-      {demoOnly?'Concluir demonstração':'Usar dados conferidos na Mesa'}</button>
-     <p className="text-center text-xs text-slate-600">{demoOnly?'Demonstração sem gravação ou envio de dados.':'Não salva avaliação, não aprova valor e não muda a classificação técnica automaticamente.'}</p>
+      {demoOnly?'Concluir teste deste print':'Usar dados conferidos na Mesa'}</button>
+     <p className="text-center text-xs text-slate-600">{demoOnly?'Sem gravação ou envio da imagem. Confira a leitura e teste outros prints.':'Não salva avaliação, não aprova valor e não muda a classificação técnica automaticamente.'}</p>
     </>}
    </main>
   </section>
