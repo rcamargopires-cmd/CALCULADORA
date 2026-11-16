@@ -52,6 +52,54 @@ const clipboardJs=transpile('services/marketIqExpressClipboard.ts')
  .replace(/from ['"]\.\/marketIqExpressOcrParser['"]/, "from '"+parserUrl+"'")
  .replace(/from ['"]\.\/marketIqExpress['"]/, "from '"+expressionUrl+"'");
 const clipboard=await import('data:text/javascript;base64,'+Buffer.from(clipboardJs).toString('base64'));
+// Real-world screenshot structure: RAV4 Hybrid title wraps with CVT on the
+// next line. Use a fictitious plate in tests; no private customer information.
+const rav4Text=[
+ 'AutoAvaliar Avaliação',
+ 'Fotos Fotos Lista',
+ 'RAV4 2.5 VVT-IE HYBRID S CONNECT AWD',
+ 'CVT',
+ 'Origem IMPORTADO',
+ 'Placa ABC1D23',
+ 'Ano 2020/2020',
+ 'Cor BRANCO',
+ 'Comb. HIBRIDO',
+ 'Câmbio AUTOMÁTICO',
+ 'Km 34.042',
+ 'Referências',
+ 'FIPE',
+ 'Valor R$ 151.680,00'
+].join('\n');
+const rav4Direct=clipboard.parseAutoAvaliarClipboardText(rav4Text);
+assert.equal(rav4Direct.brand,'TOYOTA','RAV4 must be recognized as Toyota');
+assert.equal(rav4Direct.model,'RAV4 2.5 VVT-IE HYBRID S CONNECT AWD CVT');
+assert.equal(rav4Direct.plate,'ABC1D23');
+assert.equal(rav4Direct.yearManufacture,'2020');
+assert.equal(rav4Direct.yearModel,'2020');
+assert.equal(rav4Direct.km,34042);
+assert.equal(rav4Direct.fipeReference,151680);
+const rav4ImageText=parser.parseAutoAvaliarOcrText(
+ 'Fotos Fotos Lista\nRAV4 2.5 VVT-IE HYBRID S CONNECT AWD\nCVT\nPlaca ABC1D23\nAno 2020/2020\nKm 34.042',
+ '',
+ 'RAV4 2.5 VVT-IE HYBRID S CONNECT AWD\nCVT\nPlaca ABC1D23\nAno 2020/2020\nKm 34.042',
+ '',
+ 'REFERENCIAS\nFIPE\nR$ 151.680,00'
+);
+assert.equal(rav4ImageText.brand,'TOYOTA');
+assert.equal(rav4ImageText.model,'RAV4 2.5 VVT-IE HYBRID S CONNECT AWD CVT');
+assert.equal(rav4ImageText.km,34042);
+assert.equal(rav4ImageText.fipeReference,151680);
+const unknownButWellLabelled=clipboard.parseAutoAvaliarClipboardText(
+ 'MITSUBISHI OUTLANDER 2.0 FLEX CVT\nPlaca ABC1D23\nAno 2022/2022\nKm 45.000'
+);
+assert.equal(unknownButWellLabelled.brand,'MITSUBISHI','Brand-prefixed unlisted models should still work');
+assert.equal(unknownButWellLabelled.model,'OUTLANDER 2.0 FLEX CVT');
+assert.equal(unknownButWellLabelled.km,45000);
+// Never invent a manufacturer just because some model-like text has a motor.
+const noBrandModel=parser.parseAutoAvaliarOcrText('MODELO DESCONHECIDO 2.5 FLEX CVT\nPlaca ABC1D23\nAno 2020/2020',
+ '', 'MODELO DESCONHECIDO 2.5 FLEX CVT\nPlaca ABC1D23\nAno 2020/2020');
+assert.equal(noBrandModel.brand,'');
+assert.ok(noBrandModel.warnings.some(x=>x.includes('Marca não reconhecida')));
 const copiedHB20S=[
  'AutoAvaliar',
  'Avaliação',
@@ -333,6 +381,9 @@ assert.ok(backend.includes("if(data.length<200||data.length>2450000"));
 assert.ok(!backend.includes('motyqFirestore.patch')&&!backend.includes('writeFile('),'Images should never be persisted');
 assert.ok(ui.includes("window.addEventListener('paste',handler)"));
 assert.ok(ui.includes("getData('text/plain')"),'Paste text in the browser without OCR');
+assert.ok(ui.indexOf('if(isVehicleText)')<ui.indexOf("find(x=>x.type.startsWith('image/'))"),'Prefer native copied text when clipboard has text and image');
+assert.ok(ui.includes("lastInput==='image'")&&ui.includes("lastInput==='text'"),'Show whether AutoAvaliar supplied an image or text');
+
 assert.ok(ui.includes("target.closest('input,textarea,select"),'Do not hijack paste in editing fields');
 assert.ok(ui.includes("parseAutoAvaliarClipboardText(raw)"),'Read plain-text vehicle data locally');
 assert.ok(ui.includes('Clique aqui e pressione Ctrl+V'));
