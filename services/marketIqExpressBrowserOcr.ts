@@ -4,7 +4,7 @@ import type {ExpressVehicleExtract} from './marketIqExpress';
 /** OCR stays on the buyer's browser/device. No screenshots are sent to Motyq servers.
  * Downloaded Tesseract engine and Portuguese/English language files are cached by the browser.
  */
-type OcrWorker={recognize:(source:string,options?:object,output?:{tsv?:boolean})=>Promise<{data:{text:string;tsv?:string;confidence?:number}}>;terminate:()=>Promise<void>};
+type OcrWorker={recognize:(source:string,options?:object,output?:{tsv?:boolean})=>Promise<{data:{text:string;tsv?:string;confidence?:number}}>;setParameters:(params:Record<string,string>)=>Promise<void>;terminate:()=>Promise<void>};
 type Engine={createWorker:(langs:string|string[],mode?:number,opts?:{logger?:(event:any)=>void})=>Promise<OcrWorker>};
 const SCRIPT='https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js';
 let loader:Promise<Engine>|null=null,workerPromise:Promise<OcrWorker>|null=null;
@@ -67,7 +67,7 @@ async function toHighResolutionDataUrl(file:File):Promise<string>{
  * the reference card separately at higher pixel density, instead of assuming
  * that text read in page order remains adjacent to its label.
  */
-async function screenshotRegions(file:File):Promise<{detail:string;reference:string}|null>{
+async function screenshotRegions(file:File):Promise<{detail:string;reference:string;plate:string}|null>{
  const url=URL.createObjectURL(file);
  try{
   const image=new Image();
@@ -78,8 +78,8 @@ async function screenshotRegions(file:File):Promise<{detail:string;reference:str
   });
   const width=image.naturalWidth,height=image.naturalHeight;
   if(width<1000||width/height<1.65||width/height>3.5)return null;
-  const crop=(x:number,y:number,w:number,h:number)=>{
-   const scale=Math.min(4,2000/(width*w));
+  const crop=(x:number,y:number,w:number,h:number,maxScale=4)=>{
+   const scale=Math.min(maxScale,2000/(width*w));
    const canvas=document.createElement('canvas');
    canvas.width=Math.max(1,Math.round(width*w*scale));
    canvas.height=Math.max(1,Math.round(height*h*scale));
@@ -96,7 +96,10 @@ async function screenshotRegions(file:File):Promise<{detail:string;reference:str
    detail:crop(0.555,0.005,0.215,0.745),
    // On shorter screens, the FIPE card starts near the bottom edge.
    // Do not cut off the 'Valor R$ ...' row (Taos 1340x593).
-   reference:crop(0.775,0.59,0.21,0.41)
+   reference:crop(0.775,0.59,0.21,0.41),
+   // Restrict OCR to the right-aligned plate *value*, not label, chassi or Renavam.
+   // For the 1340x593 AutoAvaliar Taos screenshot this covers ~x949-1027, y91-119.
+   plate:crop(0.708,0.153,0.058,0.047,10)
   };
  }finally{URL.revokeObjectURL(url);}
 }
@@ -110,9 +113,10 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  const output=await worker.recognize(image,{}, {tsv:true});
  if(!output.data.text.trim())throw new Error('A imagem não contém texto reconhecível. Amplie a área do veículo e tente novamente.');
  let detailText='',detailTsv='',referenceText='',referenceTsv='';
+ let regions:{detail:string;reference:string;plate:string}|null=null;
  const isAutoAvaliar=/AUTO\s*AVALIAR|FOTOS\s+LISTA|ITENS\s+AVALIADOS/i.test(output.data.text);
  if(isAutoAvaliar){
-  const regions=await screenshotRegions(file);
+  regions=await screenshotRegions(file);
   if(regions){
    onStatus('Conferindo a ficha do veículo em tamanho ampliado…');
    const detail=await worker.recognize(regions.detail,{}, {tsv:true});
@@ -122,5 +126,23 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
    referenceText=ref.data.text;referenceTsv=ref.data.tsv||'';
   }
  }
- return parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv);
+ let extracted=parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv);
+ // A full-image OCR can read a small plate like SVP0A03 as SVPGAG3, and then
+ // discard it. Only when that happens, analyze its narrow value row at high scale.
+ if(!extracted.plate&&regions){
+  onStatus('Ampliando a linha da placa para uma última conferência…');
+  let isolatedPlateText='';
+  try{
+   await worker.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'});
+   const plateResult=await worker.recognize(regions.plate);
+   isolatedPlateText=plateResult.data.text;
+  }catch{
+   // Keep the other confirmed fields even if optional plate OCR is unsupported.
+  }finally{
+   await worker.setParameters({tessedit_pageseg_mode:'3',tessedit_char_whitelist:''}).catch(()=>{});
+  }
+  if(isolatedPlateText.trim())
+   extracted=parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv,isolatedPlateText);
+ }
+ return extracted;
 }
