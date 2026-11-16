@@ -89,6 +89,8 @@ transpile('components/MarketIqExpressHistoryCard.tsx');
 assert.ok(historyCard.includes('Histórico rápido · valores efetivamente pagos'));
 assert.ok(historyCard.includes('Último pagamento registrado'));
 assert.ok(historyCard.includes('Não encontrei avaliações pagas comparáveis'));
+assert.ok(historyCard.includes('Histórico indisponível agora: {error}'),'Do not mistake history API failure for no paid records');
+assert.ok(deskSrc.includes('historyError={historyError}'),'Explicit history load errors reach the preview');
 const deskSrc=src('components/ManualPricingWorkspace.tsx');
 assert.ok(deskSrc.includes('history={saved} historyLoading={historyBusy} historyIncomplete={historyMore}'),
  'Express history must be passed from authenticated Desk scope only');
