@@ -37,6 +37,8 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
  const [reading,setReading]=useState(false);
  const [readStatus,setReadStatus]=useState('');
  const [method,setMethod]=useState<'local'|'ai'|'sample'|null>(null);
+ // Temporary local-only crop for visual confirmation. Never saved to history or the cloud.
+ const [plateZoom,setPlateZoom]=useState<string|null>(null);
  const [error,setError]=useState('');
  const [sample,setSample]=useState(false);
  const [demand,setDemand]=useState(false);
@@ -50,10 +52,10 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
  const read=async(file?:File)=>{
   if(!file||reading)return;
   setError('');setVehicle(null);setReading(true);setSample(false);setDemand(false);setZeroStock(false);setOverride('auto');
-  setReadStatus('Preparando print…');setMethod(null);
+  setReadStatus('Preparando print…');setMethod(null);setPlateZoom(null);
   try{
    if(demoOnly){
-    const extracted=await readExpressPrintLocally(file,setReadStatus);
+    const extracted=await readExpressPrintLocally(file,setReadStatus,setPlateZoom);
     setVehicle(extracted);setMethod('local');
    }else{
     const image=await prepareImage(file);
@@ -72,7 +74,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
      const data=await response.json().catch(()=>({}));
      if(response.status!==503)throw Error(String(data.error||'Não foi possível ler a imagem.'));
      setReadStatus('IA do servidor indisponível. Tentando OCR local no navegador…');
-     const extracted=await readExpressPrintLocally(file,setReadStatus);
+     const extracted=await readExpressPrintLocally(file,setReadStatus,setPlateZoom);
      setVehicle(extracted);setMethod('local');
     }
    }
@@ -91,7 +93,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
   setVehicle({brand:'CHEVROLET',model:'PRISMA LTZ 1.4 FLEX AUTOMÁTICO',yearManufacture:'2017',
    yearModel:'2018',km:95800,plate:'',fipeReference:62291,conditionScore:5.8,
    repairTotal:2000,repairDetails:['Lataria R$ 1.500','Motor R$ 500'],warnings:[]});
-  setDemand(true);setZeroStock(true);setOverride('auto');setReason('');setError('');setSample(true);setMethod('sample');
+  setDemand(true);setZeroStock(true);setOverride('auto');setReason('');setError('');setSample(true);setMethod('sample');setPlateZoom(null);
  };
  const edit=(key:keyof ExpressVehicleExtract,value:any)=>setVehicle(previous=>previous?{...previous,[key]:value}:previous);
  return <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Motyq IQ Express por print">
@@ -133,9 +135,16 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
        <label className="text-xs font-bold">Ano modelo<input className={input} value={vehicle.yearModel} onChange={e=>edit('yearModel',e.target.value)}/></label>
        <label className="text-xs font-bold">KM<input className={input} type="number" min={0} max={999999} value={vehicle.km??''}
         onChange={e=>edit('km',e.target.value===''?null:Number(e.target.value))}/></label>
-       <label className="text-xs font-bold">Placa (opcional)<input className={input} maxLength={7} value={vehicle.plate}
-        onChange={e=>edit('plate',e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7))}/></label>
+       <label className="text-xs font-bold">Placa (conferir)<input className={input} maxLength={7} value={vehicle.plate}
+        placeholder="ABC1D23" autoComplete="off" onChange={e=>edit('plate',e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7))}/></label>
       </div>
+      {plateZoom&&<div className="flex flex-col gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 sm:flex-row sm:items-center">
+       <div className="flex-1">
+        <p className="text-xs font-black text-cyan-950">Placa ampliada diretamente do seu print</p>
+        <p className="mt-1 text-xs text-cyan-900">Confira os 7 caracteres antes de consultar o histórico. Se o OCR não preencher, basta digitar a placa acima.</p>
+       </div>
+       <img src={plateZoom} alt="Trecho ampliado da placa na avaliação original" className="h-auto max-h-20 w-full max-w-xs rounded-lg border border-cyan-200 bg-white object-contain p-1 sm:w-52" />
+      </div>}
       <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
        <div><p className="text-xs text-slate-600">FIPE exibida no print</p>
         <strong className="text-lg">{vehicle.fipeReference!==null?money(vehicle.fipeReference):'Não identificada'}</strong></div>
