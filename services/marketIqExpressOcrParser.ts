@@ -274,7 +274,10 @@ export function parseAutoAvaliarOcrText(
   if(pair)[yearManufacture,yearModel]=pair;
  }
  const kmRaw=fieldValue(lines,/^(?:KM|KRN|QUILOMETRAGEM|KMS)\s*[:|.-]?\s*/,/\d{1,3}[., ]\d{3}|\b\d{4,6}\b/);
- const km=mileage(kmRaw)??regionMileage(detailLines);
+ // Tiny AutoAvaliar icons sometimes turn into a letter before the label,
+ // e.g. "A km 34.042". Only accept tightly structured KM rows.
+ const iconKmRow=lines.find(row=>/^(?:[A-Z0-9]{1,2}\s+)?(?:KM|KRN|QUILOMETRAGEM|KMS)\s*[:|.-]?\s*\d{1,3}[., ]\d{3}\b/.test(fold(row)))||'';
+ const km=mileage(kmRaw)??mileage(iconKmRow)??regionMileage(detailLines);
  const positionedPlate=plateFromVehicleTsv(detailsTsv||'');
  const labelledPlate=likelyPlate(fieldValue(lines,/^(?:PLACA)\s*[:|.-]?\s*/,/[A-Z]{3}\s*[- ]?[0-9O][A-Z0-9][0-9O]{2}/));
  const isolatedPlate=normalizePlateFromIsolatedCrop(isolatedPlateText||'');
