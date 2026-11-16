@@ -5,7 +5,7 @@ import {cleanExpressVehicle,type ExpressVehicleExtract} from './marketIqExpress'
  */
 const fold=(x:string)=>x.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
 const moneyFrom=(x:string):number|null=>{
- const found=x.match(/R\$\s*([\d.,\s]+)/i);
+ const found=x.match(/R\s*[$S]\s*([\d.,\s]+)/i);
  if(!found)return null;
  const text=found[1].trim().replace(/\s/g,'');
  if(!text||!/^\d[\d.,]*$/.test(text))return null;
@@ -119,6 +119,35 @@ export function spatialOcrRows(tsv:string):string[]{
  }
  return groups.map(g=>g.words.sort((a,b)=>a.x-b.x).map(w=>w.value).join(' ')).filter(Boolean);
 }
+/** Recover a plate from the enlarged vehicle-only region when the OCR misses
+ * the tiny label. Do not scan chassi, Renavam, customer or other full-page text.
+ */
+const regionPlate=(lines:string[]):{plate:string;corrected:boolean}|null=>{
+ for(const original of lines){
+  const line=fold(original);
+  if(/\b(CHASSI|RENAVAM|CLIENTE|SOLICITANTE|AVALIADOR|DOCUMENTO)\b/.test(line))continue;
+  const match=line.match(/(?:^|[^A-Z0-9])([A-Z]{3}[0-9O][A-Z0-9][0-9O]{2})(?=$|[^A-Z0-9])/);
+  if(!match)continue;
+  const input=match[1];
+  const plate=input.slice(0,3)+input[3].replace('O','0')+input[4]+input.slice(5).replace(/O/g,'0');
+  return {plate,corrected:plate!==input};
+ }
+ return null;
+};
+/** Field-value rescue is restricted to the vehicle details crop so that
+ * prices, IDs and chassis from elsewhere on the screenshot cannot become KM.
+ */
+const regionMileage=(lines:string[]):number|null=>{
+ for(const original of lines){
+  const line=fold(original);
+  if(/\b(CHASSI|RENAVAM|VALOR|FIPE|CODIGO|AVALIACAO|ORIGEM|MOTOR)\b/.test(line))continue;
+  const match=line.match(/(?:^|[^\d])(\d{1,3}[.,]\d{3})(?=$|[^\d])/);
+  if(!match)continue;
+  const km=Number(match[1].replace(/[.,]/g,''));
+  if(Number.isSafeInteger(km)&&km>=100&&km<=999999)return km;
+ }
+ return null;
+};
 export function parseAutoAvaliarOcrText(
  rawText:string,tsv?:string,detailsText?:string,detailsTsv?:string,referencesText?:string,referencesTsv?:string
 ):ExpressVehicleExtract{
@@ -140,9 +169,12 @@ export function parseAutoAvaliarOcrText(
   const pair=upper.map(normalizeYears).find(pair=>Boolean(pair[1]));
   if(pair)[yearManufacture,yearModel]=pair;
  }
- const kmRaw=fieldValue(lines,/^(?:KM|QUILOMETRAGEM|KMS)\s*[:|.-]?\s*/,/\d{2,6}(?:[., ]\d{3})?/);
- const km=mileage(kmRaw);
- const plate=likelyPlate(fieldValue(lines,/^(?:PLACA)\s*[:|.-]?\s*/,/[A-Z]{3}\s*[- ]?[0-9][A-Z0-9][0-9]{2}/));
+ const kmRaw=fieldValue(lines,/^(?:KM|KRN|QUILOMETRAGEM|KMS)\s*[:|.-]?\s*/,/\d{1,3}[., ]\d{3}|\b\d{4,6}\b/);
+ const km=mileage(kmRaw)??regionMileage(detailLines);
+ const labelledPlate=likelyPlate(fieldValue(lines,/^(?:PLACA)\s*[:|.-]?\s*/,/[A-Z]{3}\s*[- ]?[0-9O][A-Z0-9][0-9O]{2}/));
+ const rescuedPlate=labelledPlate?null:regionPlate(detailLines);
+ const plate=labelledPlate||rescuedPlate?.plate||'';
+ if(rescuedPlate?.corrected)warnings.push('A placa contém caracteres que o OCR pode ter confundido (O e 0); confirme visualmente.');
  // Read FIPE only from a line explicitly labeled "FIPE" (never "FIPE 0KM").
  let fipeReference:number|null=null;
  const fipeCandidates=[referenceLines,mainLines];
@@ -155,6 +187,17 @@ export function parseAutoAvaliarOcrText(
    }
   }
   if(fipeReference!==null)break;
+ }
+ // The FIPE amount appears just below its heading on AutoAvaliar. If the
+ // label is on a separate OCR line, recover only the first amount of the
+ // references crop, and only before the "FIPE 0KM" section.
+ if(fipeReference===null&&referenceLines.some(row=>/\bFIPE\b/.test(fold(row)))){
+  const first0km=referenceLines.findIndex(row=>/^FIPE\s*0\s*KM\b/.test(fold(row)));
+  const preceding=first0km<0?referenceLines:referenceLines.slice(0,first0km);
+  for(const line of preceding){
+   const value=moneyFrom(line);
+   if(value!==null&&value>=1000){fipeReference=value;break;}
+  }
  }
  const scoreMatch=upper.join('\n').match(/\b(\d{1,2}(?:[.,]\d)?)\s*\/\s*10\b/);
  const conditionScore=scoreMatch?Number(scoreMatch[1].replace(',','.')):null;
