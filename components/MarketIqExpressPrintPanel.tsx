@@ -1,5 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {readExpressPrintLocally} from '../services/marketIqExpressBrowserOcr';
+import {parseAutoAvaliarClipboardText} from '../services/marketIqExpressClipboard';
 import {assessExpressCommercial,cleanExpressVehicle,type ExpressVehicleExtract,
  type ExpressAssessment,type ExpressCommercialClass} from '../services/marketIqExpress';
 
@@ -13,10 +14,11 @@ const initialVehicle=():ExpressVehicleExtract=>({
 const input='mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950';
 export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=false}:Props){
  const fileRef=useRef<HTMLInputElement>(null);
+ const clipboardArea=useRef<HTMLDivElement>(null);
  const [vehicle,setVehicle]=useState<ExpressVehicleExtract|null>(null);
  const [reading,setReading]=useState(false);
  const [readStatus,setReadStatus]=useState('');
- const [method,setMethod]=useState<'local'|'ai'|'sample'|null>(null);
+ const [method,setMethod]=useState<'local'|'clipboard'|'sample'|null>(null);
  // Temporary local-only crop for visual confirmation. Never saved to history or the cloud.
  const [plateZoom,setPlateZoom]=useState<string|null>(null);
  const [error,setError]=useState('');
@@ -41,10 +43,29 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
   }catch(err){setError(err instanceof Error?err.message:'Falha ao ler a captura.');}
   finally{setReading(false);setReadStatus('');}
  };
+ const readCopiedText=(raw:string)=>{
+  if(reading)return;
+  setError('');setSample(false);setPlateZoom(null);
+  try{
+   const parsed=parseAutoAvaliarClipboardText(raw);
+   setVehicle(parsed);setMethod('clipboard');
+   setDemand(false);setZeroStock(false);setOverride('auto');setReason('');
+  }catch(err){
+   setError(err instanceof Error?err.message:'Não consegui ler os dados copiados.');
+  }
+ };
  useEffect(()=>{
   const handler=(event:ClipboardEvent)=>{
-   const file=[...(event.clipboardData?.files||[])].find(x=>x.type.startsWith('image/'));
-   if(file){event.preventDefault();void read(file);}
+   if(event.defaultPrevented)return;
+   const image=[...(event.clipboardData?.files||[])].find(x=>x.type.startsWith('image/'));
+   if(image){event.preventDefault();void read(image);return;}
+   const text=event.clipboardData?.getData('text/plain')||'';
+   if(!text||!/\b(?:PLACA|FIPE|QUILOMETRAGEM|KM|ANO)\b/i.test(text))return;
+   // Preserve normal paste in editable vehicle fields or other inputs.
+   const target=event.target;
+   if(target instanceof Element&&target.closest('input,textarea,select,[contenteditable="true"]'))return;
+   event.preventDefault();
+   readCopiedText(text);
   };
   window.addEventListener('paste',handler);
   return ()=>window.removeEventListener('paste',handler);
@@ -60,24 +81,31 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
   <section className="flex max-h-[96vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white text-slate-950">
    <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
     <div><p className="text-xs font-black tracking-wider text-cyan-800">MOTYQ IQ EXPRESS · LABORATÓRIO</p>
-     <h2 className="text-xl font-black">Prévia rápida por print</h2>
-     <p className="mt-1 text-xs text-slate-600">{demoOnly?'Cole prints reais para testar a leitura local, sem login nem envio da imagem ao servidor.':'Cole um recorte da avaliação e revise os dados antes de aproveitar na Mesa.'}</p></div>
+     <h2 className="text-xl font-black">Prévia rápida por print ou texto</h2>
+     <p className="mt-1 text-xs text-slate-600">{demoOnly?'Cole o texto da avaliação ou uma captura de tela. Tudo é processado no navegador.':'Copie a ficha do AutoAvaliar ou uma captura de tela. Confira os campos reconhecidos antes de usar.'}</p></div>
     <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">Fechar</button>
    </header>
    <main className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
     <section className="space-y-3 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
-     <h3 className="text-sm font-black text-cyan-950">1. {demoOnly?'Carregar exemplo':'Capturar dados'}</h3>
+     <h3 className="text-sm font-black text-cyan-950">1. Colar avaliação</h3>
      {demoOnly?<p className="rounded-lg border border-cyan-300 bg-white p-3 text-xs font-semibold text-cyan-950">
-      Novo: neste laboratório, o print é lido por OCR no próprio navegador. Não precisa de chave de IA nem de login, e a imagem não é enviada ao Motyq. Como a leitura é experimental, todos os campos precisam ser conferidos.
+      NOVO: copie os dados de texto da avaliação no AutoAvaliar (Ctrl+C) e cole aqui (Ctrl+V). Quando o texto é selecionável, o Motyq preenche sem OCR e sem IA paga. Você também pode colar um print. Os dados devem ser conferidos.
      </p>:<p className="text-xs leading-5 text-cyan-950">
-      No AutoAvaliar, use <strong>Win + Shift + S</strong> e selecione a ficha do carro, incluindo marca, modelo, ano, KM e referências. Evite dados pessoais do cliente. O OCR roda localmente no navegador, sem enviar a imagem à IA ou gerar custo por chamada.
+      No AutoAvaliar, selecione o texto da avaliação e pressione <strong>Ctrl+C</strong>. Volte ao Motyq e pressione <strong>Ctrl+V</strong>. Se o texto não puder ser selecionado, use <strong>Win+Shift+S</strong> e cole a imagem. Tudo é processado localmente.
      </p>}
+     <div ref={clipboardArea} tabIndex={0} role="button" aria-label="Clique aqui e cole os dados do AutoAvaliar com Ctrl+V"
+      onClick={()=>clipboardArea.current?.focus()}
+      onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();clipboardArea.current?.focus();}}}
+      className="cursor-text rounded-xl border-2 border-dashed border-cyan-500 bg-white px-4 py-4 text-center text-sm font-bold text-cyan-950 outline-none focus-visible:ring-2 focus-visible:ring-cyan-700">
+      <strong>Clique aqui e pressione Ctrl+V</strong>
+      <span className="mt-1 block text-xs font-medium text-cyan-900">Aceita texto copiado da avaliação ou print. Não cole em um campo de marca/modelo.</span>
+     </div>
      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
       aria-label="Selecionar print do AutoAvaliar" onChange={e=>{const file=e.target.files?.[0];e.currentTarget.value='';void read(file);}}/>
      <div className="flex flex-wrap gap-2">
       <button type="button" disabled={reading} onClick={()=>fileRef.current?.click()}
        className="rounded-xl bg-cyan-800 px-4 py-3 text-sm font-black text-white disabled:opacity-50">
-       {reading?'Lendo print...':'Escolher print ou colar Ctrl+V'}</button>
+       {reading?'Lendo print...':'Ou escolher imagem'}</button>
       <button type="button" disabled={reading} onClick={loadExample}
        className="rounded-xl border border-cyan-700 bg-white px-4 py-3 text-xs font-bold text-cyan-950">Exemplo do Prisma</button>
      </div>
@@ -112,7 +140,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
         <strong className="text-lg">{vehicle.repairTotal!==null?money(vehicle.repairTotal):'A conferir'}</strong></div>
        <div><p className="text-xs text-slate-600">Nota visual da avaliação</p>
         <strong>{vehicle.conditionScore===null?'Não identificada':vehicle.conditionScore.toLocaleString('pt-BR')+'/10'}</strong></div>
-       <div><p className="text-xs text-slate-600">Origem</p><strong>{method==='sample'?'Exemplo do Prisma':method==='local'?'OCR local (experimental)':'IA para conferência'}</strong></div>
+       <div><p className="text-xs text-slate-600">Origem</p><strong>{method==='sample'?'Exemplo do Prisma':method==='clipboard'?'Texto copiado (sem OCR)':method==='local'?'OCR local (experimental)':'Origem não identificada'}</strong></div>
       </div>
       {vehicle.repairDetails.length>0&&<p className="text-xs text-slate-600">Itens: {vehicle.repairDetails.join(' · ')}</p>}
       {vehicle.warnings.length>0&&<p className="text-xs text-amber-800">Conferir: {vehicle.warnings.join('; ')}</p>}
