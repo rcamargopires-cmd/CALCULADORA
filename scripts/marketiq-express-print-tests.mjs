@@ -46,6 +46,51 @@ const expressionUrl='data:text/javascript;base64,'+Buffer.from(actual).toString(
 const parserSrc=localParserTranspiled.replace(/from ['"]\.\/marketIqExpress['"]/, "from '"+expressionUrl+"'");
 assert.ok(parserSrc.includes(expressionUrl),'Parser must import real Express validator');
 const parser=await import('data:text/javascript;base64,'+Buffer.from(parserSrc).toString('base64'));
+
+const parserUrl='data:text/javascript;base64,'+Buffer.from(parserSrc).toString('base64');
+const clipboardJs=transpile('services/marketIqExpressClipboard.ts')
+ .replace(/from ['"]\.\/marketIqExpressOcrParser['"]/, "from '"+parserUrl+"'")
+ .replace(/from ['"]\.\/marketIqExpress['"]/, "from '"+expressionUrl+"'");
+const clipboard=await import('data:text/javascript;base64,'+Buffer.from(clipboardJs).toString('base64'));
+const copiedHB20S=[
+ 'AutoAvaliar',
+ 'Avaliação',
+ 'HB20S 1.6 COMFORT PLUS 16V FLEX 4P',
+ 'AUTOMATICO',
+ '# 116591873',
+ 'Origem NACIONAL',
+ 'Placa PXN3664',
+ 'Ano 2016/2016',
+ 'Comb. FLEX',
+ 'Câmbio AUTOMÁTICO',
+ 'Km 154.027',
+ 'Renavam 01082861470',
+ 'FIPE',
+ 'Valor R$ 60.921,00',
+ 'NOTAS DA AVALIAÇÃO',
+ '7,1/10',
+ 'CLIENTE Teste Privado',
+ 'CPF 12345678900'
+].join('\n');
+const direct=clipboard.parseAutoAvaliarClipboardText(copiedHB20S);
+assert.equal(direct.brand,'HYUNDAI');
+assert.equal(direct.model,'HB20S 1.6 COMFORT PLUS 16V FLEX 4P AUTOMATICO');
+assert.equal(direct.yearModel,'2016');
+assert.equal(direct.km,154027);
+assert.equal(direct.plate,'PXN3664');
+assert.equal(direct.fipeReference,60921);
+assert.equal(direct.conditionScore,7.1);
+assert.ok(direct.warnings.some(x=>x.includes('texto copiado')));
+assert.ok(!JSON.stringify(direct).includes('Teste Privado')&&!JSON.stringify(direct).includes('12345678900'),'Do not persist or expose copied client details');
+const copiedToro=clipboard.parseAutoAvaliarClipboardText(
+ 'AutoAvaliar\nTORO 1.3 TURBO 270 FLEX VOLCANO AT6\nPlaca\nURC6A47\nAno\n2026/2026\nKm\n18.977\nREFERENCIAS\nFIPE\nValor\nR$ 156.118,00'
+);
+assert.equal(copiedToro.brand,'FIAT');assert.equal(copiedToro.plate,'URC6A47');
+assert.equal(copiedToro.km,18977);assert.equal(copiedToro.fipeReference,156118);
+assert.throws(()=>clipboard.parseAutoAvaliarClipboardText('um texto aleatório'),/Copie o quadro/);
+assert.throws(()=>clipboard.parseAutoAvaliarClipboardText('Placa ABC1D23\nAno 2024/2024\nKM 15000'),/Não identifiquei marca/);
+assert.ok(!src('services/marketIqExpressClipboard.ts').includes('fetch('),'Text clipboard must remain local');
+
 const spatialTsv=[
  'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
  '5\t1\t1\t1\t1\t1\t20\t100\t40\t15\t90\tAno',
@@ -287,7 +332,10 @@ assert.ok(backend.includes('NÃO extraia dados do cliente')&&backend.includes('N
 assert.ok(backend.includes("if(data.length<200||data.length>2450000"));
 assert.ok(!backend.includes('motyqFirestore.patch')&&!backend.includes('writeFile('),'Images should never be persisted');
 assert.ok(ui.includes("window.addEventListener('paste',handler)"));
-assert.ok(ui.includes('Escolher print ou colar Ctrl+V'));
+assert.ok(ui.includes("getData('text/plain')"),'Paste text in the browser without OCR');
+assert.ok(ui.includes("target.closest('input,textarea,select"),'Do not hijack paste in editing fields');
+assert.ok(ui.includes("parseAutoAvaliarClipboardText(raw)"),'Read plain-text vehicle data locally');
+assert.ok(ui.includes('Clique aqui e pressione Ctrl+V'));
 assert.ok(ui.includes('setDemand(true);setZeroStock(true)'),'Explicitly approved Prisma demo');
 assert.ok(ui.includes('setOverride(e.target.value')&&ui.includes('option value="SHOWROOM"'));
 assert.ok(ui.includes('Diretriz técnica por KM')&&ui.includes('Requer análise e autorização do gestor'));
@@ -300,6 +348,6 @@ assert.ok(demo.includes('sem enviar a imagem para o Motyq'),'Explain browser-onl
 assert.ok(entry.indexOf("==='/iq-express/laboratorio'?<MarketIqExpressDemoRoute/>")>=0);
 assert.ok(rewrites.some(x=>x.source==='/iq-express/laboratorio'&&x.destination==='/index.html'));
 assert.ok(ui.includes('if(!file||reading)return'),'Image input works in the demo');
-assert.ok(ui.includes('Escolher print ou colar Ctrl+V'),'Enable genuine screenshot testing');
+assert.ok(ui.includes('Clique aqui e pressione Ctrl+V'),'Enable screenshot and text clipboard testing');
 
 console.log('Motyq IQ Express: Prisma Showroom + Fleet D conflict, editable strategy, image privacy, authenticated Gemini extraction, copy/paste and Mesa handoff passed.');
