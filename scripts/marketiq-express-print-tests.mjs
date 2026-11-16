@@ -54,6 +54,18 @@ const spatialTsv=[
  '5\t1\t2\t1\t2\t1\t600\t135\t70\t15\t91\t95.800'
 ].join('\n');
 assert.deepEqual(parser.spatialOcrRows(spatialTsv),['Ano 2017/2018','Km 95.800']);
+
+const placaTsv=[
+ 'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
+ '5\t1\t1\t1\t1\t1\t160\t300\t95\t34\t91\tPlaca',
+ '5\t1\t1\t1\t1\t2\t890\t301\t132\t34\t87\tURC6A47',
+ '5\t1\t1\t1\t2\t1\t160\t410\t70\t34\t91\tAno'
+].join('\n');
+assert.deepEqual(parser.plateLabelFromTsv(placaTsv),{top:300,height:34},
+ 'Use the Placa label, not the row number in the screenshot');
+assert.equal(parser.plateLabelFromTsv(placaTsv.replace(/\bPlaca\b/g,'Ano')),null,
+ 'Never assume a fixed position when the plate label is absent');
+
 const spatialVehicle=parser.parseAutoAvaliarOcrText('PRISMA LTZ AUTOMATICO',spatialTsv);
 assert.equal(spatialVehicle.yearModel,'2018');assert.equal(spatialVehicle.km,95800);
 // Regression from the Taos screenshot feedback: photo tabs must not become model.
@@ -171,12 +183,13 @@ assert.ok(browserOcr.includes("recognize(image,{}, {tsv:true})"),'Collect word c
 assert.ok(browserOcr.includes('screenshotRegions(file)'),'Full AutoAvaliar screenshots need magnified vehicle crop');
 assert.ok(browserOcr.includes('regions=await screenshotRegions(file);'),'Region analysis must not depend on unreliable header OCR');
 assert.ok(!browserOcr.includes('if(isAutoAvaliar)'),'Regional OCR must run even when tiny AutoAvaliar menu labels are missed');
-assert.ok(browserOcr.includes('onPlateZoom?.(regions.plate)'),'Send only the isolated plate preview to the local UI');
-assert.ok(browserOcr.includes('let configured=false;')&&browserOcr.includes('const plateResult=await worker.recognize(regions.plate);'),'Run plate OCR even if setParameters fails');
+assert.ok(browserOcr.includes('onPlateZoom?.(plateAnchor?regions.plateAt(plateAnchor):regions.plateContext)'),'Show the label-anchored plate or contextual fallback');
+assert.ok(browserOcr.includes('let configured=false;')&&browserOcr.includes('const plateResult=await worker.recognize(plateImage);'),'Run adaptive plate OCR even if setParameters fails');
 
-assert.ok(browserOcr.includes('detail:crop(0.555,0.005,0.215,0.745)'),'Detail crop must include plate and KM rows');
+assert.ok(browserOcr.includes('detailRect={x:0.49,y:0.005,w:0.28,h:0.745}'),'Include left label and right plate in detail OCR for menu/crop variants');
 assert.ok(browserOcr.includes('reference:crop(0.775,0.59,0.21,0.41)'),'FIPE crop must reach the bottom of short AutoAvaliar screenshots');
-assert.ok(browserOcr.includes('plate:crop(0.708,0.153,0.058,0.047,10)'),'Target the plate value row at 10x');
+assert.ok(browserOcr.includes('plateContext:crop(0.50,0.06,0.27,0.22,6)'),'When label unreadable, show vehicle table not unrelated year row');
+assert.ok(browserOcr.includes('plateAt:(anchor)=>')&&browserOcr.includes('const center=height*detailRect.y+(anchor.top+anchor.height/2)/detailScale;'),'Crop plate using detected text row rather than fixed screenshot coordinates');
 assert.ok(browserOcr.includes("if(!extracted.plate&&regions)"),'Avoid slow plate OCR when first pass succeeds');
 assert.ok(browserOcr.includes("tessedit_pageseg_mode:'7'"),'Single-line Tesseract mode for 7-char plate');
 assert.ok(browserOcr.includes("tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'"),'Plate OCR should avoid symbols');
