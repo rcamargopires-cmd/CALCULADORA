@@ -2,10 +2,12 @@ import React,{useMemo} from 'react';
 import type {ExpressVehicleExtract} from '../services/marketIqExpress';
 import {summarizeExpressHistory,type ExpressHistoryRecord} from '../services/marketIqExpressHistory';
 
-type Props={vehicle:ExpressVehicleExtract;history:readonly ExpressHistoryRecord[];loading?:boolean;incomplete?:boolean};
+type Props={vehicle:ExpressVehicleExtract;history:readonly ExpressHistoryRecord[];loading?:boolean;incomplete?:boolean;error?:string};
 const money=(amount:number)=>amount.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
-export default function MarketIqExpressHistoryCard({vehicle,history,loading=false,incomplete=false}:Props){
+export default function MarketIqExpressHistoryCard({vehicle,history,loading=false,incomplete=false,error=''}:Props){
  const summary=useMemo(()=>summarizeExpressHistory(vehicle,history,incomplete),[vehicle,history,incomplete]);
+ if(error)return <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-950">
+  Histórico indisponível agora: {error}. Nenhum valor foi presumido; tente atualizar na Mesa.</p>;
  if(loading&&!history.length)return <p role="status" className="rounded-lg border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-700">
   Histórico autorizado da Mesa carregando… A prévia não vai presumir valores.</p>;
  return <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900">
