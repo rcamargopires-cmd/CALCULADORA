@@ -35,7 +35,7 @@ const knownModels:[RegExp,string][]=[
 const chooseTitle=(line:string)=>{
  const normalized=fold(line).replace(/^\s*[#*]+\s*/,'');
  // Model description is generally above the table: "PRISMA 1.4 MPFI LTZ 8V FLEX 4P AUTOMATICO".
- return normalized.length>=9&&normalized.length<=130&&
+ return normalized.length>=6&&normalized.length<=130&&
   knownModels.some(([re])=>re.test(normalized))&&
   !/^(MARCA|MODELO|VERSAO|FABRICANTE|REFERENCIA|REFERENCIAS|VEICULO|ORIGEM|VALOR|ANO|CLIENTE)\s*:/.test(normalized) &&
   !/(\bR\$\s*[\d.]+|\bCPF\b|\bCNPJ\b|\bSOLICITANTE\b)/.test(normalized);
