@@ -30,6 +30,7 @@ import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import MarketIqQuickBuyerQuote from './MarketIqQuickBuyerQuote';
 import MarketIqAquaPilotPanel from './MarketIqAquaPilotPanel';
 import MarketIqExpressPrintPanel from './MarketIqExpressPrintPanel';
+import MarketIqExpressHistoryCard from './MarketIqExpressHistoryCard';
 import type {ExpressVehicleExtract,ExpressAssessment} from '../services/marketIqExpress';
 import type {ConsultedVehicle} from '../services/marketIqConsultedRepasse';
 import MarketIqApprovalCenter from './MarketIqApprovalCenter';
@@ -828,7 +829,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   setExpressReview({vehicle:extracted,assessment});
   setPlate(extracted.plate);setBrand(extracted.brand);setModel(extracted.model);
   setYear(extracted.yearModel);setKm(extracted.km===null?'':String(extracted.km));
-  setBrandCode('');setModelCode('');setYearCode('');setFipe(null);
+  // Auto-select only an exactly matching FIPE brand. Trim and year still
+  // require explicit operator confirmation to avoid incorrect price lookup.
+  const norm=(v:string)=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const brandMatches=brands.filter(item=>norm(item.name)===norm(extracted.brand));
+  setBrandCode(brandMatches.length===1?brandMatches[0].code:'');
+  setModelCode('');setYearCode('');setFipe(null);
   setAds([]);setAutoSearchKey('');setDecisionOffer('');setDecisionConfirmedCost(null);
   setExpressOpen(false);setMobileFullDesk(true);switchDeskSection('pricing');
   window.scrollTo({top:0,behavior:'smooth'});
@@ -857,7 +863,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
 
  return <>
- {expressOpen&&<MarketIqExpressPrintPanel onClose={()=>setExpressOpen(false)} onApply={acceptExpressPrint}/>}
+ {expressOpen&&<MarketIqExpressPrintPanel onClose={()=>setExpressOpen(false)} onApply={acceptExpressPrint}
+  history={saved} historyLoading={historyBusy} historyIncomplete={historyMore}/>}
  {aquaVehicle&&<MarketIqAquaPilotPanel scope={captureScope} vehicle={aquaVehicle} onClose={()=>setAquaVehicle(null)}/>}
  {quickBuyerQuote&&<MarketIqQuickBuyerQuote scope={captureScope} email={user.email} vehicle={quickBuyerQuote}
   onClose={()=>setQuickBuyerQuote(null)}
@@ -1097,7 +1104,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <button type="button" className="rounded-lg border border-indigo-400 px-3 py-2 text-xs font-bold text-indigo-950" onClick={()=>setExpressOpen(true)}>Revisar captura</button>
   </div>
   {expressReview.assessment.policyConflict&&<p className="mt-2 rounded-lg bg-amber-100 p-3 text-xs font-bold text-amber-950">Exceção: SHOWROOM por procura/estoque, mas a diretriz técnica por KM recomenda REPASSE. Requer análise/autorização; o destino oficial não foi alterado.</p>}
-  <p className="mt-2 text-xs text-slate-700">Confirme marca, versão, ano, combustível e FIPE atual no catálogo antes de calcular o preço. O print não autoriza compra automática.</p>
+  {expressReview.vehicle.plate===plate&&expressReview.vehicle.brand===brand&&expressReview.vehicle.model===model&&
+    <MarketIqExpressHistoryCard vehicle={expressReview.vehicle} history={saved} loading={historyBusy} incomplete={historyMore}/>}
+   {expressReview.vehicle.plate===plate&&/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)&&
+    <button type="button" className="mt-2 rounded-lg border border-indigo-400 bg-white px-3 py-2 text-xs font-bold text-indigo-950"
+     onClick={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');}}>
+     Ver histórico completo desta placa
+    </button>}
+   <p className="mt-2 text-xs text-slate-700">Dados importados para conferência. {brandCode?'Marca FIPE identificada; escolha a versão e ano correspondentes.':'Selecione a marca no catálogo FIPE.'} Confirme combustível, referência do mês, custos e preço de mercado antes de gerar uma proposta. O print não autoriza compra automática.</p>
  </section>}
  <section id="motyq-iq-valuation-form" className="rounded-xl bg-white p-5">
  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
