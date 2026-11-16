@@ -46,6 +46,16 @@ const expressionUrl='data:text/javascript;base64,'+Buffer.from(actual).toString(
 const parserSrc=localParserTranspiled.replace(/from ['"]\.\/marketIqExpress['"]/, "from '"+expressionUrl+"'");
 assert.ok(parserSrc.includes(expressionUrl),'Parser must import real Express validator');
 const parser=await import('data:text/javascript;base64,'+Buffer.from(parserSrc).toString('base64'));
+const spatialTsv=[
+ 'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
+ '5\t1\t1\t1\t1\t1\t20\t100\t40\t15\t90\tAno',
+ '5\t1\t2\t1\t1\t1\t600\t100\t90\t15\t90\t2017/2018',
+ '5\t1\t1\t1\t2\t1\t20\t135\t35\t15\t92\tKm',
+ '5\t1\t2\t1\t2\t1\t600\t135\t70\t15\t91\t95.800'
+].join('\n');
+assert.deepEqual(parser.spatialOcrRows(spatialTsv),['Ano 2017/2018','Km 95.800']);
+const spatialVehicle=parser.parseAutoAvaliarOcrText('PRISMA LTZ AUTOMATICO',spatialTsv);
+assert.equal(spatialVehicle.yearModel,'2018');assert.equal(spatialVehicle.km,95800);
 const exampleOcr=[
  'PRISMA 1.4 MPFI LTZ 8V FLEX 4P AUTOMATICO',
  'Placa FOT9835',
@@ -75,6 +85,7 @@ const browserOcr=src('services/marketIqExpressBrowserOcr.ts');
 transpile('services/marketIqExpressBrowserOcr.ts');
 assert.ok(browserOcr.includes('tesseract.js@7.0.0/dist/tesseract.min.js'));
 assert.ok(browserOcr.includes("createWorker(['por','eng']"));
+assert.ok(browserOcr.includes("recognize(image,{}, {tsv:true})"),'Collect word coordinates from OCR to reconstruct right-aligned values');
 assert.ok(!browserOcr.includes('fetch('),'Local print engine must not upload images');
 assert.ok(!browserOcr.includes('localStorage')&&!browserOcr.includes('indexedDB'),'OCR must not store screenshots in app storage');
 
