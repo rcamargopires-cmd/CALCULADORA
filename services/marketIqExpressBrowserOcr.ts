@@ -70,6 +70,7 @@ async function toHighResolutionDataUrl(file:File):Promise<string>{
 type ScreenshotRegions={
  detail:string;reference:string;plateContext:string;
  plateAt:(anchor:{top:number;height:number})=>string;
+ plateValueAt:(anchor:{top:number;height:number;left?:number;width?:number})=>string;
 };
 async function screenshotRegions(file:File):Promise<ScreenshotRegions|null>{
  const url=URL.createObjectURL(file);
@@ -105,9 +106,25 @@ async function screenshotRegions(file:File):Promise<ScreenshotRegions|null>{
    plateAt:(anchor)=>{
     const center=height*detailRect.y+(anchor.top+anchor.height/2)/detailScale;
     const labelHeight=Math.max(7,anchor.height/detailScale);
-    const top=Math.max(0,center-labelHeight-6);
-    const bottom=Math.min(height,center+labelHeight*1.2+6);
+    const margin=Math.max(5,labelHeight*0.7);
+    const top=Math.max(0,center-margin);
+    const bottom=Math.min(height,center+margin);
     return crop(0.50,top/height,0.27,(bottom-top)/height,8);
+   },
+   // OCR only the right-aligned value; a combined "Placa URC6A47"
+   // single-line recognition often includes the label and is rejected.
+   plateValueAt:(anchor)=>{
+    const center=height*detailRect.y+(anchor.top+anchor.height/2)/detailScale;
+    const rowHeight=Math.max(7,anchor.height/detailScale);
+    const top=Math.max(0,center-rowHeight*0.80-2);
+    const bottom=Math.min(height,center+rowHeight*0.85+2);
+    const cardLeft=width*detailRect.x,cardRight=width*(detailRect.x+detailRect.w);
+    const labelRight=(anchor.left!==undefined&&anchor.width!==undefined)?
+      cardLeft+(anchor.left+anchor.width+12)/detailScale:cardLeft+detailRect.w*width*0.50;
+    const valueStart=Math.max(cardLeft+detailRect.w*width*0.50,labelRight);
+    const valueRight=cardRight-3;
+    return crop(valueStart/width,top/height,Math.max(0.01,(valueRight-valueStart)/width),
+      Math.max(0.01,(bottom-top)/height),9);
    }
   };
  }finally{URL.revokeObjectURL(url);}
@@ -144,7 +161,7 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  if(!extracted.plate&&regions){
   onStatus('Ampliando a linha da placa para uma última conferência…');
   const label=plateLabelFromTsv(detailTsv);
-  const plateImage=label?regions.plateAt(label):regions.plateContext;
+  const plateImage=label?regions.plateValueAt(label):regions.plateContext;
   let isolatedPlateText='';
   // Changing page segmentation can fail on some Tesseract.js workers.
   // OCR itself must STILL run with default settings if that happens.
