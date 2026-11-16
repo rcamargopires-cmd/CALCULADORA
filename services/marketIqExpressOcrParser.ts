@@ -24,7 +24,7 @@ const knownModels:[RegExp,string][]=[
  [/\b(PRISMA|ONIX|TRACKER|SPIN|CRUZE|S10|MONTANA)\b/,'CHEVROLET'],
  [/\b(T-CROSS|TCROSS|POLO|VIRTUS|NIVUS|GOL|SAVEIRO|JETTA|TAOS|AMAROK)\b/,'VOLKSWAGEN'],
  [/\b(CRETA|HB20S|HB20X|HB20|TUCSON|IX35)\b/,'HYUNDAI'],
- [/\b(YARIS|COROLLA|HILUX|ETIOS|SW4)\b/,'TOYOTA'],
+ [/\b(RAV4|RAV-4|YARIS|COROLLA|HILUX|ETIOS|SW4|PRIUS|CAMRY|C-HR)\b/,'TOYOTA'],
  [/\b(COMPASS|RENEGADE|COMMANDER)\b/,'JEEP'],
  [/\b(ARGO|MOBI|PULSE|FASTBACK|TORO|STRADA|CRONOS)\b/,'FIAT'],
  [/\b(KWID|SANDERO|DUSTER|KARDIAN|LOGAN|CAPTUR)\b/,'RENAULT'],
@@ -55,6 +55,25 @@ const vehicleTitle=(row:string):string=>{
   }
  }
  return candidate;
+};
+/** Vehicle card title fallback when the model is missing from our limited
+ * lookup table. Never infer a manufacturer from trim vocabulary alone.
+ * Prefer an isolated heading from the AutoAvaliar vehicle card; exclude
+ * menus, evaluation IDs, customer info, plate, KM and price references.
+ */
+const genericVehicleTitle=(row:string):string=>{
+ const normalized=fold(row).replace(/^(?:FOTOS|FOTOS LISTA|FOTO LISTA|LISTA FOTOS)\s+/,'').trim();
+ if(normalized.length<10||normalized.length>120)return '';
+ if(/\b(?:CLIENTE|CPF|CNPJ|RENAVAM|CHASSI|PLACA|SOLICITANTE|AVALIADOR|REFERENCIAS|FIPE|EQUIPAMENTOS|AVALIACAO|COTACAO|FOTOS)\b/.test(normalized))return '';
+ // An engine displacement PLUS a drivetrain/trim marker strongly indicates
+ // a vehicle header. This is not a proof of make and is always reviewable.
+ if(!/\b[1-9][.,][0-9]\b/.test(normalized))return '';
+ if(!/\b(?:HYBRID|HIBRIDO|FLEX|TURBO|TSI|TFSI|VVT(?:-?IE)?|CVT|AWD|4X4|4X2|AUTOMATICO|MANUAL|AT[456789]|DIESEL|GASOLINA|MPI|MPFI)\b/.test(normalized))return '';
+ return normalized;
+};
+const fullMake=(row:string)=>{
+ const match=fold(row).match(/^(TOYOTA|CHEVROLET|VOLKSWAGEN|HYUNDAI|FIAT|JEEP|RENAULT|NISSAN|HONDA|FORD|KIA|MITSUBISHI|PEUGEOT|CITROEN|SUZUKI|VOLVO|BMW|AUDI|BYD|GWM)\s+(.+)$/);
+ return match?{brand:match[1],model:match[2]}:null;
 };
 /** Prefer an explicitly labelled value and never reuse the next unrelated field. */
 const fieldValue=(lines:string[],prefix:RegExp,allowed:RegExp):string=>{
@@ -236,16 +255,18 @@ export function parseAutoAvaliarOcrText(
  const lines=[...detailLines,...mainLines];
  const upper=lines.map(fold);
  const warnings:string[]=['Leitura local experimental: revise todos os campos antes de utilizar na Mesa.'];
- const titleIndex=lines.findIndex(row=>Boolean(vehicleTitle(row)));
- const initialTitle=titleIndex>=0?vehicleTitle(lines[titleIndex]):'';
+ const knownIndex=lines.findIndex(row=>Boolean(vehicleTitle(row)));
+ const fallbackIndex=detailLines.findIndex(row=>Boolean(genericVehicleTitle(row)));
+ const titleIndex=knownIndex>=0?knownIndex:fallbackIndex;
+ const initialTitle=knownIndex>=0?vehicleTitle(lines[knownIndex]):fallbackIndex>=0?genericVehicleTitle(detailLines[fallbackIndex]):'';
  // AutoAvaliar wraps long versions onto the next display line.
- const suffix=titleIndex>=0?fold(lines[titleIndex+1]||''):'';
+ const suffix=knownIndex>=0?fold(lines[knownIndex+1]||''):fallbackIndex>=0?fold(detailLines[fallbackIndex+1]||''):'';
  const title=initialTitle+(/^(?:AUTOMATICO|MANUAL|AT6|AT8|CVT)$/.test(suffix)&&!initialTitle.endsWith(suffix)?' '+suffix:'');
  const labelBrand=fieldValue(lines,/^(?:MARCA|FABRICANTE)\s*[:|.-]?\s*/,/^(?:VOLKSWAGEN|CHEVROLET|FIAT|TOYOTA|HYUNDAI|JEEP|RENAULT|NISSAN|HONDA|FORD|VW|GM)\b/);
- let brand=knownModels.find(([re])=>re.test(title))?.[1]||'';
+ let brand=knownModels.find(([re])=>re.test(title))?.[1]||fullMake(title)?.brand||'';
  if(labelBrand)brand=labelBrand.startsWith('VW')?'VOLKSWAGEN':labelBrand.startsWith('GM')?'CHEVROLET':labelBrand.split(/\s+/)[0];
  const modelLabel=fieldValue(lines,/^(?:MODELO|VERSAO)\s*[:|.-]?\s*/,/[A-Z]{2,}/);
- const model=(title||vehicleTitle(modelLabel)||modelLabel).replace(/^(CHEVROLET|VOLKSWAGEN|VW|HYUNDAI|TOYOTA|JEEP|FIAT|RENAULT|HONDA|FORD|NISSAN)\s+/,'').trim();
+ const model=(title||vehicleTitle(modelLabel)||modelLabel).replace(/^(CHEVROLET|VOLKSWAGEN|VW|HYUNDAI|TOYOTA|JEEP|FIAT|RENAULT|HONDA|FORD|NISSAN|KIA|MITSUBISHI|PEUGEOT|CITROEN|SUZUKI|VOLVO|BMW|AUDI|BYD|GWM)\s+/,'').trim();
  const yearLabel=fieldValue(lines,/^(?:ANO\s*\/\s*MODELO|ANO\s+FAB\s*\/\s*MOD|ANO\s+MODELO|ANO)\s*[:|.-]?\s*/,/(?:19|20)\d{2}\s*[\/-]\s*(?:19|20)?\d{2}/);
  let [yearManufacture,yearModel]=normalizeYears(yearLabel);
  if(!yearModel){
