@@ -119,6 +119,27 @@ export function spatialOcrRows(tsv:string):string[]{
  }
  return groups.map(g=>g.words.sort((a,b)=>a.x-b.x).map(w=>w.value).join(' ')).filter(Boolean);
 }
+/** The word box for "Placa" in the enlarged vehicle table. Returns OCR-image
+ * coordinates only. Cropping is based on the label row, never on page height.
+ */
+export function plateLabelFromTsv(tsv:string):{top:number;height:number}|null{
+ const lines=String(tsv||'').split(/\r?\n/);
+ if(lines.length<2)return null;
+ const headers=lines[0].split('\t');
+ const field=(name:string)=>headers.indexOf(name);
+ const level=field('level'),text=field('text'),top=field('top'),height=field('height'),confidence=field('conf');
+ if([level,text,top,height,confidence].some(i=>i<0))return null;
+ for(const line of lines.slice(1)){
+  const values=line.split('\t');
+  if(values[level]!=='5')continue;
+  const label=fold(values.slice(text).join('\t')).replace(/[^A-Z]/g,'');
+  if(label!=='PLACA')continue;
+  const y=Number(values[top]),h=Number(values[height]),conf=Number(values[confidence]);
+  if(!Number.isFinite(y)||!Number.isFinite(h)||!Number.isFinite(conf)||h<3||conf<10)continue;
+  return {top:y,height:h};
+ }
+ return null;
+}
 /** Recover a plate from the enlarged vehicle-only region when the OCR misses
  * the tiny label. Do not scan chassi, Renavam, customer or other full-page text.
  */
