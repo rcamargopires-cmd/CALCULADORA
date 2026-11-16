@@ -92,8 +92,11 @@ async function screenshotRegions(file:File):Promise<{detail:string;reference:str
   // Standard AutoAvaliar "Avaliação" layout:
   // right-of-photo vehicle card and lower-right FIPE/references card.
   return {
-   detail:crop(0.53,0.115,0.235,0.47),
-   reference:crop(0.765,0.62,0.23,0.29)
+   // Include the title and all labelled values (Placa, Ano, Km).
+   detail:crop(0.555,0.005,0.215,0.745),
+   // On shorter screens, the FIPE card starts near the bottom edge.
+   // Do not cut off the 'Valor R$ ...' row (Taos 1340x593).
+   reference:crop(0.775,0.59,0.21,0.41)
   };
  }finally{URL.revokeObjectURL(url);}
 }
