@@ -228,6 +228,21 @@ assert.deepEqual(parser.plateLabelFromTsv(placaTsv),{top:300,height:34,left:160,
  'Use the Placa label, not the row number in the screenshot');
 assert.equal(parser.plateLabelFromTsv(placaTsv.replace(/\bPlaca\b/g,'Ano')),null,
  'Never assume a fixed position when the plate label is absent');
+const fuzzyPlateLabel=placaTsv.replace(/\bPlaca\b/g,'Piaca');
+assert.deepEqual(parser.plateLabelFromTsv(fuzzyPlateLabel),{top:300,height:34,left:160,width:95},
+ 'Small desktop screenshots may confuse the l in Placa with i');
+const missingPlateLabel=[
+ 'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
+ '5\t1\t1\t1\t1\t1\t160\t240\t95\t34\t90\tOrigem',
+ '5\t1\t1\t1\t2\t1\t160\t300\t95\t34\t35\tP@aca',
+ '5\t1\t1\t1\t3\t1\t160\t360\t70\t34\t90\tAno'
+].join('\n');
+assert.equal(parser.plateLabelFromTsv(missingPlateLabel),null);
+assert.deepEqual(parser.plateAnchorFromVehicleTsv(missingPlateLabel),{top:300,height:34,left:160,width:95},
+ 'When Placa is unreadable, use the vehicle-card row between Origem and Ano');
+assert.equal(parser.plateAnchorFromVehicleTsv(placaTsv.replace(/\bPlaca\b/g,'Ano')),null,
+ 'Do not invent a plate row without both neighboring labels');
+
 
 const plateColumns=[
  'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
@@ -240,6 +255,8 @@ const plateColumns=[
  '5\t1\t1\t1\t4\t1\t160\t310\t75\t26\t95\tRenavam',
  '5\t1\t2\t1\t4\t1\t850\t310\t169\t26\t91\t01494104455'
 ].join('\n');
+assert.deepEqual(parser.plateFromVehicleTsv(plateColumns.replace(/\bPlaca\b/g,'Piaca')),{plate:'URC6A47',corrected:false},
+ 'The value can still be read when the plate label is slightly distorted');
 assert.deepEqual(parser.plateFromVehicleTsv(plateColumns),{plate:'URC6A47',corrected:false},
  'Find Toro plate horizontally aligned to Placa even if text-reading order differs');
 const toroTsvOnly=parser.parseAutoAvaliarOcrText('TORO 1.3 TURBO 270 FLEX VOLCANO AT6','',
@@ -420,6 +437,11 @@ assert.ok(browserOcr.includes('plateValueAt:(anchor)=>')&&browserOcr.includes('r
 assert.ok(browserOcr.includes("if(!extracted.plate&&regions)"),'Avoid slow plate OCR when first pass succeeds');
 assert.ok(browserOcr.includes("tessedit_pageseg_mode:'7'"),'Single-line Tesseract mode for 7-char plate');
 assert.ok(browserOcr.includes("tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'"),'Plate OCR should avoid symbols');
+assert.ok(browserOcr.includes('plateAnchorFromVehicleTsv(detailTsv)'),'Try geometric plate row recovery');
+assert.ok(browserOcr.includes('enhancePlateContrast(plateImage)'),'Retry unreadable plate locally at higher contrast');
+assert.ok(browserOcr.includes("tessedit_pageseg_mode:'8'"),'Try single-word plate OCR only when standard reading fails');
+assert.ok(browserOcr.includes('normalizePlateFromIsolatedCrop(isolatedPlateText)'),'Never use unvalidated text as a vehicle plate');
+
 
 assert.ok(browserOcr.includes('detailText,detailTsv,referenceText,referenceTsv'),'Regional OCR must be passed to parser');
 
