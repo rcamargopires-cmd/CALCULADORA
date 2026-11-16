@@ -61,11 +61,44 @@ const placaTsv=[
  '5\t1\t1\t1\t1\t2\t890\t301\t132\t34\t87\tURC6A47',
  '5\t1\t1\t1\t2\t1\t160\t410\t70\t34\t91\tAno'
 ].join('\n');
-assert.deepEqual(parser.plateLabelFromTsv(placaTsv),{top:300,height:34},
+assert.deepEqual(parser.plateLabelFromTsv(placaTsv),{top:300,height:34,left:160,width:95},
  'Use the Placa label, not the row number in the screenshot');
 assert.equal(parser.plateLabelFromTsv(placaTsv.replace(/\bPlaca\b/g,'Ano')),null,
  'Never assume a fixed position when the plate label is absent');
 
+const plateColumns=[
+ 'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
+ '5\t1\t1\t1\t1\t1\t160\t170\t92\t26\t96\tPlaca',
+ '5\t1\t2\t1\t1\t1\t860\t171\t148\t26\t90\tURC6A47',
+ '5\t1\t1\t1\t2\t1\t160\t220\t50\t26\t95\tAno',
+ '5\t1\t2\t1\t2\t1\t840\t221\t125\t26\t91\t2026/2026',
+ '5\t1\t1\t1\t3\t1\t160\t265\t28\t26\t95\tKm',
+ '5\t1\t2\t1\t3\t1\t870\t266\t110\t26\t90\t18.977',
+ '5\t1\t1\t1\t4\t1\t160\t310\t75\t26\t95\tRenavam',
+ '5\t1\t2\t1\t4\t1\t850\t310\t169\t26\t91\t01494104455'
+].join('\n');
+assert.deepEqual(parser.plateFromVehicleTsv(plateColumns),{plate:'URC6A47',corrected:false},
+ 'Find Toro plate horizontally aligned to Placa even if text-reading order differs');
+const toroTsvOnly=parser.parseAutoAvaliarOcrText('TORO 1.3 TURBO 270 FLEX VOLCANO AT6','',
+ 'TORO 1.3 TURBO 270 FLEX VOLCANO AT6',plateColumns,
+ 'REFERENCIAS\nFIPE\nR$ 156.118,00');
+assert.equal(toroTsvOnly.plate,'URC6A47');
+assert.equal(toroTsvOnly.km,18977);
+assert.equal(toroTsvOnly.yearModel,'2026');
+assert.equal(toroTsvOnly.fipeReference,156118);
+const noisyMercosul=plateColumns.replace('URC6A47','URCGA4T');
+assert.equal(parser.plateFromVehicleTsv(noisyMercosul),null,
+ 'Do not hallucinate a plate when numeric slots cannot be recovered safely');
+const shiftedPlate=plateColumns.replace('URC6A47','SVPGAG3');
+assert.deepEqual(parser.plateFromVehicleTsv(shiftedPlate),{plate:'SVP0A03',corrected:true},
+ 'OCR can confuse G with zero only in numeric positions');
+const otherRow=plateColumns.replace('URC6A47','').replace('01494104455','URC6A47');
+assert.equal(parser.plateFromVehicleTsv(otherRow),null,
+ 'Never use chassis/Renavam row as plate');
+const splitPlate=plateColumns.replace('5\t1\t2\t1\t1\t1\t860\t171\t148\t26\t90\tURC6A47',
+ '5\t1\t2\t1\t1\t1\t860\t171\t64\t26\t90\tURC\n5\t1\t2\t1\t1\t2\t933\t171\t82\t26\t90\t6A47');
+assert.deepEqual(parser.plateFromVehicleTsv(splitPlate),{plate:'URC6A47',corrected:false},
+ 'Join OCR tokens on the same plate row before validation');
 const spatialVehicle=parser.parseAutoAvaliarOcrText('PRISMA LTZ AUTOMATICO',spatialTsv);
 assert.equal(spatialVehicle.yearModel,'2018');assert.equal(spatialVehicle.km,95800);
 // Regression from the Taos screenshot feedback: photo tabs must not become model.
@@ -190,6 +223,7 @@ assert.ok(browserOcr.includes('detailRect={x:0.49,y:0.005,w:0.28,h:0.745}'),'Inc
 assert.ok(browserOcr.includes('reference:crop(0.775,0.59,0.21,0.41)'),'FIPE crop must reach the bottom of short AutoAvaliar screenshots');
 assert.ok(browserOcr.includes('plateContext:crop(0.50,0.06,0.27,0.22,6)'),'When label unreadable, show vehicle table not unrelated year row');
 assert.ok(browserOcr.includes('plateAt:(anchor)=>')&&browserOcr.includes('const center=height*detailRect.y+(anchor.top+anchor.height/2)/detailScale;'),'Crop plate using detected text row rather than fixed screenshot coordinates');
+assert.ok(browserOcr.includes('plateValueAt:(anchor)=>')&&browserOcr.includes('regions.plateValueAt(label)'), 'Target plate value only to avoid Placa label contamination');
 assert.ok(browserOcr.includes("if(!extracted.plate&&regions)"),'Avoid slow plate OCR when first pass succeeds');
 assert.ok(browserOcr.includes("tessedit_pageseg_mode:'7'"),'Single-line Tesseract mode for 7-char plate');
 assert.ok(browserOcr.includes("tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'"),'Plate OCR should avoid symbols');
@@ -203,8 +237,9 @@ const backend=src('server/motyqIqExpressPrint.ts');
 const ui=src('components/MarketIqExpressPrintPanel.tsx');
 assert.ok(ui.includes('readExpressPrintLocally(file,setReadStatus,setPlateZoom)'),'Show the isolated plate only in local UI');
 assert.ok(ui.includes('src={plateZoom}')&&ui.includes('Placa ampliada diretamente do seu print'),'Allow quick visual correction when OCR fails');
-assert.ok(ui.includes("setMethod('local')")&&ui.includes("setMethod('ai')"));
-assert.ok(ui.includes("response.status!==503"),'Use local OCR when server AI is unavailable');
+assert.ok(ui.includes("setMethod('local')"),'OCR local should be the normal workflow');
+assert.ok(!ui.includes("fetch('/api/analyze-deal?action=iq-express-print'"),'No paid image API call by default');
+assert.ok(!ui.includes('getIdToken()'),'No authentication token needed for local OCR');
 assert.ok(ui.includes("if(file){event.preventDefault();void read(file);}"),'Ctrl+V works also in demo');
 
 const workspace=src('components/ManualPricingWorkspace.tsx');
