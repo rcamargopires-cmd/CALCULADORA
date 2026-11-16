@@ -41,6 +41,47 @@ const noConfidence=lib.assessExpressCommercial(missing,{demandConfirmed:false,st
 assert.equal(noConfidence.priority,'NORMAL');assert.equal(noConfidence.needsReview,true);
 assert.equal(lib.cleanExpressVehicle({plate:'INVALID#123',km:1234567}).plate,'');
 const api=src('api/analyze-deal.ts');
+const localParserTranspiled=transpile('services/marketIqExpressOcrParser.ts');
+const expressionUrl='data:text/javascript;base64,'+Buffer.from(actual).toString('base64');
+const parserSrc=localParserTranspiled.replace(/from ['"]\.\/marketIqExpress['"]/, "from '"+expressionUrl+"'");
+assert.ok(parserSrc.includes(expressionUrl),'Parser must import real Express validator');
+const parser=await import('data:text/javascript;base64,'+Buffer.from(parserSrc).toString('base64'));
+const exampleOcr=[
+ 'PRISMA 1.4 MPFI LTZ 8V FLEX 4P AUTOMATICO',
+ 'Placa FOT9835',
+ 'Ano 2017/2018',
+ 'Km 95.800',
+ 'ITENS AVALIADOS',
+ 'LATARIA R$ 1.500,00',
+ 'MOTOR R$ 500,00',
+ 'OPCIONAIS',
+ 'REFERENCIAS',
+ 'FIPE',
+ 'Valor R$ 62.291,00',
+ 'NOTAS DA AVALIACAO 5.8/10',
+ 'CLIENTE nome omitido'
+].join('\n');
+const parsedOcr=parser.parseAutoAvaliarOcrText(exampleOcr);
+assert.equal(parsedOcr.brand,'CHEVROLET');assert.ok(parsedOcr.model.includes('PRISMA'));
+assert.equal(parsedOcr.yearManufacture,'2017');assert.equal(parsedOcr.yearModel,'2018');
+assert.equal(parsedOcr.plate,'FOT9835');assert.equal(parsedOcr.km,95800);
+assert.equal(parsedOcr.fipeReference,62291);assert.equal(parsedOcr.repairTotal,2000);
+assert.equal(parsedOcr.conditionScore,5.8);
+assert.ok(parsedOcr.warnings.some(x=>x.includes('experimental')));
+assert.equal(parser.parseAutoAvaliarOcrText('VW POLO\nPlaca ABC1D23\nAno 2020/2021\nKM 65.300\nFIPE 0KM\nFIPE\nValor R$ 78.300,00').fipeReference,78300);
+assert.equal(parser.parseAutoAvaliarOcrText('VW POLO\nAno 2020/2021\nKM indefinido').km,null);
+assert.throws(()=>parser.parseAutoAvaliarOcrText('cliente Joao CPF 12345678900'),/Não encontrei/);
+const browserOcr=src('services/marketIqExpressBrowserOcr.ts');
+transpile('services/marketIqExpressBrowserOcr.ts');
+assert.ok(browserOcr.includes('tesseract.js@7.0.0/dist/tesseract.min.js'));
+assert.ok(browserOcr.includes("createWorker(['por','eng']"));
+assert.ok(!browserOcr.includes('fetch('),'Local print engine must not upload images');
+assert.ok(!browserOcr.includes('localStorage')&&!browserOcr.includes('indexedDB'),'OCR must not store screenshots in app storage');
+assert.ok(ui.includes('readExpressPrintLocally(file,setReadStatus)'));
+assert.ok(ui.includes("setMethod('local')")&&ui.includes("setMethod('ai')"));
+assert.ok(ui.includes("response.status!==503"),'Use local OCR when server AI is unavailable');
+assert.ok(ui.includes("if(file){event.preventDefault();void read(file);}"),'Ctrl+V works also in demo');
+
 const backend=src('server/motyqIqExpressPrint.ts');
 const ui=src('components/MarketIqExpressPrintPanel.tsx');
 const workspace=src('components/ManualPricingWorkspace.tsx');
@@ -67,10 +108,10 @@ assert.ok(workspace.includes('onApply={acceptExpressPrint}')&&workspace.includes
 assert.ok(workspace.includes('Exceção: SHOWROOM')&&workspace.includes('destino oficial não foi alterado'));
 assert.ok(home.includes('onOpenExpress')&&home.includes('Motyq IQ Express · Prévia por print'));
 assert.ok(demo.includes('<MarketIqExpressPrintPanel demoOnly'),'Standalone preview must not call live OCR');
-assert.ok(demo.includes('sem login, sem leitura de imagens'),'Show limitations before testing');
+assert.ok(demo.includes('sem enviar a imagem para o Motyq'),'Explain browser-only screenshot processing');
 assert.ok(entry.indexOf("==='/iq-express/laboratorio'?<MarketIqExpressDemoRoute/>")>=0);
 assert.ok(rewrites.some(x=>x.source==='/iq-express/laboratorio'&&x.destination==='/index.html'));
-assert.ok(ui.includes('if(!file||reading||demoOnly)return'),'No OCR calls in demo mode');
-assert.ok(ui.includes('{!demoOnly&&<button'),'Hide print submission without available preview AI key');
+assert.ok(ui.includes('if(!file||reading)return'),'Image input works in the demo');
+assert.ok(ui.includes('Escolher print ou colar Ctrl+V'),'Enable genuine screenshot testing');
 
 console.log('Motyq IQ Express: Prisma Showroom + Fleet D conflict, editable strategy, image privacy, authenticated Gemini extraction, copy/paste and Mesa handoff passed.');
