@@ -138,6 +138,56 @@ export function spatialOcrRows(tsv:string):string[]{
  }
  return groups.map(g=>g.words.sort((a,b)=>a.x-b.x).map(w=>w.value).join(' ')).filter(Boolean);
 }
+/** AutoAvaliar sometimes renders the word Placa as "Piaca" or "P1aca"
+ * when a desktop screenshot is downscaled. Accept only these close label
+ * confusions inside the cropped vehicle table, never elsewhere on the page. */
+const isPlateLabel=(raw:string):boolean=>{
+ const label=fold(raw).replace(/[^A-Z0-9]/g,'');
+ return label==='PLACA'||label==='PIACA'||label==='P1ACA'||label==='PLAC4';
+};
+
+/** If the word Placa is not legible, its row is usually centered between
+ * Origem and Ano in the AutoAvaliar vehicle card. Return only OCR geometry;
+ * the value still has to pass plate validation in a separate cropped reading.
+ * Never infer a plate number from unrelated full-screen text.
+ */
+export function plateAnchorFromVehicleTsv(tsv:string):{top:number;height:number;left:number;width:number}|null{
+ const labelled=plateLabelFromTsv(tsv);
+ if(labelled)return labelled;
+ const rows=String(tsv||'').split(/\r?\n/);
+ if(rows.length<2)return null;
+ const keys=rows[0].split('\t');
+ const at=(key:string)=>keys.indexOf(key);
+ const idx={level:at('level'),top:at('top'),left:at('left'),width:at('width'),height:at('height'),conf:at('conf'),text:at('text')};
+ if(Object.values(idx).some(x=>x<0))return null;
+ const words:{label:string;top:number;left:number;width:number;height:number}[]=[];
+ for(const row of rows.slice(1)){
+  const v=row.split('\t');
+  if(v[idx.level]!=='5')continue;
+  const label=fold(v.slice(idx.text).join('\t')).replace(/[^A-Z]/g,'');
+  if(label!=='ORIGEM'&&label!=='ANO')continue;
+  const top=Number(v[idx.top]),left=Number(v[idx.left]),width=Number(v[idx.width]),
+   height=Number(v[idx.height]),conf=Number(v[idx.conf]);
+  if(![top,left,width,height,conf].every(Number.isFinite)||height<3||width<2||conf<20)continue;
+  words.push({label,top,left,width,height});
+ }
+ const origins=words.filter(w=>w.label==='ORIGEM');
+ const years=words.filter(w=>w.label==='ANO');
+ for(const origin of origins){
+  for(const year of years){
+   const typicalHeight=(origin.height+year.height)/2;
+   const separation=year.top-origin.top;
+   // One intervening vehicle row, not a distant field on another card.
+   if(separation<1.6*typicalHeight||separation>5*typicalHeight)continue;
+   if(Math.abs(origin.left-year.left)>Math.max(75,typicalHeight*3.5))continue;
+   const center=(origin.top+origin.height/2+year.top+year.height/2)/2;
+   return {top:Math.round(center-typicalHeight/2),height:Math.round(typicalHeight),
+    left:origin.left,width:origin.width};
+  }
+ }
+ return null;
+}
+
 /** The word box for "Placa" in the enlarged vehicle table. Returns OCR-image
  * coordinates only. Cropping is based on the label row, never on page height.
  */
@@ -152,7 +202,7 @@ export function plateLabelFromTsv(tsv:string):{top:number;height:number;left:num
   const values=line.split('\t');
   if(values[level]!=='5')continue;
   const label=fold(values.slice(text).join('\t')).replace(/[^A-Z]/g,'');
-  if(label!=='PLACA')continue;
+  if(!isPlateLabel(label))continue;
   const y=Number(values[top]),h=Number(values[height]),x=Number(values[left]),w=Number(values[width]),conf=Number(values[confidence]);
   if(![y,h,x,w,conf].every(Number.isFinite)||h<3||w<2||conf<10)continue;
   return {top:y,height:h,left:x,width:w};
@@ -180,7 +230,7 @@ export function plateFromVehicleTsv(tsv:string):{plate:string;corrected:boolean}
   if(!value||![x,top,w,h,conf].every(Number.isFinite)||w<=0||h<=0||conf<10)continue;
   words.push({value,x,y:top+h/2,w,h,conf});
  }
- const label=words.find(x=>fold(x.value).replace(/[^A-Z]/g,'')==='PLACA');
+ const label=words.find(x=>isPlateLabel(x.value));
  if(!label)return null;
  const right=words.filter(x=>x!==label&&x.x>=label.x+label.w+3&&
   Math.abs(x.y-label.y)<=Math.max(9,Math.max(x.h,label.h)*0.68) &&
