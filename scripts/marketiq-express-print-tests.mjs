@@ -147,6 +147,36 @@ assert.equal(rav4ImageText.brand,'TOYOTA');
 assert.equal(rav4ImageText.model,'RAV4 2.5 VVT-IE HYBRID S CONNECT AWD CVT');
 assert.equal(rav4ImageText.km,34042);
 assert.equal(rav4ImageText.fipeReference,151680);
+// Real AutoAvaliar Audi Q3 Sportback layout: title wraps before the plate,
+// and the brand is absent from the heading. Use a fictitious plate in tests.
+const audiQ3Ocr=parser.parseAutoAvaliarOcrText(
+ 'Fotos Fotos Lista\nQ3 2.0 40 TFSI GASOLINA SPORTBACK\nPERFORMANCE QUATTRO TIPTRONIC\n# 116596479\nOrigem\nPlaca ABC1D23\nAno 2022/2023\nKM 62.500',
+ '',
+ 'Q3 2.0 40 TFSI GASOLINA SPORTBACK\nPERFORMANCE QUATTRO TIPTRONIC\nOrigem\nPlaca ABC1D23\nAno 2022/2023\nKM 62.500',
+ '',
+ 'REFERÊNCIAS\nFIPE\nValor R$ 209.876,00',
+ '',
+ undefined,
+ '4,5/10'
+);
+assert.equal(audiQ3Ocr.brand,'AUDI','Q3 should identify Audi without an explicit make');
+assert.equal(audiQ3Ocr.model,'Q3 2.0 40 TFSI GASOLINA SPORTBACK PERFORMANCE QUATTRO TIPTRONIC',
+ 'Preserve the wrapped Q3 Sportback version');
+assert.equal(audiQ3Ocr.yearManufacture,'2022');
+assert.equal(audiQ3Ocr.yearModel,'2023');
+assert.equal(audiQ3Ocr.km,62500);
+assert.equal(audiQ3Ocr.plate,'ABC1D23');
+assert.equal(audiQ3Ocr.fipeReference,209876);
+assert.equal(audiQ3Ocr.conditionScore,4.5);
+const audiQ3Direct=clipboard.parseAutoAvaliarClipboardText(
+ 'Q3 2.0 40 TFSI GASOLINA SPORTBACK\nPERFORMANCE QUATTRO TIPTRONIC\nPlaca ABC1D23\nAno 2022/2023\nKm 62.500\nFIPE R$ 209.876,00');
+assert.equal(audiQ3Direct.brand,'AUDI');
+assert.equal(audiQ3Direct.model,audiQ3Ocr.model);
+const noTrimLeak=parser.parseAutoAvaliarOcrText(
+ 'Q3 2.0 40 TFSI GASOLINA SPORTBACK\nCLIENTE EXEMPLO\nPlaca ABC1D23\nAno 2022/2023\nKM 62.500');
+assert.equal(noTrimLeak.model,'Q3 2.0 40 TFSI GASOLINA SPORTBACK',
+ 'Unrelated customer text must never be appended to the vehicle version');
+
 const unknownButWellLabelled=clipboard.parseAutoAvaliarClipboardText(
  'MITSUBISHI OUTLANDER 2.0 FLEX CVT\nPlaca ABC1D23\nAno 2022/2022\nKm 45.000'
 );
