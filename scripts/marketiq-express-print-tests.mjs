@@ -98,6 +98,39 @@ assert.ok(deskSrc.includes('setBrandCode(brandMatches.length===1?brandMatches[0]
 assert.ok(deskSrc.includes("setModelCode('');setYearCode('');setFipe(null);"),'Never guess FIPE trim and price');
 assert.ok(deskSrc.includes("switchDeskSection('plateHistory')"),'Plate history accessible without duplicating a screen');
 
+// The Express handoff must NEVER erase a recognized model from the visible
+// Mesa form when its FIPE code is pending. Unique equivalent trim suggestions
+// remain opt-in; ambiguity or different fuel/trim must not be auto-selected.
+const handoffJs=transpile('services/marketIqExpressFipeHandoff.ts');
+const handoff=await import('data:text/javascript;base64,'+Buffer.from(handoffJs).toString('base64'));
+const corollaCaptured='COROLLA 2.0 XEI 16V FLEX 4P AUTOMATICO';
+const fipeModels=[
+ {code:'cx',name:'Corolla XEi 2.0 Flex 16V Aut.'},
+ {code:'ca',name:'Corolla Altis 2.0 Flex 16V Aut.'},
+ {code:'cm',name:'Corolla XEi 2.0 Flex 16V Mec.'},
+ {code:'cd',name:'Corolla XEi 2.0 Diesel 16V Aut.'},
+ {code:'c18',name:'Corolla XEi 1.8 Flex 16V Aut.'}
+];
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(corollaCaptured,fipeModels),fipeModels[0],
+ 'Identify the unique FIPE model with reordered trim/engine, without applying it');
+assert.equal(handoff.suggestUniqueExpressFipeModel(corollaCaptured,[fipeModels[0],{...fipeModels[0],code:'cx2'}]),null,
+ 'Never choose between two equivalent FIPE codes');
+assert.equal(handoff.suggestUniqueExpressFipeModel('COROLLA XEI',fipeModels),null,
+ 'Incomplete extraction requires manual FIPE choice');
+assert.equal(handoff.suggestUniqueExpressFipeModel('COROLLA 2.0 XEI 16V GASOLINA AUTOMATICO',fipeModels),null,
+ 'Never match Flex to Gasolina/Diesel');
+assert.equal(handoff.suggestUniqueExpressFipeModel('Q3 2.0 40 TFSI GASOLINA SPORTBACK PERFORMANCE QUATTRO TIPTRONIC',fipeModels),null);
+assert.ok(deskSrc.includes("'Do print: '+expressReview!.vehicle.model")&&deskSrc.includes('expressModelPending'),
+ 'Mesa shows the captured model even with an unselected FIPE code');
+assert.ok(deskSrc.includes('Reconhecido no AutoAvaliar:')&&deskSrc.includes('expressReview!.vehicle.model'),
+ 'The extracted description is visibly preserved next to the FIPE selector');
+assert.ok(deskSrc.includes('Confirmar versão FIPE: {expressFipeSuggestion.name}')&&
+ deskSrc.includes('onClick={()=>selectModel(expressFipeSuggestion.code)}'),
+ 'FIPE catalog suggestion needs an explicit operator click');
+assert.ok(deskSrc.includes('Ano/modelo capturado:')&&deskSrc.includes('Escolha o ano e o combustível'),
+ 'Captured year remains visible but not selected without confirmation');
+assert.ok(deskSrc.includes('setExpressReview(null);'),'New valuation must not display a previous car capture');
+
 const api=src('api/analyze-deal.ts');
 const localParserTranspiled=transpile('services/marketIqExpressOcrParser.ts');
 const expressionUrl='data:text/javascript;base64,'+Buffer.from(actual).toString('base64');

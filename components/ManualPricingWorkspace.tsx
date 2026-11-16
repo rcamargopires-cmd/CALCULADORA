@@ -32,6 +32,7 @@ import MarketIqAquaPilotPanel from './MarketIqAquaPilotPanel';
 import MarketIqExpressPrintPanel from './MarketIqExpressPrintPanel';
 import MarketIqExpressHistoryCard from './MarketIqExpressHistoryCard';
 import type {ExpressVehicleExtract,ExpressAssessment} from '../services/marketIqExpress';
+import {suggestUniqueExpressFipeModel} from '../services/marketIqExpressFipeHandoff';
 import type {ConsultedVehicle} from '../services/marketIqConsultedRepasse';
 import MarketIqApprovalCenter from './MarketIqApprovalCenter';
 import {calculateHistoricalPrice, MOTYQ_HISTORY_MODEL, HistoricalClass} from '../services/marketIqHistoricalPricing';
@@ -714,6 +715,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    }catch{ /* React state still resets when browser storage is restricted. */ }
    setVehicleType('car');
    setPlate('');setBrand('');setBrandCode('');setModel('');setModelCode('');
+   setExpressReview(null);
    setYear('');setYearCode('');setKm('');setCost('0');setFipe(null);
    setModels([]);setYears([]);
    setManualClassification('');setClassificationReason('');
@@ -806,7 +808,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      setNotice('Não foi salva. Seus dados continuam nesta tela. Verifique a mensagem do histórico e tente novamente.');
    }finally{setHistoryBusy(false);}
  };
- const restore=(r:Saved)=>{setVehicleType(r.vehicleType==='motorcycle'?'motorcycle':'car');setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setManualClassification((r.historicalClass&&r.historicalClass!=='SEM CLASSE'&&r.historicalClass!==classifyByMileage(r.km)?.classification?r.historicalClass:'') as FleetClass|'');
+ const restore=(r:Saved)=>{setExpressReview(null);setVehicleType(r.vehicleType==='motorcycle'?'motorcycle':'car');setPlate(r.plate||'');setBrand(r.brand||'');setBrandCode(r.brandCode||'');setModelCode(r.modelCode||'');setYearCode(r.yearCode||'');setModel(r.model);setYear(r.year);setFipe(r.fipe||null);setKm(r.km);setCost(r.cost);setManualClassification((r.historicalClass&&r.historicalClass!=='SEM CLASSE'&&r.historicalClass!==classifyByMileage(r.km)?.classification?r.historicalClass:'') as FleetClass|'');
  setClassificationReason(r.classificationReason||'');setDirectRepasseReason(r.directRepasseReason||'none');setGoodLiquidity(r.goodLiquidity===true);
  setDestinationOverride(r.repasse&&['A','B','C'].includes(String(r.historicalClass||classifyByMileage(r.km)?.classification||''))&&(!r.directRepasseReason||r.directRepasseReason==='none')?'repasse':'auto');setAds(r.ads);const restoredKey=[r.vehicleType==='motorcycle'?'motorcycle':'car',r.brandCode||'',r.modelCode||'',r.yearCode||'',r.km].join('|');setAdsVehicleKey(restoredKey);setAutoSearchKey(restoredKey);autoAttempted.current.add(restoredKey);setAutoSearchedAt(r.date);switchDeskSection('pricing');setNewApprovedValue('');setNewApprovedDate(localDate());setNotice('Avaliação reaberta. Salvar novamente no mesmo dia atualiza o registro existente e mantém as alterações anteriores para auditoria.');window.scrollTo({top:0,behavior:'smooth'})};
  const beginNewMobileValuation=():boolean=>{
@@ -839,6 +841,16 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   setExpressOpen(false);setMobileFullDesk(true);switchDeskSection('pricing');
   window.scrollTo({top:0,behavior:'smooth'});
  };
+ // The print description is real captured data, even when the FIPE code
+ // is not yet selected. Keep it visible beside the catalog selector.
+ // Do not silently infer or approve a FIPE model or model-year.
+ const expressDeskActive=Boolean(expressReview&&vehicleType==='car'&&
+  expressReview.vehicle.plate===plate&&
+  expressReview.vehicle.brand.trim().toUpperCase()===brand.trim().toUpperCase()&&
+  (expressReview.vehicle.km===null||expressReview.vehicle.km===number(km)));
+ const expressModelPending=Boolean(expressDeskActive&&!modelCode&&expressReview?.vehicle.model);
+ const expressFipeSuggestion=expressModelPending&&brandCode?
+  suggestUniqueExpressFipeModel(expressReview!.vehicle.model,models):null;
  const input='w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900';
  const mesaActive=deskSection==='pricing'||deskSection==='history'||deskSection==='archive'||deskSection==='plateHistory';
  const navigateSimple=(destination:SimpleIqDestination|'home',lookedUpPlate?:string)=>{
@@ -1147,7 +1159,16 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onOpenPricing={()=>switchDeskSection('pricing')}/>
   </div>
  </div>
- <div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="ABC1D23" maxLength={7}/></label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">Selecione modelo e versão</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>Ano/modelo e combustível<select className={input} value={yearCode} disabled={!modelCode} onChange={e=>selectYear(e.target.value)}><option value="">Selecione ano</option>{years.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><label>KM do veículo<input className={input} value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" placeholder="Ex.: 45000"/></label></div><div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Tabela FIPE · {vehicleType==='motorcycle'?'motocicletas':'automóveis'} · consulta gratuita</p>{catalogLoading?<p>Consultando catálogo FIPE...</p>:fipe?<><p className="text-2xl font-bold text-slate-900">{money(fipe.value)}</p><p className="text-sm text-slate-700">{fipe.brand} · {fipe.model} · {fipe.year} · {fipe.fuel}</p><p className="text-xs text-slate-700">Código FIPE: {fipe.fipeCode} · Referência: <strong>{fipe.referenceMonth}</strong>{fipe.referenceSource?' · Fonte: '+fipe.referenceSource:''}</p>
+ <div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="ABC1D23" maxLength={7}/></label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><div><label className="block">Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">{expressModelPending?'Do print: '+expressReview!.vehicle.model:'Selecione modelo e versão'}</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label>
+ {expressModelPending&&<div className="mt-1 rounded-lg border border-indigo-200 bg-indigo-50 p-2 text-xs text-indigo-950" role="status">
+  <p><strong>Reconhecido no AutoAvaliar:</strong> {expressReview!.vehicle.model}.</p>
+  <p className="mt-1">Ainda não é uma versão FIPE confirmada. Selecione a versão correspondente no catálogo.</p>
+  {expressFipeSuggestion&&<button type="button" className="mt-2 block rounded-lg border border-indigo-600 bg-white px-3 py-2 text-left text-xs font-bold text-indigo-950 hover:bg-indigo-100"
+   onClick={()=>selectModel(expressFipeSuggestion.code)}>Confirmar versão FIPE: {expressFipeSuggestion.name}</button>}
+ </div>}
+ </div><label>Ano/modelo e combustível<select className={input} value={yearCode} disabled={!modelCode} onChange={e=>selectYear(e.target.value)}><option value="">{expressDeskActive&&expressReview?.vehicle.yearModel?'Do print: '+expressReview.vehicle.yearModel+' · confirme ano/combustível FIPE':'Selecione ano'}</option>{years.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select>
+ {expressDeskActive&&expressReview?.vehicle.yearModel&&!yearCode&&<span className="mt-1 block text-xs text-indigo-800">Ano/modelo capturado: <strong>{expressReview.vehicle.yearModel}</strong>. Escolha o ano e o combustível correspondentes na FIPE.</span>}
+ </label><label>KM do veículo<input className={input} value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" placeholder="Ex.: 45000"/></label></div><div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Tabela FIPE · {vehicleType==='motorcycle'?'motocicletas':'automóveis'} · consulta gratuita</p>{catalogLoading?<p>Consultando catálogo FIPE...</p>:fipe?<><p className="text-2xl font-bold text-slate-900">{money(fipe.value)}</p><p className="text-sm text-slate-700">{fipe.brand} · {fipe.model} · {fipe.year} · {fipe.fuel}</p><p className="text-xs text-slate-700">Código FIPE: {fipe.fipeCode} · Referência: <strong>{fipe.referenceMonth}</strong>{fipe.referenceSource?' · Fonte: '+fipe.referenceSource:''}</p>
  <div className="mt-2 flex flex-wrap items-center gap-2">
    {fipe.referenceStatus==='current'?<span className="rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900">Referência do mês atual</span>:
     <span className="rounded-lg border border-amber-400 bg-amber-100 px-2 py-1 text-xs font-bold text-amber-950">{fipe.referenceStatus==='outdated'?'Referência desatualizada':'Referência não confirmada'}</span>}
