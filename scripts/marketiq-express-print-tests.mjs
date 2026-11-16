@@ -100,6 +100,18 @@ const noBrandModel=parser.parseAutoAvaliarOcrText('MODELO DESCONHECIDO 2.5 FLEX 
  '', 'MODELO DESCONHECIDO 2.5 FLEX CVT\nPlaca ABC1D23\nAno 2020/2020');
 assert.equal(noBrandModel.brand,'');
 assert.ok(noBrandModel.warnings.some(x=>x.includes('Marca não reconhecida')));
+// Sanitized actual Tesseract output from the user's RAV4 screenshot crop.
+// The OCR inserts icon junk before labels and concatenates "S CONNECT AWD".
+const rav4ActualOcr=parser.parseAutoAvaliarOcrText([
+ 'RAV4 2.5 VVT-IE HYBRID SCONNECTAWD','CVT','# 116592614',
+ '@ Origem IMPORTADO','® Placa ABC1D23','63 Ano 2020/2020',
+ 'A km 34.042','& Portas 4','% Motor 2487'
+].join('\n'));
+assert.equal(rav4ActualOcr.brand,'TOYOTA');
+assert.equal(rav4ActualOcr.model,'RAV4 2.5 VVT-IE HYBRID SCONNECTAWD CVT');
+assert.equal(rav4ActualOcr.yearModel,'2020');
+assert.equal(rav4ActualOcr.plate,'ABC1D23');
+assert.equal(rav4ActualOcr.km,34042,'KM must survive the tiny OCR artifact before its label');
 const copiedHB20S=[
  'AutoAvaliar',
  'Avaliação',
