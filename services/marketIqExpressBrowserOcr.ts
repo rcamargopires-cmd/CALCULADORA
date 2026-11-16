@@ -1,4 +1,4 @@
-import {parseAutoAvaliarOcrText} from './marketIqExpressOcrParser';
+import {parseAutoAvaliarOcrText,plateLabelFromTsv} from './marketIqExpressOcrParser';
 import type {ExpressVehicleExtract} from './marketIqExpress';
 
 /** OCR stays on the buyer's browser/device. No screenshots are sent to Motyq servers.
@@ -67,7 +67,11 @@ async function toHighResolutionDataUrl(file:File):Promise<string>{
  * the reference card separately at higher pixel density, instead of assuming
  * that text read in page order remains adjacent to its label.
  */
-async function screenshotRegions(file:File):Promise<{detail:string;reference:string;plate:string}|null>{
+type ScreenshotRegions={
+ detail:string;reference:string;plateContext:string;
+ plateAt:(anchor:{top:number;height:number})=>string;
+};
+async function screenshotRegions(file:File):Promise<ScreenshotRegions|null>{
  const url=URL.createObjectURL(file);
  try{
   const image=new Image();
@@ -89,17 +93,22 @@ async function screenshotRegions(file:File):Promise<{detail:string;reference:str
    ctx.drawImage(image,width*x,height*y,width*w,height*h,0,0,canvas.width,canvas.height);
    return canvas.toDataURL('image/png');
   };
-  // Standard AutoAvaliar "Avaliação" layout:
-  // right-of-photo vehicle card and lower-right FIPE/references card.
+  // AutoAvaliar shifts the vehicle card horizontally when side menus and
+  // screenshots are cropped. Read the left-hand "Placa" label plus the value.
+  const detailRect={x:0.49,y:0.005,w:0.28,h:0.745};
+  const detailScale=Math.min(4,2000/(width*detailRect.w));
   return {
-   // Include the title and all labelled values (Placa, Ano, Km).
-   detail:crop(0.555,0.005,0.215,0.745),
-   // On shorter screens, the FIPE card starts near the bottom edge.
-   // Do not cut off the 'Valor R$ ...' row (Taos 1340x593).
+   detail:crop(detailRect.x,detailRect.y,detailRect.w,detailRect.h),
    reference:crop(0.775,0.59,0.21,0.41),
-   // Restrict OCR to the right-aligned plate *value*, not label, chassi or Renavam.
-   // For the 1340x593 AutoAvaliar Taos screenshot this covers ~x949-1027, y91-119.
-   plate:crop(0.708,0.153,0.058,0.047,10)
+   // If OCR misses the label, show a wider context rather than the WRONG row.
+   plateContext:crop(0.50,0.06,0.27,0.22,6),
+   plateAt:(anchor)=>{
+    const center=height*detailRect.y+(anchor.top+anchor.height/2)/detailScale;
+    const labelHeight=Math.max(7,anchor.height/detailScale);
+    const top=Math.max(0,center-labelHeight-6);
+    const bottom=Math.min(height,center+labelHeight*1.2+6);
+    return crop(0.50,top/height,0.27,(bottom-top)/height,8);
+   }
   };
  }finally{URL.revokeObjectURL(url);}
 }
@@ -114,16 +123,17 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  const output=await worker.recognize(image,{}, {tsv:true});
  if(!output.data.text.trim())throw new Error('A imagem não contém texto reconhecível. Amplie a área do veículo e tente novamente.');
  let detailText='',detailTsv='',referenceText='',referenceTsv='';
- let regions:{detail:string;reference:string;plate:string}|null=null;
+ let regions:ScreenshotRegions|null=null;
  // In real screenshots the first OCR pass can miss "Fotos Lista" and
  // "Itens avaliados". Use the known geometric layout instead of gating all
  // enlarged reads on those tiny labels.
  regions=await screenshotRegions(file);
  if(regions){
-  onPlateZoom?.(regions.plate);
    onStatus('Conferindo a ficha do veículo em tamanho ampliado…');
    const detail=await worker.recognize(regions.detail,{}, {tsv:true});
    detailText=detail.data.text;detailTsv=detail.data.tsv||'';
+   const plateAnchor=plateLabelFromTsv(detailTsv);
+   onPlateZoom?.(plateAnchor?regions.plateAt(plateAnchor):regions.plateContext);
    onStatus('Conferindo FIPE e referências no painel direito…');
    const ref=await worker.recognize(regions.reference,{}, {tsv:true});
    referenceText=ref.data.text;referenceTsv=ref.data.tsv||'';
@@ -133,6 +143,8 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  // discard it. Only when that happens, analyze its narrow value row at high scale.
  if(!extracted.plate&&regions){
   onStatus('Ampliando a linha da placa para uma última conferência…');
+  const label=plateLabelFromTsv(detailTsv);
+  const plateImage=label?regions.plateAt(label):regions.plateContext;
   let isolatedPlateText='';
   // Changing page segmentation can fail on some Tesseract.js workers.
   // OCR itself must STILL run with default settings if that happens.
@@ -142,7 +154,7 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
    configured=true;
   }catch{ /* Retry recognition with the worker's current settings. */ }
   try{
-   const plateResult=await worker.recognize(regions.plate);
+   const plateResult=await worker.recognize(plateImage);
    isolatedPlateText=plateResult.data.text||'';
   }catch{
    // Optional plate recognition must not discard year, KM or FIPE.
@@ -153,7 +165,7 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
   // a tightly normalized single value before treating it as missing.
   if(!isolatedPlateText.trim()){
    try{
-    const basic=await worker.recognize(regions.plate);
+    const basic=await worker.recognize(plateImage);
     isolatedPlateText=basic.data.text||'';
    }catch{}
   }
