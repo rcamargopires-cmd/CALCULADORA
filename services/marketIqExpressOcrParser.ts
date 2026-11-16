@@ -51,7 +51,7 @@ const vehicleTitle=(row:string):string=>{
   const found=full.match(pattern);
   if(found&&found.index!==undefined){
    const next=full.slice(found.index).replace(/\s+(?:PLACA|ANO|KM|QUILOMETRAGEM|ORIGEM|RENAVAM|CHASSI)\s*:?.*$/,'').trim();
-   if(next.length>=5&&next.length<=110&&(candidate===''||next.length>candidate.length))candidate=next;
+   if(next.length>=3&&next.length<=110&&(candidate===''||next.length>candidate.length))candidate=next;
   }
  }
  return candidate;
