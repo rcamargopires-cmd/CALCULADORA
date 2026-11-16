@@ -864,7 +864,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
 
  return <>
  {expressOpen&&<MarketIqExpressPrintPanel onClose={()=>setExpressOpen(false)} onApply={acceptExpressPrint}
-  history={saved} historyLoading={historyBusy} historyIncomplete={historyMore}/>}
+  history={saved} historyLoading={historyBusy} historyIncomplete={historyMore} historyError={historyError}/>}
  {aquaVehicle&&<MarketIqAquaPilotPanel scope={captureScope} vehicle={aquaVehicle} onClose={()=>setAquaVehicle(null)}/>}
  {quickBuyerQuote&&<MarketIqQuickBuyerQuote scope={captureScope} email={user.email} vehicle={quickBuyerQuote}
   onClose={()=>setQuickBuyerQuote(null)}
@@ -1105,7 +1105,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   </div>
   {expressReview.assessment.policyConflict&&<p className="mt-2 rounded-lg bg-amber-100 p-3 text-xs font-bold text-amber-950">Exceção: SHOWROOM por procura/estoque, mas a diretriz técnica por KM recomenda REPASSE. Requer análise/autorização; o destino oficial não foi alterado.</p>}
   {expressReview.vehicle.plate===plate&&expressReview.vehicle.brand===brand&&expressReview.vehicle.model===model&&
-    <MarketIqExpressHistoryCard vehicle={expressReview.vehicle} history={saved} loading={historyBusy} incomplete={historyMore}/>}
+    <MarketIqExpressHistoryCard vehicle={expressReview.vehicle} history={saved} loading={historyBusy} incomplete={historyMore} error={historyError}/>}
    {expressReview.vehicle.plate===plate&&/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)&&
     <button type="button" className="mt-2 rounded-lg border border-indigo-400 bg-white px-3 py-2 text-xs font-bold text-indigo-950"
      onClick={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');}}>
