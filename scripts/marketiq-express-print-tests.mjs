@@ -169,6 +169,11 @@ assert.ok(browserOcr.includes('tesseract.js@7.0.0/dist/tesseract.min.js'));
 assert.ok(browserOcr.includes("createWorker(['por','eng']"));
 assert.ok(browserOcr.includes("recognize(image,{}, {tsv:true})"),'Collect word coordinates from OCR to reconstruct right-aligned values');
 assert.ok(browserOcr.includes('screenshotRegions(file)'),'Full AutoAvaliar screenshots need magnified vehicle crop');
+assert.ok(browserOcr.includes('regions=await screenshotRegions(file);'),'Region analysis must not depend on unreliable header OCR');
+assert.ok(!browserOcr.includes('if(isAutoAvaliar)'),'Regional OCR must run even when tiny AutoAvaliar menu labels are missed');
+assert.ok(browserOcr.includes('onPlateZoom?.(regions.plate)'),'Send only the isolated plate preview to the local UI');
+assert.ok(browserOcr.includes('let configured=false;')&&browserOcr.includes('const plateResult=await worker.recognize(regions.plate);'),'Run plate OCR even if setParameters fails');
+
 assert.ok(browserOcr.includes('detail:crop(0.555,0.005,0.215,0.745)'),'Detail crop must include plate and KM rows');
 assert.ok(browserOcr.includes('reference:crop(0.775,0.59,0.21,0.41)'),'FIPE crop must reach the bottom of short AutoAvaliar screenshots');
 assert.ok(browserOcr.includes('plate:crop(0.708,0.153,0.058,0.047,10)'),'Target the plate value row at 10x');
@@ -183,7 +188,8 @@ assert.ok(!browserOcr.includes('localStorage')&&!browserOcr.includes('indexedDB'
 
 const backend=src('server/motyqIqExpressPrint.ts');
 const ui=src('components/MarketIqExpressPrintPanel.tsx');
-assert.ok(ui.includes('readExpressPrintLocally(file,setReadStatus)'));
+assert.ok(ui.includes('readExpressPrintLocally(file,setReadStatus,setPlateZoom)'),'Show the isolated plate only in local UI');
+assert.ok(ui.includes('src={plateZoom}')&&ui.includes('Placa ampliada diretamente do seu print'),'Allow quick visual correction when OCR fails');
 assert.ok(ui.includes("setMethod('local')")&&ui.includes("setMethod('ai')"));
 assert.ok(ui.includes("response.status!==503"),'Use local OCR when server AI is unavailable');
 assert.ok(ui.includes("if(file){event.preventDefault();void read(file);}"),'Ctrl+V works also in demo');
