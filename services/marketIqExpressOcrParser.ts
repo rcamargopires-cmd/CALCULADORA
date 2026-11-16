@@ -122,21 +122,21 @@ export function spatialOcrRows(tsv:string):string[]{
 /** The word box for "Placa" in the enlarged vehicle table. Returns OCR-image
  * coordinates only. Cropping is based on the label row, never on page height.
  */
-export function plateLabelFromTsv(tsv:string):{top:number;height:number}|null{
+export function plateLabelFromTsv(tsv:string):{top:number;height:number;left:number;width:number}|null{
  const lines=String(tsv||'').split(/\r?\n/);
  if(lines.length<2)return null;
  const headers=lines[0].split('\t');
  const field=(name:string)=>headers.indexOf(name);
- const level=field('level'),text=field('text'),top=field('top'),height=field('height'),confidence=field('conf');
- if([level,text,top,height,confidence].some(i=>i<0))return null;
+ const level=field('level'),text=field('text'),top=field('top'),height=field('height'),left=field('left'),width=field('width'),confidence=field('conf');
+ if([level,text,top,height,left,width,confidence].some(i=>i<0))return null;
  for(const line of lines.slice(1)){
   const values=line.split('\t');
   if(values[level]!=='5')continue;
   const label=fold(values.slice(text).join('\t')).replace(/[^A-Z]/g,'');
   if(label!=='PLACA')continue;
-  const y=Number(values[top]),h=Number(values[height]),conf=Number(values[confidence]);
-  if(!Number.isFinite(y)||!Number.isFinite(h)||!Number.isFinite(conf)||h<3||conf<10)continue;
-  return {top:y,height:h};
+  const y=Number(values[top]),h=Number(values[height]),x=Number(values[left]),w=Number(values[width]),conf=Number(values[confidence]);
+  if(![y,h,x,w,conf].every(Number.isFinite)||h<3||w<2||conf<10)continue;
+  return {top:y,height:h,left:x,width:w};
  }
  return null;
 }
