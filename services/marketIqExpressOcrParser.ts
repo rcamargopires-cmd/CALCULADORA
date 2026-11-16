@@ -40,6 +40,37 @@ const chooseTitle=(line:string)=>{
   !/^(MARCA|MODELO|VERSAO|FABRICANTE|REFERENCIA|REFERENCIAS|VEICULO|ORIGEM|VALOR|ANO|CLIENTE)\s*:/.test(normalized) &&
   !/(\bR\$\s*[\d.]+|\bCPF\b|\bCNPJ\b|\bSOLICITANTE\b)/.test(normalized);
 };
+/** Keep the model name, not preceding AutoAvaliar menu and photo-tab labels.
+ * e.g. "BIA FOTOS LISTA TAOS 1.4 250 TSI..." -> "TAOS 1.4 250 TSI..."
+ */
+const vehicleTitle=(row:string):string=>{
+ const full=fold(row).replace(/^[^A-Z0-9]+/,'');
+ if(/(?:CLIENTE|CPF|CNPJ|SOLICITANTE|AVALIADOR|REFERENCIAS|ITENS AVALIADOS)/.test(full))return '';
+ let candidate='';
+ for(const [pattern] of knownModels){
+  const found=full.match(pattern);
+  if(found&&found.index!==undefined){
+   const next=full.slice(found.index).replace(/\s+(?:PLACA|ANO|KM|QUILOMETRAGEM|ORIGEM|RENAVAM|CHASSI)\s*:?.*$/,'').trim();
+   if(next.length>=5&&next.length<=110&&(candidate===''||next.length>candidate.length))candidate=next;
+  }
+ }
+ return candidate;
+};
+/** Prefer an explicitly labelled value and never reuse the next unrelated field. */
+const fieldValue=(lines:string[],prefix:RegExp,allowed:RegExp):string=>{
+ for(let i=0;i<lines.length;i++){
+  const line=fold(lines[i]).replace(/^[^A-Z0-9]+/,'');
+  const matched=line.match(prefix);
+  if(!matched)continue;
+  const tail=line.slice((matched.index||0)+matched[0].length).replace(/^[\s:|.-]+/,'').trim();
+  if(tail&&allowed.test(tail))return tail;
+  if(!tail&&i+1<lines.length){
+   const next=fold(lines[i+1]);
+   if(allowed.test(next)&&!(/^(?:PLACA|ANO|KM|COR|ORIGEM|PORTAS|COMB|CHASSI)\b/.test(next)))return next;
+  }
+ }
+ return '';
+};
 const labelValue=(lines:string[],re:RegExp)=>{
  for(let i=0;i<lines.length;i++){
   const row=fold(lines[i]);
@@ -88,34 +119,42 @@ export function spatialOcrRows(tsv:string):string[]{
  }
  return groups.map(g=>g.words.sort((a,b)=>a.x-b.x).map(w=>w.value).join(' ')).filter(Boolean);
 }
-export function parseAutoAvaliarOcrText(rawText:string,tsv?:string):ExpressVehicleExtract{
- const spatial=spatialOcrRows(tsv||'');
- const lines=[...spatial,...String(rawText||'').split(/\r?\n/)].map(x=>x.trim()).filter(Boolean);
+export function parseAutoAvaliarOcrText(
+ rawText:string,tsv?:string,detailsText?:string,detailsTsv?:string,referencesText?:string,referencesTsv?:string
+):ExpressVehicleExtract{
+ const detailLines=[...spatialOcrRows(detailsTsv||''),...String(detailsText||'').split(/\r?\n/)].map(x=>x.trim()).filter(Boolean);
+ const mainLines=[...spatialOcrRows(tsv||''),...String(rawText||'').split(/\r?\n/)].map(x=>x.trim()).filter(Boolean);
+ const referenceLines=[...spatialOcrRows(referencesTsv||''),...String(referencesText||'').split(/\r?\n/)].map(x=>x.trim()).filter(Boolean);
+ const lines=[...detailLines,...mainLines];
  const upper=lines.map(fold);
  const warnings:string[]=['Leitura local experimental: revise todos os campos antes de utilizar na Mesa.'];
- const title=upper.find(chooseTitle)||'';
- const brandLabel=labelValue(lines,/^(?:MARCA|FABRICANTE)\s*[:|.-]?\s*/);
+ const title=lines.map(vehicleTitle).find(Boolean)||'';
+ const labelBrand=fieldValue(lines,/^(?:MARCA|FABRICANTE)\s*[:|.-]?\s*/,/^(?:VOLKSWAGEN|CHEVROLET|FIAT|TOYOTA|HYUNDAI|JEEP|RENAULT|NISSAN|HONDA|FORD|VW|GM)\b/);
  let brand=knownModels.find(([re])=>re.test(title))?.[1]||'';
- if(brandLabel&&brandLabel.length<40)brand=brandLabel;
- const modelLabel=labelValue(lines,/^(?:MODELO|VERSAO)\s*[:|.-]?\s*/);
- const model=(title||modelLabel).replace(/^(CHEVROLET|VOLKSWAGEN|VW|HYUNDAI|TOYOTA|JEEP|FIAT|RENAULT|HONDA|FORD|NISSAN)\s+/,'').trim();
- const yearLabel=labelValue(lines,/^(?:ANO|ANO MODELO|ANO\/MODELO|ANO FAB\/MOD)\s*[:|.-]?\s*/);
+ if(labelBrand)brand=labelBrand.startsWith('VW')?'VOLKSWAGEN':labelBrand.startsWith('GM')?'CHEVROLET':labelBrand.split(/\s+/)[0];
+ const modelLabel=fieldValue(lines,/^(?:MODELO|VERSAO)\s*[:|.-]?\s*/,/[A-Z]{2,}/);
+ const model=(title||vehicleTitle(modelLabel)||modelLabel).replace(/^(CHEVROLET|VOLKSWAGEN|VW|HYUNDAI|TOYOTA|JEEP|FIAT|RENAULT|HONDA|FORD|NISSAN)\s+/,'').trim();
+ const yearLabel=fieldValue(lines,/^(?:ANO\s*\/\s*MODELO|ANO\s+FAB\s*\/\s*MOD|ANO\s+MODELO|ANO)\s*[:|.-]?\s*/,/(?:19|20)\d{2}\s*[\/-]\s*(?:19|20)?\d{2}/);
  let [yearManufacture,yearModel]=normalizeYears(yearLabel);
  if(!yearModel){
-  const yearRow=upper.find(x=>/^(ANO|ANO\/MODELO)\b/.test(x));
-  if(yearRow)[yearManufacture,yearModel]=normalizeYears(yearRow);
+  const pair=upper.map(normalizeYears).find(pair=>Boolean(pair[1]));
+  if(pair)[yearManufacture,yearModel]=pair;
  }
- const kmRaw=labelValue(lines,/^(?:KM|QUILOMETRAGEM|KMS)\s*[:|.-]?\s*/);
+ const kmRaw=fieldValue(lines,/^(?:KM|QUILOMETRAGEM|KMS)\s*[:|.-]?\s*/,/\d{2,6}(?:[., ]\d{3})?/);
  const km=mileage(kmRaw);
- const plate=likelyPlate(labelValue(lines,/^(?:PLACA)\s*[:|.-]?\s*/));
+ const plate=likelyPlate(fieldValue(lines,/^(?:PLACA)\s*[:|.-]?\s*/,/[A-Z]{3}\s*[- ]?[0-9][A-Z0-9][0-9]{2}/));
  // Read FIPE only from a line explicitly labeled "FIPE" (never "FIPE 0KM").
  let fipeReference:number|null=null;
- for(let i=0;i<upper.length;i++){
-  if(/^(?:FIPE|TABELA FIPE)(?:\s|:|$)/.test(upper[i])&&!/^FIPE\s*0\s*KM\b/.test(upper[i])){
-   const combined=lines.slice(i,i+3).join(' ');
-   const n=moneyFrom(combined);
-   if(n!==null){fipeReference=n;break;}
+ const fipeCandidates=[referenceLines,mainLines];
+ for(const rows of fipeCandidates){
+  for(let i=0;i<rows.length;i++){
+   const label=fold(rows[i]);
+   if(/^(?:FIPE|TABELA FIPE)(?:\s|:|$)/.test(label)&&!/^FIPE\s*0\s*KM\b/.test(label)){
+    const n=moneyFrom(rows.slice(i,i+3).join(' '));
+    if(n!==null){fipeReference=n;break;}
+   }
   }
+  if(fipeReference!==null)break;
  }
  const scoreMatch=upper.join('\n').match(/\b(\d{1,2}(?:[.,]\d)?)\s*\/\s*10\b/);
  const conditionScore=scoreMatch?Number(scoreMatch[1].replace(',','.')):null;
@@ -123,20 +162,22 @@ export function parseAutoAvaliarOcrText(rawText:string,tsv?:string):ExpressVehic
  let repairTotal:number|null=null;
  // Only count lines in item section that name a repair. This avoids FIPE and buyer bids.
  let inItems=false;
- for(let i=0;i<lines.length;i++){
-  const row=upper[i];
+ const repairLines=String(rawText||'').split(/\r?\n/).filter(Boolean);
+ for(let i=0;i<repairLines.length;i++){
+  const row=fold(repairLines[i]);
   if(/\bITENS\s+AVALIADOS\b/.test(row)){inItems=true;continue;}
   if(/^(OPCIONAIS|SOLICITACAO|RESUMO DE COMPRA|HISTORICO|OBSERVACOES)\b/.test(row))inItems=false;
   if(inItems&&/\b(LATARIA|MOTOR|PNEU|PINTURA|REVISAO|MECANICA|FUNILARIA|POLIMENTO|ESTOFADO|VIDRO|SUSPENSAO|FREIO|CAMBIO|ESTETICA|PARACHOQUE)\b/.test(row)){
-   const amount=moneyFrom(lines[i]);
+   const amount=moneyFrom(repairLines[i]);
    if(amount!==null&&amount<100000){
-    repairDetails.push(lines[i].slice(0,120));
+    repairDetails.push(repairLines[i].slice(0,120));
     repairTotal=(repairTotal||0)+amount;
    }
   }
  }
  if(!brand)warnings.push('Marca não reconhecida automaticamente.');
  if(!model)warnings.push('Modelo e versão não identificados.');
+ if(/\b(?:FLE|AUTOMAT|MANU|TOTAL)\s*$/.test(model))warnings.push('Modelo ou versão possivelmente cortado pelo OCR; confirme a descrição completa.');
  if(!yearModel)warnings.push('Ano/modelo não confirmado.');
  if(km===null)warnings.push('KM não identificada com segurança.');
  if(fipeReference===null)warnings.push('FIPE não encontrada no recorte; não será presumida.');
