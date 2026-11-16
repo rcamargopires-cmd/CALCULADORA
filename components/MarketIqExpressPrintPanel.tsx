@@ -19,6 +19,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
  const [reading,setReading]=useState(false);
  const [readStatus,setReadStatus]=useState('');
  const [method,setMethod]=useState<'local'|'clipboard'|'sample'|null>(null);
+ const [lastInput,setLastInput]=useState<'image'|'text'|null>(null);
  // Temporary local-only crop for visual confirmation. Never saved to history or the cloud.
  const [plateZoom,setPlateZoom]=useState<string|null>(null);
  const [error,setError]=useState('');
@@ -34,7 +35,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
  const read=async(file?:File)=>{
   if(!file||reading)return;
   setError('');setVehicle(null);setReading(true);setSample(false);setDemand(false);setZeroStock(false);setOverride('auto');
-  setReadStatus('Preparando print…');setMethod(null);setPlateZoom(null);
+  setReadStatus('Preparando print…');setMethod(null);setPlateZoom(null);setLastInput('image');
   try{
    // Free local OCR is the default both in Preview and inside the Mesa.
    // No image upload and no paid Gemini call during routine screenshot reading.
@@ -45,7 +46,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
  };
  const readCopiedText=(raw:string)=>{
   if(reading)return;
-  setError('');setSample(false);setPlateZoom(null);
+  setError('');setVehicle(null);setSample(false);setPlateZoom(null);setLastInput('text');
   try{
    const parsed=parseAutoAvaliarClipboardText(raw);
    setVehicle(parsed);setMethod('clipboard');
@@ -57,15 +58,19 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
  useEffect(()=>{
   const handler=(event:ClipboardEvent)=>{
    if(event.defaultPrevented)return;
-   const image=[...(event.clipboardData?.files||[])].find(x=>x.type.startsWith('image/'));
-   if(image){event.preventDefault();void read(image);return;}
-   const text=event.clipboardData?.getData('text/plain')||'';
-   if(!text||!/\b(?:PLACA|FIPE|QUILOMETRAGEM|KM|ANO)\b/i.test(text))return;
-   // Preserve normal paste in editable vehicle fields or other inputs.
+   // Never intercept text pasted into one of the manual editing fields.
    const target=event.target;
    if(target instanceof Element&&target.closest('input,textarea,select,[contenteditable="true"]'))return;
-   event.preventDefault();
-   readCopiedText(text);
+   const text=event.clipboardData?.getData('text/plain')||'';
+   const isVehicleText=/\b(?:PLACA|FIPE|QUILOMETRAGEM|KM|ANO)\b/i.test(text)&&text.length>=30;
+   // The browser sometimes puts BOTH text and an image in the clipboard.
+   // Prefer selectable AutoAvaliar text: it is instant and more accurate.
+   if(isVehicleText){event.preventDefault();readCopiedText(text);return;}
+   const image=[...(event.clipboardData?.files||[])].find(x=>x.type.startsWith('image/'));
+   if(image){event.preventDefault();void read(image);return;}
+   if(text&&target instanceof Element&&target.closest('[aria-label="Clique aqui e cole os dados do AutoAvaliar com Ctrl+V"]')){
+    event.preventDefault();readCopiedText(text);
+   }
   };
   window.addEventListener('paste',handler);
   return ()=>window.removeEventListener('paste',handler);
@@ -74,7 +79,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
   setVehicle({brand:'CHEVROLET',model:'PRISMA LTZ 1.4 FLEX AUTOMÁTICO',yearManufacture:'2017',
    yearModel:'2018',km:95800,plate:'',fipeReference:62291,conditionScore:5.8,
    repairTotal:2000,repairDetails:['Lataria R$ 1.500','Motor R$ 500'],warnings:[]});
-  setDemand(true);setZeroStock(true);setOverride('auto');setReason('');setError('');setSample(true);setMethod('sample');setPlateZoom(null);
+  setDemand(true);setZeroStock(true);setOverride('auto');setReason('');setError('');setSample(true);setMethod('sample');setPlateZoom(null);setLastInput(null);
  };
  const edit=(key:keyof ExpressVehicleExtract,value:any)=>setVehicle(previous=>previous?{...previous,[key]:value}:previous);
  return <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Motyq IQ Express por print">
@@ -111,7 +116,11 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
      </div>
      {reading&&<p role="status" className="rounded-lg bg-white p-3 text-xs font-bold text-cyan-900">{readStatus||'Reconhecendo os campos…'}</p>}
      {sample&&<p className="text-xs font-bold text-cyan-950">Demonstração preenchida com os dados do print enviado e as informações de procura/estoque confirmadas por você. Não é uma consulta atualizada.</p>}
-     {error&&<p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-900">{error}</p>}
+     {error&&<div role="alert" className="space-y-1 rounded-lg bg-rose-50 p-3 text-sm text-rose-900">
+      <p className="font-black">{lastInput==='image'?'Recebi uma imagem: erro na leitura OCR.':lastInput==='text'?'Recebi texto copiado: não consegui identificar todos os campos.':'Não consegui ler a avaliação.'}</p>
+      <p className="font-semibold">{error}</p>
+      <p className="text-xs">Se o texto do AutoAvaliar não puder ser selecionado, cole uma captura. Nenhuma consulta ou avaliação será salva automaticamente.</p>
+     </div>}
     </section>
     {vehicle&&<>
      <section className="space-y-3 rounded-xl border border-slate-200 p-4">
