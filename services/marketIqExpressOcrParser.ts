@@ -196,7 +196,7 @@ export function parseAutoAvaliarOcrText(
  const rescuedPlate=labelledPlate||isolatedPlate?null:regionPlate(detailLines);
  const plate=labelledPlate||isolatedPlate?.plate||rescuedPlate?.plate||'';
  if((isolatedPlate?.corrected&&!labelledPlate)||rescuedPlate?.corrected)
-  warnings.push('Placa recuperada com correções em caracteres confundidos pelo OCR. Confira visualmente antes de consultar histórico.');
+  warnings.push('Placa recuperada com caracteres possivelmente confundidos pelo OCR (O e 0, G e 0). Confira visualmente antes de consultar histórico.');
  if(!plate)warnings.push('Placa não identificada. Confira e preencha manualmente.');
  // Read FIPE only from a line explicitly labeled "FIPE" (never "FIPE 0KM").
  let fipeReference:number|null=null;
