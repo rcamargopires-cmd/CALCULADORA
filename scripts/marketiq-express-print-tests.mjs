@@ -315,7 +315,7 @@ assert.ok(ui.includes('src={plateZoom}')&&ui.includes('Placa ampliada diretament
 assert.ok(ui.includes("setMethod('local')"),'OCR local should be the normal workflow');
 assert.ok(!ui.includes("fetch('/api/analyze-deal?action=iq-express-print'"),'No paid image API call by default');
 assert.ok(!ui.includes('getIdToken()'),'No authentication token needed for local OCR');
-assert.ok(ui.includes("if(file){event.preventDefault();void read(file);}"),'Ctrl+V works also in demo');
+assert.ok(ui.includes("if(image){event.preventDefault();void read(image);return;}"),'Image Ctrl+V works alongside copied page text');
 
 const workspace=src('components/ManualPricingWorkspace.tsx');
 const home=src('components/MarketIqSimpleHome.tsx');
