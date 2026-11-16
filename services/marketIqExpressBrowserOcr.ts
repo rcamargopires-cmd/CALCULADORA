@@ -63,6 +63,40 @@ async function toHighResolutionDataUrl(file:File):Promise<string>{
   return canvas.toDataURL('image/png');
  }finally{URL.revokeObjectURL(url);}
 }
+/** The full AutoAvaliar screenshot uses tiny text. Recover the vehicle table and
+ * the reference card separately at higher pixel density, instead of assuming
+ * that text read in page order remains adjacent to its label.
+ */
+async function screenshotRegions(file:File):Promise<{detail:string;reference:string}|null>{
+ const url=URL.createObjectURL(file);
+ try{
+  const image=new Image();
+  await new Promise<void>((resolve,reject)=>{
+   image.onload=()=>resolve();
+   image.onerror=()=>reject(new Error('Não foi possível abrir a imagem.'));
+   image.src=url;
+  });
+  const width=image.naturalWidth,height=image.naturalHeight;
+  if(width<1000||width/height<1.65||width/height>3.5)return null;
+  const crop=(x:number,y:number,w:number,h:number)=>{
+   const scale=Math.min(4,2000/(width*w));
+   const canvas=document.createElement('canvas');
+   canvas.width=Math.max(1,Math.round(width*w*scale));
+   canvas.height=Math.max(1,Math.round(height*h*scale));
+   const ctx=canvas.getContext('2d');
+   if(!ctx)throw new Error('Não consegui ampliar a ficha para leitura.');
+   ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+   ctx.drawImage(image,width*x,height*y,width*w,height*h,0,0,canvas.width,canvas.height);
+   return canvas.toDataURL('image/png');
+  };
+  // Standard AutoAvaliar "Avaliação" layout:
+  // right-of-photo vehicle card and lower-right FIPE/references card.
+  return {
+   detail:crop(0.53,0.115,0.235,0.47),
+   reference:crop(0.765,0.62,0.23,0.29)
+  };
+ }finally{URL.revokeObjectURL(url);}
+}
 export async function readExpressPrintLocally(file:File,onStatus:(status:string)=>void):Promise<ExpressVehicleExtract>{
  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Selecione um print PNG, JPG ou WebP.');
  if(file.size>12*1024*1024)throw new Error('Recorte uma imagem menor que 12 MB.');
@@ -72,5 +106,18 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  const worker=await getWorker(onStatus);
  const output=await worker.recognize(image,{}, {tsv:true});
  if(!output.data.text.trim())throw new Error('A imagem não contém texto reconhecível. Amplie a área do veículo e tente novamente.');
- return parseAutoAvaliarOcrText(output.data.text,output.data.tsv);
+ let detailText='',detailTsv='',referenceText='',referenceTsv='';
+ const isAutoAvaliar=/AUTO\s*AVALIAR|FOTOS\s+LISTA|ITENS\s+AVALIADOS/i.test(output.data.text);
+ if(isAutoAvaliar){
+  const regions=await screenshotRegions(file);
+  if(regions){
+   onStatus('Conferindo a ficha do veículo em tamanho ampliado…');
+   const detail=await worker.recognize(regions.detail,{}, {tsv:true});
+   detailText=detail.data.text;detailTsv=detail.data.tsv||'';
+   onStatus('Conferindo FIPE e referências no painel direito…');
+   const ref=await worker.recognize(regions.reference,{}, {tsv:true});
+   referenceText=ref.data.text;referenceTsv=ref.data.tsv||'';
+  }
+ }
+ return parseAutoAvaliarOcrText(output.data.text,output.data.tsv,detailText,detailTsv,referenceText,referenceTsv);
 }
