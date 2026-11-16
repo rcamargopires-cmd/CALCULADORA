@@ -120,7 +120,7 @@ assert.equal(handoff.suggestUniqueExpressFipeModel('COROLLA XEI',fipeModels),nul
 assert.equal(handoff.suggestUniqueExpressFipeModel('COROLLA 2.0 XEI 16V GASOLINA AUTOMATICO',fipeModels),null,
  'Never match Flex to Gasolina/Diesel');
 assert.equal(handoff.suggestUniqueExpressFipeModel('Q3 2.0 40 TFSI GASOLINA SPORTBACK PERFORMANCE QUATTRO TIPTRONIC',fipeModels),null);
-assert.ok(deskSrc.includes('Do print: '+'' )===false||deskSrc.includes('expressModelPending'),
+assert.ok(deskSrc.includes("'Do print: '+expressReview!.vehicle.model")&&deskSrc.includes('expressModelPending'),
  'Mesa shows the captured model even with an unselected FIPE code');
 assert.ok(deskSrc.includes('Reconhecido no AutoAvaliar:')&&deskSrc.includes('expressReview!.vehicle.model'),
  'The extracted description is visibly preserved next to the FIPE selector');
