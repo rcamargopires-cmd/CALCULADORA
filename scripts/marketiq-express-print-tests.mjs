@@ -94,7 +94,8 @@ assert.ok(src('components/ManualPricingWorkspace.tsx').includes('historyError={h
 const deskSrc=src('components/ManualPricingWorkspace.tsx');
 assert.ok(deskSrc.includes('history={saved} historyLoading={historyBusy} historyIncomplete={historyMore}'),
  'Express history must be passed from authenticated Desk scope only');
-assert.ok(deskSrc.includes('setBrandCode(brandMatches.length===1?brandMatches[0].code:'),'Auto-select only exact brand');
+assert.ok(deskSrc.includes('setBrandCode(match?.code||\'\')')&&deskSrc.includes('uniqueExpressFipeBrand(candidateBrand,brands)'),
+ 'Select only a single confirmed FIPE manufacturer, including VW aliases');
 assert.ok(deskSrc.includes("setModelCode('');setYearCode('');setFipe(null);"),'Never guess FIPE trim and price');
 assert.ok(deskSrc.includes("switchDeskSection('plateHistory')"),'Plate history accessible without duplicating a screen');
 
@@ -103,6 +104,31 @@ assert.ok(deskSrc.includes("switchDeskSection('plateHistory')"),'Plate history a
 // remain opt-in; ambiguity or different fuel/trim must not be auto-selected.
 const handoffJs=transpile('services/marketIqExpressFipeHandoff.ts');
 const handoff=await import('data:text/javascript;base64,'+Buffer.from(handoffJs).toString('base64'));
+// Regression: Volkswagen Tera title recognized before FIPE catalog loads.
+assert.equal(handoff.resolvedExpressBrand('','TERA 1.0 MPI FLEX MANUAL'),'VOLKSWAGEN');
+assert.equal(handoff.resolvedExpressBrand('','UNKNOWN MODEL'),'');
+assert.equal(handoff.resolvedExpressBrand('FIAT','TERA 1.0 MPI FLEX MANUAL'),'FIAT');
+assert.deepEqual(handoff.uniqueExpressFipeBrand('VOLKSWAGEN',[
+ {code:'59',name:'VW - Volkswagen'},{code:'20',name:'Volvo'}
+]),{code:'59',name:'VW - Volkswagen'});
+assert.deepEqual(handoff.uniqueExpressFipeBrand('VW',[{code:'59',name:'Volkswagen'}]),
+ {code:'59',name:'Volkswagen'});
+assert.equal(handoff.uniqueExpressFipeBrand('VOLKSWAGEN',[
+ {code:'59',name:'VW'},{code:'60',name:'Volkswagen'}]),null,
+ 'Ambiguous manufacturer aliases are never auto-selected');
+assert.equal(handoff.uniqueExpressFipeBrand('VOLKSWAGEN',[
+ {code:'10',name:'VW - Caminhões'},{code:'20',name:'Volks'}]),null);
+assert.ok(deskSrc.includes('uniqueExpressFipeBrand(candidateBrand,brands)'));
+assert.ok(deskSrc.includes('if(!expressReview||brandCode||!brands.length'),
+ 'Reconcile FIPE brand after catalog loads asynchronously');
+assert.ok(deskSrc.includes('placeholder="Digite a placa do AutoAvaliar"'));
+assert.ok(deskSrc.includes('Placa não reconhecida no print.'));
+assert.equal(lib.cleanExpressVehicle({model:'TERA 1.0 MPI FLEX MANUAL RS'}).model,
+ 'TERA 1.0 MPI FLEX MANUAL');
+assert.equal(lib.cleanExpressVehicle({model:'TERA 1.0 MPI FLEX MANUAL R$'}).model,
+ 'TERA 1.0 MPI FLEX MANUAL');
+assert.equal(lib.cleanExpressVehicle({model:'ONIX RS 1.0 TURBO'}).model,
+ 'ONIX RS 1.0 TURBO','Keep genuine RS trim on other cars');
 const corollaCaptured='COROLLA 2.0 XEI 16V FLEX 4P AUTOMATICO';
 const fipeModels=[
  {code:'cx',name:'Corolla XEi 2.0 Flex 16V Aut.'},
@@ -336,6 +362,8 @@ const teraMissingPlate=parser.parseAutoAvaliarOcrText(
  'REFERENCIAS\nFIPE R$ 92.652,00');
 assert.equal(teraMissingPlate.brand,'VOLKSWAGEN');
 assert.equal(teraMissingPlate.plate,'');
+assert.deepEqual(parser.plateFromLabelledVehicleText('® Placa UQRSI61\nAno 2026/2026'),
+ {plate:'UQR5I61',corrected:true},'PSM 6 plate reading can confuse 5 with S');
 assert.deepEqual(parser.plateFromLabelledVehicleText('Placa UQR5I61\nAno 2026/2026'),
  {plate:'UQR5I61',corrected:false});
 assert.deepEqual(parser.plateFromLabelledVehicleText('® Piaca: UQR5I61'),
@@ -586,6 +614,9 @@ assert.equal(guard.isMotyqInterfaceScreenshot(
 assert.equal(guard.isMotyqInterfaceScreenshot(
  'Fotos Fotos Lista\nQ3 2.0 40 TFSI GASOLINA SPORTBACK\nPlaca ABC1D23\nAno 2022/2023\nKm 62.500'),false);
 const browserOcr=src('services/marketIqExpressBrowserOcr.ts');
+assert.ok(browserOcr.includes("tessedit_pageseg_mode:'6'"),
+ 'Local vehicle-card OCR should use PSM 6 before deciding plate is missing');
+
 assert.ok(browserOcr.includes('plateFromLabelledVehicleText(contextText,contextTsv)'),
  'Read a labelled plate from the enlarged context before manual entry');
 assert.ok(browserOcr.includes('plateContextValueAt(contextAnchor)'),

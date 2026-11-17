@@ -32,7 +32,7 @@ import MarketIqAquaPilotPanel from './MarketIqAquaPilotPanel';
 import MarketIqExpressPrintPanel from './MarketIqExpressPrintPanel';
 import MarketIqExpressHistoryCard from './MarketIqExpressHistoryCard';
 import type {ExpressVehicleExtract,ExpressAssessment} from '../services/marketIqExpress';
-import {suggestUniqueExpressFipeModel} from '../services/marketIqExpressFipeHandoff';
+import {suggestUniqueExpressFipeModel,uniqueExpressFipeBrand,resolvedExpressBrand} from '../services/marketIqExpressFipeHandoff';
 import type {ConsultedVehicle} from '../services/marketIqConsultedRepasse';
 import MarketIqApprovalCenter from './MarketIqApprovalCenter';
 import {calculateHistoricalPrice, MOTYQ_HISTORY_MODEL, HistoricalClass} from '../services/marketIqHistoricalPricing';
@@ -828,19 +828,29 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const openAquaDashboard=()=>setAquaVehicle({plate:'',brand:'',model:'',year:'',km:'',vehicleType:'car',fipe:0});
  const acceptExpressPrint=(extracted:ExpressVehicleExtract,assessment:ExpressAssessment)=>{
   if(!window.confirm('Transferir estes campos para a Mesa? A versão FIPE ainda precisará ser selecionada e confirmada.'))return;
-  setExpressReview({vehicle:extracted,assessment});
-  setPlate(extracted.plate);setBrand(extracted.brand);setModel(extracted.model);
-  setYear(extracted.yearModel);setKm(extracted.km===null?'':String(extracted.km));
-  // Auto-select only an exactly matching FIPE brand. Trim and year still
-  // require explicit operator confirmation to avoid incorrect price lookup.
-  const norm=(v:string)=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const brandMatches=brands.filter(item=>norm(item.name)===norm(extracted.brand));
-  setBrandCode(brandMatches.length===1?brandMatches[0].code:'');
+  const candidateBrand=resolvedExpressBrand(extracted.brand,extracted.model);
+  const reviewed={...extracted,brand:candidateBrand};
+  setExpressReview({vehicle:reviewed,assessment});
+  setPlate(reviewed.plate);setBrand(candidateBrand);setModel(reviewed.model);
+  setYear(reviewed.yearModel);setKm(reviewed.km===null?'':String(reviewed.km));
+  // VW can be named "Volkswagen", "VW" or "VW - Volkswagen" by FIPE.
+  // Only a unique manufacturer is matched; model/year still need a click.
+  const match=uniqueExpressFipeBrand(candidateBrand,brands);
+  setBrandCode(match?.code||'');
   setModelCode('');setYearCode('');setFipe(null);
   setAds([]);setAutoSearchKey('');setDecisionOffer('');setDecisionConfirmedCost(null);
   setExpressOpen(false);setMobileFullDesk(true);switchDeskSection('pricing');
   window.scrollTo({top:0,behavior:'smooth'});
  };
+ // FIPE brands can arrive *after* the print transfer. Previously the
+ // brandCode stayed blank forever when the catalog loaded a moment later.
+ useEffect(()=>{
+  if(!expressReview||brandCode||!brands.length||vehicleType!=='car')return;
+  const extracted=expressReview.vehicle;
+  if(!extracted.brand||brand!==extracted.brand||model!==extracted.model||plate!==extracted.plate)return;
+  const match=uniqueExpressFipeBrand(extracted.brand,brands);
+  if(match)setBrandCode(match.code);
+ },[expressReview,brandCode,brands,vehicleType,brand,model,plate]);
  // The print description is real captured data, even when the FIPE code
  // is not yet selected. Keep it visible beside the catalog selector.
  // Do not silently infer or approve a FIPE model or model-year.
@@ -1159,7 +1169,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onOpenPricing={()=>switchDeskSection('pricing')}/>
   </div>
  </div>
- <div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="ABC1D23" maxLength={7}/></label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label><div><label className="block">Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">{expressModelPending?'Do print: '+expressReview!.vehicle.model:'Selecione modelo e versão'}</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label>
+ <div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="Digite a placa do AutoAvaliar" maxLength={7}/>{expressReview&&!plate&&<span className="mt-1 block text-xs font-semibold text-amber-800">Placa não reconhecida no print. Digite após conferir a ficha.</span>}</label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select>{expressReview&&!brandCode&&<span className="mt-1 block text-xs text-amber-800">{catalogLoading?'Carregando marcas FIPE para conferir a fabricante capturada.':'Marca da captura: '+(expressReview.vehicle.brand||'não reconhecida')+' · confirme no catálogo.'}</span>}</label><div><label className="block">Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">{expressModelPending?'Do print: '+expressReview!.vehicle.model:'Selecione modelo e versão'}</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label>
  {expressModelPending&&<div className="mt-1 rounded-lg border border-indigo-200 bg-indigo-50 p-2 text-xs text-indigo-950" role="status">
   <p><strong>Reconhecido no AutoAvaliar:</strong> {expressReview!.vehicle.model}.</p>
   <p className="mt-1">Ainda não é uma versão FIPE confirmada. Selecione a versão correspondente no catálogo.</p>
