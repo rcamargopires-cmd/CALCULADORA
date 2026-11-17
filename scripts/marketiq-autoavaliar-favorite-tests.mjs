@@ -227,6 +227,15 @@ assert.equal(partialVehicle.km,39318);
 assert.ok(partialVehicle.warnings.some(w=>w.includes('Faltaram campos')));
 assert.equal(capture(missingFlat,{allow:false,document:geometryDoc}).openedUrl,'',
  'Partial data still requires user confirmation');
+// The Chrome favorite should send the FIPE-facing Chevrolet label as
+// GM - Chevrolet for Chevrolet car headings.
+const onix=polo.replace('POLO 1.0 MPI TRACK MANUAL','ONIX 1.0 TURBO FLEX AUTOMATICO')
+ .replace('SPU1I52','ABC1D23');
+const onixCaptured=capture(onix);
+assert.ok(onixCaptured.openedUrl,'Chevrolet appraisal must open Motyq');
+const onixVehicle=lib.decodeAutoAvaliarFavoriteHash(new URL(onixCaptured.openedUrl).hash);
+assert.equal(onixVehicle.brand,'GM - Chevrolet');
+assert.equal(onixVehicle.plate,'ABC1D23');
 const tera=polo.replace('POLO 1.0 MPI TRACK MANUAL','TERA 1.0 MPI FLEX MANUAL')
  .replace('SPU1I52','UQR5I61').replace('2025/2025','2026/2026')
  .replace('39.318','2.079').replace('R$ 73.315,00','R$ 92.652,00');
