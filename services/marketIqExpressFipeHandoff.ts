@@ -12,6 +12,20 @@ const tokens=(value:string):string[]=>{
   .trim().split(/\s+/).filter(t=>t&&t!=='4P'&&t!=='5P');
  return [...new Set(normalized)].sort();
 };
+/** AutoAvaliar uses the marketing engine name Firefly and says Manual,
+ * whereas FIPE calls this specific model "ARGO DRIVE 1.0 6V Flex".
+ * This explicit alias is restricted to that trim and engine. Never apply
+ * the same removal of transmission/valve terms across unrelated vehicles.
+ */
+function isVerifiedArgoDrive10Alias(extracted:string,option:string):boolean{
+ const source=tokens(extracted),candidate=tokens(option);
+ const expectedOption=tokens('ARGO DRIVE 1.0 6V FLEX');
+ if(candidate.join('|')!==expectedOption.join('|'))return false;
+ const required=tokens('ARGO DRIVE 1.0 FLEX MANUAL');
+ const allowed=new Set([...required,'FIREFLY']);
+ return required.every(t=>source.includes(t))&&source.every(t=>allowed.has(t));
+}
+
 export function suggestUniqueExpressFipeModel(
  extractedModel:string,options:readonly ExpressFipeCatalogOption[]
 ):ExpressFipeCatalogOption|null{
@@ -19,7 +33,11 @@ export function suggestUniqueExpressFipeModel(
  if(desired.length<3||!Array.isArray(options)||!options.length)return null;
  const signature=desired.join('|');
  const matching=options.filter(item=>String(item.code||'').trim()&&tokens(item.name).join('|')===signature);
- // A suggestion is valid only if exactly one FIPE code matches this model
- // and trim. Never guess between Flex/Gasolina, XEi/Altis or motor variants.
- return matching.length===1?matching[0]:null;
+ if(matching.length===1)return matching[0];
+ if(matching.length>1)return null;
+ const aliasMatches=options.filter(item=>String(item.code||'').trim()&&
+  isVerifiedArgoDrive10Alias(extractedModel,item.name));
+ // Even a verified model-name alias is a *suggestion*. The operator chooses
+ // the FIPE model and then its year/fuel before any FIPE value can be used.
+ return aliasMatches.length===1?aliasMatches[0]:null;
 }
