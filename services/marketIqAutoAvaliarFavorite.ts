@@ -18,24 +18,70 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
   const lines=text.split(/\r?\n/).map(s=>s.replace(/\s+/g,' ').trim()).filter(Boolean);
   const normalize=(s:string)=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
   const lineNorm=lines.map(normalize);
-  const firstOrigin=lineNorm.findIndex(s=>/^ORIGEM(?:\s|$)/.test(s));
+  // AutoAvaliar can render each field as two separate spans or two table
+  // columns. body.innerText may also prefix labels with icon glyphs, so
+  // matching only "^Placa"/"^Ano" discards otherwise visible vehicle data.
+  const cleanLabel=(s:string)=>normalize(s).replace(/^[^A-Z0-9]{0,18}/,'').trim();
+  const firstOrigin=lineNorm.findIndex(s=>/^ORIGEM(?:\s|$)/.test(cleanLabel(s)));
   if(firstOrigin<1){
    alert('Não encontrei o quadro Origem / Placa / Ano. Abra uma avaliação completa no AutoAvaliar.');
    return;
   }
-  // Search only the visible vehicle card, not other records or the appraisal
-  // notes, customer name, VIN, phone, login fields or contact information.
-  const cardEnd=Math.min(lines.length,firstOrigin+65);
-  const field=(key:string):string=>{
-   const rx=new RegExp('^'+key+'(?:\\s*[:|]?)\\s*(.*)$','i');
-   for(let i=firstOrigin;i<cardEnd;i++){
-    const match=lineNorm[i].match(rx);
-    if(!match)continue;
-    const value=String(match[1]||'').trim();
-    if(value&&value.length<65)return lines[i].slice(lines[i].length-value.length).trim();
-    if(lines[i+1]&&i+1<cardEnd&&lines[i+1].length<65)return lines[i+1];
+  const cardEnd=Math.min(lines.length,firstOrigin+75);
+  const validValue=(key:string,value:string):boolean=>{
+   const v=normalize(value).trim();
+   if(key==='PLACA')return /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(v.replace(/[\s-]/g,''));
+   if(key==='ANO')return /\b(?:19|20)\d{2}\s*[/\-]\s*(?:19|20)\d{2}\b/.test(v);
+   if(key==='KM')return /^\d{1,3}(?:[.,]\d{3}){0,2}$/.test(v)||/^\d{4,6}$/.test(v);
+   return Boolean(v)&&v.length<75;
+  };
+  const labelPattern=(key:string)=>new RegExp('^'+key+'(?:\\b|[:=|])\\s*[:=|]?\\s*(.*)$','i');
+  const takeFromRow=(key:string,raw:string):string=>{
+   const value=cleanLabel(raw);
+   const match=value.match(labelPattern(key));
+   if(!match)return '';
+   // Keep only the value, and never the following field (e.g. RENAVAM).
+   const tail=match[1].trim().replace(/^[:=|]\s*/,'');
+   const found=key==='PLACA'?tail.match(/^([A-Z]{3}[0-9][A-Z0-9][0-9]{2})\b/):
+    key==='ANO'?tail.match(/^((?:19|20)\d{2}\s*[/\-]\s*(?:19|20)\d{2})\b/):
+    key==='KM'?tail.match(/^(\d{1,3}(?:[.,]\d{3}){0,2}|\d{4,6})\b/):
+    null;
+   const candidate=found?found[1]:(key==='PLACA'||key==='ANO'||key==='KM'?'':tail);
+   return validValue(key,candidate)?candidate:'';
+  };
+  // Fallback reads *only* small parents of exact vehicle-card labels.
+  // No names, phone numbers, notes, VIN, Renavam or hidden fields.
+  const domField=(key:string):string=>{
+   const els=Array.from(document.querySelectorAll('span,td,th,label,small,b,strong,div')).slice(0,10000);
+   for(const el of els){
+    if(el.children.length>1)continue;
+    const label=cleanLabel(String((el as HTMLElement).innerText||''));
+    if(label!==key&&label!==key+':')continue;
+    let current:Element|null=el;
+    for(let depth=0;current&&depth<4;current=current.parentElement,depth++){
+     const row=String((current as HTMLElement).innerText||'').replace(/\s+/g,' ').trim();
+     if(!row||row.length>150)break;
+     const candidate=takeFromRow(key,row);
+     if(candidate)return candidate;
+    }
+    // Some AutoAvaliar layouts keep the label and its value in sibling spans.
+    const sibling=String((el.nextElementSibling as HTMLElement|null)?.innerText||'').trim();
+    if(validValue(key,sibling))return sibling;
    }
    return '';
+  };
+  const field=(key:string):string=>{
+   const normalizedKey=normalize(key);
+   for(let i=firstOrigin;i<cardEnd;i++){
+    const candidate=takeFromRow(normalizedKey,lines[i]);
+    if(candidate)return candidate;
+    const label=cleanLabel(lines[i]);
+    if(label===normalizedKey||label===normalizedKey+':'){
+     const next=String(lines[i+1]||'').trim();
+     if(validValue(normalizedKey,next))return next;
+    }
+   }
+   return domField(normalizedKey);
   };
   const head=lines.slice(Math.max(0,firstOrigin-12),firstOrigin);
   const title=head.filter(line=>{
@@ -67,10 +113,10 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
   for(const [pattern,make] of brands){if((pattern as RegExp).test(upper)){brand=make as string;break;}}
   const plateRaw=normalize(field('PLACA')).replace(/[^A-Z0-9]/g,'');
   const plate=/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plateRaw)?plateRaw:'';
-  const years=field('ANO').match(/\b((?:19|20)\d{2})\s*[/\\-]\s*((?:19|20)\d{2})\b/);
+  const years=field('ANO').match(/\b((?:19|20)\d{2})\s*[/\-]\s*((?:19|20)\d{2})\b/);
   const yearManufacture=years?years[1]:'';
   const yearModel=years?years[2]:'';
-  const kmField=field('KM').match(/\b\d{1,3}(?:\.\d{3}){0,2}\b|\b\d{4,6}\b/);
+  const kmField=field('KM').match(/\b(?:\d{1,3}(?:[.,]\d{3}){1,2}|\d{4,6}|\d{1,3})\b/);
   const kmValue=kmField?Number(kmField[0].replace(/\./g,'')):NaN;
   const km=Number.isInteger(kmValue)&&kmValue>=0&&kmValue<=999999?kmValue:null;
   // FIPE and condition score are optional observations, not current values
@@ -88,7 +134,8 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
   const score=scores?Number(scores[1].replace(',','.')):NaN;
   const conditionScore=Number.isFinite(score)&&score>=0&&score<=10?score:null;
   if(!yearModel||km===null&&!plate){
-   alert('A ficha está incompleta para captura. Deixe visíveis o cabeçalho, placa, ano e KM. Nenhum dado foi enviado.');
+   const missing=[!yearModel?'ano/modelo':'',!plate?'placa':'',km===null?'KM':''].filter(Boolean).join(', ');
+   alert('Os campos visíveis não puderam ser lidos como texto na página: '+missing+'.\nA ficha não foi enviada.');
    return;
   }
   const vehicle={
