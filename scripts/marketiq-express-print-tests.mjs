@@ -111,6 +111,39 @@ const fipeModels=[
  {code:'cd',name:'Corolla XEi 2.0 Diesel 16V Aut.'},
  {code:'c18',name:'Corolla XEi 1.8 Flex 16V Aut.'}
 ];
+// AutoAvaliar's "ARGO 1.0 FIREFLY FLEX DRIVE MANUAL" is published in the
+// FIPE catalog as "ARGO DRIVE 1.0 6V Flex". Keep this narrowly-scoped alias
+// and require a click and a separate year/fuel confirmation in the Mesa.
+const argoFromScreenshot='ARGO 1.0 FIREFLY FLEX DRIVE MANUAL «';
+const argoOptions=[
+ {code:'001494-0',name:'ARGO DRIVE 1.0 6V Flex'},
+ {code:'other1',name:'ARGO DRIVE 1.3 8V Flex'},
+ {code:'other2',name:'ARGO DRIVE 1.0 6V Flex S-Design'},
+ {code:'other3',name:'ARGO TREKKING 1.3 8V Flex'},
+ {code:'other4',name:'ARGO DRIVE 1.0 6V Gasolina'},
+ {code:'other5',name:'ARGO DRIVE 1.0 6V Flex Aut.'}
+];
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(argoFromScreenshot,argoOptions),argoOptions[0],
+ 'Show a uniquely recognized Argo Firefly Drive manual model despite a different FIPE name');
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel('ARGO DRIVE 1.0 FLEX MANUAL',argoOptions),argoOptions[0],
+ 'A clean AutoAvaliar title also supports the verified 1.0 manual alias');
+assert.equal(handoff.suggestUniqueExpressFipeModel('ARGO 1.3 FIREFLY FLEX DRIVE MANUAL',argoOptions),null,
+ 'Never conflate Argo 1.3 with 1.0');
+assert.equal(handoff.suggestUniqueExpressFipeModel('ARGO 1.0 FIREFLY GASOLINA DRIVE MANUAL',argoOptions),null,
+ 'Do not replace gasoline with flex');
+assert.equal(handoff.suggestUniqueExpressFipeModel('ARGO 1.0 FIREFLY FLEX DRIVE AUTOMATICO',argoOptions),null,
+ 'Manual-only alias must never accept automatic transmission');
+assert.equal(handoff.suggestUniqueExpressFipeModel('ARGO 1.0 FIREFLY FLEX TREKKING MANUAL',argoOptions),null,
+ 'Never conflate a different Argo trim');
+assert.equal(handoff.suggestUniqueExpressFipeModel(argoFromScreenshot,[argoOptions[0],{...argoOptions[0],code:'duplicate'}]),null,
+ 'Ambiguous FIPE catalog choices require explicit search, not a suggested version');
+assert.equal(handoff.suggestUniqueExpressFipeModel(argoFromScreenshot,[argoOptions[1],argoOptions[2],argoOptions[3]]),null,
+ 'Do not broaden the candidate if the approved version does not exist');
+const sanitizedArgo=lib.cleanExpressVehicle({brand:'FIAT',model:argoFromScreenshot,plate:'ABC1D23',yearModel:'2020',km:62694});
+assert.equal(sanitizedArgo.model,'ARGO 1.0 FIREFLY FLEX DRIVE MANUAL',
+ 'Strip OCR arrows from vehicle descriptions');
+assert.equal(lib.cleanExpressVehicle({model:'COROLLA 2.0 XEI FLEX AUTOMATICO | (&'}).model,'COROLLA 2.0 XEI FLEX AUTOMATICO',
+ 'Clean trailing UI glyphs without changing engine or trim');
 assert.deepEqual(handoff.suggestUniqueExpressFipeModel(corollaCaptured,fipeModels),fipeModels[0],
  'Identify the unique FIPE model with reordered trim/engine, without applying it');
 assert.equal(handoff.suggestUniqueExpressFipeModel(corollaCaptured,[fipeModels[0],{...fipeModels[0],code:'cx2'}]),null,
