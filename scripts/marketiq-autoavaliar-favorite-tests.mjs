@@ -264,4 +264,18 @@ assert.ok(desk.includes('setExpressOpen(true)'));
 assert.ok(desk.includes("history.replaceState(null,'',window.location.pathname+window.location.search)"));
 assert.ok(desk.includes('initialFavorite={favoriteIncoming}'));
 assert.ok(desk.includes('onApply={acceptExpressPrint}'));
+
+const home=readFileSync('components/MarketIqSimpleHome.tsx','utf8');
+assert.ok(!desk.includes('⚡ Prévia por print'),'Remove print CTA from Mesa toolbar');
+assert.ok(!desk.includes('⚡ Prévia Express'),'Remove print CTA from desk navigation');
+assert.ok(desk.includes('Configurar botão do Chrome'),'Chrome setup remains accessible when changing computer');
+assert.ok(desk.includes('Configurar captura'),'Desk navigation provides a compact setup entry');
+assert.ok(home.includes('Motyq IQ · Captura direta do AutoAvaliar'),'Home uses Chrome capture, not print');
+assert.ok(!home.includes('Prévia por print'),'Do not show old screenshot option on home');
+assert.ok(panel.includes('{!demoOnly&&!vehicle&&<section'),'Chrome setup is shown only before receiving a vehicle');
+assert.ok(panel.includes('{demoOnly&&<section'),'Screenshot and clipboard controls remain isolated to the laboratory only');
+assert.ok(panel.includes("vehicle?'Conferir dados do AutoAvaliar':'Configurar captura do AutoAvaliar'"));
+assert.ok(desk.includes('setFavoriteIncoming(expressReview.vehicle);setExpressOpen(true)'),
+ 'A previously confirmed vehicle remains editable through Revisar captura');
+
 console.log('AutoAvaliar favorite: visible-only DOM capture, real Polo/Tera/Corolla fields, consent, domain check, customer data redaction, strict receiver and Mesa confirmation passed.');
