@@ -71,6 +71,9 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,initialFavori
   }
  };
  useEffect(()=>{
+  // The print/text workflow is retained only for the isolated laboratory.
+  // In the live Mesa, Chrome favorite is the sole capture entry point.
+  if(!demoOnly)return;
   const handler=(event:ClipboardEvent)=>{
    if(event.defaultPrevented)return;
    // Never intercept text pasted into one of the manual editing fields.
