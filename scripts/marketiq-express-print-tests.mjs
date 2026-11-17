@@ -165,6 +165,48 @@ assert.equal(lib.cleanExpressVehicle({model:'POLO TRACK GTS 1.4 TSI AUTOMATICO'}
  'POLO TRACK GTS 1.4 TSI AUTOMATICO','Preserve valid other trim names');
 assert.ok(deskSrc.includes('onClick={()=>selectModel(expressFipeSuggestion.code)}'),
  'The operator must confirm suggested FIPE trim before loading any reference');
+// Real Chrome favorite → Motoq IQ Mesa handoff, Polo 1.6 MSI 2019/2020.
+// AutoAvaliar says "POLO 1.6 MSI TOTAL FLEX MANUAL"; FIPE's unique
+// non-automatic counterpart is "Polo 1.6 MSI Flex 16V 5p" (005478-0).
+// The operator must click Confirmar versão FIPE, then the 2020 Flex year.
+const poloMsiCaptured='POLO 1.6 MSI TOTAL FLEX MANUAL';
+const poloMsiOptions=[
+ {code:'manual',name:'Polo 1.6 MSI Flex 16V 5p'},
+ {code:'automatic',name:'Polo 1.6 MSI Total Flex 16V 5p Aut.'},
+ {code:'mpi',name:'Polo 1.0 MPI Flex 12V 5p'},
+ {code:'tsi',name:'Polo Highline 200 TSI 1.0 Flex 12V Aut.'},
+ {code:'track',name:'Polo Track 1.0 Flex 12V 5p'},
+ {code:'gts',name:'Polo GTS 250 TSI 1.4 Flex 16V Aut.'}
+];
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,poloMsiOptions),
+ poloMsiOptions[0],
+ 'Suggest manual Polo 1.6 MSI after browser favorite import without choosing FIPE automatically');
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel('POLO 1.6 MSI FLEX MANUAL',poloMsiOptions),
+ poloMsiOptions[0],'Total Flex and Flex naming are equivalent for this exact manual trim');
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,[
+ {code:'manual-total',name:'Polo 1.6 MSI Total Flex 16V 5p'},poloMsiOptions[1]]),
+ {code:'manual-total',name:'Polo 1.6 MSI Total Flex 16V 5p'});
+assert.equal(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,poloMsiOptions.slice(1)),null,
+ 'Never suggest an automatic or other trim when manual FIPE candidate is absent');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.6 MSI TOTAL FLEX AUTOMATICO',poloMsiOptions),null,
+ 'Automatic AutoAvaliar Polo cannot map to manual FIPE code');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.0 MPI TOTAL FLEX MANUAL',poloMsiOptions),null,
+ 'Different engine displacement 1.0 versus 1.6 cannot map');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.6 MSI TOTAL FLEX HIGHLINE MANUAL',poloMsiOptions),null,
+ 'Do not infer premium trim from base manual');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.6 MSI GASOLINA MANUAL',poloMsiOptions),null,
+ 'Gasolina-only cannot match Flex');
+assert.equal(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,[
+ poloMsiOptions[0],{code:'duplicate',name:poloMsiOptions[0].name}]),null,
+ 'Multiple apparently equivalent FIPE catalog entries require manual selection');
+assert.equal(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,[
+ poloMsiOptions[0],{code:'total',name:'Polo 1.6 MSI Total Flex 16V 5p'}]),null,
+ 'Different but equivalent manual labels must still remain ambiguous');
+assert.ok(deskSrc.includes('Recebido do AutoAvaliar: '));
+assert.ok(deskSrc.includes('Encontramos uma correspondência única na FIPE.'));
+assert.ok(deskSrc.includes('Confirmar versão FIPE: {expressFipeSuggestion.name}'));
+assert.ok(deskSrc.includes('onClick={()=>selectModel(expressFipeSuggestion.code)}'),
+ 'The FIPE code must only be applied after an explicit click');
 const corollaCaptured='COROLLA 2.0 XEI 16V FLEX 4P AUTOMATICO';
 const fipeModels=[
  {code:'cx',name:'Corolla XEi 2.0 Flex 16V Aut.'},
@@ -215,7 +257,7 @@ assert.equal(handoff.suggestUniqueExpressFipeModel('COROLLA XEI',fipeModels),nul
 assert.equal(handoff.suggestUniqueExpressFipeModel('COROLLA 2.0 XEI 16V GASOLINA AUTOMATICO',fipeModels),null,
  'Never match Flex to Gasolina/Diesel');
 assert.equal(handoff.suggestUniqueExpressFipeModel('Q3 2.0 40 TFSI GASOLINA SPORTBACK PERFORMANCE QUATTRO TIPTRONIC',fipeModels),null);
-assert.ok(deskSrc.includes("'Do print: '+expressReview!.vehicle.model")&&deskSrc.includes('expressModelPending'),
+assert.ok(deskSrc.includes("'Recebido do AutoAvaliar: '+expressReview!.vehicle.model")&&deskSrc.includes('expressModelPending'),
  'Mesa shows the captured model even with an unselected FIPE code');
 assert.ok(deskSrc.includes('Reconhecido no AutoAvaliar:')&&deskSrc.includes('expressReview!.vehicle.model'),
  'The extracted description is visibly preserved next to the FIPE selector');
