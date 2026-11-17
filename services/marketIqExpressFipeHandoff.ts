@@ -51,6 +51,20 @@ function isVerifiedArgoDrive10Alias(extracted:string,option:string):boolean{
  return required.every(t=>source.includes(t))&&source.every(t=>allowed.has(t));
 }
 
+/** On AutoAvaliar: "POLO 1.0 MPI TRACK MANUAL"; FIPE catalog:
+ * "Polo Track 1.0 Flex 12V 5p" (FIPE 005540-9). Strictly require Polo,
+ * Track, 1.0, MPI and a manual transmission in the original heading.
+ * FIPE years and fuel still require operator confirmation.
+ */
+function isVerifiedPoloTrack10Alias(extracted:string,option:string):boolean{
+ const source=tokens(extracted),candidate=tokens(option);
+ const target=tokens('POLO TRACK 1.0 FLEX 12V 5P');
+ if(candidate.join('|')!==target.join('|'))return false;
+ const required=tokens('POLO TRACK 1.0 MPI MANUAL');
+ const allowed=new Set([...required,'FLEX']);
+ return required.every(t=>source.includes(t))&&source.every(t=>allowed.has(t));
+}
+
 export function suggestUniqueExpressFipeModel(
  extractedModel:string,options:readonly ExpressFipeCatalogOption[]
 ):ExpressFipeCatalogOption|null{
@@ -61,7 +75,8 @@ export function suggestUniqueExpressFipeModel(
  if(matching.length===1)return matching[0];
  if(matching.length>1)return null;
  const aliasMatches=options.filter(item=>String(item.code||'').trim()&&
-  isVerifiedArgoDrive10Alias(extractedModel,item.name));
+  (isVerifiedArgoDrive10Alias(extractedModel,item.name)||
+   isVerifiedPoloTrack10Alias(extractedModel,item.name)));
  // Even a verified model-name alias is a *suggestion*. The operator chooses
  // the FIPE model and then its year/fuel before any FIPE value can be used.
  return aliasMatches.length===1?aliasMatches[0]:null;

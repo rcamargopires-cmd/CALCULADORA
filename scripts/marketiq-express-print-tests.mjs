@@ -129,6 +129,42 @@ assert.equal(lib.cleanExpressVehicle({model:'TERA 1.0 MPI FLEX MANUAL R$'}).mode
  'TERA 1.0 MPI FLEX MANUAL');
 assert.equal(lib.cleanExpressVehicle({model:'ONIX RS 1.0 TURBO'}).model,
  'ONIX RS 1.0 TURBO','Keep genuine RS trim on other cars');
+// Polo Track 2025 real AutoAvaliar capture, 17/11/2026:
+// 2025/2025, plate SPU1I52, 39,318 km, FIPE shown R$ 73.315.
+// The brief trailing G is OCR contamination, not a vehicle version.
+const poloFromScreenshot=lib.cleanExpressVehicle({
+ brand:'VOLKSWAGEN',model:'POLO 1.0 MPI TRACK MANUAL G',
+ plate:'SPU1I52',yearManufacture:'2025',yearModel:'2025',
+ km:39318,fipeReference:73315
+});
+assert.equal(poloFromScreenshot.model,'POLO 1.0 MPI TRACK MANUAL');
+assert.equal(poloFromScreenshot.plate,'SPU1I52');
+assert.equal(poloFromScreenshot.brand,'VOLKSWAGEN');
+assert.equal(poloFromScreenshot.yearModel,'2025');
+assert.equal(poloFromScreenshot.km,39318);
+const poloOptions=[
+ {code:'track',name:'Polo Track 1.0 Flex 12V 5p'},
+ {code:'mpi',name:'Polo 1.0 MPI Flex 12V 5p'},
+ {code:'ts',name:'Polo TSI 1.0 Flex 12V Aut.'},
+ {code:'high',name:'Polo Highline 200 TSI 1.0 Flex 12V Aut.'},
+ {code:'robust',name:'Polo Robust 1.0 Flex 12V 5p'}
+];
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(poloFromScreenshot.model,poloOptions),poloOptions[0],
+ 'Polo MPI Track Manual should suggest only the FIPE Polo Track 1.0 12V Flex');
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel('POLO 1.0 MPI TRACK FLEX MANUAL',poloOptions),poloOptions[0]);
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.0 MPI MANUAL',poloOptions),null,
+ 'Never mistake ordinary Polo MPI for Track');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.0 TSI TRACK AUTOMATICO',poloOptions),null,
+ 'Never match Polo TSI automatic to MPI Track manual');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.0 MPI TRACK MANUAL',poloOptions.slice(1)),null,
+ 'Missing exact candidate means no FIPE suggestion');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.0 MPI TRACK MANUAL',[
+ poloOptions[0],{...poloOptions[0],code:'duplicate'}]),null,
+ 'A unique FIPE model is required, even for a verified Polo alias');
+assert.equal(lib.cleanExpressVehicle({model:'POLO TRACK GTS 1.4 TSI AUTOMATICO'}).model,
+ 'POLO TRACK GTS 1.4 TSI AUTOMATICO','Preserve valid other trim names');
+assert.ok(deskSrc.includes('onClick={()=>selectModel(expressFipeSuggestion.code)}'),
+ 'The operator must confirm suggested FIPE trim before loading any reference');
 const corollaCaptured='COROLLA 2.0 XEI 16V FLEX 4P AUTOMATICO';
 const fipeModels=[
  {code:'cx',name:'Corolla XEi 2.0 Flex 16V Aut.'},
