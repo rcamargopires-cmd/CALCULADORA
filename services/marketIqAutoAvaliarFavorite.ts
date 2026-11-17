@@ -189,9 +189,9 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
   const scores=text.match(/\b(\d{1,2}(?:[,.]\d)?)\s*\/\s*10\b/);
   const score=scores?Number(scores[1].replace(',','.')):NaN;
   const conditionScore=Number.isFinite(score)&&score>=0&&score<=10?score:null;
-  if(!yearModel||km===null&&!plate){
-   const missing=[!yearModel?'ano/modelo':'',!plate?'placa':'',km===null?'KM':''].filter(Boolean).join(', ');
-   alert('Os campos visíveis não puderam ser lidos como texto na página: '+missing+'.\nA ficha não foi enviada.');
+  const missing=[!yearModel?'ano/modelo':'',!plate?'placa':'',km===null?'KM':''].filter(Boolean);
+  if(!yearModel&&!plate&&km===null){
+   alert('Não foi possível identificar nenhum dado básico da ficha (placa, ano ou KM). Nenhum dado foi enviado.');
    return;
   }
   const vehicle={
@@ -201,6 +201,7 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
    (brand||'Marca a conferir')+' '+model+'\n'+
    'Placa: '+(plate||'não identificada')+'  Ano: '+yearManufacture+'/'+yearModel+
    '  KM: '+(km===null?'a conferir':km)+
+   (missing.length?'\nATENÇÃO: preencher no Motyq: '+missing.join(', ')+'.':'')+
    '\nNão envia nome do cliente, telefone, chassi, Renavam, login ou fotos.'))return;
   const payload=encodeURIComponent(JSON.stringify({kind:'motyq-autoavaliar-favorite-v1',vehicle,sourceHost:host}));
   if(payload.length>3000){alert('A captura ficou muito grande. Nenhum dado foi enviado.');return;}
@@ -245,7 +246,9 @@ export function decodeAutoAvaliarFavoriteHash(hash:string):ExpressVehicleExtract
   repairTotal:null,repairDetails:[],
   warnings:['Captura pelo favorito do Chrome: confira placa, versão, KM e FIPE antes de transferir para a Mesa.']
  });
- if(!clean.model||!clean.yearModel||clean.km===null&& !clean.plate)
-  throw new Error('A avaliação veio incompleta. Abra a ficha com modelo, ano, KM e placa.');
+ if(!clean.model||(!clean.yearModel&&clean.km===null&&!clean.plate))
+  throw new Error('A avaliação veio sem identificação suficiente. Confira o AutoAvaliar.');
+ if(!clean.plate||!clean.yearModel||clean.km===null)
+  clean.warnings.push('Faltaram campos no botão do navegador. Preencha placa, ano e KM manualmente antes de consultar a FIPE.');
  return clean;
 }
