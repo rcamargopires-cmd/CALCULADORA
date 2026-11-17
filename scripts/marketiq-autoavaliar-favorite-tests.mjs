@@ -160,10 +160,17 @@ assert.equal(geometryVehicle.yearModel,'2015');
 assert.equal(geometryVehicle.km,151280);
 assert.notEqual(geometryVehicle.plate,'01066164115');
 assert.ok(geometryCapture.confirmed.includes('GBE2488'));
-const missingOnly=capture(missingFlat,{document:{
+const missingPlateYear=polo.replace('SPU1I52','[plate missing]')
+ .replace('2025/2025','[year missing]');
+const missingOnly=capture(missingPlateYear,{document:{
+ body:{innerText:missingPlateYear},querySelectorAll:()=>[],createTreeWalker:()=>({nextNode:()=>null}),
+ createRange:()=>({selectNodeContents(){},getBoundingClientRect(){return null;}})
+}});
+const allMissing=capture(missingFlat,{document:{
  body:{innerText:missingFlat},querySelectorAll:()=>[],createTreeWalker:()=>({nextNode:()=>null}),
  createRange:()=>({selectNodeContents(){},getBoundingClientRect(){return null;}})
 }});
+assert.equal(allMissing.openedUrl,'','No plate, no year and no KM must not be transferred');
 assert.ok(missingOnly.openedUrl,
  'With a clear title and KM, open manual review even if plate/year cannot be read');
 assert.ok(missingOnly.confirmed.includes('ATENÇÃO: preencher no Motyq: ano/modelo, placa'));
