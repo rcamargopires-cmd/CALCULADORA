@@ -32,6 +32,9 @@ export function cleanExpressVehicle(raw:any):ExpressVehicleExtract{
    .replace(/\s+(?:[|=«»<&()]+\s*)+$/g,'')
    .replace(/\s+R\$\s*$/i,'')
    .replace(/^(TERA\b.*\bMPI\s+FLEX\s+MANUAL)\s+RS\s*$/i,'$1')
+   // OCR sometimes carries the initial G of a neighboring "Gasolina"
+   // field onto this specific Polo Track heading. No other trim is changed.
+   .replace(/^(POLO\s+1[.,]0\s+MPI\s+TRACK\s+MANUAL)\s+G\s*$/i,'$1')
    .trim(),
   yearManufacture:year(raw?.yearManufacture),yearModel:year(raw?.yearModel),
   plate:/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)?plate:'',
