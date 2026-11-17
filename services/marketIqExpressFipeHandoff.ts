@@ -3,6 +3,31 @@
  * to accept the unique exact equivalent. Ambiguous options return null.
  */
 export type ExpressFipeCatalogOption={code:string;name:string};
+/** Use distinctive models when OCR sees the vehicle title but misses the make.
+ * Restrict inference to unequivocally known model names.
+ */
+export function resolvedExpressBrand(rawBrand:string,model:string):string{
+ const recognized=String(rawBrand||'').trim();
+ if(recognized)return recognized;
+ return /^\s*TERA\b/i.test(String(model||''))?'VOLKSWAGEN':'';
+}
+const foldedBrand=(v:string)=>String(v||'').normalize('NFD')
+ .replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+/** FIPE providers call the same manufacturer VW, Volkswagen or VW-Volkswagen.
+ * A match MUST be unique and cannot refer to the model or a related group.
+ */
+export function uniqueExpressFipeBrand(
+ extractedBrand:string,brands:readonly ExpressFipeCatalogOption[]
+):ExpressFipeCatalogOption|null{
+ const expected=foldedBrand(extractedBrand);
+ if(!expected||!Array.isArray(brands))return null;
+ const aliases=expected==='VOLKSWAGEN'||expected==='VW'?
+  new Set(['VOLKSWAGEN','VW','VWVOLKSWAGEN','VOLKSWAGENVW']):
+  new Set([expected]);
+ const matches=brands.filter(item=>String(item.code||'').trim()&&aliases.has(foldedBrand(item.name)));
+ return matches.length===1?matches[0]:null;
+}
+
 const tokens=(value:string):string[]=>{
  const normalized=String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
   .toUpperCase().replace(/(\d)[.,](\d)/g,'$1DOT$2')
