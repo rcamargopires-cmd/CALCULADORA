@@ -1,0 +1,120 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+
+const compile=(path,dependencies={})=>{
+ const source=readFileSync(path,'utf8');
+ const output=ts.transpileModule(source,{compilerOptions:{
+  target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS
+ }}).outputText;
+ const mod={exports:{}};
+ runInNewContext(output,{
+  module:mod,exports:mod.exports,URL,Number,String,Array,JSON,RegExp,Set,Math,Error,
+  require:(id)=>{
+   if(Object.prototype.hasOwnProperty.call(dependencies,id))return dependencies[id];
+   throw new Error('Unexpected module dependency: '+id);
+  }
+ });
+ return mod.exports;
+};
+const vehicleLib=compile('services/marketIqExpress.ts',{
+ './marketIqFleetClassification':{classifyByMileage:()=>({classification:'A',destination:'SHOWROOM'})}
+});
+const lib=compile('services/marketIqAutoAvaliarFavorite.ts',{
+ './marketIqExpress':vehicleLib
+});
+const favorite=lib.getAutoAvaliarFavoriteBookmarklet('https://app.motyq.com.br');
+assert.ok(favorite.startsWith('javascript:(function captureVisibleAutoAvaliarCard('));
+assert.ok(favorite.length>1200);
+assert.ok(!favorite.includes('fetch('),'Never call APIs on the AutoAvaliar site');
+assert.ok(!favorite.includes('document.cookie'),'Never access site credentials');
+assert.ok(!favorite.includes('localStorage'),'Never read browser storage');
+assert.ok(!favorite.includes('XMLHttpRequest'),'Never access hidden API endpoints');
+assert.ok(favorite.includes('confirm('),'Explicit approval before navigation');
+assert.ok(favorite.includes('window.open(url'), 'Keep AutoAvaliar evaluation in the original tab');
+assert.ok(favorite.includes('autoavaliar.com.br'),'Restrict the favorite to actual AutoAvaliar domain');
+assert.ok(favorite.includes('motyq-autoavaliar='));
+assert.throws(()=>lib.getAutoAvaliarFavoriteBookmarklet('http://localhost:3000'),/Abra o Motyq/);
+assert.throws(()=>lib.getAutoAvaliarFavoriteBookmarklet('https://example.org'),/Abra o Motyq/);
+assert.ok(lib.getAutoAvaliarFavoriteBookmarklet('https://dealmaster-abcd123-reinaldo-ribas-projects.vercel.app').startsWith('javascript:'));
+
+function capture(page,options={}){
+ let openedUrl='',alerts=[],confirmed=false;
+ const host=options.host||'portal.autoavaliar.com.br';
+ runInNewContext(favorite.slice('javascript:'.length),{
+  location:{hostname:host},
+  document:{body:{innerText:page}},
+  window:{open(url){openedUrl=url;return {opener:{}};}},
+  confirm(text){confirmed=text;return options.allow!==false;},
+  alert(message){alerts.push(String(message));},
+  Number,String,Math,JSON,RegExp,Array,Set,Error,encodeURIComponent
+ });
+ return {openedUrl,alerts,confirmed};
+}
+const polo=[
+ 'Dashboard','Avaliações','Fotos','Fotos Lista','POLO 1.0 MPI TRACK MANUAL',
+ '#','116606156','Origem','NACIONAL','Placa','SPU1I52',
+ 'Ano','2025/2025','Cor','CINZA','Comb.','FLEX','Câmbio','MANUAL',
+ 'Km','39.318','Portas','4','Motor','999',
+ 'Renavam','01010101010','Chassi','9BWAG5R12ST076545',
+ 'Status AVALIADO','Avaliador Daniel Garcia Barbosa de Lima','Telefone (15) 99999-9999',
+ 'NOTAS DA AVALIAÇÃO','7.1/10','REFERÊNCIAS','FIPE','Valor','R$ 73.315,00',
+ 'FIPE 0KM','R$ 92.089,00'
+].join('\n');
+const poloDone=capture(polo);
+assert.ok(poloDone.openedUrl.startsWith('https://app.motyq.com.br/?iq=1#motyq-autoavaliar='));
+assert.ok(poloDone.confirmed.includes('SPU1I52'));
+assert.ok(!poloDone.openedUrl.includes('Daniel Garcia'));
+assert.ok(!poloDone.openedUrl.includes('01010101010'));
+assert.ok(!poloDone.openedUrl.includes('9BWAG5R12'));
+assert.ok(!poloDone.openedUrl.includes('99999-9999'));
+const poloDecoded=lib.decodeAutoAvaliarFavoriteHash(new URL(poloDone.openedUrl).hash);
+assert.equal(poloDecoded.brand,'VOLKSWAGEN');
+assert.equal(poloDecoded.model,'POLO 1.0 MPI TRACK MANUAL');
+assert.equal(poloDecoded.plate,'SPU1I52');
+assert.equal(poloDecoded.yearManufacture,'2025');
+assert.equal(poloDecoded.yearModel,'2025');
+assert.equal(poloDecoded.km,39318);
+assert.equal(poloDecoded.fipeReference,73315);
+assert.equal(poloDecoded.conditionScore,7.1);
+assert.equal(poloDecoded.repairTotal,null);
+assert.equal(poloDecoded.repairDetails.length,0);
+const tera=polo.replace('POLO 1.0 MPI TRACK MANUAL','TERA 1.0 MPI FLEX MANUAL')
+ .replace('SPU1I52','UQR5I61').replace('2025/2025','2026/2026')
+ .replace('39.318','2.079').replace('R$ 73.315,00','R$ 92.652,00');
+const teraDone=lib.decodeAutoAvaliarFavoriteHash(new URL(capture(tera).openedUrl).hash);
+assert.equal(teraDone.brand,'VOLKSWAGEN');
+assert.equal(teraDone.model,'TERA 1.0 MPI FLEX MANUAL');
+assert.equal(teraDone.plate,'UQR5I61');
+assert.equal(teraDone.km,2079);
+assert.equal(teraDone.yearModel,'2026');
+assert.equal(teraDone.fipeReference,92652);
+const corolla=polo.replace('POLO 1.0 MPI TRACK MANUAL','COROLLA 2.0 XEI 16V FLEX 4P AUTOMÁTICO')
+ .replace('SPU1I52','GLI0722').replace('2025/2025','2017/2017').replace('39.318','73.333');
+const corollaDone=lib.decodeAutoAvaliarFavoriteHash(new URL(capture(corolla).openedUrl).hash);
+assert.equal(corollaDone.brand,'TOYOTA');
+assert.equal(corollaDone.plate,'GLI0722');
+assert.equal(corollaDone.km,73333);
+assert.equal(corollaDone.model,'COROLLA 2.0 XEI 16V FLEX 4P AUTOMÁTICO');
+assert.equal(capture(polo,{allow:false}).openedUrl,'','No transfer without on-page user confirmation');
+assert.equal(capture(polo,{host:'lookalike-autoavaliar.com.br'}).openedUrl,'','No transfer on unrelated site');
+assert.equal(capture('Avaliador e estoque\nTeste sem veículo\nPlaca\nABC1D23').openedUrl,'','Cannot export another page');
+assert.equal(lib.decodeAutoAvaliarFavoriteHash('#some-other-hash=123'),null);
+assert.throws(()=>lib.decodeAutoAvaliarFavoriteHash('#motyq-autoavaliar=invalid-json'),/dados inválidos/);
+assert.throws(()=>lib.decodeAutoAvaliarFavoriteHash('#motyq-autoavaliar='+encodeURIComponent(JSON.stringify({
+ kind:'motyq-autoavaliar-favorite-v1',sourceHost:'evil.com',vehicle:{model:'POLO',plate:'ABC1D23',yearModel:'2025'}
+}))),/não foi identificada/);
+const panel=readFileSync('components/MarketIqExpressPrintPanel.tsx','utf8');
+const desk=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
+assert.ok(panel.includes('Copiar botão Enviar ao Motyq'));
+assert.ok(panel.includes('getAutoAvaliarFavoriteBookmarklet(window.location.origin)'));
+assert.ok(panel.includes('initialFavorite'));
+assert.ok(panel.includes("method==='favorite'"));
+assert.ok(desk.includes('decodeAutoAvaliarFavoriteHash(fragment)'));
+assert.ok(desk.includes('setFavoriteIncoming(captured)'));
+assert.ok(desk.includes('setExpressOpen(true)'));
+assert.ok(desk.includes("history.replaceState(null,'',window.location.pathname+window.location.search)"));
+assert.ok(desk.includes('initialFavorite={favoriteIncoming}'));
+assert.ok(desk.includes('onApply={acceptExpressPrint}'));
+console.log('AutoAvaliar favorite: visible-only DOM capture, real Polo/Tera/Corolla fields, consent, domain check, customer data redaction, strict receiver and Mesa confirmation passed.');
