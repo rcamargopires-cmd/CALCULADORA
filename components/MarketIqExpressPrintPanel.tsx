@@ -1,6 +1,7 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {readExpressPrintLocally} from '../services/marketIqExpressBrowserOcr';
 import {parseAutoAvaliarClipboardText} from '../services/marketIqExpressClipboard';
+import {isMotyqInterfaceScreenshot} from '../services/marketIqExpressScreenshotGuard';
 import MarketIqExpressHistoryCard from './MarketIqExpressHistoryCard';
 import type {ExpressHistoryRecord} from '../services/marketIqExpressHistory';
 import {assessExpressCommercial,cleanExpressVehicle,type ExpressVehicleExtract,
@@ -50,6 +51,8 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
   if(reading)return;
   setError('');setVehicle(null);setSample(false);setPlateZoom(null);setLastInput('text');
   try{
+   if(isMotyqInterfaceScreenshot(raw))
+    throw new Error('Você copiou a tela do Motyq. Copie a avaliação no AutoAvaliar ou cole um print da ficha original.');
    const parsed=parseAutoAvaliarClipboardText(raw);
    setVehicle(parsed);setMethod('clipboard');
    setDemand(false);setZeroStock(false);setOverride('auto');setReason('');
@@ -135,8 +138,12 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
        <label className="text-xs font-bold">KM<input className={input} type="number" min={0} max={999999} value={vehicle.km??''}
         onChange={e=>edit('km',e.target.value===''?null:Number(e.target.value))}/></label>
        <label className="text-xs font-bold">Placa (conferir)<input className={input} maxLength={7} value={vehicle.plate}
-        placeholder="ABC1D23" autoComplete="off" onChange={e=>edit('plate',e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7))}/></label>
+        placeholder="Digite a placa se não foi lida" autoComplete="off" onChange={e=>edit('plate',e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7))}/>
+        {!vehicle.plate&&<span className="mt-1 block text-[11px] font-semibold text-amber-800" role="status">Placa não reconhecida. Confira no AutoAvaliar.</span>}</label>
       </div>
+      {(!vehicle.yearModel||vehicle.km===null)&&<p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-bold text-amber-950">
+       Ano/modelo ou KM não reconhecidos. Confira se o print mostra a ficha original do AutoAvaliar, com a placa e os dados do veículo.
+      </p>}
       {plateZoom&&<div className="flex flex-col gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 sm:flex-row sm:items-center">
        <div className="flex-1">
         <p className="text-xs font-black text-cyan-950">Placa ampliada diretamente do seu print</p>
