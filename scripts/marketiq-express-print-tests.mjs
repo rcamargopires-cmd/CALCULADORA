@@ -782,7 +782,7 @@ assert.ok(ui.includes('readExpressPrintLocally(file,setReadStatus,setPlateZoom)'
 assert.ok(ui.includes('if(isMotyqInterfaceScreenshot(raw))'),'Reject copied Motyq text before parsing');
 assert.ok(ui.includes('placeholder="Digite a placa se não foi lida"'),'Do not display fictitious ABC1D23 as an actual plate');
 assert.ok(ui.includes('Placa não reconhecida. Confira no AutoAvaliar.'),'Warn when no real plate was extracted');
-assert.ok(ui.includes('Ano/modelo ou KM não reconhecidos.'),'Warn when the crop is incomplete');
+assert.ok(ui.includes('Ano/modelo ou KM ausentes.'),'Warn when imported fields are incomplete');
 
 assert.ok(ui.includes('history={history} loading={historyLoading} incomplete={historyIncomplete}'),'Same-screen preview includes paid history');
 assert.ok(ui.includes('src={plateZoom}')&&ui.includes('Placa ampliada diretamente do seu print'),'Allow quick visual correction when OCR fails');
