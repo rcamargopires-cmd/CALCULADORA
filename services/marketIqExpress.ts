@@ -25,7 +25,7 @@ export function cleanExpressVehicle(raw:any):ExpressVehicleExtract{
  const km=readNum(raw?.km),fipe=readNum(raw?.fipeReference);
  const score=readNum(raw?.conditionScore),repairs=readNum(raw?.repairTotal);
  return {
-  brand:str(raw?.brand,80),model:str(raw?.model,140).replace(/\s+[|=«»<&()]+\s*$/g,'').trim(),
+  brand:str(raw?.brand,80),model:str(raw?.model,140).replace(/\s+(?:[|=«»<&()]+\s*)+$/g,'').trim(),
   yearManufacture:year(raw?.yearManufacture),yearModel:year(raw?.yearModel),
   plate:/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)?plate:'',
   km:raw?.km!==null&&raw?.km!==undefined&&km!==null&&Number.isInteger(km)&&km>=0&&km<=999999?km:null,
