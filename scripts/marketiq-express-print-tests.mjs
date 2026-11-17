@@ -207,6 +207,44 @@ assert.ok(deskSrc.includes('Encontramos uma correspondência única na FIPE.'));
 assert.ok(deskSrc.includes('Confirmar versão FIPE: {expressFipeSuggestion.name}'));
 assert.ok(deskSrc.includes('onClick={()=>selectModel(expressFipeSuggestion.code)}'),
  'The FIPE code must only be applied after an explicit click');
+// Chrome button capture of Creta Limited: 2024/2025, 15,000 km,
+// plate TKY1I99; FIPE (015203-0) uses TB 12V for the TGDI engine.
+const cretaCaptured='CRETA 1.0 TGDI FLEX LIMITED AUTOMÁTICO';
+const cretaOptions=[
+ {code:'limited',name:'Creta Limited 1.0 TB 12V Flex Aut.'},
+ {code:'platinum',name:'Creta Platinum 1.0 TB 12V Flex Aut.'},
+ {code:'ultimate',name:'Creta Ultimate 2.0 16V Flex Aut.'},
+ {code:'comfort',name:'Creta Comfort 1.0 TB 12V Flex Aut.'},
+ {code:'nline',name:'Creta N Line 1.0 TB 12V Flex Aut.'},
+ {code:'limited20',name:'Creta Limited 2.0 16V Flex Aut.'}
+];
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(cretaCaptured,cretaOptions),
+ cretaOptions[0],'Unique Creta Limited TGDI automatic must suggest only Limited TB 12V');
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI FLEX LIMITED AUTOMATICO',
+ [{code:'limited2',name:'Creta Limited 1.0 TGDI 12V Flex Aut.'},...cretaOptions.slice(1)]),
+ {code:'limited2',name:'Creta Limited 1.0 TGDI 12V Flex Aut.'});
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI FLEX LIMITED MANUAL',cretaOptions),null,
+ 'Manual cannot be matched to automatic FIPE');
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI FLEX PLATINUM AUTOMATICO',cretaOptions),null,
+ 'Do not conflate Limited and Platinum');
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI FLEX LIMITED AUTOMATICO',cretaOptions.slice(1)),null,
+ 'Do not silently fall back to Comfort, Ultimate, N Line, or Platinum');
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 2.0 FLEX LIMITED AUTOMATICO',cretaOptions),null,
+ 'Do not conflate 2.0 and 1.0 turbo');
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI GASOLINA LIMITED AUTOMATICO',cretaOptions),null,
+ 'Fuel must match Flex');
+assert.equal(handoff.suggestUniqueExpressFipeModel(cretaCaptured,
+ [cretaOptions[0],{code:'dup',name:cretaOptions[0].name}]),null,
+ 'Duplicate FIPE catalog equivalents must be resolved by operator');
+assert.equal(handoff.suggestUniqueExpressFipeModel(cretaCaptured,
+ [cretaOptions[0],{code:'limitedTGDI',name:'Creta Limited 1.0 TGDI 12V Flex Aut.'}]),null,
+ 'Two distinct model options with equivalent names are ambiguous');
 const corollaCaptured='COROLLA 2.0 XEI 16V FLEX 4P AUTOMATICO';
 const fipeModels=[
  {code:'cx',name:'Corolla XEi 2.0 Flex 16V Aut.'},
