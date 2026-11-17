@@ -165,6 +165,86 @@ assert.equal(lib.cleanExpressVehicle({model:'POLO TRACK GTS 1.4 TSI AUTOMATICO'}
  'POLO TRACK GTS 1.4 TSI AUTOMATICO','Preserve valid other trim names');
 assert.ok(deskSrc.includes('onClick={()=>selectModel(expressFipeSuggestion.code)}'),
  'The operator must confirm suggested FIPE trim before loading any reference');
+// Real Chrome favorite → Motoq IQ Mesa handoff, Polo 1.6 MSI 2019/2020.
+// AutoAvaliar says "POLO 1.6 MSI TOTAL FLEX MANUAL"; FIPE's unique
+// non-automatic counterpart is "Polo 1.6 MSI Flex 16V 5p" (005478-0).
+// The operator must click Confirmar versão FIPE, then the 2020 Flex year.
+const poloMsiCaptured='POLO 1.6 MSI TOTAL FLEX MANUAL';
+const poloMsiOptions=[
+ {code:'manual',name:'Polo 1.6 MSI Flex 16V 5p'},
+ {code:'automatic',name:'Polo 1.6 MSI Total Flex 16V 5p Aut.'},
+ {code:'mpi',name:'Polo 1.0 MPI Flex 12V 5p'},
+ {code:'tsi',name:'Polo Highline 200 TSI 1.0 Flex 12V Aut.'},
+ {code:'track',name:'Polo Track 1.0 Flex 12V 5p'},
+ {code:'gts',name:'Polo GTS 250 TSI 1.4 Flex 16V Aut.'}
+];
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,poloMsiOptions),
+ poloMsiOptions[0],
+ 'Suggest manual Polo 1.6 MSI after browser favorite import without choosing FIPE automatically');
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel('POLO 1.6 MSI FLEX MANUAL',poloMsiOptions),
+ poloMsiOptions[0],'Total Flex and Flex naming are equivalent for this exact manual trim');
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,[
+ {code:'manual-total',name:'Polo 1.6 MSI Total Flex 16V 5p'},poloMsiOptions[1]]),
+ {code:'manual-total',name:'Polo 1.6 MSI Total Flex 16V 5p'});
+assert.equal(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,poloMsiOptions.slice(1)),null,
+ 'Never suggest an automatic or other trim when manual FIPE candidate is absent');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.6 MSI TOTAL FLEX AUTOMATICO',poloMsiOptions),null,
+ 'Automatic AutoAvaliar Polo cannot map to manual FIPE code');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.0 MPI TOTAL FLEX MANUAL',poloMsiOptions),null,
+ 'Different engine displacement 1.0 versus 1.6 cannot map');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.6 MSI TOTAL FLEX HIGHLINE MANUAL',poloMsiOptions),null,
+ 'Do not infer premium trim from base manual');
+assert.equal(handoff.suggestUniqueExpressFipeModel('POLO 1.6 MSI GASOLINA MANUAL',poloMsiOptions),null,
+ 'Gasolina-only cannot match Flex');
+assert.equal(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,[
+ poloMsiOptions[0],{code:'duplicate',name:poloMsiOptions[0].name}]),null,
+ 'Multiple apparently equivalent FIPE catalog entries require manual selection');
+assert.equal(handoff.suggestUniqueExpressFipeModel(poloMsiCaptured,[
+ poloMsiOptions[0],{code:'total',name:'Polo 1.6 MSI Total Flex 16V 5p'}]),null,
+ 'Different but equivalent manual labels must still remain ambiguous');
+assert.ok(deskSrc.includes('Recebido do AutoAvaliar: '));
+assert.ok(deskSrc.includes('Encontramos uma correspondência única na FIPE.'));
+assert.ok(deskSrc.includes('Confirmar versão FIPE: {expressFipeSuggestion.name}'));
+assert.ok(deskSrc.includes('onClick={()=>selectModel(expressFipeSuggestion.code)}'),
+ 'The FIPE code must only be applied after an explicit click');
+// Chrome button capture of Creta Limited: 2024/2025, 15,000 km,
+// plate TKY1I99; FIPE (015203-0) uses TB 12V for the TGDI engine.
+const cretaCaptured='CRETA 1.0 TGDI FLEX LIMITED AUTOMÁTICO';
+const cretaOptions=[
+ {code:'limited',name:'Creta Limited 1.0 TB 12V Flex Aut.'},
+ {code:'platinum',name:'Creta Platinum 1.0 TB 12V Flex Aut.'},
+ {code:'ultimate',name:'Creta Ultimate 2.0 16V Flex Aut.'},
+ {code:'comfort',name:'Creta Comfort 1.0 TB 12V Flex Aut.'},
+ {code:'nline',name:'Creta N Line 1.0 TB 12V Flex Aut.'},
+ {code:'limited20',name:'Creta Limited 2.0 16V Flex Aut.'}
+];
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(cretaCaptured,cretaOptions),
+ cretaOptions[0],'Unique Creta Limited TGDI automatic must suggest only Limited TB 12V');
+assert.deepEqual(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI FLEX LIMITED AUTOMATICO',
+ [{code:'limited2',name:'Creta Limited 1.0 TGDI 12V Flex Aut.'},...cretaOptions.slice(1)]),
+ {code:'limited2',name:'Creta Limited 1.0 TGDI 12V Flex Aut.'});
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI FLEX LIMITED MANUAL',cretaOptions),null,
+ 'Manual cannot be matched to automatic FIPE');
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI FLEX PLATINUM AUTOMATICO',cretaOptions),null,
+ 'Do not conflate Limited and Platinum');
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI FLEX LIMITED AUTOMATICO',cretaOptions.slice(1)),null,
+ 'Do not silently fall back to Comfort, Ultimate, N Line, or Platinum');
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 2.0 FLEX LIMITED AUTOMATICO',cretaOptions),null,
+ 'Do not conflate 2.0 and 1.0 turbo');
+assert.equal(handoff.suggestUniqueExpressFipeModel(
+ 'CRETA 1.0 TGDI GASOLINA LIMITED AUTOMATICO',cretaOptions),null,
+ 'Fuel must match Flex');
+assert.equal(handoff.suggestUniqueExpressFipeModel(cretaCaptured,
+ [cretaOptions[0],{code:'dup',name:cretaOptions[0].name}]),null,
+ 'Duplicate FIPE catalog equivalents must be resolved by operator');
+assert.equal(handoff.suggestUniqueExpressFipeModel(cretaCaptured,
+ [cretaOptions[0],{code:'limitedTGDI',name:'Creta Limited 1.0 TGDI 12V Flex Aut.'}]),null,
+ 'Two distinct model options with equivalent names are ambiguous');
 const corollaCaptured='COROLLA 2.0 XEI 16V FLEX 4P AUTOMATICO';
 const fipeModels=[
  {code:'cx',name:'Corolla XEi 2.0 Flex 16V Aut.'},
@@ -215,7 +295,7 @@ assert.equal(handoff.suggestUniqueExpressFipeModel('COROLLA XEI',fipeModels),nul
 assert.equal(handoff.suggestUniqueExpressFipeModel('COROLLA 2.0 XEI 16V GASOLINA AUTOMATICO',fipeModels),null,
  'Never match Flex to Gasolina/Diesel');
 assert.equal(handoff.suggestUniqueExpressFipeModel('Q3 2.0 40 TFSI GASOLINA SPORTBACK PERFORMANCE QUATTRO TIPTRONIC',fipeModels),null);
-assert.ok(deskSrc.includes("'Do print: '+expressReview!.vehicle.model")&&deskSrc.includes('expressModelPending'),
+assert.ok(deskSrc.includes("'Recebido do AutoAvaliar: '+expressReview!.vehicle.model")&&deskSrc.includes('expressModelPending'),
  'Mesa shows the captured model even with an unselected FIPE code');
 assert.ok(deskSrc.includes('Reconhecido no AutoAvaliar:')&&deskSrc.includes('expressReview!.vehicle.model'),
  'The extracted description is visibly preserved next to the FIPE selector');
@@ -702,7 +782,7 @@ assert.ok(ui.includes('readExpressPrintLocally(file,setReadStatus,setPlateZoom)'
 assert.ok(ui.includes('if(isMotyqInterfaceScreenshot(raw))'),'Reject copied Motyq text before parsing');
 assert.ok(ui.includes('placeholder="Digite a placa se não foi lida"'),'Do not display fictitious ABC1D23 as an actual plate');
 assert.ok(ui.includes('Placa não reconhecida. Confira no AutoAvaliar.'),'Warn when no real plate was extracted');
-assert.ok(ui.includes('Ano/modelo ou KM não reconhecidos.'),'Warn when the crop is incomplete');
+assert.ok(ui.includes('Ano/modelo ou KM ausentes.'),'Warn when imported fields are incomplete');
 
 assert.ok(ui.includes('history={history} loading={historyLoading} incomplete={historyIncomplete}'),'Same-screen preview includes paid history');
 assert.ok(ui.includes('src={plateZoom}')&&ui.includes('Placa ampliada diretamente do seu print'),'Allow quick visual correction when OCR fails');
@@ -739,7 +819,7 @@ assert.ok(ui.includes('Diretriz técnica por KM')&&ui.includes('Requer análise 
 assert.ok(ui.includes('Usar dados conferidos na Mesa'));
 assert.ok(workspace.includes('onApply={acceptExpressPrint}')&&workspace.includes("setYearCode('');setFipe(null)"));
 assert.ok(workspace.includes('Exceção: SHOWROOM')&&workspace.includes('destino oficial não foi alterado'));
-assert.ok(home.includes('onOpenExpress')&&home.includes('Motyq IQ Express · Prévia por print'));
+assert.ok(home.includes('onOpenExpress')&&home.includes('Motyq IQ · Captura direta do AutoAvaliar'));
 assert.ok(demo.includes('<MarketIqExpressPrintPanel demoOnly'),'Standalone preview must not call live OCR');
 assert.ok(demo.includes('sem enviar a imagem para o Motyq'),'Explain browser-only screenshot processing');
 assert.ok(entry.indexOf("==='/iq-express/laboratorio'?<MarketIqExpressDemoRoute/>")>=0);

@@ -30,6 +30,7 @@ import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import MarketIqQuickBuyerQuote from './MarketIqQuickBuyerQuote';
 import MarketIqAquaPilotPanel from './MarketIqAquaPilotPanel';
 import MarketIqExpressPrintPanel from './MarketIqExpressPrintPanel';
+import {decodeAutoAvaliarFavoriteHash,AUTOAVALIAR_FAVORITE_HASH_KEY} from '../services/marketIqAutoAvaliarFavorite';
 import MarketIqExpressHistoryCard from './MarketIqExpressHistoryCard';
 import type {ExpressVehicleExtract,ExpressAssessment} from '../services/marketIqExpress';
 import {suggestUniqueExpressFipeModel,uniqueExpressFipeBrand,resolvedExpressBrand} from '../services/marketIqExpressFipeHandoff';
@@ -103,7 +104,8 @@ const validSource=(a:Ad)=>{try{
 export default function ManualPricingWorkspace({user}:{user:User}){
  const key='motyq-iq-local-test-'+user.email.toLowerCase();
  const [deskSection,setDeskSection]=useState<'home'|'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar'>(()=>{
-   if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import'))return 'pricing';
+   if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import')||
+      window.location.hash.startsWith('#'+AUTOAVALIAR_FAVORITE_HASH_KEY+'='))return 'pricing';
    const previous=sessionStorage.getItem('motyq-iq-active-desk-tab');
    return previous==='home'||previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'||previous==='dashboard'?previous:'home';
  });
@@ -112,6 +114,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [quickBuyerQuote,setQuickBuyerQuote]=useState<ConsultedVehicle|null>(null);
  const [aquaVehicle,setAquaVehicle]=useState<ConsultedVehicle|null>(null);
  const [expressOpen,setExpressOpen]=useState(false);
+ const [favoriteIncoming,setFavoriteIncoming]=useState<ExpressVehicleExtract|null>(null);
  const [expressReview,setExpressReview]=useState<{vehicle:ExpressVehicleExtract;assessment:ExpressAssessment}|null>(null);
  // Local-only IndexedDB cache. Each account/company/unit owns an isolated key.
  // The parsed snapshot never leaves this device and is never uploaded.
@@ -223,6 +226,24 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    }
  },[]);
 
+ // Handoff from a button clicked on an authenticated AutoAvaliar evaluation.
+ // Browser fragment is never sent to the server; remove it immediately after
+ // mount, decode only strict vehicle fields, and ALWAYS require review.
+ useEffect(()=>{
+  const fragment=window.location.hash;
+  if(!fragment.startsWith('#'+AUTOAVALIAR_FAVORITE_HASH_KEY+'='))return;
+  window.history.replaceState(null,'',window.location.pathname+window.location.search);
+  try{
+   const captured=decodeAutoAvaliarFavoriteHash(fragment);
+   if(!captured)throw new Error('A captura recebida estava vazia.');
+   setFavoriteIncoming(captured);
+   setExpressOpen(true);
+   setDeskSection('pricing');
+   try{sessionStorage.setItem('motyq-iq-active-desk-tab','pricing');}catch{}
+  }catch(error){
+   setNotice(error instanceof Error?error.message:'O AutoAvaliar não retornou campos válidos.');
+  }
+ },[]);
  const [manualClassification,setManualClassification]=useState<FleetClass|''>(()=>{
  const current=String(savedForm.manualClassification||'');
  if(['A','B','C','D','E'].includes(current))return current as FleetClass;
@@ -839,7 +860,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   setBrandCode(match?.code||'');
   setModelCode('');setYearCode('');setFipe(null);
   setAds([]);setAutoSearchKey('');setDecisionOffer('');setDecisionConfirmedCost(null);
-  setExpressOpen(false);setMobileFullDesk(true);switchDeskSection('pricing');
+  setExpressOpen(false);setFavoriteIncoming(null);setMobileFullDesk(true);switchDeskSection('pricing');
   window.scrollTo({top:0,behavior:'smooth'});
  };
  // FIPE brands can arrive *after* the print transfer. Previously the
@@ -885,7 +906,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
 
  return <>
- {expressOpen&&<MarketIqExpressPrintPanel onClose={()=>setExpressOpen(false)} onApply={acceptExpressPrint}
+ {expressOpen&&<MarketIqExpressPrintPanel initialFavorite={favoriteIncoming} onClose={()=>{setExpressOpen(false);setFavoriteIncoming(null);}} onApply={acceptExpressPrint}
   history={saved} historyLoading={historyBusy} historyIncomplete={historyMore} historyError={historyError}/>}
  {aquaVehicle&&<MarketIqAquaPilotPanel scope={captureScope} vehicle={aquaVehicle} onClose={()=>setAquaVehicle(null)}/>}
  {quickBuyerQuote&&<MarketIqQuickBuyerQuote scope={captureScope} email={user.email} vehicle={quickBuyerQuote}
@@ -958,7 +979,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <button key={section} type="button" onClick={()=>navigateSimple(section)} aria-current={deskSection===section?'page':undefined}
     className={'rounded-xl px-3 py-2.5 text-xs font-bold transition '+(deskSection===section?'bg-cyan-50 text-cyan-950 ring-1 ring-cyan-200':'text-slate-700 hover:bg-slate-100')}>{label}</button>)}
   <button type="button" onClick={()=>setExpressOpen(true)}
-   className="rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-2.5 text-xs font-black text-indigo-950">⚡ Prévia Express</button>
+   className="rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-2.5 text-xs font-black text-indigo-950">Configurar captura</button>
   <button type="button" onClick={openAquaDashboard}
    className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2.5 text-xs font-black text-cyan-950">🐠 Aquário</button>
   <button type="button" onClick={()=>setShowAllTools(value=>!value)} aria-expanded={showAllTools}
@@ -1118,12 +1139,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  </div>}
  {expressReview&&<section role="status" className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm">
   <div className="flex flex-wrap items-start justify-between gap-3">
-   <div><p className="text-xs font-black uppercase text-indigo-950">Prévia Express · captura conferida</p>
+   <div><p className="text-xs font-black uppercase text-indigo-950">AutoAvaliar · captura conferida</p>
     <p className="mt-1 font-bold text-slate-950">{expressReview.vehicle.brand} {expressReview.vehicle.model} · {expressReview.vehicle.yearModel}</p>
     <p className="mt-1 text-xs text-slate-800">Prioridade comercial: <strong>{expressReview.assessment.priority}</strong> · {expressReview.assessment.reason}</p>
     <p className="mt-1 text-xs text-slate-700">Classe técnica por KM: {expressReview.assessment.fleetClass||'não confirmada'} · {expressReview.assessment.fleetGuideline||'a conferir'}</p>
    </div>
-   <button type="button" className="rounded-lg border border-indigo-400 px-3 py-2 text-xs font-bold text-indigo-950" onClick={()=>setExpressOpen(true)}>Revisar captura</button>
+   <button type="button" className="rounded-lg border border-indigo-400 px-3 py-2 text-xs font-bold text-indigo-950" onClick={()=>{setFavoriteIncoming(expressReview.vehicle);setExpressOpen(true);}}>Revisar captura</button>
   </div>
   {expressReview.assessment.policyConflict&&<p className="mt-2 rounded-lg bg-amber-100 p-3 text-xs font-bold text-amber-950">Exceção: SHOWROOM por procura/estoque, mas a diretriz técnica por KM recomenda REPASSE. Requer análise/autorização; o destino oficial não foi alterado.</p>}
   {expressReview.vehicle.plate===plate&&expressReview.vehicle.brand===brand&&expressReview.vehicle.model===model&&
@@ -1133,7 +1154,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      onClick={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');}}>
      Ver histórico completo desta placa
     </button>}
-   <p className="mt-2 text-xs text-slate-700">Dados importados para conferência. {brandCode?'Marca FIPE identificada; escolha a versão e ano correspondentes.':'Selecione a marca no catálogo FIPE.'} Confirme combustível, referência do mês, custos e preço de mercado antes de gerar uma proposta. O print não autoriza compra automática.</p>
+   <p className="mt-2 text-xs text-slate-700">Dados importados para conferência. {brandCode?'Marca FIPE identificada; escolha a versão e ano correspondentes.':'Selecione a marca no catálogo FIPE.'} Confirme combustível, referência do mês, custos e preço de mercado antes de gerar uma proposta. A captura não autoriza compra automática.</p>
  </section>}
  <section id="motyq-iq-valuation-form" className="rounded-xl bg-white p-5">
  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -1142,7 +1163,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   </div>
   <div className="flex flex-wrap items-center gap-2">
    <button type="button" onClick={()=>setExpressOpen(true)}
-    className="rounded-xl border border-indigo-700 bg-indigo-50 px-4 py-3 text-sm font-black text-indigo-950">⚡ Prévia por print</button>
+    className="rounded-xl border border-indigo-700 bg-indigo-50 px-4 py-3 text-sm font-black text-indigo-950">Configurar botão do Chrome</button>
    <button type="button" onClick={openAquaCurrent}
     disabled={!brand.trim()||!model.trim()||!year.trim()}
     className="rounded-xl border border-cyan-700 bg-cyan-50 px-4 py-3 text-sm font-black text-cyan-950 disabled:opacity-50">
@@ -1169,14 +1190,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    onOpenPricing={()=>switchDeskSection('pricing')}/>
   </div>
  </div>
- <div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="Digite a placa do AutoAvaliar" maxLength={7}/>{expressReview&&!plate&&<span className="mt-1 block text-xs font-semibold text-amber-800">Placa não reconhecida no print. Digite após conferir a ficha.</span>}</label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select>{expressReview&&!brandCode&&<span className="mt-1 block text-xs text-amber-800">{catalogLoading?'Carregando marcas FIPE para conferir a fabricante capturada.':'Marca da captura: '+(expressReview.vehicle.brand||'não reconhecida')+' · confirme no catálogo.'}</span>}</label><div><label className="block">Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">{expressModelPending?'Do print: '+expressReview!.vehicle.model:'Selecione modelo e versão'}</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label>
+ <div className="grid gap-3 md:grid-cols-2"><label>Tipo de veículo<select className={input} value={vehicleType} onChange={e=>selectVehicleType(e.target.value as 'car'|'motorcycle')}><option value="car">Automóvel / utilitário</option><option value="motorcycle">Motocicleta</option></select></label><div className="hidden md:block"/><label>Placa do veículo<input className={input} value={plate} onChange={e=>setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,7))} placeholder="Digite a placa do AutoAvaliar" maxLength={7}/>{expressReview&&!plate&&<span className="mt-1 block text-xs font-semibold text-amber-800">Placa não reconhecida no print. Digite após conferir a ficha.</span>}</label><div className="hidden md:block" /><label>Marca<select className={input} value={brandCode} onChange={e=>selectBrand(e.target.value)}><option value="">Selecione a marca</option>{brands.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select>{expressReview&&!brandCode&&<span className="mt-1 block text-xs text-amber-800">{catalogLoading?'Carregando marcas FIPE para conferir a fabricante capturada.':'Marca da captura: '+(expressReview.vehicle.brand||'não reconhecida')+' · confirme no catálogo.'}</span>}</label><div><label className="block">Modelo e versão<select className={input} value={modelCode} disabled={!brandCode} onChange={e=>selectModel(e.target.value)}><option value="">{expressModelPending?'Recebido do AutoAvaliar: '+expressReview!.vehicle.model:'Selecione modelo e versão'}</option>{models.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select></label>
  {expressModelPending&&<div className="mt-1 rounded-lg border border-indigo-200 bg-indigo-50 p-2 text-xs text-indigo-950" role="status">
   <p><strong>Reconhecido no AutoAvaliar:</strong> {expressReview!.vehicle.model}.</p>
-  <p className="mt-1">Ainda não é uma versão FIPE confirmada. Selecione a versão correspondente no catálogo.</p>
+  <p className="mt-1">{expressFipeSuggestion?'Encontramos uma correspondência única na FIPE. Confirme a versão sugerida para avançar ao ano/modelo.':catalogLoading?'Buscando versões no catálogo FIPE...':'Versão FIPE ainda não confirmada. Escolha a versão correspondente no catálogo.'}</p>
   {expressFipeSuggestion&&<button type="button" className="mt-2 block rounded-lg border border-indigo-600 bg-white px-3 py-2 text-left text-xs font-bold text-indigo-950 hover:bg-indigo-100"
    onClick={()=>selectModel(expressFipeSuggestion.code)}>Confirmar versão FIPE: {expressFipeSuggestion.name}</button>}
  </div>}
- </div><label>Ano/modelo e combustível<select className={input} value={yearCode} disabled={!modelCode} onChange={e=>selectYear(e.target.value)}><option value="">{expressDeskActive&&expressReview?.vehicle.yearModel?'Do print: '+expressReview.vehicle.yearModel+' · confirme ano/combustível FIPE':'Selecione ano'}</option>{years.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select>
+ </div><label>Ano/modelo e combustível<select className={input} value={yearCode} disabled={!modelCode} onChange={e=>selectYear(e.target.value)}><option value="">{expressDeskActive&&expressReview?.vehicle.yearModel?'AutoAvaliar: '+expressReview.vehicle.yearModel+' · confirme ano/combustível FIPE':'Selecione ano'}</option>{years.map(x=><option key={x.code} value={x.code}>{x.name}</option>)}</select>
  {expressDeskActive&&expressReview?.vehicle.yearModel&&!yearCode&&<span className="mt-1 block text-xs text-indigo-800">Ano/modelo capturado: <strong>{expressReview.vehicle.yearModel}</strong>. Escolha o ano e o combustível correspondentes na FIPE.</span>}
  </label><label>KM do veículo<input className={input} value={km} onChange={e=>setKm(e.target.value)} inputMode="numeric" placeholder="Ex.: 45000"/></label></div><div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Tabela FIPE · {vehicleType==='motorcycle'?'motocicletas':'automóveis'} · consulta gratuita</p>{catalogLoading?<p>Consultando catálogo FIPE...</p>:fipe?<><p className="text-2xl font-bold text-slate-900">{money(fipe.value)}</p><p className="text-sm text-slate-700">{fipe.brand} · {fipe.model} · {fipe.year} · {fipe.fuel}</p><p className="text-xs text-slate-700">Código FIPE: {fipe.fipeCode} · Referência: <strong>{fipe.referenceMonth}</strong>{fipe.referenceSource?' · Fonte: '+fipe.referenceSource:''}</p>
  <div className="mt-2 flex flex-wrap items-center gap-2">
