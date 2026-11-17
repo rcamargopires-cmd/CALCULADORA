@@ -65,6 +65,26 @@ function isVerifiedPoloTrack10Alias(extracted:string,option:string):boolean{
  return required.every(t=>source.includes(t))&&source.every(t=>allowed.has(t));
 }
 
+/** AutoAvaliar calls the manual Polo "1.6 MSI TOTAL FLEX MANUAL".
+ * FIPE calls the same non-automatic trim "Polo 1.6 MSI Flex 16V 5p",
+ * code 005478-0. Its automatic sibling has a different code.
+ *
+ * This is a deliberately narrow alias, not a fuzzy match: all engine,
+ * powertrain and model tokens must be present, and the candidate may
+ * contain only the known FIPE version names. The operator still confirms.
+ */
+function isVerifiedPoloMsi16ManualAlias(extracted:string,option:string):boolean{
+ const source=tokens(extracted),candidate=tokens(option);
+ const acceptedCandidates=[
+  tokens('POLO 1.6 MSI FLEX 16V 5P').join('|'),
+  tokens('POLO 1.6 MSI TOTAL FLEX 16V 5P').join('|')
+ ];
+ if(!acceptedCandidates.includes(candidate.join('|')))return false;
+ const required=tokens('POLO 1.6 MSI FLEX MANUAL');
+ const allowed=new Set([...required,'TOTAL']);
+ return required.every(t=>source.includes(t))&&source.every(t=>allowed.has(t));
+}
+
 export function suggestUniqueExpressFipeModel(
  extractedModel:string,options:readonly ExpressFipeCatalogOption[]
 ):ExpressFipeCatalogOption|null{
@@ -76,7 +96,8 @@ export function suggestUniqueExpressFipeModel(
  if(matching.length>1)return null;
  const aliasMatches=options.filter(item=>String(item.code||'').trim()&&
   (isVerifiedArgoDrive10Alias(extractedModel,item.name)||
-   isVerifiedPoloTrack10Alias(extractedModel,item.name)));
+   isVerifiedPoloTrack10Alias(extractedModel,item.name)||
+   isVerifiedPoloMsi16ManualAlias(extractedModel,item.name)));
  // Even a verified model-name alias is a *suggestion*. The operator chooses
  // the FIPE model and then its year/fuel before any FIPE value can be used.
  return aliasMatches.length===1?aliasMatches[0]:null;
