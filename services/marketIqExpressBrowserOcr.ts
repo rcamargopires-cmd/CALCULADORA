@@ -230,7 +230,20 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
    // The small original may keep TERA/year/KM legible while losing the tiny
    // Placa label or the seven-character value. Reread the original card
    // context in high resolution, with OCR positions instead of fixed rows.
-   const context=await worker.recognize(regions.plateContext,{}, {tsv:true});
+   // A small AutoAvaliar vehicle card is a short, aligned text block, not
+   // a whole document. PSM 6 reliably keeps "Placa UQR5I61" on one line
+   // (PSM 3 often drops the short value entirely). Always reset the worker.
+   let modeChanged=false;
+   try{
+    await worker.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''});
+    modeChanged=true;
+   }catch{/* Tesseract default is still a safe fallback. */}
+   let context;
+   try{
+    context=await worker.recognize(regions.plateContext,{}, {tsv:true});
+   }finally{
+    if(modeChanged)await worker.setParameters({tessedit_pageseg_mode:'3',tessedit_char_whitelist:''}).catch(()=>{});
+   }
    const contextText=context.data.text||'',contextTsv=context.data.tsv||'';
    contextAnchor=plateAnchorFromVehicleTsv(contextTsv);
    const contextPlate=plateFromLabelledVehicleText(contextText,contextTsv);
