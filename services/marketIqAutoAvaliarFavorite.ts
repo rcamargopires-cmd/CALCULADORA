@@ -104,8 +104,7 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
   const geometryField=(key:string):string=>{
    const nodes=getVisibleNodes();
    const exact=(value:string)=>cleanLabel(value).replace(/[:=|]\s*$/,'').trim()===key;
-   const origins=nodes.filter(n=>exact(n.value.replace(/\s+NACIONAL\s*$/i,''))&&
-    cleanLabel(n.value).startsWith('ORIGEM'));
+   const origins=nodes.filter(n=>/^ORIGEM(?:\s+NACIONAL)?\s*:?$/.test(cleanLabel(n.value)));
    const labels=nodes.filter(n=>exact(n.value)&&
     (key==='ORIGEM'||!origins.length||origins.some(origin=>
       Math.abs(n.rect.left-origin.rect.left)<115&&
@@ -128,6 +127,28 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
   };
   const field=(key:string):string=>{
    const normalizedKey=normalize(key);
+   // KM can be misread as "4" from the Portas row. Prefer the value
+   // visually aligned with the KM label, and accept unaligned text only
+   // when it is a confidently formatted 4-6 digit reading.
+   if(normalizedKey==='KM'){
+    const strongKm=(v:string)=>/^(?:\d{1,3}(?:[.,]\d{3}){1,2}|\d{4,6})$/.test(v.trim());
+    for(let i=firstOrigin;i<cardEnd;i++){
+     const inline=takeFromRow('KM',lines[i]);
+     if(inline&&strongKm(inline))return inline;
+    }
+    const positioned=geometryField('KM');
+    if(positioned)return positioned;
+    const fromDom=domField('KM');
+    if(fromDom&&strongKm(fromDom))return fromDom;
+    for(let i=firstOrigin;i<cardEnd;i++){
+     if(!/^KM\s*:?$/.test(cleanLabel(lines[i])))continue;
+     const next=String(lines[i+1]||'').trim();
+     if(strongKm(next))return next;
+    }
+    // Short numbers (e.g. 4 doors) are never silently used as mileage.
+    // Truly low-mileage cars can be confirmed by aligned DOM or manually.
+    return '';
+   }
    for(let i=firstOrigin;i<cardEnd;i++){
     const candidate=takeFromRow(normalizedKey,lines[i]);
     if(candidate)return candidate;
@@ -172,8 +193,9 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
   const years=field('ANO').match(/\b((?:19|20)\d{2})\s*[/\-]\s*((?:19|20)\d{2})\b/);
   const yearManufacture=years?years[1]:'';
   const yearModel=years?years[2]:'';
-  const kmField=field('KM').match(/\b(?:\d{1,3}(?:[.,]\d{3}){1,2}|\d{4,6}|\d{1,3})\b/);
-  const kmValue=kmField?Number(kmField[0].replace(/\./g,'')):NaN;
+  const kmText=field('KM').trim();
+  const kmField=kmText.match(/^(?:\d{1,3}(?:[.,]\d{3}){1,2}|\d{4,6}|\d{1,3})$/);
+  const kmValue=kmField?Number(kmField[0].replace(/[.,]/g,'')):NaN;
   const km=Number.isInteger(kmValue)&&kmValue>=0&&kmValue<=999999?kmValue:null;
   // FIPE and condition score are optional observations, not current values
   // or purchase approvals. Never read customer names, chassis or RENAVAM.
