@@ -94,7 +94,8 @@ assert.ok(src('components/ManualPricingWorkspace.tsx').includes('historyError={h
 const deskSrc=src('components/ManualPricingWorkspace.tsx');
 assert.ok(deskSrc.includes('history={saved} historyLoading={historyBusy} historyIncomplete={historyMore}'),
  'Express history must be passed from authenticated Desk scope only');
-assert.ok(deskSrc.includes('setBrandCode(brandMatches.length===1?brandMatches[0].code:'),'Auto-select only exact brand');
+assert.ok(deskSrc.includes('setBrandCode(match?.code||\'\')')&&deskSrc.includes('uniqueExpressFipeBrand(candidateBrand,brands)'),
+ 'Select only a single confirmed FIPE manufacturer, including VW aliases');
 assert.ok(deskSrc.includes("setModelCode('');setYearCode('');setFipe(null);"),'Never guess FIPE trim and price');
 assert.ok(deskSrc.includes("switchDeskSection('plateHistory')"),'Plate history accessible without duplicating a screen');
 
