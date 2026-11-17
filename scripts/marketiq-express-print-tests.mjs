@@ -610,7 +610,9 @@ assert.ok(browserOcr.includes('rating:crop(0.765,0.18,0.23,0.49)'),'Scan separat
 assert.ok(browserOcr.includes('if(extracted.conditionScore===null&&regions)'),'No extra rating OCR call when already read');
 assert.ok(browserOcr.includes('ratingText'),'Pass sidebar OCR text to parser');
 
-assert.ok(browserOcr.includes('plateContext:crop(0.50,0.06,0.27,0.22,6)'),'When label unreadable, show vehicle table not unrelated year row');
+assert.ok(browserOcr.includes('contextRect={x:0.50,y:0.06,w:0.27,h:0.22}')&&
+ browserOcr.includes('plateContext:crop(contextRect.x,contextRect.y,contextRect.w,contextRect.h,6)'),
+ 'Missing labels must trigger a bounded crop of the actual vehicle card, never a random row');
 assert.ok(browserOcr.includes('plateAt:(anchor)=>')&&browserOcr.includes('const center=height*detailRect.y+(anchor.top+anchor.height/2)/detailScale;'),'Crop plate using detected text row rather than fixed screenshot coordinates');
 assert.ok(browserOcr.includes('plateValueAt:(anchor)=>')&&browserOcr.includes('regions.plateValueAt(label)'), 'Target plate value only to avoid Placa label contamination');
 assert.ok(browserOcr.includes("if(!extracted.plate&&regions)"),'Avoid slow plate OCR when first pass succeeds');
