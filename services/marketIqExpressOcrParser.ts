@@ -22,7 +22,7 @@ const mileage=(x:string):number|null=>{
 };
 const knownModels:[RegExp,string][]=[
  [/\b(PRISMA|ONIX|TRACKER|SPIN|CRUZE|S10|MONTANA)\b/,'CHEVROLET'],
- [/\b(T-CROSS|TCROSS|POLO|VIRTUS|NIVUS|GOL|SAVEIRO|JETTA|TAOS|AMAROK)\b/,'VOLKSWAGEN'],
+ [/\b(T-CROSS|TCROSS|TERA|POLO|VIRTUS|NIVUS|GOL|SAVEIRO|JETTA|TAOS|AMAROK)\b/,'VOLKSWAGEN'],
  [/\b(CRETA|HB20S|HB20X|HB20|TUCSON|IX35)\b/,'HYUNDAI'],
  [/\b(RAV4|RAV-4|YARIS|COROLLA|HILUX|ETIOS|SW4|PRIUS|CAMRY|C-HR)\b/,'TOYOTA'],
  [/\b(COMPASS|RENEGADE|COMMANDER)\b/,'JEEP'],
@@ -250,6 +250,33 @@ export function plateFromVehicleTsv(tsv:string):{plate:string;corrected:boolean}
  }
  return null;
 }
+
+/** Recover a plate only when associated with its vehicle-card label.
+ * High-resolution OCR may recognize the value in another column, or
+ * place the label and value on separate lines.
+ */
+export function plateFromLabelledVehicleText(
+ text:string,tsv:string=''
+):{plate:string;corrected:boolean}|null{
+ const byCoordinates=plateFromVehicleTsv(tsv);
+ if(byCoordinates)return byCoordinates;
+ const rows=[...spatialOcrRows(tsv),...String(text||'').split(/\r?\n/)]
+  .map(fold).filter(Boolean);
+ for(let i=0;i<rows.length;i++){
+  const row=rows[i];
+  const match=row.match(/(?:^|[^A-Z0-9])(?:PLACA|PIACA|P1ACA|PLAC4)\s*[:|.= -]*([A-Z0-9]+(?:[\s-]+[A-Z0-9]+)?)\s*$/);
+  if(match){
+   const candidate=normalizePlateFromIsolatedCrop(match[1]);
+   if(candidate)return candidate;
+  }
+  if(/^(?:PLACA|PIACA|P1ACA|PLAC4)\s*:?\s*$/.test(row)&&i+1<rows.length){
+   const candidate=normalizePlateFromIsolatedCrop(rows[i+1]);
+   if(candidate)return candidate;
+  }
+ }
+ return null;
+}
+
 /** Recover a plate from the enlarged vehicle-only region when the OCR misses
  * the tiny label. Do not scan chassi, Renavam, customer or other full-page text.
  */

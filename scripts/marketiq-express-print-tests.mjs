@@ -305,6 +305,63 @@ assert.throws(()=>clipboard.parseAutoAvaliarClipboardText('um texto aleatório')
 assert.throws(()=>clipboard.parseAutoAvaliarClipboardText('Placa ABC1D23\nAno 2024/2024\nKM 15000'),/Não identifiquei marca/);
 assert.ok(!src('services/marketIqExpressClipboard.ts').includes('fetch('),'Text clipboard must remain local');
 
+// User's AutoAvaliar 1346x599 VW Tera screenshot: the source has no
+// explicit manufacturer in its title. The initial OCR read the model,
+// 2026/2026, KM 2.079, and FIPE but missed brand and plate.
+const teraSourceText=[
+ 'TERA 1.0 MPI FLEX MANUAL =',
+ '# 116600359',
+ 'Origem NACIONAL',
+ 'Placa UQR5I61',
+ 'Ano 2026/2026',
+ 'Cor PRATA',
+ 'Km 2.079',
+ 'REFERENCIAS',
+ 'FIPE R$ 92.652,00',
+ 'NOTAS DA AVALIACAO 2,8/10'
+].join('\n');
+const tera=parser.parseAutoAvaliarOcrText(teraSourceText);
+assert.equal(tera.brand,'VOLKSWAGEN','Tera should resolve to Volkswagen');
+assert.equal(tera.model,'TERA 1.0 MPI FLEX MANUAL','Do not retain trailing OCR equals sign');
+assert.equal(tera.plate,'UQR5I61');
+assert.equal(tera.yearManufacture,'2026');
+assert.equal(tera.yearModel,'2026');
+assert.equal(tera.km,2079);
+assert.equal(tera.fipeReference,92652);
+assert.equal(tera.conditionScore,2.8);
+const teraMissingPlate=parser.parseAutoAvaliarOcrText(
+ 'TERA 1.0 MPI FLEX MANUAL =\nAno 2026/2026\nKm 2.079','',
+ 'TERA 1.0 MPI FLEX MANUAL =\nAno 2026/2026\nKm 2.079',
+ '',
+ 'REFERENCIAS\nFIPE R$ 92.652,00');
+assert.equal(teraMissingPlate.brand,'VOLKSWAGEN');
+assert.equal(teraMissingPlate.plate,'');
+assert.deepEqual(parser.plateFromLabelledVehicleText('Placa UQR5I61\nAno 2026/2026'),
+ {plate:'UQR5I61',corrected:false});
+assert.deepEqual(parser.plateFromLabelledVehicleText('® Piaca: UQR5I61'),
+ {plate:'UQR5I61',corrected:false});
+assert.deepEqual(parser.plateFromLabelledVehicleText('Placa\nUQR5I61\nAno 2026/2026'),
+ {plate:'UQR5I61',corrected:false});
+assert.equal(parser.plateFromLabelledVehicleText('Renavam 0150033418\nChassi 9BWB...\nAno 2026/2026'),
+ null,'No plate label means no automatic plate suggestion');
+assert.equal(parser.plateFromLabelledVehicleText('Placa 116600359'),
+ null,'An appraisal ID must never be mistaken for a plate');
+const teraContextTsv=[
+ 'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
+ '5\t1\t1\t1\t1\t1\t540\t100\t100\t24\t94\tOrigem',
+ '5\t1\t1\t1\t1\t2\t1550\t100\t120\t24\t92\tNACIONAL',
+ '5\t1\t1\t1\t2\t1\t540\t175\t90\t24\t93\tPlaca',
+ '5\t1\t2\t1\t2\t1\t1510\t176\t124\t24\t87\tUQR5I61',
+ '5\t1\t1\t1\t3\t1\t540\t250\t70\t24\t94\tAno',
+ '5\t1\t2\t1\t3\t1\t1490\t251\t130\t24\t93\t2026/2026'
+].join('\n');
+assert.deepEqual(parser.plateFromLabelledVehicleText('',teraContextTsv),
+ {plate:'UQR5I61',corrected:false},
+ 'A separate high-resolution context OCR pass must associate right-aligned value and label');
+assert.deepEqual(parser.plateAnchorFromVehicleTsv(teraContextTsv),
+ {top:175,height:24,left:540,width:90},
+ 'The enlarged Tera card has a crop anchor for the plate row');
+
 const spatialTsv=[
  'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
  '5\t1\t1\t1\t1\t1\t20\t100\t40\t15\t90\tAno',
@@ -529,6 +586,12 @@ assert.equal(guard.isMotyqInterfaceScreenshot(
 assert.equal(guard.isMotyqInterfaceScreenshot(
  'Fotos Fotos Lista\nQ3 2.0 40 TFSI GASOLINA SPORTBACK\nPlaca ABC1D23\nAno 2022/2023\nKm 62.500'),false);
 const browserOcr=src('services/marketIqExpressBrowserOcr.ts');
+assert.ok(browserOcr.includes('plateFromLabelledVehicleText(contextText,contextTsv)'),
+ 'Read a labelled plate from the enlarged context before manual entry');
+assert.ok(browserOcr.includes('plateContextValueAt(contextAnchor)'),
+ 'When context has a plate anchor, crop the value at the correct row');
+assert.ok(browserOcr.includes("if(!plateImage)return extracted"),
+ 'Do not read arbitrary full panel areas as a single plate line');
 transpile('services/marketIqExpressBrowserOcr.ts');
 assert.ok(browserOcr.includes('tesseract.js@7.0.0/dist/tesseract.min.js'));
 assert.ok(browserOcr.includes("createWorker(['por','eng']"));
@@ -547,7 +610,9 @@ assert.ok(browserOcr.includes('rating:crop(0.765,0.18,0.23,0.49)'),'Scan separat
 assert.ok(browserOcr.includes('if(extracted.conditionScore===null&&regions)'),'No extra rating OCR call when already read');
 assert.ok(browserOcr.includes('ratingText'),'Pass sidebar OCR text to parser');
 
-assert.ok(browserOcr.includes('plateContext:crop(0.50,0.06,0.27,0.22,6)'),'When label unreadable, show vehicle table not unrelated year row');
+assert.ok(browserOcr.includes('contextRect={x:0.50,y:0.06,w:0.27,h:0.22}')&&
+ browserOcr.includes('plateContext:crop(contextRect.x,contextRect.y,contextRect.w,contextRect.h,6)'),
+ 'Missing labels must trigger a bounded crop of the actual vehicle card, never a random row');
 assert.ok(browserOcr.includes('plateAt:(anchor)=>')&&browserOcr.includes('const center=height*detailRect.y+(anchor.top+anchor.height/2)/detailScale;'),'Crop plate using detected text row rather than fixed screenshot coordinates');
 assert.ok(browserOcr.includes('plateValueAt:(anchor)=>')&&browserOcr.includes('regions.plateValueAt(label)'), 'Target plate value only to avoid Placa label contamination');
 assert.ok(browserOcr.includes("if(!extracted.plate&&regions)"),'Avoid slow plate OCR when first pass succeeds');
