@@ -510,15 +510,35 @@ assert.ok(parsedOcr.warnings.some(x=>x.includes('experimental')));
 assert.equal(parser.parseAutoAvaliarOcrText('VW POLO\nPlaca ABC1D23\nAno 2020/2021\nKM 65.300\nFIPE 0KM\nFIPE\nValor R$ 78.300,00').fipeReference,78300);
 assert.equal(parser.parseAutoAvaliarOcrText('VW POLO\nAno 2020/2021\nKM indefinido').km,null);
 assert.throws(()=>parser.parseAutoAvaliarOcrText('cliente Joao CPF 12345678900'),/Não encontrei/);
+// Capturing Motyq itself instead of the AutoAvaliar source can recover the
+// vehicle model from a prior input but misread the plate/years. Reject it.
+const guard=await import('data:text/javascript;base64,'+
+ Buffer.from(transpile('services/marketIqExpressScreenshotGuard.ts')).toString('base64'));
+assert.equal(guard.isMotyqInterfaceScreenshot(
+ 'Nova precificação\nPrévia por print\nBuscar por voz M.O.T.Y.Q.\nModelo ARGO 1.0 FIREFLY FLEX DRIVE MANUAL'),true,
+ 'A screenshot of Motyq own valuation form must be rejected');
+assert.equal(guard.isMotyqInterfaceScreenshot(
+ 'MOTYQ IQ EXPRESS LABORATORIO\n1. Colar avaliação\nClique aqui e pressione Ctrl+V'),true,
+ 'A screenshot of the IQ Express modal itself must be rejected');
+assert.equal(guard.isMotyqInterfaceScreenshot(
+ 'AUTOAVALIAR\nARGO 1.0 FIREFLY FLEX DRIVE MANUAL\nPlaca ABC1D23\nAno 2020/2020\nKM 62.694'),false,
+ 'A genuine AutoAvaliar vehicle card must remain accepted');
+assert.equal(guard.isMotyqInterfaceScreenshot(
+ 'AutoAvaliar\nObservação: cliente mencionou Motyq'),false,
+ 'One isolated mention of Motyq should not reject a legitimate capture');
+assert.equal(guard.isMotyqInterfaceScreenshot(
+ 'Fotos Fotos Lista\nQ3 2.0 40 TFSI GASOLINA SPORTBACK\nPlaca ABC1D23\nAno 2022/2023\nKm 62.500'),false);
 const browserOcr=src('services/marketIqExpressBrowserOcr.ts');
 transpile('services/marketIqExpressBrowserOcr.ts');
 assert.ok(browserOcr.includes('tesseract.js@7.0.0/dist/tesseract.min.js'));
 assert.ok(browserOcr.includes("createWorker(['por','eng']"));
 assert.ok(browserOcr.includes("recognize(image,{}, {tsv:true})"),'Collect word coordinates from OCR to reconstruct right-aligned values');
 assert.ok(browserOcr.includes('screenshotRegions(file)'),'Full AutoAvaliar screenshots need magnified vehicle crop');
+assert.ok(browserOcr.includes('isMotyqInterfaceScreenshot(output.data.text)'),'Reject self-screenshot immediately after initial OCR');
+
 assert.ok(browserOcr.includes('regions=await screenshotRegions(file);'),'Region analysis must not depend on unreliable header OCR');
 assert.ok(!browserOcr.includes('if(isAutoAvaliar)'),'Regional OCR must run even when tiny AutoAvaliar menu labels are missed');
-assert.ok(browserOcr.includes('onPlateZoom?.(plateAnchor?regions.plateAt(plateAnchor):regions.plateContext)'),'Show the label-anchored plate or contextual fallback');
+assert.ok(browserOcr.includes('onPlateZoom?.(plateAnchor?regions.plateAt(plateAnchor):null)'),'Only show a labeled, verified plate-row crop; never display an arbitrary UI button as the plate');
 assert.ok(browserOcr.includes('let configured=false;')&&browserOcr.includes('const plateResult=await worker.recognize(plateImage);'),'Run adaptive plate OCR even if setParameters fails');
 
 assert.ok(browserOcr.includes('detailRect={x:0.49,y:0.005,w:0.28,h:0.745}'),'Include left label and right plate in detail OCR for menu/crop variants');
@@ -547,6 +567,11 @@ assert.ok(!browserOcr.includes('localStorage')&&!browserOcr.includes('indexedDB'
 const backend=src('server/motyqIqExpressPrint.ts');
 const ui=src('components/MarketIqExpressPrintPanel.tsx');
 assert.ok(ui.includes('readExpressPrintLocally(file,setReadStatus,setPlateZoom)'),'Show the isolated plate only in local UI');
+assert.ok(ui.includes('if(isMotyqInterfaceScreenshot(raw))'),'Reject copied Motyq text before parsing');
+assert.ok(ui.includes('placeholder="Digite a placa se não foi lida"'),'Do not display fictitious ABC1D23 as an actual plate');
+assert.ok(ui.includes('Placa não reconhecida. Confira no AutoAvaliar.'),'Warn when no real plate was extracted');
+assert.ok(ui.includes('Ano/modelo ou KM não reconhecidos.'),'Warn when the crop is incomplete');
+
 assert.ok(ui.includes('history={history} loading={historyLoading} incomplete={historyIncomplete}'),'Same-screen preview includes paid history');
 assert.ok(ui.includes('src={plateZoom}')&&ui.includes('Placa ampliada diretamente do seu print'),'Allow quick visual correction when OCR fails');
 assert.ok(ui.includes("setMethod('local')"),'OCR local should be the normal workflow');
