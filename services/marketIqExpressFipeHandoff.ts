@@ -8,6 +8,8 @@ export type ExpressFipeCatalogOption={code:string;name:string};
  */
 export function resolvedExpressBrand(rawBrand:string,model:string):string{
  const recognized=String(rawBrand||'').trim();
+ // Normalize the AutoAvaliar manufacturer to the FIPE label used by Mesa.
+ if(/^(?:GM\s*[-/]?\s*)?CHEVROLET$/i.test(recognized)||/^GM$/i.test(recognized))return 'GM - Chevrolet';
  if(recognized)return recognized;
  return /^\s*TERA\b/i.test(String(model||''))?'VOLKSWAGEN':'';
 }
@@ -23,6 +25,8 @@ export function uniqueExpressFipeBrand(
  if(!expected||!Array.isArray(brands))return null;
  const aliases=expected==='VOLKSWAGEN'||expected==='VW'?
   new Set(['VOLKSWAGEN','VW','VWVOLKSWAGEN','VOLKSWAGENVW']):
+  (expected==='CHEVROLET'||expected==='GM'||expected==='GMCHEVROLET'||expected==='CHEVROLETGM')?
+  new Set(['CHEVROLET','GM','GMCHEVROLET','CHEVROLETGM']):
   new Set([expected]);
  const matches=brands.filter(item=>String(item.code||'').trim()&&aliases.has(foldedBrand(item.name)));
  return matches.length===1?matches[0]:null;

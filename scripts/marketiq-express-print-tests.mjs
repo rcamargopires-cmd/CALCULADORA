@@ -106,6 +106,25 @@ const handoffJs=transpile('services/marketIqExpressFipeHandoff.ts');
 const handoff=await import('data:text/javascript;base64,'+Buffer.from(handoffJs).toString('base64'));
 // Regression: Volkswagen Tera title recognized before FIPE catalog loads.
 assert.equal(handoff.resolvedExpressBrand('','TERA 1.0 MPI FLEX MANUAL'),'VOLKSWAGEN');
+
+// Manufacturer shown in the FIPE dropdown for every Chevrolet vehicle.
+for(const raw of ['CHEVROLET','GM','GM - Chevrolet','GM/Chevrolet']){
+ assert.equal(handoff.resolvedExpressBrand(raw,'ONIX 1.0 TURBO FLEX AUTOMATICO'),'GM - Chevrolet');
+}
+const gmCatalog=[{code:'23',name:'GM - Chevrolet'},{code:'26',name:'GMC'},{code:'25',name:'VW - Volkswagen'}];
+for(const raw of ['CHEVROLET','GM','GM - Chevrolet','Chevrolet - GM']){
+ assert.deepEqual(handoff.uniqueExpressFipeBrand(raw,gmCatalog),gmCatalog[0],
+  'Chevrolet cars must select FIPE GM - Chevrolet, not GMC');
+}
+assert.deepEqual(handoff.uniqueExpressFipeBrand('CHEVROLET',[
+ {code:'23',name:'GM - Chevrolet'}]),{code:'23',name:'GM - Chevrolet'});
+assert.equal(handoff.uniqueExpressFipeBrand('CHEVROLET',[
+ {code:'23',name:'GM - Chevrolet'},{code:'24',name:'Chevrolet'}]),null,
+ 'Do not auto-select an ambiguous duplicate manufacturer');
+assert.equal(handoff.uniqueExpressFipeBrand('CHEVROLET',[
+ {code:'26',name:'GMC'}]),null,'GMC is not GM - Chevrolet');
+assert.equal(handoff.resolvedExpressBrand('FIAT','ARGO 1.0 FLEX MANUAL'),'FIAT');
+
 assert.equal(handoff.resolvedExpressBrand('','UNKNOWN MODEL'),'');
 assert.equal(handoff.resolvedExpressBrand('FIAT','TERA 1.0 MPI FLEX MANUAL'),'FIAT');
 assert.deepEqual(handoff.uniqueExpressFipeBrand('VOLKSWAGEN',[
