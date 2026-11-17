@@ -97,18 +97,18 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,initialFavori
   setDemand(true);setZeroStock(true);setOverride('auto');setReason('');setError('');setSample(true);setMethod('sample');setPlateZoom(null);setLastInput(null);
  };
  const edit=(key:keyof ExpressVehicleExtract,value:any)=>setVehicle(previous=>previous?{...previous,[key]:value}:previous);
- return <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Motyq IQ Express por print">
+ return <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label={demoOnly?"Motyq IQ Express por print":"Captura direta do AutoAvaliar"}>
   <section className="flex max-h-[96vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white text-slate-950">
    <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
-    <div><p className="text-xs font-black tracking-wider text-cyan-800">MOTYQ IQ EXPRESS · LABORATÓRIO</p>
-     <h2 className="text-xl font-black">Prévia rápida por print ou texto</h2>
-     <p className="mt-1 text-xs text-slate-600">{demoOnly?'Cole o texto da avaliação ou uma captura de tela. Tudo é processado no navegador.':'Copie a ficha do AutoAvaliar ou uma captura de tela. Confira os campos reconhecidos antes de usar.'}</p></div>
+    <div><p className="text-xs font-black tracking-wider text-cyan-800">{demoOnly?"MOTYQ IQ EXPRESS · LABORATÓRIO":"MOTYQ IQ · AUTOAVALIAR"}</p>
+     <h2 className="text-xl font-black">{demoOnly?'Prévia rápida por print ou texto':vehicle?'Conferir dados do AutoAvaliar':'Configurar captura do AutoAvaliar'}</h2>
+     <p className="mt-1 text-xs text-slate-600">{demoOnly?'Cole o texto da avaliação ou uma captura de tela. Tudo é processado no navegador.':vehicle?'Confira os dados recebidos pelo Chrome antes de continuar para a Mesa.':'Configure o favorito Enviar ao Motyq neste navegador.'}</p></div>
     <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">Fechar</button>
    </header>
    <main className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-    <section className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4" aria-label="Captura direta por favorito do navegador">
-     <h3 className="text-sm font-black text-indigo-950">1. Novo: botão Enviar ao Motyq no Chrome</h3>
-     <p className="text-xs leading-5 text-indigo-950">Mais simples do que o print: o favorito lê apenas os campos visíveis na ficha do AutoAvaliar e abre a conferência aqui no Motyq. Sem OCR ou IA paga. Requer que os campos estejam acessíveis no texto da página.</p>
+    {!demoOnly&&!vehicle&&<section className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4" aria-label="Captura direta por favorito do navegador">
+     <h3 className="text-sm font-black text-indigo-950">Botão Enviar ao Motyq no Chrome</h3>
+     <p className="text-xs leading-5 text-indigo-950">Com a avaliação aberta no AutoAvaliar, clique no favorito: ele lê os campos visíveis e abre esta conferência, sem OCR nem envio de imagens.</p>
      <button type="button" onClick={()=>void copyFavorite()}
       className="rounded-xl border border-indigo-800 bg-white px-4 py-3 text-sm font-black text-indigo-950 hover:bg-indigo-100">Copiar botão Enviar ao Motyq</button>
      {favoriteNotice&&<p role="status" className="rounded-lg bg-white p-3 text-xs font-bold text-indigo-950">{favoriteNotice}</p>}
@@ -117,10 +117,10 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,initialFavori
       <li>Abra Ctrl+Shift+O, edite o favorito, dê o nome <strong>Enviar ao Motyq</strong> e cole o código copiado no campo <strong>URL</strong>.</li>
       <li>Abra a avaliação no AutoAvaliar e clique no favorito. Confira os campos na mensagem e confirme. O Motyq abrirá em outra aba.</li>
      </ol>
-     <p className="text-[11px] text-indigo-900">A captura não consulta páginas ocultas, não copia senhas, nomes de clientes, chassi, Renavam ou fotos e não salva nem aprova valores. Se o Chrome bloquear o atalho ou a aba, ainda é possível colar um print.</p>
-    </section>
-    <section className="space-y-3 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
-     <h3 className="text-sm font-black text-cyan-950">2. Alternativa: colar avaliação ou print</h3>
+     <p className="text-[11px] text-indigo-900">A captura não consulta páginas ocultas, não copia senhas, nomes de clientes, chassi, Renavam ou fotos e não salva nem aprova valores. Se o navegador bloquear a abertura da aba, permita pop-ups do AutoAvaliar.</p>
+    </section>}
+    {demoOnly&&<section className="space-y-3 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
+     <h3 className="text-sm font-black text-cyan-950">Laboratório: testar texto ou imagem</h3>
      {demoOnly?<p className="rounded-lg border border-cyan-300 bg-white p-3 text-xs font-semibold text-cyan-950">
       NOVO: copie os dados de texto da avaliação no AutoAvaliar (Ctrl+C) e cole aqui (Ctrl+V). Quando o texto é selecionável, o Motyq preenche sem OCR e sem IA paga. Você também pode colar um print. Os dados devem ser conferidos.
      </p>:<p className="text-xs leading-5 text-cyan-950">
@@ -149,10 +149,10 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,initialFavori
       <p className="font-semibold">{error}</p>
       <p className="text-xs">Se o texto do AutoAvaliar não puder ser selecionado, cole uma captura. Nenhuma consulta ou avaliação será salva automaticamente.</p>
      </div>}
-    </section>
+    </section>}
     {vehicle&&<>
      <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-      <h3 className="text-sm font-black">3. Conferir informações extraídas</h3>
+      <h3 className="text-sm font-black">Conferir dados do veículo</h3>
       <div className="grid gap-3 sm:grid-cols-2">
        <label className="text-xs font-bold">Marca<input className={input} value={vehicle.brand} onChange={e=>edit('brand',e.target.value)}/></label>
        <label className="text-xs font-bold">Modelo e versão<input className={input} value={vehicle.model} onChange={e=>edit('model',e.target.value)}/></label>
@@ -165,7 +165,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,initialFavori
         {!vehicle.plate&&<span className="mt-1 block text-[11px] font-semibold text-amber-800" role="status">Placa não reconhecida. Confira no AutoAvaliar.</span>}</label>
       </div>
       {(!vehicle.yearModel||vehicle.km===null)&&<p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-bold text-amber-950">
-       Ano/modelo ou KM não reconhecidos. Confira se o print mostra a ficha original do AutoAvaliar, com a placa e os dados do veículo.
+       Ano/modelo ou KM ausentes. Consulte a ficha do AutoAvaliar e complete manualmente antes de enviar à Mesa.
       </p>}
       {plateZoom&&<div className="flex flex-col gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 sm:flex-row sm:items-center">
        <div className="flex-1">
@@ -175,7 +175,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,initialFavori
        <img src={plateZoom} alt="Trecho ampliado da placa na avaliação original" className="h-auto max-h-20 w-full max-w-xs rounded-lg border border-cyan-200 bg-white object-contain p-1 sm:w-52" />
       </div>}
       <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
-       <div><p className="text-xs text-slate-600">FIPE exibida no print</p>
+       <div><p className="text-xs text-slate-600">FIPE exibida na avaliação</p>
         <strong className="text-lg">{vehicle.fipeReference!==null?money(vehicle.fipeReference):'Não identificada'}</strong></div>
        <div><p className="text-xs text-slate-600">Reparos listados</p>
         <strong className="text-lg">{vehicle.repairTotal!==null?money(vehicle.repairTotal):'A conferir'}</strong></div>
@@ -185,12 +185,12 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,initialFavori
       </div>
       {vehicle.repairDetails.length>0&&<p className="text-xs text-slate-600">Itens: {vehicle.repairDetails.join(' · ')}</p>}
       {vehicle.warnings.length>0&&<p className="text-xs text-amber-800">Conferir: {vehicle.warnings.join('; ')}</p>}
-      <p className="text-xs font-semibold text-amber-900">A FIPE do print não substitui a consulta do mês vigente. O valor de compra ainda depende do mercado, custos e histórico pago.</p>
+      <p className="text-xs font-semibold text-amber-900">A FIPE capturada não substitui a consulta do mês vigente. O valor de compra ainda depende do mercado, custos e histórico pago.</p>
       {!demoOnly&&<MarketIqExpressHistoryCard vehicle={vehicle} history={history} loading={historyLoading} incomplete={historyIncomplete} error={historyError}/>}
      </section>
      <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-      <h3 className="text-sm font-black">4. Prioridade comercial</h3>
-      <p className="text-xs text-slate-600">A imagem não comprova procura nem estoque. Confirme essas informações da sua operação.</p>
+      <h3 className="text-sm font-black">Prioridade comercial</h3>
+      <p className="text-xs text-slate-600">A captura não comprova procura nem estoque. Confirme essas informações da sua operação.</p>
       <label className="flex items-center gap-3 rounded-lg bg-slate-50 p-3 text-sm font-semibold">
        <input type="checkbox" checked={demand} onChange={e=>setDemand(e.target.checked)}/> Existe alta procura por este carro</label>
       <label className="flex items-center gap-3 rounded-lg bg-slate-50 p-3 text-sm font-semibold">
