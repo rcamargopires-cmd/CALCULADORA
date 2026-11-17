@@ -224,9 +224,32 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  // A full-image OCR can read a small plate like SVP0A03 as SVPGAG3, and then
  // discard it. Only when that happens, analyze its narrow value row at high scale.
  if(!extracted.plate&&regions){
-  onStatus('Ampliando a linha da placa para uma última conferência…');
+  onStatus('Conferindo a placa em um recorte maior do AutoAvaliar…');
+  let contextAnchor:ReturnType<typeof plateAnchorFromVehicleTsv>=null;
+  try{
+   // The small original may keep TERA/year/KM legible while losing the tiny
+   // Placa label or the seven-character value. Reread the original card
+   // context in high resolution, with OCR positions instead of fixed rows.
+   const context=await worker.recognize(regions.plateContext,{}, {tsv:true});
+   const contextText=context.data.text||'',contextTsv=context.data.tsv||'';
+   contextAnchor=plateAnchorFromVehicleTsv(contextTsv);
+   const contextPlate=plateFromLabelledVehicleText(contextText,contextTsv);
+   if(contextPlate){
+    extracted=parseAutoAvaliarOcrText(
+     output.data.text,output.data.tsv,detailText,detailTsv,
+     referenceText,referenceTsv,contextPlate.plate,ratingText);
+    if(contextPlate.corrected&&!extracted.warnings.some(w=>w.includes('caracteres possivelmente confundidos')))
+     extracted.warnings.push('Placa lida com correção de caracteres. Confira visualmente com o AutoAvaliar.');
+   }
+  }catch{/* The original OCR data remain available for manual review. */}
+  if(extracted.plate)return extracted;
   const label=plateAnchorFromVehicleTsv(detailTsv);
-  const plateImage=label?regions.plateValueAt(label):regions.plateContext;
+  // Never perform single-line plate OCR on an arbitrary multi-row panel.
+  // Only use an image explicitly anchored by Placa or by Origem/Ano geometry.
+  const plateImage=label?regions.plateValueAt(label):
+   contextAnchor?regions.plateContextValueAt(contextAnchor):'';
+  if(!label&&contextAnchor)onPlateZoom?.(regions.plateContextAt(contextAnchor));
+  if(!plateImage)return extracted;
   let isolatedPlateText='';
   // Changing page segmentation can fail on some Tesseract.js workers.
   // OCR itself must STILL run with default settings if that happens.
