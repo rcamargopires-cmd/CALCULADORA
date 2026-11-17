@@ -70,6 +70,62 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
    }
    return '';
   };
+  // AutoAvaliar's card can render each label/value in different layout
+  // branches. In those cases even innerText and nearest-parent traversal
+  // omit the value, although it is visible in the same on-screen row.
+  // A text-node geometry read matches ONLY the whitelist labels below with
+  // adjacent values on the same rendered row. No image/OCR/network access.
+  let visibleNodes:null|Array<{value:string;rect:{left:number;right:number;top:number;bottom:number;height:number}}>=null;
+  const getVisibleNodes=()=>{
+   if(visibleNodes)return visibleNodes;
+   visibleNodes=[];
+   if(!document.createTreeWalker||!document.createRange)return visibleNodes;
+   try{
+    const walker=document.createTreeWalker(document.body,typeof NodeFilter!=='undefined'?NodeFilter.SHOW_TEXT:4);
+    let node:Node|null,count=0;
+    while((node=walker.nextNode())&&count++<18000){
+     const raw=String(node.nodeValue||'').replace(/\s+/g,' ').trim();
+     if(!raw||raw.length>90)continue;
+     const owner=node.parentElement;
+     if(!owner||/^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA|INPUT)$/i.test(owner.tagName||''))continue;
+     const range=document.createRange();range.selectNodeContents(node);
+     const rect=range.getBoundingClientRect();
+     if(!rect||rect.right-rect.left<1||rect.bottom-rect.top<1)continue;
+     // Only visible card text is eligible. Hidden/off-screen content does
+     // not become a substitute vehicle record.
+     if(rect.top<0||rect.left<0||rect.top>10000)continue;
+     visibleNodes.push({value:raw,rect:{
+      left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom,height:rect.height||rect.bottom-rect.top
+     }});
+    }
+   }catch{/* A failed layout probe is never a reason to transfer guesses. */}
+   return visibleNodes;
+  };
+  const geometryField=(key:string):string=>{
+   const nodes=getVisibleNodes();
+   const exact=(value:string)=>cleanLabel(value).replace(/[:=|]\s*$/,'').trim()===key;
+   const origins=nodes.filter(n=>exact(n.value.replace(/\s+NACIONAL\s*$/i,''))&&
+    cleanLabel(n.value).startsWith('ORIGEM'));
+   const labels=nodes.filter(n=>exact(n.value)&&
+    (key==='ORIGEM'||!origins.length||origins.some(origin=>
+      Math.abs(n.rect.left-origin.rect.left)<115&&
+      n.rect.top>origin.rect.top-50&&n.rect.top<origin.rect.top+680)));
+   let best:{value:string;score:number}|null=null;
+   for(const label of labels){
+    const center=(label.rect.top+label.rect.bottom)/2;
+    for(const candidate of nodes){
+     if(candidate===label||!validValue(key,candidate.value))continue;
+     const candidateCenter=(candidate.rect.top+candidate.rect.bottom)/2;
+     const dy=Math.abs(candidateCenter-center);
+     const maxDy=Math.max(14,label.rect.height,candidate.rect.height)*0.95;
+     if(dy>maxDy||candidate.rect.left<label.rect.right+4||
+      candidate.rect.left>label.rect.left+680)continue;
+     const score=dy*20+Math.abs(candidate.rect.left-label.rect.right);
+     if(!best||score<best.score)best={value:candidate.value,score};
+    }
+   }
+   return best?.value||'';
+  };
   const field=(key:string):string=>{
    const normalizedKey=normalize(key);
    for(let i=firstOrigin;i<cardEnd;i++){
@@ -81,7 +137,7 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
      if(validValue(normalizedKey,next))return next;
     }
    }
-   return domField(normalizedKey);
+   return domField(normalizedKey)||geometryField(normalizedKey);
   };
   const head=lines.slice(Math.max(0,firstOrigin-12),firstOrigin);
   const title=head.filter(line=>{
