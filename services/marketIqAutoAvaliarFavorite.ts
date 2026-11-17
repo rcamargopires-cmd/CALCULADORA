@@ -52,7 +52,7 @@ function captureVisibleAutoAvaliarCard(targetOrigin:string){
   // Fallback reads *only* small parents of exact vehicle-card labels.
   // No names, phone numbers, notes, VIN, Renavam or hidden fields.
   const domField=(key:string):string=>{
-   const els=Array.from(document.querySelectorAll('span,td,th,label,small,b,strong,div')).slice(0,10000);
+   const els=Array.from(document.querySelectorAll?.('span,td,th,label,small,b,strong,div')||[]).slice(0,10000);
    for(const el of els){
     if(el.children.length>1)continue;
     const label=cleanLabel(String((el as HTMLElement).innerText||''));
