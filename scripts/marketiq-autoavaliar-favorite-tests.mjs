@@ -118,6 +118,54 @@ assert.equal(domVehicle.plate,'SPU1I52');
 assert.equal(domVehicle.yearModel,'2025');
 assert.equal(domVehicle.km,39318);
 
+// Regression from the authenticated AutoAvaliar screenshot (2015/2015,
+// GBE2488, 151.280 km): card labels and values may be on different DOM
+// branches, at the same visual Y coordinate. The flattened page text
+// contains neither plate nor year; use visible text-node bounding geometry.
+const missingFlat=polo.replace('SPU1I52','[plate not in flattened rows]')
+ .replace('2025/2025','[year not in flattened rows]')
+ .replace('39.318','[km not in flattened rows]');
+const mk=(value,left,top,width=100,height=17)=>({
+ nodeValue:value,parentElement:{tagName:'SPAN'},
+ rect:{left,right:left+width,top,bottom:top+height,height}
+});
+const visibleTextNodes=[
+ mk('Origem',594,78,62),mk('NACIONAL',822,78,90),
+ mk('Placa',594,111,57),mk('GBE2488',822,111,80),
+ mk('Ano',594,144,35),mk('2015/2015',822,144,85),
+ mk('Km',594,300,28),mk('151.280',822,300,75),
+ // These additional values appear on other rows and must not leak.
+ mk('Motor',594,315,52),mk('1000',822,315,47),
+ mk('Renavam',594,355,60),mk('01066164115',822,355,102)
+];
+const geometryDoc={
+ body:{innerText:missingFlat},
+ querySelectorAll:()=>[],
+ createTreeWalker:()=>{
+  let i=0;return {nextNode:()=>visibleTextNodes[i++]||null};
+ },
+ createRange:()=>{
+  let current=null;
+  return {selectNodeContents(node){current=node;},
+   getBoundingClientRect(){return current?.rect||null;}};
+ }
+};
+const geometryCapture=capture(missingFlat,{document:geometryDoc});
+assert.ok(geometryCapture.openedUrl,
+ 'The favorite should read actual aligned text nodes without print or OCR');
+const geometryVehicle=lib.decodeAutoAvaliarFavoriteHash(new URL(geometryCapture.openedUrl).hash);
+assert.equal(geometryVehicle.plate,'GBE2488');
+assert.equal(geometryVehicle.yearManufacture,'2015');
+assert.equal(geometryVehicle.yearModel,'2015');
+assert.equal(geometryVehicle.km,151280);
+assert.notEqual(geometryVehicle.plate,'01066164115');
+assert.ok(geometryCapture.confirmed.includes('GBE2488'));
+const missingOnly=capture(missingFlat,{document:{
+ body:{innerText:missingFlat},querySelectorAll:()=>[],createTreeWalker:()=>({nextNode:()=>null}),
+ createRange:()=>({selectNodeContents(){},getBoundingClientRect(){return null;}})
+}});
+assert.equal(missingOnly.openedUrl,'','Never guess a plate/year from unassociated data');
+assert.ok(missingOnly.alerts.some(x=>x.includes('ano/modelo')&&x.includes('placa')));
 const tera=polo.replace('POLO 1.0 MPI TRACK MANUAL','TERA 1.0 MPI FLEX MANUAL')
  .replace('SPU1I52','UQR5I61').replace('2025/2025','2026/2026')
  .replace('39.318','2.079').replace('R$ 73.315,00','R$ 92.652,00');
