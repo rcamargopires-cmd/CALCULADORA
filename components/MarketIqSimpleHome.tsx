@@ -85,8 +85,8 @@ export default function MarketIqSimpleHome({
 
   <button type="button" onClick={onOpenExpress}
    className="flex w-full items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-left shadow-sm hover:bg-indigo-100">
-   <span><strong className="block text-base text-indigo-950">⚡ Motyq IQ Express · Prévia por print</strong>
-   <span className="mt-1 block text-xs text-indigo-900">Cole a ficha do AutoAvaliar, confira o carro e marque a prioridade comercial</span></span>
+   <span><strong className="block text-base text-indigo-950">Motyq IQ · Captura direta do AutoAvaliar</strong>
+   <span className="mt-1 block text-xs text-indigo-900">Configure o botão do Chrome para capturar avaliações e conferir os dados na Mesa</span></span>
    <ArrowUpRight size={20} className="shrink-0 text-indigo-800"/>
   </button>
   <button type="button" onClick={onOpenAqua}
