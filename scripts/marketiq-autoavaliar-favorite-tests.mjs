@@ -57,17 +57,17 @@ const polo=[
  '#','116606156','Origem','NACIONAL','Placa','SPU1I52',
  'Ano','2025/2025','Cor','CINZA','Comb.','FLEX','Câmbio','MANUAL',
  'Km','39.318','Portas','4','Motor','999',
- 'Renavam','01010101010','Chassi','9BWAG5R12ST076545',
- 'Status AVALIADO','Avaliador Daniel Garcia Barbosa de Lima','Telefone (15) 99999-9999',
+ 'Renavam','01010101010','Chassi','CHASSI_EXEMPLO_NAO_TRANSFERIR',
+ 'Status AVALIADO','Avaliador AVALIADOR_EXEMPLO_NAO_TRANSFERIR','Telefone (15) 99999-9999',
  'NOTAS DA AVALIAÇÃO','7.1/10','REFERÊNCIAS','FIPE','Valor','R$ 73.315,00',
  'FIPE 0KM','R$ 92.089,00'
 ].join('\n');
 const poloDone=capture(polo);
 assert.ok(poloDone.openedUrl.startsWith('https://app.motyq.com.br/?iq=1#motyq-autoavaliar='));
 assert.ok(poloDone.confirmed.includes('SPU1I52'));
-assert.ok(!poloDone.openedUrl.includes('Daniel Garcia'));
+assert.ok(!poloDone.openedUrl.includes('AVALIADOR_EXEMPLO'));
 assert.ok(!poloDone.openedUrl.includes('01010101010'));
-assert.ok(!poloDone.openedUrl.includes('9BWAG5R12'));
+assert.ok(!poloDone.openedUrl.includes('CHASSI_EXEMPLO'));
 assert.ok(!poloDone.openedUrl.includes('99999-9999'));
 const poloDecoded=lib.decodeAutoAvaliarFavoriteHash(new URL(poloDone.openedUrl).hash);
 assert.equal(poloDecoded.brand,'VOLKSWAGEN');
