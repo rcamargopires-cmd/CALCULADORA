@@ -236,6 +236,16 @@ assert.ok(onixCaptured.openedUrl,'Chevrolet appraisal must open Motyq');
 const onixVehicle=lib.decodeAutoAvaliarFavoriteHash(new URL(onixCaptured.openedUrl).hash);
 assert.equal(onixVehicle.brand,'GM - Chevrolet');
 assert.equal(onixVehicle.plate,'ABC1D23');
+
+for(const name of ['CRUZE 1.4 TURBO FLEX AUTOMATICO','COBALT 1.8 FLEX MANUAL',
+ 'CHEVROLET EQUINOX 1.5 TURBO FLEX AUTOMATICO']){
+ const sample=polo.replace('POLO 1.0 MPI TRACK MANUAL',name);
+ const result=capture(sample);
+ assert.ok(result.openedUrl,'Chevrolet model must open the Mesa: '+name);
+ const vehicle=lib.decodeAutoAvaliarFavoriteHash(new URL(result.openedUrl).hash);
+ assert.equal(vehicle.brand,'GM - Chevrolet',name+' must display FIPE GM - Chevrolet');
+}
+
 const tera=polo.replace('POLO 1.0 MPI TRACK MANUAL','TERA 1.0 MPI FLEX MANUAL')
  .replace('SPU1I52','UQR5I61').replace('2025/2025','2026/2026')
  .replace('39.318','2.079').replace('R$ 73.315,00','R$ 92.652,00');
