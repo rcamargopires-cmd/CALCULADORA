@@ -44,7 +44,7 @@ function capture(page,options={}){
  const host=options.host||'portal.autoavaliar.com.br';
  runInNewContext(favorite.slice('javascript:'.length),{
   location:{hostname:host},
-  document:{body:{innerText:page}},
+  document:options.document||{body:{innerText:page},querySelectorAll:()=>[]},
   window:{open(url){openedUrl=url;return {opener:{}};}},
   confirm(text){confirmed=text;return options.allow!==false;},
   alert(message){alerts.push(String(message));},
@@ -80,6 +80,44 @@ assert.equal(poloDecoded.fipeReference,73315);
 assert.equal(poloDecoded.conditionScore,7.1);
 assert.equal(poloDecoded.repairTotal,null);
 assert.equal(poloDecoded.repairDetails.length,0);
+// Actual AutoAvaliar vehicle cards display small icons beside each field,
+// and some templates render label and value on the same line.
+const inlineWithIcons=polo
+ .replace('\nOrigem\nNACIONAL','\n◎ Origem NACIONAL')
+ .replace('\nPlaca\nSPU1I52','\n⌗ Placa: SPU1I52')
+ .replace('\nAno\n2025/2025','\n▣ Ano: 2025/2025')
+ .replace('\nKm\n39.318','\n⚙ Km: 39.318');
+const iconCaptured=capture(inlineWithIcons);
+assert.ok(iconCaptured.openedUrl,'Icon-prefixed, same-line AutoAvaliar labels must be recognized');
+const iconVehicle=lib.decodeAutoAvaliarFavoriteHash(new URL(iconCaptured.openedUrl).hash);
+assert.equal(iconVehicle.plate,'SPU1I52');
+assert.equal(iconVehicle.yearModel,'2025');
+assert.equal(iconVehicle.km,39318);
+
+// Some HTML table templates break the row's text in body.innerText.
+// The fallback reads only the small parent of an exact field label.
+function fixtureLabel(label,content){
+ const row={innerText:label+' '+content,parentElement:null};
+ const element={innerText:label,children:[],parentElement:row,nextElementSibling:null};
+ return element;
+}
+const domFixture={
+ body:{innerText:polo.replace('SPU1I52','[value in table cell]')
+  .replace('2025/2025','[value in table cell]')
+  .replace('39.318','[value in table cell]')},
+ querySelectorAll:()=>[
+  fixtureLabel('Placa','SPU1I52'),
+  fixtureLabel('Ano','2025/2025'),
+  fixtureLabel('KM','39.318')
+ ]
+};
+const domCaptured=capture(domFixture.body.innerText,{document:domFixture});
+assert.ok(domCaptured.openedUrl,'Read visible table cells even when flattened body text loses values');
+const domVehicle=lib.decodeAutoAvaliarFavoriteHash(new URL(domCaptured.openedUrl).hash);
+assert.equal(domVehicle.plate,'SPU1I52');
+assert.equal(domVehicle.yearModel,'2025');
+assert.equal(domVehicle.km,39318);
+
 const tera=polo.replace('POLO 1.0 MPI TRACK MANUAL','TERA 1.0 MPI FLEX MANUAL')
  .replace('SPU1I52','UQR5I61').replace('2025/2025','2026/2026')
  .replace('39.318','2.079').replace('R$ 73.315,00','R$ 92.652,00');
