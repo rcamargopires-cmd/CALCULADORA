@@ -30,6 +30,7 @@ import MarketIqConsultedRepasse from './MarketIqConsultedRepasse';
 import MarketIqQuickBuyerQuote from './MarketIqQuickBuyerQuote';
 import MarketIqAquaPilotPanel from './MarketIqAquaPilotPanel';
 import MarketIqExpressPrintPanel from './MarketIqExpressPrintPanel';
+import {decodeAutoAvaliarFavoriteHash,AUTOAVALIAR_FAVORITE_HASH_KEY} from '../services/marketIqAutoAvaliarFavorite';
 import MarketIqExpressHistoryCard from './MarketIqExpressHistoryCard';
 import type {ExpressVehicleExtract,ExpressAssessment} from '../services/marketIqExpress';
 import {suggestUniqueExpressFipeModel,uniqueExpressFipeBrand,resolvedExpressBrand} from '../services/marketIqExpressFipeHandoff';
@@ -103,7 +104,8 @@ const validSource=(a:Ad)=>{try{
 export default function ManualPricingWorkspace({user}:{user:User}){
  const key='motyq-iq-local-test-'+user.email.toLowerCase();
  const [deskSection,setDeskSection]=useState<'home'|'dashboard'|'pricing'|'consulted'|'approvals'|'history'|'learning'|'archive'|'plateHistory'|'radar'>(()=>{
-   if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import'))return 'pricing';
+   if(new URLSearchParams(window.location.hash.replace(/^#/,'')).has('motyq-import')||
+      window.location.hash.startsWith('#'+AUTOAVALIAR_FAVORITE_HASH_KEY+'='))return 'pricing';
    const previous=sessionStorage.getItem('motyq-iq-active-desk-tab');
    return previous==='home'||previous==='pricing'||previous==='consulted'||previous==='approvals'||previous==='history'||previous==='learning'||previous==='archive'||previous==='plateHistory'||previous==='radar'||previous==='dashboard'?previous:'home';
  });
@@ -112,6 +114,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [quickBuyerQuote,setQuickBuyerQuote]=useState<ConsultedVehicle|null>(null);
  const [aquaVehicle,setAquaVehicle]=useState<ConsultedVehicle|null>(null);
  const [expressOpen,setExpressOpen]=useState(false);
+ const [favoriteIncoming,setFavoriteIncoming]=useState<ExpressVehicleExtract|null>(null);
  const [expressReview,setExpressReview]=useState<{vehicle:ExpressVehicleExtract;assessment:ExpressAssessment}|null>(null);
  // Local-only IndexedDB cache. Each account/company/unit owns an isolated key.
  // The parsed snapshot never leaves this device and is never uploaded.
@@ -223,6 +226,24 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    }
  },[]);
 
+ // Handoff from a button clicked on an authenticated AutoAvaliar evaluation.
+ // Browser fragment is never sent to the server; remove it immediately after
+ // mount, decode only strict vehicle fields, and ALWAYS require review.
+ useEffect(()=>{
+  const fragment=window.location.hash;
+  if(!fragment.startsWith('#'+AUTOAVALIAR_FAVORITE_HASH_KEY+'='))return;
+  window.history.replaceState(null,'',window.location.pathname+window.location.search);
+  try{
+   const captured=decodeAutoAvaliarFavoriteHash(fragment);
+   if(!captured)throw new Error('A captura recebida estava vazia.');
+   setFavoriteIncoming(captured);
+   setExpressOpen(true);
+   setDeskSection('pricing');
+   try{sessionStorage.setItem('motyq-iq-active-desk-tab','pricing');}catch{}
+  }catch(error){
+   setNotice(error instanceof Error?error.message:'O AutoAvaliar não retornou campos válidos.');
+  }
+ },[]);
  const [manualClassification,setManualClassification]=useState<FleetClass|''>(()=>{
  const current=String(savedForm.manualClassification||'');
  if(['A','B','C','D','E'].includes(current))return current as FleetClass;
@@ -839,7 +860,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   setBrandCode(match?.code||'');
   setModelCode('');setYearCode('');setFipe(null);
   setAds([]);setAutoSearchKey('');setDecisionOffer('');setDecisionConfirmedCost(null);
-  setExpressOpen(false);setMobileFullDesk(true);switchDeskSection('pricing');
+  setExpressOpen(false);setFavoriteIncoming(null);setMobileFullDesk(true);switchDeskSection('pricing');
   window.scrollTo({top:0,behavior:'smooth'});
  };
  // FIPE brands can arrive *after* the print transfer. Previously the
@@ -885,7 +906,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
 
  return <>
- {expressOpen&&<MarketIqExpressPrintPanel onClose={()=>setExpressOpen(false)} onApply={acceptExpressPrint}
+ {expressOpen&&<MarketIqExpressPrintPanel initialFavorite={favoriteIncoming} onClose={()=>{setExpressOpen(false);setFavoriteIncoming(null);}} onApply={acceptExpressPrint}
   history={saved} historyLoading={historyBusy} historyIncomplete={historyMore} historyError={historyError}/>}
  {aquaVehicle&&<MarketIqAquaPilotPanel scope={captureScope} vehicle={aquaVehicle} onClose={()=>setAquaVehicle(null)}/>}
  {quickBuyerQuote&&<MarketIqQuickBuyerQuote scope={captureScope} email={user.email} vehicle={quickBuyerQuote}
