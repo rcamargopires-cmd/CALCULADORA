@@ -2,12 +2,13 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {readExpressPrintLocally} from '../services/marketIqExpressBrowserOcr';
 import {parseAutoAvaliarClipboardText} from '../services/marketIqExpressClipboard';
 import {isMotyqInterfaceScreenshot} from '../services/marketIqExpressScreenshotGuard';
+import {getAutoAvaliarFavoriteBookmarklet} from '../services/marketIqAutoAvaliarFavorite';
 import MarketIqExpressHistoryCard from './MarketIqExpressHistoryCard';
 import type {ExpressHistoryRecord} from '../services/marketIqExpressHistory';
 import {assessExpressCommercial,cleanExpressVehicle,type ExpressVehicleExtract,
  type ExpressAssessment,type ExpressCommercialClass} from '../services/marketIqExpress';
 
-type Props={onClose:()=>void;onApply:(vehicle:ExpressVehicleExtract,assessment:ExpressAssessment)=>void;demoOnly?:boolean;history?:readonly ExpressHistoryRecord[];historyLoading?:boolean;historyIncomplete?:boolean;historyError?:string};
+type Props={onClose:()=>void;onApply:(vehicle:ExpressVehicleExtract,assessment:ExpressAssessment)=>void;initialFavorite?:ExpressVehicleExtract|null;demoOnly?:boolean;history?:readonly ExpressHistoryRecord[];historyLoading?:boolean;historyIncomplete?:boolean;historyError?:string};
 const money=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 
 const initialVehicle=():ExpressVehicleExtract=>({
@@ -15,17 +16,26 @@ const initialVehicle=():ExpressVehicleExtract=>({
  fipeReference:null,conditionScore:null,repairTotal:null,repairDetails:[],warnings:[]
 });
 const input='mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950';
-export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=false,history=[],historyLoading=false,historyIncomplete=false,historyError=''}:Props){
+export default function MarketIqExpressPrintPanel({onClose,onApply,initialFavorite=null,demoOnly=false,history=[],historyLoading=false,historyIncomplete=false,historyError=''}:Props){
  const fileRef=useRef<HTMLInputElement>(null);
  const clipboardArea=useRef<HTMLDivElement>(null);
- const [vehicle,setVehicle]=useState<ExpressVehicleExtract|null>(null);
+ const [vehicle,setVehicle]=useState<ExpressVehicleExtract|null>(initialFavorite);
  const [reading,setReading]=useState(false);
  const [readStatus,setReadStatus]=useState('');
- const [method,setMethod]=useState<'local'|'clipboard'|'sample'|null>(null);
+ const [method,setMethod]=useState<'local'|'clipboard'|'sample'|'favorite'|null>(initialFavorite?'favorite':null);
  const [lastInput,setLastInput]=useState<'image'|'text'|null>(null);
  // Temporary local-only crop for visual confirmation. Never saved to history or the cloud.
  const [plateZoom,setPlateZoom]=useState<string|null>(null);
  const [error,setError]=useState('');
+ const [favoriteNotice,setFavoriteNotice]=useState('');
+ const copyFavorite=async()=>{
+  try{
+   const code=getAutoAvaliarFavoriteBookmarklet(window.location.origin);
+   if(!navigator.clipboard?.writeText)throw new Error('Área de transferência indisponível neste navegador.');
+   await navigator.clipboard.writeText(code);
+   setFavoriteNotice('Código copiado! Salve um favorito no Chrome, abra Ctrl+Shift+O, edite o endereço desse favorito e cole o código na URL. Faça isso apenas uma vez.');
+  }catch(e){setFavoriteNotice(e instanceof Error?e.message:'O Chrome não permitiu copiar o atalho.');}
+ };
  const [sample,setSample]=useState(false);
  const [demand,setDemand]=useState(false);
  const [zeroStock,setZeroStock]=useState(false);
@@ -96,8 +106,21 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
     <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">Fechar</button>
    </header>
    <main className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+    <section className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4" aria-label="Captura direta por favorito do navegador">
+     <h3 className="text-sm font-black text-indigo-950">1. Novo: botão Enviar ao Motyq no Chrome</h3>
+     <p className="text-xs leading-5 text-indigo-950">Mais simples do que o print: o favorito lê apenas os campos visíveis na ficha do AutoAvaliar e abre a conferência aqui no Motyq. Sem OCR ou IA paga. Requer que os campos estejam acessíveis no texto da página.</p>
+     <button type="button" onClick={()=>void copyFavorite()}
+      className="rounded-xl border border-indigo-800 bg-white px-4 py-3 text-sm font-black text-indigo-950 hover:bg-indigo-100">Copiar botão Enviar ao Motyq</button>
+     {favoriteNotice&&<p role="status" className="rounded-lg bg-white p-3 text-xs font-bold text-indigo-950">{favoriteNotice}</p>}
+     <ol className="list-decimal space-y-1 pl-5 text-xs leading-5 text-indigo-950">
+      <li>No Chrome, salve esta página como um favorito (Ctrl+D).</li>
+      <li>Abra Ctrl+Shift+O, edite o favorito, dê o nome <strong>Enviar ao Motyq</strong> e cole o código copiado no campo <strong>URL</strong>.</li>
+      <li>Abra a avaliação no AutoAvaliar e clique no favorito. Confira os campos na mensagem e confirme. O Motyq abrirá em outra aba.</li>
+     </ol>
+     <p className="text-[11px] text-indigo-900">A captura não consulta páginas ocultas, não copia senhas, nomes de clientes, chassi, Renavam ou fotos e não salva nem aprova valores. Se o Chrome bloquear o atalho ou a aba, ainda é possível colar um print.</p>
+    </section>
     <section className="space-y-3 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
-     <h3 className="text-sm font-black text-cyan-950">1. Colar avaliação</h3>
+     <h3 className="text-sm font-black text-cyan-950">2. Alternativa: colar avaliação ou print</h3>
      {demoOnly?<p className="rounded-lg border border-cyan-300 bg-white p-3 text-xs font-semibold text-cyan-950">
       NOVO: copie os dados de texto da avaliação no AutoAvaliar (Ctrl+C) e cole aqui (Ctrl+V). Quando o texto é selecionável, o Motyq preenche sem OCR e sem IA paga. Você também pode colar um print. Os dados devem ser conferidos.
      </p>:<p className="text-xs leading-5 text-cyan-950">
@@ -129,7 +152,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
     </section>
     {vehicle&&<>
      <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-      <h3 className="text-sm font-black">2. Conferir informações extraídas</h3>
+      <h3 className="text-sm font-black">3. Conferir informações extraídas</h3>
       <div className="grid gap-3 sm:grid-cols-2">
        <label className="text-xs font-bold">Marca<input className={input} value={vehicle.brand} onChange={e=>edit('brand',e.target.value)}/></label>
        <label className="text-xs font-bold">Modelo e versão<input className={input} value={vehicle.model} onChange={e=>edit('model',e.target.value)}/></label>
@@ -158,7 +181,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
         <strong className="text-lg">{vehicle.repairTotal!==null?money(vehicle.repairTotal):'A conferir'}</strong></div>
        <div><p className="text-xs text-slate-600">Nota visual da avaliação</p>
         <strong>{vehicle.conditionScore===null?'Não identificada':vehicle.conditionScore.toLocaleString('pt-BR')+'/10'}</strong></div>
-       <div><p className="text-xs text-slate-600">Origem</p><strong>{method==='sample'?'Exemplo do Prisma':method==='clipboard'?'Texto copiado (sem OCR)':method==='local'?'OCR local (experimental)':'Origem não identificada'}</strong></div>
+       <div><p className="text-xs text-slate-600">Origem</p><strong>{method==='sample'?'Exemplo do Prisma':method==='clipboard'?'Texto copiado (sem OCR)':method==='local'?'OCR local (experimental)':method==='favorite'?'Botão do Chrome (texto visível, sem OCR)':'Origem não identificada'}</strong></div>
       </div>
       {vehicle.repairDetails.length>0&&<p className="text-xs text-slate-600">Itens: {vehicle.repairDetails.join(' · ')}</p>}
       {vehicle.warnings.length>0&&<p className="text-xs text-amber-800">Conferir: {vehicle.warnings.join('; ')}</p>}
@@ -166,7 +189,7 @@ export default function MarketIqExpressPrintPanel({onClose,onApply,demoOnly=fals
       {!demoOnly&&<MarketIqExpressHistoryCard vehicle={vehicle} history={history} loading={historyLoading} incomplete={historyIncomplete} error={historyError}/>}
      </section>
      <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-      <h3 className="text-sm font-black">3. Prioridade comercial</h3>
+      <h3 className="text-sm font-black">4. Prioridade comercial</h3>
       <p className="text-xs text-slate-600">A imagem não comprova procura nem estoque. Confirme essas informações da sua operação.</p>
       <label className="flex items-center gap-3 rounded-lg bg-slate-50 p-3 text-sm font-semibold">
        <input type="checkbox" checked={demand} onChange={e=>setDemand(e.target.checked)}/> Existe alta procura por este carro</label>
