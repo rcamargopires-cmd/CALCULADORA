@@ -25,7 +25,14 @@ export function cleanExpressVehicle(raw:any):ExpressVehicleExtract{
  const km=readNum(raw?.km),fipe=readNum(raw?.fipeReference);
  const score=readNum(raw?.conditionScore),repairs=readNum(raw?.repairTotal);
  return {
-  brand:str(raw?.brand,80),model:str(raw?.model,140).replace(/\s+(?:[|=«»<&()]+\s*)+$/g,'').trim(),
+  brand:str(raw?.brand,80),
+  // Keep actual "RS" trims on other cars (e.g. Onix RS). On the 1.0 MPI
+  // Tera Manual, a trailing "RS" is an OCR echo of the FIPE R$ symbol.
+  model:str(raw?.model,140)
+   .replace(/\s+(?:[|=«»<&()]+\s*)+$/g,'')
+   .replace(/\s+R\$\s*$/i,'')
+   .replace(/^(TERA\b.*\bMPI\s+FLEX\s+MANUAL)\s+RS\s*$/i,'$1')
+   .trim(),
   yearManufacture:year(raw?.yearManufacture),yearModel:year(raw?.yearModel),
   plate:/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)?plate:'',
   km:raw?.km!==null&&raw?.km!==undefined&&km!==null&&Number.isInteger(km)&&km>=0&&km<=999999?km:null,
