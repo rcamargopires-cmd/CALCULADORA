@@ -1,4 +1,4 @@
-import {parseAutoAvaliarOcrText,plateAnchorFromVehicleTsv,normalizePlateFromIsolatedCrop} from './marketIqExpressOcrParser';
+import {parseAutoAvaliarOcrText,plateAnchorFromVehicleTsv,normalizePlateFromIsolatedCrop,plateFromLabelledVehicleText} from './marketIqExpressOcrParser';
 import type {ExpressVehicleExtract} from './marketIqExpress';
 import {isMotyqInterfaceScreenshot} from './marketIqExpressScreenshotGuard';
 
@@ -72,6 +72,8 @@ type ScreenshotRegions={
  detail:string;reference:string;rating:string;plateContext:string;
  plateAt:(anchor:{top:number;height:number})=>string;
  plateValueAt:(anchor:{top:number;height:number;left?:number;width?:number})=>string;
+ plateContextAt:(anchor:{top:number;height:number})=>string;
+ plateContextValueAt:(anchor:{top:number;height:number;left?:number;width?:number})=>string;
 };
 async function screenshotRegions(file:File):Promise<ScreenshotRegions|null>{
  const url=URL.createObjectURL(file);
@@ -99,13 +101,15 @@ async function screenshotRegions(file:File):Promise<ScreenshotRegions|null>{
   // screenshots are cropped. Read the left-hand "Placa" label plus the value.
   const detailRect={x:0.49,y:0.005,w:0.28,h:0.745};
   const detailScale=Math.min(4,2000/(width*detailRect.w));
+  const contextRect={x:0.50,y:0.06,w:0.27,h:0.22};
+  const contextScale=Math.min(6,2000/(width*contextRect.w));
   return {
    detail:crop(detailRect.x,detailRect.y,detailRect.w,detailRect.h),
    reference:crop(0.775,0.59,0.21,0.41),
    // Blue/green condition score card is separate from vehicle table.
    rating:crop(0.765,0.18,0.23,0.49),
    // If OCR misses the label, show a wider context rather than the WRONG row.
-   plateContext:crop(0.50,0.06,0.27,0.22,6),
+   plateContext:crop(contextRect.x,contextRect.y,contextRect.w,contextRect.h,6),
    plateAt:(anchor)=>{
     const center=height*detailRect.y+(anchor.top+anchor.height/2)/detailScale;
     const labelHeight=Math.max(7,anchor.height/detailScale);
@@ -127,6 +131,28 @@ async function screenshotRegions(file:File):Promise<ScreenshotRegions|null>{
     const valueStart=Math.max(cardLeft+detailRect.w*width*0.50,labelRight);
     const valueRight=cardRight-3;
     return crop(valueStart/width,top/height,Math.max(0.01,(valueRight-valueStart)/width),
+      Math.max(0.01,(bottom-top)/height),9);
+   },
+   // Separate high-resolution pass around the origin/plate/year rows.
+   // Anchors here are measured relative to the *context* crop, not detail.
+   plateContextAt:(anchor)=>{
+    const center=height*contextRect.y+(anchor.top+anchor.height/2)/contextScale;
+    const rowHeight=Math.max(7,anchor.height/contextScale);
+    const top=Math.max(0,center-rowHeight*0.95-2);
+    const bottom=Math.min(height,center+rowHeight*0.95+2);
+    return crop(contextRect.x,top/height,contextRect.w,
+      Math.max(0.01,(bottom-top)/height),8);
+   },
+   plateContextValueAt:(anchor)=>{
+    const center=height*contextRect.y+(anchor.top+anchor.height/2)/contextScale;
+    const rowHeight=Math.max(7,anchor.height/contextScale);
+    const top=Math.max(0,center-rowHeight*0.95-2);
+    const bottom=Math.min(height,center+rowHeight*0.95+2);
+    const cardLeft=width*contextRect.x,cardRight=width*(contextRect.x+contextRect.w);
+    const labelRight=cardLeft+(anchor.left+anchor.width+12)/contextScale;
+    const valueStart=Math.max(cardLeft+width*contextRect.w*0.49,labelRight);
+    return crop(valueStart/width,top/height,
+      Math.max(0.01,(cardRight-valueStart-3)/width),
       Math.max(0.01,(bottom-top)/height),9);
    }
   };
