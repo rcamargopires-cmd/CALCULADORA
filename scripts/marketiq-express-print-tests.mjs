@@ -819,7 +819,7 @@ assert.ok(ui.includes('Diretriz técnica por KM')&&ui.includes('Requer análise 
 assert.ok(ui.includes('Usar dados conferidos na Mesa'));
 assert.ok(workspace.includes('onApply={acceptExpressPrint}')&&workspace.includes("setYearCode('');setFipe(null)"));
 assert.ok(workspace.includes('Exceção: SHOWROOM')&&workspace.includes('destino oficial não foi alterado'));
-assert.ok(home.includes('onOpenExpress')&&home.includes('Motyq IQ Express · Prévia por print'));
+assert.ok(home.includes('onOpenExpress')&&home.includes('Motyq IQ · Captura direta do AutoAvaliar'));
 assert.ok(demo.includes('<MarketIqExpressPrintPanel demoOnly'),'Standalone preview must not call live OCR');
 assert.ok(demo.includes('sem enviar a imagem para o Motyq'),'Explain browser-only screenshot processing');
 assert.ok(entry.indexOf("==='/iq-express/laboratorio'?<MarketIqExpressDemoRoute/>")>=0);
