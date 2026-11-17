@@ -164,8 +164,16 @@ const missingOnly=capture(missingFlat,{document:{
  body:{innerText:missingFlat},querySelectorAll:()=>[],createTreeWalker:()=>({nextNode:()=>null}),
  createRange:()=>({selectNodeContents(){},getBoundingClientRect(){return null;}})
 }});
-assert.equal(missingOnly.openedUrl,'','Never guess a plate/year from unassociated data');
-assert.ok(missingOnly.alerts.some(x=>x.includes('ano/modelo')&&x.includes('placa')));
+assert.ok(missingOnly.openedUrl,
+ 'With a clear title and KM, open manual review even if plate/year cannot be read');
+assert.ok(missingOnly.confirmed.includes('ATENÇÃO: preencher no Motyq: ano/modelo, placa'));
+const partialVehicle=lib.decodeAutoAvaliarFavoriteHash(new URL(missingOnly.openedUrl).hash);
+assert.equal(partialVehicle.plate,'','Never guess a plate/year from unrelated values');
+assert.equal(partialVehicle.yearModel,'');
+assert.equal(partialVehicle.km,39318);
+assert.ok(partialVehicle.warnings.some(w=>w.includes('Faltaram campos')));
+assert.equal(capture(missingFlat,{allow:false,document:geometryDoc}).openedUrl,'',
+ 'Partial data still requires user confirmation');
 const tera=polo.replace('POLO 1.0 MPI TRACK MANUAL','TERA 1.0 MPI FLEX MANUAL')
  .replace('SPU1I52','UQR5I61').replace('2025/2025','2026/2026')
  .replace('39.318','2.079').replace('R$ 73.315,00','R$ 92.652,00');
