@@ -979,7 +979,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <button key={section} type="button" onClick={()=>navigateSimple(section)} aria-current={deskSection===section?'page':undefined}
     className={'rounded-xl px-3 py-2.5 text-xs font-bold transition '+(deskSection===section?'bg-cyan-50 text-cyan-950 ring-1 ring-cyan-200':'text-slate-700 hover:bg-slate-100')}>{label}</button>)}
   <button type="button" onClick={()=>setExpressOpen(true)}
-   className="rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-2.5 text-xs font-black text-indigo-950">⚡ Prévia Express</button>
+   className="rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-2.5 text-xs font-black text-indigo-950">Configurar captura</button>
   <button type="button" onClick={openAquaDashboard}
    className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2.5 text-xs font-black text-cyan-950">🐠 Aquário</button>
   <button type="button" onClick={()=>setShowAllTools(value=>!value)} aria-expanded={showAllTools}
@@ -1139,12 +1139,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  </div>}
  {expressReview&&<section role="status" className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm">
   <div className="flex flex-wrap items-start justify-between gap-3">
-   <div><p className="text-xs font-black uppercase text-indigo-950">Prévia Express · captura conferida</p>
+   <div><p className="text-xs font-black uppercase text-indigo-950">AutoAvaliar · captura conferida</p>
     <p className="mt-1 font-bold text-slate-950">{expressReview.vehicle.brand} {expressReview.vehicle.model} · {expressReview.vehicle.yearModel}</p>
     <p className="mt-1 text-xs text-slate-800">Prioridade comercial: <strong>{expressReview.assessment.priority}</strong> · {expressReview.assessment.reason}</p>
     <p className="mt-1 text-xs text-slate-700">Classe técnica por KM: {expressReview.assessment.fleetClass||'não confirmada'} · {expressReview.assessment.fleetGuideline||'a conferir'}</p>
    </div>
-   <button type="button" className="rounded-lg border border-indigo-400 px-3 py-2 text-xs font-bold text-indigo-950" onClick={()=>setExpressOpen(true)}>Revisar captura</button>
+   <button type="button" className="rounded-lg border border-indigo-400 px-3 py-2 text-xs font-bold text-indigo-950" onClick={()=>{setFavoriteIncoming(expressReview.vehicle);setExpressOpen(true);}}>Revisar captura</button>
   </div>
   {expressReview.assessment.policyConflict&&<p className="mt-2 rounded-lg bg-amber-100 p-3 text-xs font-bold text-amber-950">Exceção: SHOWROOM por procura/estoque, mas a diretriz técnica por KM recomenda REPASSE. Requer análise/autorização; o destino oficial não foi alterado.</p>}
   {expressReview.vehicle.plate===plate&&expressReview.vehicle.brand===brand&&expressReview.vehicle.model===model&&
@@ -1154,7 +1154,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
      onClick={()=>{setSelectedPlateForHistory(plate);switchDeskSection('plateHistory');}}>
      Ver histórico completo desta placa
     </button>}
-   <p className="mt-2 text-xs text-slate-700">Dados importados para conferência. {brandCode?'Marca FIPE identificada; escolha a versão e ano correspondentes.':'Selecione a marca no catálogo FIPE.'} Confirme combustível, referência do mês, custos e preço de mercado antes de gerar uma proposta. O print não autoriza compra automática.</p>
+   <p className="mt-2 text-xs text-slate-700">Dados importados para conferência. {brandCode?'Marca FIPE identificada; escolha a versão e ano correspondentes.':'Selecione a marca no catálogo FIPE.'} Confirme combustível, referência do mês, custos e preço de mercado antes de gerar uma proposta. A captura não autoriza compra automática.</p>
  </section>}
  <section id="motyq-iq-valuation-form" className="rounded-xl bg-white p-5">
  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -1163,7 +1163,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   </div>
   <div className="flex flex-wrap items-center gap-2">
    <button type="button" onClick={()=>setExpressOpen(true)}
-    className="rounded-xl border border-indigo-700 bg-indigo-50 px-4 py-3 text-sm font-black text-indigo-950">⚡ Prévia por print</button>
+    className="rounded-xl border border-indigo-700 bg-indigo-50 px-4 py-3 text-sm font-black text-indigo-950">Configurar botão do Chrome</button>
    <button type="button" onClick={openAquaCurrent}
     disabled={!brand.trim()||!model.trim()||!year.trim()}
     className="rounded-xl border border-cyan-700 bg-cyan-50 px-4 py-3 text-sm font-black text-cyan-950 disabled:opacity-50">
