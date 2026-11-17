@@ -1,5 +1,6 @@
 import {parseAutoAvaliarOcrText,plateAnchorFromVehicleTsv,normalizePlateFromIsolatedCrop} from './marketIqExpressOcrParser';
 import type {ExpressVehicleExtract} from './marketIqExpress';
+import {isMotyqInterfaceScreenshot} from './marketIqExpressScreenshotGuard';
 
 /** OCR stays on the buyer's browser/device. No screenshots are sent to Motyq servers.
  * Downloaded Tesseract engine and Portuguese/English language files are cached by the browser.
@@ -163,6 +164,8 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
  const worker=await getWorker(onStatus);
  const output=await worker.recognize(image,{}, {tsv:true});
  if(!output.data.text.trim())throw new Error('A imagem não contém texto reconhecível. Amplie a área do veículo e tente novamente.');
+ if(isMotyqInterfaceScreenshot(output.data.text))
+  throw new Error('Este print parece ser da tela do Motyq, e não da ficha do AutoAvaliar. Volte ao AutoAvaliar, capture a ficha com placa, ano e KM usando Win+Shift+S, depois cole aqui.');
  let detailText='',detailTsv='',referenceText='',referenceTsv='';
  let regions:ScreenshotRegions|null=null;
  // In real screenshots the first OCR pass can miss "Fotos Lista" and
@@ -174,7 +177,9 @@ export async function readExpressPrintLocally(file:File,onStatus:(status:string)
    const detail=await worker.recognize(regions.detail,{}, {tsv:true});
    detailText=detail.data.text;detailTsv=detail.data.tsv||'';
    const plateAnchor=plateAnchorFromVehicleTsv(detailTsv);
-   onPlateZoom?.(plateAnchor?regions.plateAt(plateAnchor):regions.plateContext);
+   // Never label an arbitrary cropped area as the plate if the row
+   // itself was not located. The fallback remains OCR-only.
+   onPlateZoom?.(plateAnchor?regions.plateAt(plateAnchor):null);
    onStatus('Conferindo FIPE e referências no painel direito…');
    const ref=await worker.recognize(regions.reference,{}, {tsv:true});
    referenceText=ref.data.text;referenceTsv=ref.data.tsv||'';
