@@ -160,6 +160,52 @@ assert.equal(geometryVehicle.yearModel,'2015');
 assert.equal(geometryVehicle.km,151280);
 assert.notEqual(geometryVehicle.plate,'01066164115');
 assert.ok(geometryCapture.confirmed.includes('GBE2488'));
+// Real 17/11/2026 Polo 1.6 MSI Total Flex Manual, QXC9B09,
+// 2019/2020, 113.664 km. The favorite incorrectly sent "KM: 4" from
+// the neighboring Portas row. A same-row visual match must win.
+const msi=polo.replace('POLO 1.0 MPI TRACK MANUAL','POLO 1.6 MSI TOTAL FLEX MANUAL')
+ .replace('SPU1I52','QXC9B09').replace('2025/2025','2019/2020')
+ .replace('39.318','4');
+const msiNodes=[
+ mk('Origem',594,78,62),mk('NACIONAL',822,78,90),
+ mk('Placa',594,111,57),mk('QXC9B09',822,111,80),
+ mk('Ano',594,144,35),mk('2019/2020',822,144,85),
+ mk('Km',594,300,28),mk('113.664',822,300,75),
+ mk('Portas',594,331,60),mk('4',822,331,15)
+];
+const msiDoc={
+ body:{innerText:msi},
+ querySelectorAll:()=>[],
+ createTreeWalker:()=>{
+  let i=0;return {nextNode:()=>msiNodes[i++]||null};
+ },
+ createRange:()=>{
+  let current=null;
+  return {selectNodeContents(node){current=node;},
+   getBoundingClientRect(){return current?.rect||null;}};
+ }
+};
+const msiCaptured=capture(msi,{document:msiDoc});
+assert.ok(msiCaptured.openedUrl,'Polo 1.6 MSI should be transferred for review');
+const msiVehicle=lib.decodeAutoAvaliarFavoriteHash(new URL(msiCaptured.openedUrl).hash);
+assert.equal(msiVehicle.plate,'QXC9B09');
+assert.equal(msiVehicle.yearManufacture,'2019');
+assert.equal(msiVehicle.yearModel,'2020');
+assert.equal(msiVehicle.km,113664,
+ 'Visual KM of 113.664 must beat 4 from Portas or neighboring OCR text');
+assert.ok(msiCaptured.confirmed.includes('KM: 113664'),
+ 'Consent dialog must show exact mileage before opening the Motyq');
+const msiWithoutGeometry=capture(msi,{document:{
+ body:{innerText:msi},querySelectorAll:()=>[]
+}});
+const msiWithoutGeometryVehicle=lib.decodeAutoAvaliarFavoriteHash(
+ new URL(msiWithoutGeometry.openedUrl).hash);
+assert.equal(msiWithoutGeometryVehicle.km,null,
+ 'Never guess 4 km from Portas when the KM geometry is not accessible');
+assert.ok(msiWithoutGeometry.confirmed.includes('KM: a conferir'));
+const msiInline=msi.replace('\nKm\n4','\nKm 113.664');
+const msiInlineVehicle=lib.decodeAutoAvaliarFavoriteHash(new URL(capture(msiInline).openedUrl).hash);
+assert.equal(msiInlineVehicle.km,113664,'Exact KM label/value on a line remains supported');
 const missingPlateYear=polo.replace('SPU1I52','[plate missing]')
  .replace('2025/2025','[year missing]');
 const missingOnly=capture(missingPlateYear,{document:{
