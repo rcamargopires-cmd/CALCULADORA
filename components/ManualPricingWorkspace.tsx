@@ -912,7 +912,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  {quickBuyerQuote&&<MarketIqQuickBuyerQuote scope={captureScope} email={user.email} vehicle={quickBuyerQuote}
   onClose={()=>setQuickBuyerQuote(null)}
   onOpenDirectory={()=>{setQuickBuyerQuote(null);setQuoteFromRadar({token:'buyer-directory:'+Date.now(),vehicle:quickBuyerQuote});navigateSimple('consulted');}}/>}
- {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
+ {deskSection==='home'&&<main className="mx-auto hidden max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6 lg:block">
   <MarketIqSimpleHome
    onOpenAqua={openAquaDashboard}
    onOpenExpress={()=>setExpressOpen(true)}
@@ -925,8 +925,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    historyCount={saved.length} historyBusy={historyBusy}
   />
  </main>}
- <div className={deskSection==='home'||mobileFullDesk?'hidden':'lg:hidden'}>
-  <nav aria-label="Ferramentas de aquisição do Motyq IQ" className="mx-3 mt-3 flex flex-wrap gap-2">
+ <div className={mobileFullDesk?'hidden':'lg:hidden'}>
+  {deskSection!=='home'&&<nav aria-label="Ferramentas de aquisição do Motyq IQ" className="mx-3 mt-3 flex flex-wrap gap-2">
    <button type="button" onClick={()=>navigateSimple('home')}
     className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-900 shadow-sm">Início</button>
    <button type="button" onClick={()=>{switchDeskSection('radar');setMobileFullDesk(true);}}
@@ -935,7 +935,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     setMobileFullDesk(true);switchDeskSection('pricing');
     window.setTimeout(()=>document.getElementById('motyq-iq-decision-board')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
    }} className="rounded-xl bg-[#0b7199] px-3.5 py-2.5 text-xs font-bold text-white shadow-sm">Decisão de Compra</button>
-  </nav>
+  </nav>}
   <MarketIqMobileExperience
    user={user}
    vehicleType={vehicleType} onVehicleType={selectVehicleType}
