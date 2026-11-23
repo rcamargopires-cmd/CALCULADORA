@@ -130,4 +130,33 @@ assert.ok(panel.includes('Limpar filtros'));
 assert.ok(panel.includes('Preço sugerido de venda'));
 assert.ok(panel.includes('Exibindo {filtered.length} de {matching.length}'));
 
+
+// Dealer V44 real naming distribution (synthetic plates and models; no customer data).
+// 17 CRETA + 12 NEW CRETA + 5 NOVO CRETA + 1 CRETA1TA = 35, all one family.
+const cretaNames=[
+ ...Array(17).fill('CRETA 1.0 TGDI LIMITED AT'),
+ ...Array(12).fill('NEW CRETA 1.0L TGDI AT LIMITED'),
+ ...Array(5).fill('NOVO CRETA 1.0L TGDI COMFORT AT'),
+ 'CRETA1TA COMFORT'
+];
+const cretaStock={...snap,vehicles:cretaNames.map((name,i)=>
+ make('CRT'+String(i+1).padStart(4,'0'),'HYUNDAI',name,'2024/2025',
+ 12+i,90000+i,94000+i,110000+i))};
+for(const searched of ['CRETA 1.0 TGDI LIMITED AT','NEW CRETA 1.0L TGDI AT LIMITED',
+ 'NOVO CRETA 1.0L TGDI COMFORT AT','CRETA1TA COMFORT']){
+ const found=lookup.findDealerFamilyStock(cretaStock,'HYUNDAI',searched,'car','2025','',day);
+ assert.equal(found.count,35,'All 35 Hyundai Creta variants must be found from any Creta spelling: '+searched);
+ assert.equal(found.family,'CRETA');
+}
+assert.equal(lookup.dealerModelFamily('HYUNDAI','NOVO CRETA 1.6 TGDI'),'CRETA');
+assert.equal(lookup.dealerModelFamily('HYUNDAI','NEW CRETA 1.0 LIMITED'),'CRETA');
+assert.equal(lookup.dealerModelFamily('HYUNDAI','CRETA1TA COMFORT'),'CRETA');
+assert.equal(lookup.dealerModelFamily('VOLKSWAGEN','NEW BEETLE 2.0'),'NEW',
+ 'NEW must not be stripped indiscriminately from other makes');
+assert.equal(lookup.dealerModelFamily('HYUNDAI','HB20S 1.0'),'HB20S');
+assert.equal(lookup.filterDealerFamilyStock(
+ lookup.findDealerFamilyStock(cretaStock,'HYUNDAI','CRETA 1.0 TGDI LIMITED AT','car','2025','',day).matches,
+ {...view,modelYear:'2025',yearFilter:'same'}
+).length,35,'Year filter works with all grouped Creta variants');
+
 console.log('Dealer family stock in IQ pricing: family matching, year, paid/cost/ask, no false sale claims, stale alerts, account isolation and direct Radar entry passed.');
