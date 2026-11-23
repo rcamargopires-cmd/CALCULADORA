@@ -3,7 +3,7 @@ import type {MarketIqIncomingFile} from '../services/marketIqSmartImport';
 import './marketIqRadarCompact.css';
 import {AlertTriangle,ArrowDownUp,ArrowRight,CarFront,Clock3,FileSpreadsheet,RefreshCw,Search,ShieldCheck,UploadCloud,Warehouse} from 'lucide-react';
 import {
- readDealerWorkbook,dealerRadarStats,dealerRiskFlags,dealerSimilarStock,dealerPlateSuggestions,compareDealerSnapshots,
+ readDealerWorkbook,dealerRadarStats,dealerRiskFlags,dealerSimilarStock,dealerPlateSuggestions,compareDealerSnapshots,dealerRadarTextMatches,
  type DealerStockSnapshot,type DealerStockVehicle
 } from '../services/marketIqDealerRadar';
 import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
@@ -14,7 +14,6 @@ const date=(iso:string)=>{
  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return 'Data não identificada';
  const [y,m,d]=iso.split('-');return d+'/'+m+'/'+y;
 };
-const normal=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const cap=(s:string)=>s.length>48?s.slice(0,48)+'…':s;
 type Filter='all'|'aging'|'noPrice'|'belowCost'|'os';
 const card='rounded-2xl border border-slate-200 bg-white p-4 shadow-sm';
@@ -63,10 +62,9 @@ export default function MarketIqDealerRadarPanel(props:Props){
  const vehicles=current?.vehicles||[];
  const selected=useMemo(()=>vehicles.find(v=>v.key===selectedKey)||null,[vehicles,selectedKey]);
  const filtered=useMemo(()=>{
-  const term=normal(search.trim());
   const list=vehicles.filter(v=>
    (store==='all'||v.store===store)&&(type==='all'||v.vehicleType===type)&&
-   (!term||normal([v.plate,v.chassis,v.brand,v.model,v.year,v.store].join(' ')).includes(term))&&
+   dealerRadarTextMatches(v,search)&&
    (filter==='all'||(filter==='aging'&&v.days>90)||
     (filter==='noPrice'&&v.price<=0)||(filter==='belowCost'&&v.price>0&&v.cost>0&&v.price<v.cost)||
     (filter==='os'&&v.serviceOrders>0)));
