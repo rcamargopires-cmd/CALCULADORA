@@ -180,4 +180,44 @@ assert.equal(new Set(cretaRows.vehicles.map(v=>v.familyKey)).size,1,
  'Dealer Radar must group CRETA/NEW CRETA/NOVO CRETA/CRETA1TA together');
 assert.equal(radar.dealerSimilarStock(cretaRows.vehicles,cretaRows.vehicles[0]).length,34);
 
+
+// Regression: exact Dealer V44 naming distribution (synthetic plates/chassis)
+// contains 23 Volkswagen T-Cross, although a literal "t-cross" search found 5.
+const tcrossAliases=[
+ ...Array(10).fill('VW/T CROSS HL TSI'),
+ ...Array(8).fill('T CROSS SENSE TSI'),
+ ...Array(4).fill('T-CROSS 1.4 250 TSI TOTAL FLEX HIGHLINE AUTOMATICO'),
+ 'VW/T-CROSS TSI'
+];
+const tcrossSheet=radar.parseDealerStockRows([
+ ['Atualizado: 23/11/2026 - 09:40:42 AM'],headers,
+ ...tcrossAliases.map((model,i)=>row({
+  Marca:'VOLKSWAGEN',Modelo:model,Placa:'TCR'+String(i+1).padStart(4,'0'),
+  Chassis:'9BW'+String(i+1).padStart(14,'0'),
+  'Ano Fab/Mod':'2024/2025',Dias:10+i
+ })),
+ row({Marca:'VOLKSWAGEN',Modelo:'T-ROC 1.4 TSI',Placa:'TRC0001',
+  Chassis:'9BW00000000123456'}),
+ row({Marca:'TOYOTA',Modelo:'COROLLA CROSS',Placa:'CRC0001',
+  Chassis:'9BR00000000123456'})
+]);
+const vwTcross=tcrossSheet.vehicles.filter(v=>v.brand==='VOLKSWAGEN'&&
+ radar.dealerRadarTextMatches(v,'t-cross'));
+assert.equal(vwTcross.length,23,'All 23 T-Cross variants must be found');
+for(const query of ['t-cross','T CROSS','TCross','vw/t-cross','VW/T CROSS',
+ 'Volkswagen T-Cross']){
+ const matches=tcrossSheet.vehicles.filter(v=>radar.dealerRadarTextMatches(v,query));
+ assert.equal(matches.length,23,query+' must find every T-Cross spelling but not other CROSS models');
+}
+assert.equal(tcrossSheet.vehicles.filter(v=>radar.dealerRadarTextMatches(v,'T-ROC')).length,1);
+assert.equal(tcrossSheet.vehicles.filter(v=>radar.dealerRadarTextMatches(v,'corolla cross')).length,1);
+assert.equal(tcrossSheet.vehicles.filter(v=>radar.dealerRadarTextMatches(v,'TCR0001')).length,1,
+ 'Plate lookup must remain exact for unique plate text');
+assert.equal(tcrossSheet.vehicles.filter(v=>radar.dealerRadarTextMatches(v,'2025')).length,23,
+ 'Year lookups must continue working');
+assert.equal(tcrossSheet.vehicles.filter(v=>radar.dealerRadarTextMatches(v,'')).length,25,
+ 'Empty term must show complete stock, not shrink the import');
+assert.ok(panel.includes('dealerRadarTextMatches(v,search)'),
+ 'The real Radar UI must use the verified normalized search function');
+
 console.log('Motyq IQ Dealer Radar: V44 header, 3 distinct VINs, OS dedup, risk indicators, local-only import, broad family matches, and snapshot deltas passed.');
