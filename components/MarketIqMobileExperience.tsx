@@ -176,6 +176,16 @@ export default function MarketIqMobileExperience(p:Props){
   setTab(v);setMessage('');window.scrollTo({top:0,behavior:'smooth'});
  };
  const newValuation=()=>{if(!p.onStartNew())return;setResult(false);setQuickMode(false);setStep(1);setPickedYear(0);setPickedFuel('');setBrandSearch('');setModelSearch('');changeTab('pricing');};
+ // The bottom navigation is a tab, not the "new evaluation" action.
+ // Returning from Stock, History or Settings must preserve the draft:
+ // only the explicit Nova precificação button may reset the form.
+ const resumeValuation=()=>{
+  if(tab==='pricing'||result||step>1||p.brandCode||p.modelCode||p.yearCode||p.plate.trim()||p.km.trim()){
+   changeTab('pricing');
+   return;
+  }
+  newValuation();
+ };
  // Parent confirms evaluation and any paid-value event before requesting a
  // fresh mobile sheet. Do not reset here when saving failed or is pending.
  useEffect(()=>{
@@ -785,7 +795,7 @@ export default function MarketIqMobileExperience(p:Props){
        {id:'settings' as const,label:'Ajustes',Icon:Settings2}]).map(item=>
      <button key={item.id} aria-current={tab===item.id?'page':undefined}
       className={'flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold '+(tab===item.id?'text-[#008bd0]':'text-slate-500')}
-      onClick={()=>item.id==='pricing'?newValuation():changeTab(item.id)}>
+      onClick={()=>item.id==='pricing'?resumeValuation():changeTab(item.id)}>
       <item.Icon size={22}/>{item.label}</button>)}
    </div>
   </nav>
