@@ -225,4 +225,79 @@ assert.equal(tcrossSheet.vehicles.filter(v=>radar.dealerRadarTextMatches(v,'')).
 assert.ok(panel.includes('dealerRadarTextMatches(v,search)'),
  'The real Radar UI must use the verified normalized search function');
 
+
+// Accurate search: full-family names must not pull in sibling models, but
+// known abbreviations should resolve even in previously imported local rows.
+const auditedNames=[
+ ['TOYOTA','CCROSS XRE 20'],
+ ['TOYOTA','COROLLA / CCROSS XRE 2.0'],
+ ['TOYOTA','COROLLA XEI20FLEX'],
+ ['GM','ONIX 10TAT RS'],
+ ['GM','ONIX PLUS 10MT LT2'],
+ ['CHERY','TIGGO 5X TXS'],
+ ['CHERY','TIGGO 7 SPORT'],
+ ['CHERY','TIGGO 8 PHEV'],
+ ['OMODA','OMODA 5 LUXURY HEV'],
+ ['OMODA','OMODA 7 PRESTIGE PHEV'],
+ ['OMODA','OMODA E5 EV'],
+ ['HYUNDAI','NEW HB20 1.0M LIMITED'],
+ ['HYUNDAI','HB2010TA S.E.'],
+ ['HYUNDAI','NEW HB20S 1.0 LIMITED'],
+ ['HONDA','CITY HATCH TOURING'],
+ ['HONDA','CITY TOURING'],
+ ['CITROEN','C3 FEEL PK AT'],
+ ['CITROEN','C3 AIRCROSS TURBO'],
+ ['CITROEN','C4 CACTUS SHINE'],
+ ['CITROEN','C4 LOUNGE THP'],
+ ['AUDI','AUDI SPB Q3 2.0 TFSI'],
+ ['AUDI','Q3 SPB PERFOR'],
+ ['AUDI','AUDI Q5 SB 2.0 TFSI'],
+ ['AUDI','AUDI A5 2.0 TFSI'],
+ ['VOLKSWAGEN','NOVA SAVEIRO RB MBVS'],
+ ['VOLKSWAGEN','SAVEIRO ROBUST CS'],
+ ['NISSAN','NISSAN SENTRA ADV CVT'],
+ ['NISSAN','SENTRA'],
+ ['OMODA','GS3/GS3 ELITE']
+];
+const auditedSnapshot=radar.parseDealerStockRows([
+ ['Atualizado: 23/11/2026 - 09:40:42 AM'],headers,
+ ...auditedNames.map(([Marca,Modelo],i)=>row({
+  Marca,Modelo,Placa:'ADT'+String(i+1).padStart(4,'0'),
+  Chassis:'9BA'+String(i+1).padStart(14,'0'),Dias:40+i
+ }))
+]);
+const byQuery=q=>auditedSnapshot.vehicles.filter(v=>radar.dealerRadarTextMatches(v,q));
+assert.equal(byQuery('corolla cross').length,2,'CCROSS must resolve without Corolla sedan');
+assert.equal(byQuery('corolla').length,1,'Corolla family query must not mix SUV');
+assert.equal(byQuery('onix').length,1,'Onix hatch must not include Onix Plus');
+assert.equal(byQuery('onix plus').length,1);
+assert.equal(byQuery('tiggo 7').length,1,'Tiggo 7 must not include Tiggo 5X/8');
+assert.equal(byQuery('omoda 5').length,1,'Omoda 5 must not include Omoda 7/E5');
+assert.equal(byQuery('new hb20').length,2,'New HB20 includes abbreviated HB20 but not HB20S');
+assert.equal(byQuery('hb20s').length,1);
+assert.equal(byQuery('city hatch').length,1);
+assert.equal(byQuery('city').length,1);
+assert.equal(byQuery('c3').length,1);
+assert.equal(byQuery('c3 aircross').length,1);
+assert.equal(byQuery('c4 cactus').length,1);
+assert.equal(byQuery('c4 lounge').length,1);
+assert.equal(byQuery('audi q3').length,2);
+assert.equal(byQuery('audi q5').length,1);
+assert.equal(byQuery('audi a5').length,1);
+assert.equal(byQuery('saveiro').length,2);
+assert.equal(byQuery('sentra').length,2);
+assert.equal(byQuery('ADT0001').length,1,'Plate queries remain exact');
+assert.equal(byQuery('').length,auditedNames.length,'No stock rows dropped');
+const oldLocalRows=auditedSnapshot.vehicles.map(v=>({...v,familyKey:'LEGACY|UNCLASSIFIED'}));
+const tc=oldLocalRows.find(v=>v.model==='CCROSS XRE 20');
+assert.equal(radar.dealerSimilarStock(oldLocalRows,tc).length,1,
+ 'Restored IndexedDB stock recomputes model families instead of trusting stale saved familyKey');
+const onc=oldLocalRows.find(v=>v.model==='ONIX 10TAT RS');
+assert.equal(radar.dealerSimilarStock(oldLocalRows,onc).length,0,
+ 'Old records cannot mix Onix hatch and Plus in similar-stock suggestions');
+assert.equal(auditedSnapshot.warnings.some(x=>x.includes('revisar no Dealer')),true,
+ 'Questionable OMODA GS3 and Hyundai HB2010TA must be flagged, never rebranded');
+assert.ok(panel.includes('dealerModelReviewReason(v.brand,v.model)'),
+ 'Radar must display per-row manual review warnings');
+
 console.log('Motyq IQ Dealer Radar: V44 header, 3 distinct VINs, OS dedup, risk indicators, local-only import, broad family matches, and snapshot deltas passed.');
