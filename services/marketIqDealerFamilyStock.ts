@@ -49,6 +49,8 @@ export const dealerModelFamily=(brand:string,model:string):string=>{
  if(/^ECOSPORT(?:\s|$)/.test(name))return 'ECOSPORT';
  if(/^HB20S(?:\s|$)/.test(name))return 'HB20S';
  if(/^HB20(?:\s|$)/.test(name))return 'HB20';
+ // Motorcycle model families can have two-character names such as CG.
+ if(/^CG\s+\d{2,4}(?:\s|$)/.test(name))return 'CG';
  const first=name.split(' ')[0]||'';
  return first.length>=3?first:'';
 };
