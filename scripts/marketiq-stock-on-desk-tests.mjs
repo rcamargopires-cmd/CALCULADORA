@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
+const identitySource=readFileSync('services/marketIqDealerModelIdentity.ts','utf8');
+const identityJs=ts.transpileModule(identitySource,{compilerOptions:{
+ target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext
+}}).outputText;
+const identityUrl='data:text/javascript;base64,'+Buffer.from(identityJs).toString('base64');
 const service=readFileSync('services/marketIqDealerFamilyStock.ts','utf8');
 const panel=readFileSync('components/MarketIqStockOnDeskPanel.tsx','utf8');
 const desk=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
@@ -12,7 +17,7 @@ for(const [name,src] of [['service',service],['panel',panel],['desk',desk]]){
  0,name+' should be valid TypeScript/JSX');
 }
 const js=ts.transpileModule(service,{compilerOptions:{target:ts.ScriptTarget.ES2022,
- module:ts.ModuleKind.ESNext}}).outputText;
+ module:ts.ModuleKind.ESNext}}).outputText.replaceAll('./marketIqDealerModelIdentity',identityUrl);
 const lookup=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 const make=(plate,brand,model,year,days,purchase,cost,price,vehicleType='car')=>({
  key:'PLATE:'+plate,plate,brand,model,year,days,purchase,cost,price,vehicleType,
