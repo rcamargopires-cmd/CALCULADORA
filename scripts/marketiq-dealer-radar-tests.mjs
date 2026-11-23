@@ -159,4 +159,25 @@ assert.ok(workspace.includes('Ferramentas de aquisição do Motyq IQ')&&
 assert.ok(workspace.includes('onClick={()=>setPurchaseSummaryOpen(true)}'),
  'IQ valuation must be able to open the integrated purchase summary');
 
+
+// Reproduce the 35-record Dealer V44 naming distribution without publishing real plates.
+const cretaLabels=[
+ ...Array(17).fill('CRETA 1.0 TGDI LIMITED AT'),
+ ...Array(12).fill('NEW CRETA 1.0L TGDI AT LIMITED'),
+ ...Array(5).fill('NOVO CRETA 1.0L TGDI COMFORT AT'),
+ 'CRETA1TA COMFORT'
+];
+const cretaRows=radar.parseDealerStockRows([
+ ['Atualizado: 23/11/2026 - 09:40:42 AM'],headers,
+ ...cretaLabels.map((model,i)=>row({
+  Marca:'HYUNDAI',Modelo:model,Placa:'CRT'+String(i+1).padStart(4,'0'),
+  Chassis:'9BH'+String(i+1).padStart(14,'0'),
+  'Ano Fab/Mod':'2024/2025',Dias:12+i
+ }))
+]);
+assert.equal(cretaRows.vehicles.length,35,'All 35 valid Creta entries must import');
+assert.equal(new Set(cretaRows.vehicles.map(v=>v.familyKey)).size,1,
+ 'Dealer Radar must group CRETA/NEW CRETA/NOVO CRETA/CRETA1TA together');
+assert.equal(radar.dealerSimilarStock(cretaRows.vehicles,cretaRows.vehicles[0]).length,34);
+
 console.log('Motyq IQ Dealer Radar: V44 header, 3 distinct VINs, OS dedup, risk indicators, local-only import, broad family matches, and snapshot deltas passed.');
