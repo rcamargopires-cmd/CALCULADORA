@@ -13,6 +13,7 @@ import MarketIqDesktopVoiceSearch from './MarketIqDesktopVoiceSearch';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
 import MarketIqDealerRadarPanel from './MarketIqDealerRadarPanel';
+import MarketIqStockOnDeskPanel from './MarketIqStockOnDeskPanel';
 import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
 import MarketIqQuickDecisionPanel from './MarketIqQuickDecisionPanel';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
@@ -1211,6 +1212,12 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    O preço-alvo pode mudar quando a FIPE atualizar. Confira antes de aprovar a compra.
  </p>}
  {fipe.referenceSource==='tabelafipe.info'&&<p className="mt-1 text-xs text-slate-700">Dados via tabelafipe.info (Tabela FIPE). Fonte independente, conferida por código e ano-modelo.</p>}</>:<p className="text-sm text-slate-600">Selecione marca, modelo/versão e ano para consultar o valor automaticamente.</p>}{catalogError&&<div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-red-700">{catalogError}</p><button type="button" onClick={()=>{setCatalogError("");setRetryCatalog(x=>x+1);if(brandCode){const current=brandCode;setBrandCode('');window.setTimeout(()=>setBrandCode(current),0);}}} className="rounded-lg border border-cyan-700 px-3 py-1 text-sm font-semibold text-cyan-900">Tentar novamente</button></div>}</div></section>
+ <MarketIqStockOnDeskPanel
+  snapshot={radarLoadedScope===captureScope?radarSnapshot:null}
+  loaded={radarLoadedScope===captureScope}
+  brand={brand} model={model} year={year} plate={plate} vehicleType={vehicleType}
+  onOpenRadar={()=>{switchDeskSection('radar');setMobileFullDesk(true);}}
+ />
  <MarketIqQuickDecisionPanel
   target={{
    brand,model,year,plate,vehicleType,km:number(km),
