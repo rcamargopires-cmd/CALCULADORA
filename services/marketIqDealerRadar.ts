@@ -52,20 +52,25 @@ export function dealerRadarTextMatches(vehicle:DealerStockVehicle,query:string):
  const wanted=radarSearchCompact(query);
  if(!wanted)return true;
  const fields=[vehicle.plate,vehicle.chassis,vehicle.brand,vehicle.model,vehicle.year,vehicle.store];
- // Preserve exact plate/chassis, unit, make, model and year searches first.
- if(normalized(fields.join(' ')).includes(normalized(query)))return true;
- if(fields.some(field=>radarSearchCompact(field).includes(wanted)))return true;
- // Only apply aliases to known, same-make model families.
- // A full/partial plate is never treated as a model alias.
- if(/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(wanted))return false;
+ // A full/partial plate or VIN must remain an exact text search, never a model alias.
+ if(/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(wanted))
+  return fields.some(field=>radarSearchCompact(field).includes(wanted));
  const selectedFamily=dealerModelFamily(vehicle.brand,query);
- if(!selectedFamily||selectedFamily!==dealerModelFamily(vehicle.brand,vehicle.model))
-  return false;
+ const recordFamily=dealerModelFamily(vehicle.brand,vehicle.model);
  const desired=radarSearchCompact(dealerModelDescription(vehicle.brand,query));
  const found=radarSearchCompact(dealerModelDescription(vehicle.brand,vehicle.model));
  const familyName=radarSearchCompact(selectedFamily);
- // Whole-family query (e.g. Corolla Cross, NEW HB20, Audi Q3, Tiggo 7)
- // finds all name variants, not sibling body styles or other model numbers.
+ const preciseFamily=/^(?:ONIX|ONIX PLUS|COROLLA|COROLLA CROSS|TIGGO 5X|TIGGO 7|TIGGO 8|OMODA 5|OMODA 7|OMODA E5|HB20|HB20S|HB20X|CITY|CITY HATCH|C3|C3 AIRCROSS|C4 CACTUS|C4 LOUNGE|T-CROSS|T-ROC)$/.test(selectedFamily);
+ const make=dealerCanonicalBrand(vehicle.brand);
+ const fullFamilyTerm=desired===familyName||
+  (selectedFamily.startsWith('OMODA ')&&radarSearchCompact(query)===radarSearchCompact(make)+desired);
+ // An explicitly named family does not include a sibling body style or model.
+ if(preciseFamily&&fullFamilyTerm)return selectedFamily===recordFamily;
+ // Preserve other regular searches by plate/chassis, unit, make, model and year.
+ if(normalized(fields.join(' ')).includes(normalized(query)))return true;
+ if(fields.some(field=>radarSearchCompact(field).includes(wanted)))return true;
+ // Alias matching only inside the same manufacturer and family.
+ if(!selectedFamily||selectedFamily!==recordFamily)return false;
  return desired.length>=2&&(found.includes(desired)||desired===familyName);
 }
 export const DEALER_STOCK_HEADERS=[
