@@ -65,9 +65,11 @@ const radarSearchCompact=(raw:string)=>normalized(raw).replace(/\s+/g,'');
 export function dealerRadarTextMatches(vehicle:DealerStockVehicle,query:string):boolean{
  const wanted=radarSearchCompact(query);
  if(!wanted)return true;
- const values=[vehicle.plate,vehicle.chassis,vehicle.brand,vehicle.model,vehicle.year,vehicle.store]
-  .map(radarSearchCompact);
- if(values.some(value=>value.includes(wanted))||values.join('').includes(wanted))return true;
+ const fields=[vehicle.plate,vehicle.chassis,vehicle.brand,vehicle.model,vehicle.year,vehicle.store];
+ // Keep ordinary multi-word searches across make/model fields, but do not
+ // create false hits by concatenating unrelated values without a separator.
+ if(normalized(fields.join(' ')).includes(normalized(query)))return true;
+ if(fields.some(field=>radarSearchCompact(field).includes(wanted)))return true;
  // The V44 can prepend VW to T-Cross, whereas operator input may or may not.
  // Scope this alias to Volkswagen T-Cross, not Polo, T-Roc or other 'Cross' cars.
  if(canonicalBrand(vehicle.brand)!=='VOLKSWAGEN')return false;
