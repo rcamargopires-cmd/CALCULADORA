@@ -58,6 +58,26 @@ const vehicleFamily=(brand:string,model:string)=>{
 };
 const isMotorcycle=(brand:string,store:string,model:string)=>/MOTO|ROYAL ENFIELD|TRIUMPH|HARLEY|DAFRA|KAWASAKI|YAMAHA|HONDA MOTOS|BMW MOTORRAD/i.test(
  brand+' '+store+' '+model);
+/** Inventory search is tolerant of separators used by Dealer's model labels
+ * (T-CROSS, T CROSS, TCROSS, VW/T-CROSS). Search does not alter stored rows.
+ */
+const radarSearchCompact=(raw:string)=>normalized(raw).replace(/\s+/g,'');
+export function dealerRadarTextMatches(vehicle:DealerStockVehicle,query:string):boolean{
+ const wanted=radarSearchCompact(query);
+ if(!wanted)return true;
+ const values=[vehicle.plate,vehicle.chassis,vehicle.brand,vehicle.model,vehicle.year,vehicle.store]
+  .map(radarSearchCompact);
+ if(values.some(value=>value.includes(wanted))||values.join('').includes(wanted))return true;
+ // The V44 can prepend VW to T-Cross, whereas operator input may or may not.
+ // Scope this alias to Volkswagen T-Cross, not Polo, T-Roc or other 'Cross' cars.
+ if(canonicalBrand(vehicle.brand)!=='VOLKSWAGEN')return false;
+ const requestedTcross=wanted.replace(/^(?:VW|VOLKSWAGEN)(?=TCROSS)/,'');
+ if(!requestedTcross.startsWith('TCROSS'))return false;
+ const model=radarSearchCompact(vehicle.model)
+  .replace(/^(?:VW|VOLKSWAGEN)(?=TCROSS)/,'');
+ return model.includes(requestedTcross);
+}
+
 export const DEALER_STOCK_HEADERS=[
  'Empresa Compra','Estoque Atual','Modelo','Placa','Km','Dias','Preço Sugerido',
  'Marca','Ano Fab/Mod','Chassis','Valor Compra','Valor Custo'
