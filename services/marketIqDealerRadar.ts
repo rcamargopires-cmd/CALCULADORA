@@ -44,10 +44,17 @@ const canonicalBrand=(value:string)=>{
  return s;
 };
 const vehicleFamily=(brand:string,model:string)=>{
- const s=normalized(model).replace(/^(I VW|VW|GM|CHEVROLET|VOLKSWAGEN|FIAT|RENAULT|FORD)\s+/,'');
+ const make=canonicalBrand(brand);
+ let s=normalized(model).replace(/^(I VW|VW|GM|CHEVROLET|VOLKSWAGEN|FIAT|RENAULT|FORD)\s+/,'');
+ // Keep the Radar grouping consistent with the Mesa's family aliases.
+ // Never strip NEW/NOVO outside the Hyundai Creta family.
+ if(make==='HYUNDAI'){
+  s=s.replace(/^(?:NEW|NOVO)\s+(?=CRETA(?:\s|$))/,'');
+  s=s.replace(/^CRETA1TA(?:\s|$)/,'CRETA ');
+ }
  const tokens=s.split(' ').filter(Boolean);
  // Family is a broad inventory signal, not equivalent to the exact FIPE trim.
- return canonicalBrand(brand)+'|'+(tokens[0]||'DESCONHECIDO');
+ return make+'|'+(tokens[0]||'DESCONHECIDO');
 };
 const isMotorcycle=(brand:string,store:string,model:string)=>/MOTO|ROYAL ENFIELD|TRIUMPH|HARLEY|DAFRA|KAWASAKI|YAMAHA|HONDA MOTOS|BMW MOTORRAD/i.test(
  brand+' '+store+' '+model);
