@@ -166,7 +166,7 @@ export default function MarketIqStockOnDeskPanel({
          <p className="text-sm font-black text-slate-950">{v.brand} · {v.model} {v.year&&'· '+v.year}</p>
          {dealerModelReviewReason(v.brand,v.model)&&<p className="mt-1 rounded-lg bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-950">
           Conferir no Dealer: {dealerModelReviewReason(v.brand,v.model)}
-         </p>
+         </p>}
          <p className="mt-1 text-xs text-slate-700">Placa {v.plate||'não informada'} · {v.store||'Loja não informada'}{v.kmValid?' · '+v.km.toLocaleString('pt-BR')+' km':''}</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
