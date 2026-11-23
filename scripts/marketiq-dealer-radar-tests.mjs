@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
+const identitySource=readFileSync('services/marketIqDealerModelIdentity.ts','utf8');
+const identityJs=ts.transpileModule(identitySource,{compilerOptions:{
+ target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext
+}}).outputText;
+const identityUrl='data:text/javascript;base64,'+Buffer.from(identityJs).toString('base64');
 const service=readFileSync('services/marketIqDealerRadar.ts','utf8');
 const panel=readFileSync('components/MarketIqDealerRadarPanel.tsx','utf8');
 const workspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
@@ -13,7 +18,7 @@ for(const [name,source] of [['service',service],['panel',panel]]){
 }
 const js=ts.transpileModule(service.replace("import * as XLSX from 'xlsx';","const XLSX={};"),{
  compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}
-}).outputText;
+}).outputText.replaceAll('./marketIqDealerModelIdentity',identityUrl);
 const radar=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 const headers=['Empresa Compra','Estoque Atual','Modelo','Placa','Cor','Km','Comb.','Transmissão','Dias',
  'Preço Sugerido','Marca','Ano Fab/Mod','Chassis','Situação','Valor Compra','Custo Oper.','OS_Regra',
