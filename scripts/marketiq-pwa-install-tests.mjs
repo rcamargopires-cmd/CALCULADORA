@@ -11,7 +11,7 @@ const pkg=JSON.parse(readFileSync('package.json','utf8'));
 assert.equal(manifest.name,'Motyq IQ Mobile');
 assert.equal(manifest.short_name,'Motyq IQ');
 assert.equal(manifest.display,'standalone');
-assert.equal(manifest.start_url,'/');
+assert.equal(manifest.start_url,'/?iq=1','Installed mobile app must open IQ explicitly');
 assert.equal(manifest.scope,'/');
 assert.equal(manifest.prefer_related_applications,false);
 assert.equal(manifest.lang,'pt-BR');
