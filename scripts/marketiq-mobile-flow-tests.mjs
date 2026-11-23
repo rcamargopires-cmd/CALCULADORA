@@ -151,6 +151,20 @@ assert.ok(mesa.includes('const beginNewMobileValuation=():boolean=>'));
 assert.ok(mesa.includes("window.confirm('Iniciar nova avaliação?"), 'No accidental loss of incomplete appraisal');
 assert.ok(mesa.includes("onOpenApprovals={()=>{setMobileFullDesk(true);switchDeskSection('approvals');}}"));
 assert.ok(mesa.includes('<MarketIqMobileExperience'));
+
+assert.ok(mesa.includes("{deskSection==='home'&&<main className=\"mx-auto hidden max-w-7xl"),
+ 'Desktop IQ home should be hidden on smartphones');
+assert.ok(mesa.includes("<div className={mobileFullDesk?'hidden':'lg:hidden'}>"),
+ 'Mobile experience must be visible even when the desk route is home');
+assert.ok(mesa.includes("{deskSection!=='home'&&<nav aria-label=\"Ferramentas de aquisição do Motyq IQ\""),
+ 'Avoid duplicate desktop-like tool navigation on mobile home');
+assert.ok(ui.includes('const resumeValuation=()=>'),
+ 'Mobile tab must resume current draft');
+assert.ok(ui.includes("onClick={()=>item.id==='pricing'?resumeValuation():changeTab(item.id)}"),
+ 'Bottom Precificar tab must not reset the appraisal');
+assert.ok(ui.includes('const newValuation=()=>{if(!p.onStartNew())return;'),
+ 'Explicit Nova precificação still requires confirmation before reset');
+
 assert.ok(mesa.includes('history={saved}'), 'Mobile uses exact same cloud history');
 assert.ok(mesa.includes('onRestoreHistory={record=>restore(record as Saved)}'));
 assert.ok(mesa.includes('fipe={fipe}'), 'Mobile uses existing FIPE API result');

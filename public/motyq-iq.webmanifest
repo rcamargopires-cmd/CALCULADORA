@@ -4,7 +4,7 @@
   "short_name": "Motyq IQ",
   "description": "Precificação, avaliações e histórico de veículos com a inteligência do Motyq IQ.",
   "lang": "pt-BR",
-  "start_url": "/",
+  "start_url": "/?iq=1",
   "scope": "/",
   "display": "standalone",
   "display_override": [
