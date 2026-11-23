@@ -1,4 +1,6 @@
 import * as XLSX from 'xlsx';
+import {dealerCanonicalBrand,dealerModelFamily,dealerModelDescription,dealerModelReviewReason}
+ from './marketIqDealerModelIdentity';
 
 export type DealerStockVehicle={
  key:string;plate:string;chassis:string;brand:string;model:string;year:string;
@@ -36,25 +38,9 @@ const number=(value:Cell)=>{
 };
 const keyFor=(plate:string,chassis:string)=>chassis&&chassis.length===17?
  'VIN:'+chassis:plate?'PLATE:'+plate:'';
-const canonicalBrand=(value:string)=>{
- const s=normalized(value);
- if(/VOLKS|^VW$/.test(s))return 'VOLKSWAGEN';
- if(/^GM\b|CHEVROLET/.test(s))return 'CHEVROLET';
- if(/MERCEDES/.test(s))return 'MERCEDES-BENZ';
- return s;
-};
 const vehicleFamily=(brand:string,model:string)=>{
- const make=canonicalBrand(brand);
- let s=normalized(model).replace(/^(I VW|VW|GM|CHEVROLET|VOLKSWAGEN|FIAT|RENAULT|FORD)\s+/,'');
- // Keep the Radar grouping consistent with the Mesa's family aliases.
- // Never strip NEW/NOVO outside the Hyundai Creta family.
- if(make==='HYUNDAI'){
-  s=s.replace(/^(?:NEW|NOVO)\s+(?=CRETA(?:\s|$))/,'');
-  s=s.replace(/^CRETA1TA(?:\s|$)/,'CRETA ');
- }
- const tokens=s.split(' ').filter(Boolean);
- // Family is a broad inventory signal, not equivalent to the exact FIPE trim.
- return make+'|'+(tokens[0]||'DESCONHECIDO');
+ const make=dealerCanonicalBrand(brand),family=dealerModelFamily(brand,model);
+ return make+'|'+(family||'DESCONHECIDO');
 };
 const isMotorcycle=(brand:string,store:string,model:string)=>/MOTO|ROYAL ENFIELD|TRIUMPH|HARLEY|DAFRA|KAWASAKI|YAMAHA|HONDA MOTOS|BMW MOTORRAD/i.test(
  brand+' '+store+' '+model);
@@ -66,20 +52,22 @@ export function dealerRadarTextMatches(vehicle:DealerStockVehicle,query:string):
  const wanted=radarSearchCompact(query);
  if(!wanted)return true;
  const fields=[vehicle.plate,vehicle.chassis,vehicle.brand,vehicle.model,vehicle.year,vehicle.store];
- // Keep ordinary multi-word searches across make/model fields, but do not
- // create false hits by concatenating unrelated values without a separator.
+ // Preserve exact plate/chassis, unit, make, model and year searches first.
  if(normalized(fields.join(' ')).includes(normalized(query)))return true;
  if(fields.some(field=>radarSearchCompact(field).includes(wanted)))return true;
- // The V44 can prepend VW to T-Cross, whereas operator input may or may not.
- // Scope this alias to Volkswagen T-Cross, not Polo, T-Roc or other 'Cross' cars.
- if(canonicalBrand(vehicle.brand)!=='VOLKSWAGEN')return false;
- const requestedTcross=wanted.replace(/^(?:VW|VOLKSWAGEN)(?=TCROSS)/,'');
- if(!requestedTcross.startsWith('TCROSS'))return false;
- const model=radarSearchCompact(vehicle.model)
-  .replace(/^(?:VW|VOLKSWAGEN)(?=TCROSS)/,'');
- return model.includes(requestedTcross);
+ // Only apply aliases to known, same-make model families.
+ // A full/partial plate is never treated as a model alias.
+ if(/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(wanted))return false;
+ const selectedFamily=dealerModelFamily(vehicle.brand,query);
+ if(!selectedFamily||selectedFamily!==dealerModelFamily(vehicle.brand,vehicle.model))
+  return false;
+ const desired=radarSearchCompact(dealerModelDescription(vehicle.brand,query));
+ const found=radarSearchCompact(dealerModelDescription(vehicle.brand,vehicle.model));
+ const familyName=radarSearchCompact(selectedFamily);
+ // Whole-family query (e.g. Corolla Cross, NEW HB20, Audi Q3, Tiggo 7)
+ // finds all name variants, not sibling body styles or other model numbers.
+ return desired.length>=2&&(found.includes(desired)||desired===familyName);
 }
-
 export const DEALER_STOCK_HEADERS=[
  'Empresa Compra','Estoque Atual','Modelo','Placa','Km','Dias','Preço Sugerido',
  'Marca','Ano Fab/Mod','Chassis','Valor Compra','Valor Custo'
@@ -124,7 +112,7 @@ export function parseDealerStockRows(table:Cell[][],serviceRows:Cell[][]=[],date
    buyingCompany:text(get(row,'Empresa Compra')),location:text(get(row,'Localização')),
    condition:text(get(row,'Situação')),vehicleType:isMotorcycle(brand,store,model)?'motorcycle':'car',
    serviceOrders:0,familyKey:vehicleFamily(brand,model),
-   exactKey:canonicalBrand(brand)+'|'+normalized(model)+'|'+normalized(get(row,'Ano Fab/Mod'))
+   exactKey:dealerCanonicalBrand(brand)+'|'+normalized(model)+'|'+normalized(get(row,'Ano Fab/Mod'))
   };
   const existing=vehicles.get(id);
   if(existing){
@@ -157,6 +145,9 @@ export function parseDealerStockRows(table:Cell[][],serviceRows:Cell[][]=[],date
   }
  }
  const all=[...vehicles.values()];
+ const needsReview=all.filter(v=>dealerModelReviewReason(v.brand,v.model));
+ if(needsReview.length)warnings.push(needsReview.length+
+  ' veículo(s) com modelo/marca abreviados ou inconsistentes: revisar no Dealer.');
  return {importedAt:new Date().toISOString(),reportDate,vehicles:all,
   duplicateCount,warnings,stores:[...new Set(all.map(v=>v.store).filter(Boolean))].sort(),
   serviceOrderRows:all.reduce((sum,v)=>sum+v.serviceOrders,0)};
@@ -217,7 +208,10 @@ export function dealerPlateSuggestions(rows:DealerStockVehicle[],query:string,li
  }).slice(0,Math.max(0,Math.min(5,Math.floor(limit))));
 }
 export function dealerSimilarStock(rows:DealerStockVehicle[],target:DealerStockVehicle){
- return rows.filter(v=>v.key!==target.key&&v.familyKey===target.familyKey)
+ const make=dealerCanonicalBrand(target.brand),family=dealerModelFamily(target.brand,target.model);
+ if(!make||!family)return [];
+ return rows.filter(v=>v.key!==target.key&&v.vehicleType===target.vehicleType&&
+  dealerCanonicalBrand(v.brand)===make&&dealerModelFamily(v.brand,v.model)===family)
   .sort((a,b)=>Math.abs(a.days-target.days)-Math.abs(b.days-target.days));
 }
 export function compareDealerSnapshots(previous:DealerStockSnapshot,current:DealerStockSnapshot):DealerSnapshotDiff{
