@@ -1,6 +1,7 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {ArrowRight,Clock3,FileSpreadsheet,Warehouse} from 'lucide-react';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
+import {dealerModelReviewReason} from '../services/marketIqDealerModelIdentity';
 import {
  findDealerFamilyStock,filterDealerFamilyStock,dealerStockModelYear,
  type DealerStockYearFilter,type DealerStockDescriptionFilter,
@@ -163,6 +164,9 @@ export default function MarketIqStockOnDeskPanel({
        <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
          <p className="text-sm font-black text-slate-950">{v.brand} · {v.model} {v.year&&'· '+v.year}</p>
+         {dealerModelReviewReason(v.brand,v.model)&&<p className="mt-1 rounded-lg bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-950">
+          Conferir no Dealer: {dealerModelReviewReason(v.brand,v.model)}
+         </p>
          <p className="mt-1 text-xs text-slate-700">Placa {v.plate||'não informada'} · {v.store||'Loja não informada'}{v.kmValid?' · '+v.km.toLocaleString('pt-BR')+' km':''}</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
