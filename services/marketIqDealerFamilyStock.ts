@@ -97,3 +97,63 @@ export function findDealerFamilyStock(
   reportDate:snapshot.reportDate||'',importedAt:snapshot.importedAt||'',
   snapshotAgeDays,isOutdated:snapshotAgeDays===null||snapshotAgeDays<0||snapshotAgeDays>14};
 }
+
+
+/** Filters and ordering for the *visible* Dealer stock only. These never
+ * affect the full family count, any price recommendation, or stored snapshot.
+ * Year comparison uses model-year (the last year in Dealer's Fab/Mod field).
+ */
+export type DealerStockYearFilter='all'|'same'|'near1'|'near2';
+export type DealerStockDescriptionFilter='family'|'exact';
+export type DealerStockPriceBasis='price'|'purchase'|'cost';
+export type DealerStockSort='match'|'priceAsc'|'priceDesc'|'daysDesc';
+export type DealerStockViewOptions={
+ modelYear:string;
+ yearFilter:DealerStockYearFilter;
+ descriptionFilter:DealerStockDescriptionFilter;
+ priceBasis:DealerStockPriceBasis;
+ minPrice:number|null;
+ maxPrice:number|null;
+ sort:DealerStockSort;
+};
+export const dealerStockModelYear=(year:string):string=>modelYear(year);
+
+export function filterDealerFamilyStock(
+ matches:readonly DealerFamilyMatch[],options:DealerStockViewOptions
+):DealerFamilyMatch[]{
+ const requested=Number(modelYear(options.modelYear));
+ const maxYearDifference=options.yearFilter==='same'?0:
+  options.yearFilter==='near1'?1:options.yearFilter==='near2'?2:null;
+ const min=options.minPrice!==null&&Number.isFinite(options.minPrice)&&options.minPrice>=0?
+  options.minPrice:null;
+ const max=options.maxPrice!==null&&Number.isFinite(options.maxPrice)&&options.maxPrice>=0?
+  options.maxPrice:null;
+ if((maxYearDifference!==null&&!requested)||(min!==null&&max!==null&&min>max))return [];
+ const filtered=matches.filter(match=>{
+  if(options.descriptionFilter==='exact'&&!match.exactDescription)return false;
+  if(maxYearDifference!==null){
+   const rowYear=Number(modelYear(match.vehicle.year));
+   if(!rowYear||Math.abs(rowYear-requested)>maxYearDifference)return false;
+  }
+  if(min!==null||max!==null){
+   const value=match.vehicle[options.priceBasis];
+   // Missing Dealer values are not zero-priced opportunities.
+   if(!Number.isFinite(value)||value<=0)return false;
+   if(min!==null&&value<min)return false;
+   if(max!==null&&value>max)return false;
+  }
+  return true;
+ });
+ if(options.sort==='match')return filtered; // preserve plate/exact/year priority
+ const usable=(value:number)=>Number.isFinite(value)&&value>0;
+ return filtered.sort((a,b)=>{
+  if(options.sort==='daysDesc')return b.vehicle.days-a.vehicle.days||
+   a.vehicle.plate.localeCompare(b.vehicle.plate);
+  const av=a.vehicle[options.priceBasis],bv=b.vehicle[options.priceBasis];
+  // Blank prices always appear last, including when sorting descending.
+  if(usable(av)!==usable(bv))return usable(av)?-1:1;
+  if(!usable(av))return a.vehicle.plate.localeCompare(b.vehicle.plate);
+  const difference=options.sort==='priceAsc'?av-bv:bv-av;
+  return difference||a.vehicle.plate.localeCompare(b.vehicle.plate);
+ });
+}
