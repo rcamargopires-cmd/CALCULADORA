@@ -34,6 +34,10 @@ const normalizedModel=(brand:string,raw:string)=>{
   .replace(/^I\s+VW\s+/,'')
   .replace(/^(?:VW|VOLKSWAGEN|CHEVROLET|GM|HYUNDAI|TOYOTA|FORD|FIAT|JEEP|RENAULT|NISSAN|HONDA)\s+/,'');
  if(manufacturer(brand)==='VOLKSWAGEN')value=value.replace(/^TCROSS\b/,'T CROSS').replace(/^TROC\b/,'T ROC');
+ // Dealer V44 names a single Creta family as CRETA, NEW CRETA and NOVO CRETA.
+ // Scope aliases to Hyundai Creta only: NEW is a real name in other families.
+ if(manufacturer(brand)==='HYUNDAI')
+  value=value.replace(/^(?:NEW|NOVO)\s+(?=CRETA(?:\s|$))/,'');
  value=value.replace(/^ECO SPORT\b/,'ECOSPORT');
  return value;
 };
@@ -49,6 +53,9 @@ export const dealerModelFamily=(brand:string,model:string):string=>{
  if(/^ECOSPORT(?:\s|$)/.test(name))return 'ECOSPORT';
  if(/^HB20S(?:\s|$)/.test(name))return 'HB20S';
  if(/^HB20(?:\s|$)/.test(name))return 'HB20';
+ // Dealer exports one abbreviated Creta as CRETA1TA COMFORT.
+ // Treat it as family Creta, but retain its exact description for verification.
+ if(manufacturer(brand)==='HYUNDAI'&&/^CRETA1TA(?:\s|$)/.test(name))return 'CRETA';
  // Motorcycle model families can have two-character names such as CG.
  if(/^CG\s+\d{2,4}(?:\s|$)/.test(name))return 'CG';
  const first=name.split(' ')[0]||'';
