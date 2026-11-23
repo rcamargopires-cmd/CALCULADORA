@@ -76,7 +76,7 @@ assert.ok(panel.includes('Não informado'));
 assert.ok(panel.includes('não comprova venda'));
 assert.ok(panel.includes('Nenhum veículo desta família'));
 assert.ok(panel.includes('Relatório {result.snapshotAgeDays===null?'));
-assert.ok(panel.includes("matching.slice(0,6)"));
+assert.ok(panel.includes("filtered.slice(0,6)"));
 assert.ok(panel.includes('Importar estoque do Dealer'));
 assert.ok(desk.includes("import MarketIqStockOnDeskPanel from './MarketIqStockOnDeskPanel'"));
 assert.ok(desk.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),
@@ -85,4 +85,49 @@ assert.ok(desk.includes("onOpenRadar={()=>{switchDeskSection('radar');setMobileF
  'Import/open Radar uses existing gated desk');
 assert.ok(!panel.includes('fetch(')&&!panel.includes('localStorage.setItem('),
  'Read-only Dealer stock panel must not upload/sync customer inventory');
+
+const view={modelYear:'2022',yearFilter:'all',descriptionFilter:'family',
+ priceBasis:'price',minPrice:null,maxPrice:null,sort:'match'};
+const filtered=(settings)=>lookup.filterDealerFamilyStock(tcross.matches,{...view,...settings});
+assert.deepEqual(filtered({yearFilter:'same'}).map(x=>x.vehicle.plate),['ABC1D23'],
+ 'Model-year 2022 should not include 2020/2021 as a same-year comparable');
+assert.deepEqual(filtered({yearFilter:'near1'}).map(x=>x.vehicle.plate),['ABC1D23','XYZ9K12']);
+assert.deepEqual(filtered({yearFilter:'near2'}).map(x=>x.vehicle.plate),['ABC1D23','XYZ9K12']);
+assert.equal(filtered({yearFilter:'same',modelYear:''}).length,0,
+ 'Missing target year must not silently widen a comparison');
+assert.equal(filtered({descriptionFilter:'exact'}).length,0,
+ 'Similar trim names are not automatically treated as text-identical');
+const exact=lookup.findDealerFamilyStock(snap,'VW','I VW T CROSS 1.0 200 TSI SENSE','car','2022','',day);
+assert.equal(lookup.filterDealerFamilyStock(exact.matches,{...view,descriptionFilter:'exact'}).length,1);
+assert.deepEqual(filtered({priceBasis:'purchase',minPrice:71000,maxPrice:75000})
+ .map(x=>x.vehicle.plate),['XYZ9K12'],'Paid-price range must not use asking price');
+assert.deepEqual(filtered({priceBasis:'cost',maxPrice:73500})
+ .map(x=>x.vehicle.plate),['ABC1D23'],'Cost filter must use current cost, not purchase');
+assert.deepEqual(filtered({priceBasis:'price',minPrice:86000,maxPrice:90000})
+ .map(x=>x.vehicle.plate),['XYZ9K12'],'Suggested ask range is distinct from paid/cost');
+assert.equal(filtered({priceBasis:'price',minPrice:100000,maxPrice:90000}).length,0,
+ 'Invalid ranges must never be interpreted as no filter');
+assert.deepEqual(filtered({sort:'priceAsc',priceBasis:'purchase'}).map(x=>x.vehicle.plate),
+ ['ABC1D23','XYZ9K12']);
+assert.deepEqual(filtered({sort:'priceDesc',priceBasis:'purchase'}).map(x=>x.vehicle.plate),
+ ['XYZ9K12','ABC1D23']);
+assert.deepEqual(filtered({sort:'daysDesc'}).map(x=>x.vehicle.plate),
+ ['XYZ9K12','ABC1D23']);
+const withMissing={...tcross.matches[0],vehicle:{...tcross.matches[0].vehicle,key:'missing',plate:'MIS1A23',price:0}};
+assert.deepEqual(lookup.filterDealerFamilyStock([withMissing,...tcross.matches],{
+ ...view,priceBasis:'price',minPrice:0
+}).map(x=>x.vehicle.plate),['ABC1D23','XYZ9K12'],
+ 'Unknown prices are excluded even when lower bound is zero');
+assert.equal(lookup.filterDealerFamilyStock([withMissing],{...view,sort:'priceDesc'})[0].vehicle.price,0,
+ 'Without a price filter unknown amounts remain visible and explicitly marked unavailable');
+assert.ok(panel.includes('Compatibilidade de ano-modelo'));
+assert.ok(panel.includes('Descrição idêntica'));
+assert.ok(panel.includes('Valor mínimo (R$)'));
+assert.ok(panel.includes('Valor máximo (R$)'));
+assert.ok(panel.includes('Tipo de valor para filtro'));
+assert.ok(panel.includes("Nenhum dos {matching.length} veículos"));
+assert.ok(panel.includes('Limpar filtros'));
+assert.ok(panel.includes('Preço sugerido de venda'));
+assert.ok(panel.includes('Exibindo {filtered.length} de {matching.length}'));
+
 console.log('Dealer family stock in IQ pricing: family matching, year, paid/cost/ask, no false sale claims, stale alerts, account isolation and direct Radar entry passed.');
