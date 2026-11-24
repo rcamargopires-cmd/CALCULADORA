@@ -96,4 +96,52 @@ assert.ok(radar.includes('Raio-X do Estoque'));
 assert.ok(radar.includes('MarketIqStockXRayPanel'));
 assert.ok(radar.includes('onFamilySelect={openXRayFamily}'));
 assert.ok(radar.includes("setSearch(family);setStore('all');setType('all');setFilter('all')"));
+
+const deeper=api.analyzeDealerStockDeep(snapshot);
+assert.equal(deeper.cohorts.length,6);
+assert.equal(deeper.cohorts.reduce((s,c)=>s+c.count,0),13);
+assert.equal(deeper.cohorts.reduce((s,c)=>s+c.cost,0),report.totalCost);
+assert.equal(deeper.oldCostShare,report.over90Cost/report.totalCost);
+assert.ok(deeper.top5Cost<=report.totalCost);
+assert.ok(deeper.top5OldCost<=report.over90Cost);
+assert.equal(deeper.families.length,report.families);
+assert.equal(deeper.capitalByUnit.length,2);
+const deepTcross=deeper.families.find(f=>f.family==='T-CROSS');
+assert.equal(deepTcross.oldCount,3);
+assert.equal(deepTcross.oldCost,300000);
+assert.equal(deepTcross.action,'review_buy');
+assert.ok(deepTcross.evidence.some(x=>x.includes('Capital >90 dias')));
+assert.equal(deepTcross.byUnit.reduce((n,u)=>n+u.count,0),5);
+assert.equal(deepTcross.daysWeighted,
+ (130*100000+115*110000+92*90000+80*100000+70*105000)/505000);
+const deeperCompared=api.analyzeDealerStockDeep(snapshot,previous);
+assert.equal(deeperCompared.period.entriesObserved,11);
+assert.equal(deeperCompared.period.exitsObserved,1);
+assert.equal(deeperCompared.period.retainedCount,2);
+assert.equal(deeperCompared.period.netVehicleChange,10);
+assert.equal(deeperCompared.period.netCostChange,
+ report.totalCost-previous.vehicles.reduce((n,v)=>n+v.cost,0));
+assert.equal(api.analyzeDealerStockDeep(snapshot,{...previous,reportDate:snapshot.reportDate}).period,null,
+ 'Same-day reimport does not create a period/sales proxy');
+assert.equal(api.xrayCapitalSensitivity(100000,1.5,2),3000);
+assert.equal(api.xrayCapitalSensitivity(-100000,1.5,1),0);
+assert.equal(api.xrayCapitalSensitivity(100000,12,1),6000,'Monthly sensitivity bounded');
+const markdown=api.xrayMarkdownSensitivity(cars.filter(v=>v.days>90),5);
+assert.equal(markdown.count,4,'No suggested price => cannot simulate markdown');
+assert.equal(markdown.scenarioAsk,markdown.currentAsk*0.95);
+assert.equal(markdown.spread,markdown.scenarioAsk-markdown.cost);
+const deepPanel=readFileSync('components/MarketIqStockXRayDeepPanel.tsx','utf8');
+assert.ok(component.includes('Análise gerencial aprofundada'));
+assert.ok(component.includes("analyticalView==='deep'"));
+assert.ok(component.includes('MarketIqStockXRayDeepPanel'));
+assert.ok(deepPanel.includes('Diagnóstico executivo'));
+assert.ok(deepPanel.includes('Envelhecimento por capital'));
+assert.ok(deepPanel.includes('Ranking de prioridade gerencial'));
+assert.ok(deepPanel.includes('Simulador de custo de capital'));
+assert.ok(deepPanel.includes('Cenário de revisão de anúncios'));
+assert.ok(deepPanel.includes('analyzeDealerStockDeep'));
+assert.ok(deepPanel.includes('scopedMetrics.families'), 'Filter unit recalculates family ranking');
+assert.ok(deepPanel.includes('não comprova venda'), 'Never call observed exits sales');
+assert.ok(deepPanel.includes('não é lucro'), 'Spread never claimed as profit');
+
 console.log('Raio-X IQ: families, scores, capital aging, cautions, per-unit recalculation, snapshot exits and honest no-sales evidence passed.');
