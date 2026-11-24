@@ -3,7 +3,8 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 
 const source=readFileSync('server/motyqDealerShared.ts','utf8');
-const endpoint=readFileSync('api/marketiq-dealer-stock.ts','utf8');
+const endpoint=readFileSync('server/motyqDealerSharedGateway.ts','utf8');
+const existingApi=readFileSync('api/analyze-deal.ts','utf8');
 const client=readFileSync('services/marketIqDealerCloudClient.ts','utf8');
 const workspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
 const panel=readFileSync('components/MarketIqDealerRadarPanel.tsx','utf8');
@@ -97,7 +98,10 @@ assert.ok(endpoint.includes("company!==ownCompany"),'Forbid cross-company reads 
 assert.ok(endpoint.includes("canPublishDealerStock(actor)"),'Restrict writers');
 assert.ok(endpoint.includes("canReadDealerStock(actor)"),'Restrict readers');
 assert.ok(endpoint.includes("cache-Control")||endpoint.includes("Cache-Control"));
-assert.ok(endpoint.includes("bodyParser:{sizeLimit:'4mb'}"));
+assert.ok(existingApi.includes("bodyParser:{sizeLimit:'4mb'}"));
+assert.ok(existingApi.includes("dealer-stock')return motyqDealerSharedGateway(req,res)"),
+ 'Existing Vercel function must route Dealer stock without creating a 13th function');
+assert.ok(client.includes("action=dealer-stock"));
 assert.ok(client.includes("auth.currentUser")&&client.includes("user.getIdToken()"));
 assert.ok(workspace.includes('getDealerCloudArchive(dealerCompanyId)'));
 assert.ok(workspace.includes('publishDealerCloudArchive(dealerCompanyId,next)'));
