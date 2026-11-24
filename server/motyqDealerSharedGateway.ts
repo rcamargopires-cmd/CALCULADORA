@@ -27,7 +27,7 @@ async function authenticatedActor(req:any):Promise<any|null>{
  const email=cleanEmail(identity?.email);
  // Invalid, anonymous or unverified sessions cannot read sensitive stock.
  if(!email||identity?.emailVerified!==true)return null;
- const profile=await motyqFirestore.get('users',email);
+ const profile:any=await motyqFirestore.get('users',email);
  if(email===ADMIN_OWNER&&(!profile||profile.status==='active'))
   return {...profile,email,status:'active',role:'admin',companyId:profile?.companyId||'abrao-reze'};
  if(!profile||profile.status!=='active')return null;
