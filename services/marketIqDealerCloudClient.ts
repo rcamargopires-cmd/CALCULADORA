@@ -26,12 +26,12 @@ async function request<T>(companyId:string,method:'GET'|'POST',snapshot?:DealerS
  const token=await user.getIdToken();
  const params=method==='GET'?'&companyId='+encodeURIComponent(companyId):'';
  const response=await fetch(URL+params,{
-  method,cache:'no-store',
+  method,cache:'no-store',signal:AbortSignal.timeout(15000),
   headers:{Authorization:'Bearer '+token,...(method==='POST'?{'Content-Type':'application/json'}:{})},
   ...(method==='POST'?{body:JSON.stringify({companyId,snapshot})}:{})
  });
  const payload=await response.json().catch(()=>({}));
- if(!response.ok)throw Error(message(String(payload?.error||'')));
+ if(!response.ok)throw Object.assign(new Error(message(String(payload?.error||''))),{status:response.status});
  return payload as T;
 }
 export async function getDealerCloudArchive(companyId:string):Promise<DealerCloudArchive|null>{
