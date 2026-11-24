@@ -35,7 +35,7 @@ export type DealerStockXRay={
  ranking:StockRiskMetric[];units:StockUnitMetric[];actions:StockAction[];
 };
 
-const sum=(rows:readonly DealerStockVehicle[],selector:(row:DealerStockVehicle)=>number)=>
+const sum=<T,>(rows:readonly T[],selector:(row:T)=>number)=>
  rows.reduce((acc,v)=>acc+selector(v),0);
 const average=(nums:number[])=>nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:0;
 const median=(nums:number[])=>{
@@ -157,4 +157,174 @@ export function analyzeDealerStock(
   entriesObserved:incoming.length,exitsObserved:outgoing.length,
   ranking,units,actions:actions.sort((a,b)=>a.priority-b.priority||b.amount-a.amount)
  };
+}
+
+
+/**
+ * Analytical second layer. All scenarios are deterministic sensitivities and
+ * NOT forecasts of sales, price realization, profitability or market demand.
+ */
+export type XRayAgingCohort={
+ label:string;min:number;max:number;count:number;cost:number;share:number;
+};
+export type XRayFamilyDeep={
+ key:string;brand:string;family:string;count:number;cost:number;oldCost:number;
+ oldCount:number;oldShare:number;costShare:number;daysAverage:number;
+ daysWeighted:number;daysMedian:number;daysMax:number;
+ missingPrice:number;underCost:number;kmUnverified:number;serviceOrderCount:number;
+ grossPriceDelta:number|null;pricedCount:number;
+ byUnit:{store:string;count:number;cost:number;oldCount:number}[];
+ action:'review_buy'|'inspect_price'|'accelerate'|'monitor';
+ evidence:string[];score:number;
+};
+export type XRayDeepAnalytics={
+ cohorts:XRayAgingCohort[];
+ averageCapitalDays:number;
+ oldCostShare:number;over120Cost:number;over180Cost:number;
+ top3Cost:number;top5Cost:number;top5Share:number;
+ top5OldCost:number;top5OldShare:number;
+ noCostCount:number;kmUnverified:number;serviceOrderCount:number;
+ grossPriceDelta:number|null;pricedCount:number;
+ benchmarkDayMedian:number;
+ families:XRayFamilyDeep[];
+ capitalByUnit:{store:string;count:number;cost:number;oldCost:number;oldShare:number;daysWeighted:number}[];
+ period:null|{
+  from:string;to:string;days:number;currentCost:number;previousCost:number;
+  netCostChange:number;netVehicleChange:number;
+  entriesObserved:number;exitsObserved:number;
+  entriesCost:number;exitsCost:number;
+  retainedCount:number;retainedCostChange:number;
+  transfersObserved:number;
+ };
+};
+const deepCohortDefinitions=[
+ ['0–30',0,30],['31–60',31,60],['61–90',61,90],
+ ['91–120',91,120],['121–180',121,180],['181+',181,Number.MAX_SAFE_INTEGER]
+] as const;
+const weightedDays=(rows:readonly DealerStockVehicle[])=>{
+ const total=sum(rows,v=>asNonnegative(v.cost));
+ return total?sum(rows,v=>asNonnegative(v.cost)*Math.max(0,v.days))/total:0;
+};
+const identifiedKey=(row:DealerStockVehicle):string=>row.key;
+export function analyzeDealerStockDeep(
+ current:DealerStockSnapshot,
+ previous:DealerStockSnapshot|null=null
+):XRayDeepAnalytics{
+ const rows=current.vehicles||[];
+ const totalCost=sum(rows,v=>asNonnegative(v.cost));
+ const oldRows=rows.filter(v=>v.days>90);
+ const oldCost=sum(oldRows,v=>asNonnegative(v.cost));
+ const prior90=rows.filter(v=>v.days>120);
+ const prior180=rows.filter(v=>v.days>180);
+ const grand=analyzeDealerStock(current,previous);
+ const cohorts=deepCohortDefinitions.map(([label,min,max])=>{
+  const subset=rows.filter(v=>v.days>=min&&v.days<=max);
+  const cost=sum(subset,v=>asNonnegative(v.cost));
+  return {label,min,max,count:subset.length,cost,share:totalCost?cost/totalCost:0};
+ });
+ const families=grand.ranking.map(f=>{
+  const group=rows.filter(v=>familyOf(v).key===f.key);
+  const old=group.filter(v=>v.days>90);
+  const priced=group.filter(v=>v.price>0&&v.cost>0);
+  const data=collect(group);
+  const oldCost=sum(old,v=>asNonnegative(v.cost));
+  const detailUnits=[...groupBy(group,v=>v.store||'UNIDADE NÃO INFORMADA')].map(([store,unitRows])=>({
+   store,count:unitRows.length,cost:sum(unitRows,v=>asNonnegative(v.cost)),
+   oldCount:unitRows.filter(v=>v.days>90).length
+  })).sort((a,b)=>b.oldCount-a.oldCount||b.cost-a.cost);
+  const evidence:string[]=[];
+  if(f.count>=4)evidence.push('Concentração: '+f.count+' unidades');
+  if(f.over90>0)evidence.push('Envelhecidos: '+f.over90+' veículo(s), '+Math.round(f.over90/f.count*100)+'% da família');
+  if(f.staleCost>0)evidence.push('Capital >90 dias: '+Math.round(f.staleCost).toLocaleString('pt-BR')+' reais');
+  if(f.missingPrice>0)evidence.push('Sem preço: '+f.missingPrice);
+  if(f.underCost>0)evidence.push('Preço abaixo do custo: '+f.underCost);
+  if(f.operationalIssues>0)evidence.push('Com OS: '+f.operationalIssues);
+  const action:XRayFamilyDeep['action']=f.signal==='review_pause'?'review_buy':
+   f.underCost>0||f.missingPrice>0?'inspect_price':
+   f.over90>0&&f.daysAverage>=75?'accelerate':'monitor';
+  return {
+   key:f.key,brand:f.brand,family:f.family,count:f.count,
+   cost:data.cost,oldCost,oldCount:old.length,oldShare:data.cost?oldCost/data.cost:0,
+   costShare:totalCost?data.cost/totalCost:0,
+   daysAverage:data.daysAverage,daysMedian:data.daysMedian,daysWeighted:weightedDays(group),
+   daysMax:Math.max(0,...group.map(v=>v.days)),
+   missingPrice:data.missingPrice,underCost:data.underCost,
+   kmUnverified:data.lowKmQuality,serviceOrderCount:data.operationalIssues,
+   grossPriceDelta:priced.length?sum(priced,v=>v.price-v.cost):null,
+   pricedCount:priced.length,byUnit:detailUnits,action,evidence,score:f.score
+  };
+ }).sort((a,b)=>b.oldCost-a.oldCost||b.score-a.score||b.cost-a.cost);
+ const biggest=[...families].sort((a,b)=>b.cost-a.cost);
+ const oldBiggest=[...families].sort((a,b)=>b.oldCost-a.oldCost);
+ const unitRows=[...groupBy(rows,v=>v.store||'UNIDADE NÃO INFORMADA')].map(([store,items])=>{
+  const cost=sum(items,v=>asNonnegative(v.cost));
+  const oldCost=sum(items.filter(v=>v.days>90),v=>asNonnegative(v.cost));
+  return {store,count:items.length,cost,oldCost,oldShare:cost?oldCost/cost:0,
+   daysWeighted:weightedDays(items)};
+ }).sort((a,b)=>b.oldCost-a.oldCost);
+ let period:XRayDeepAnalytics['period']=null;
+ const priorDate=previous?.reportDate||'';
+ const datesAreValid=/^\d{4}-\d{2}-\d{2}$/.test(priorDate)&&
+  /^\d{4}-\d{2}-\d{2}$/.test(current.reportDate);
+ const days=datesAreValid?Math.round((Date.parse(current.reportDate+'T00:00:00Z')-
+  Date.parse(priorDate+'T00:00:00Z'))/86400000):0;
+ if(previous&&days>0&&Number.isFinite(days)){
+  const oldMap=new Map(previous.vehicles.map(v=>[identifiedKey(v),v]));
+  const newMap=new Map(rows.map(v=>[identifiedKey(v),v]));
+  const entrants=rows.filter(v=>!oldMap.has(identifiedKey(v)));
+  const leavers=previous.vehicles.filter(v=>!newMap.has(identifiedKey(v)));
+  const retained=rows.filter(v=>oldMap.has(identifiedKey(v)));
+  const oldTotal=sum(previous.vehicles,v=>asNonnegative(v.cost));
+  const retainedCostChange=sum(retained,v=>asNonnegative(v.cost)-
+   asNonnegative(oldMap.get(identifiedKey(v))!.cost));
+  const transfersObserved=retained.filter(v=>
+   oldMap.get(identifiedKey(v))?.store!==v.store).length;
+  const entriesCost=sum(entrants,v=>asNonnegative(v.cost));
+  const exitsCost=sum(leavers,v=>asNonnegative(v.cost));
+  period={
+   from:priorDate,to:current.reportDate,days,currentCost:totalCost,
+   previousCost:oldTotal,netCostChange:totalCost-oldTotal,
+   netVehicleChange:rows.length-previous.vehicles.length,
+   entriesObserved:entrants.length,exitsObserved:leavers.length,
+   entriesCost,exitsCost,retainedCount:retained.length,retainedCostChange,
+   transfersObserved
+  };
+ }
+ const priced=rows.filter(v=>v.price>0&&v.cost>0);
+ return {
+  cohorts,averageCapitalDays:weightedDays(rows),
+  oldCostShare:totalCost?oldCost/totalCost:0,
+  over120Cost:sum(prior90,v=>asNonnegative(v.cost)),
+  over180Cost:sum(prior180,v=>asNonnegative(v.cost)),
+  top3Cost:sum(biggest.slice(0,3),v=>v.cost),
+  top5Cost:sum(biggest.slice(0,5),v=>v.cost),
+  top5Share:totalCost?sum(biggest.slice(0,5),v=>v.cost)/totalCost:0,
+  top5OldCost:sum(oldBiggest.slice(0,5),v=>v.oldCost),
+  top5OldShare:oldCost?sum(oldBiggest.slice(0,5),v=>v.oldCost)/oldCost:0,
+  noCostCount:rows.filter(v=>v.cost<=0).length,
+  kmUnverified:rows.filter(v=>!v.kmValid).length,
+  serviceOrderCount:rows.filter(v=>v.serviceOrders>0).length,
+  grossPriceDelta:priced.length?sum(priced,v=>v.price-v.cost):null,
+  pricedCount:priced.length,benchmarkDayMedian:grand.medianDays,
+  families,capitalByUnit:unitRows,period
+ };
+}
+/** Conditional cost-of-capital exposure: 30-day simple-rate sensitivity, not a P&L. */
+export function xrayCapitalSensitivity(
+ capital:number,monthlyRatePercent:number,months:number
+):number{
+ if(!Number.isFinite(capital)||!Number.isFinite(monthlyRatePercent)||
+  !Number.isFinite(months)||months<0)return 0;
+ return Math.max(0,capital)*bounded(monthlyRatePercent,0,6)/100*months;
+}
+/** Seller price-markdown scenario only for already-priced vehicles, not a forecast. */
+export function xrayMarkdownSensitivity(
+ rows:DealerStockVehicle[],markdownPercent:number
+):{count:number;currentAsk:number;scenarioAsk:number;cost:number;spread:number}{
+ const eligible=rows.filter(v=>v.price>0&&v.cost>0);
+ const discount=bounded(Number.isFinite(markdownPercent)?markdownPercent:0,0,30)/100;
+ const currentAsk=sum(eligible,v=>v.price);
+ const cost=sum(eligible,v=>v.cost);
+ const scenarioAsk=currentAsk*(1-discount);
+ return {count:eligible.length,currentAsk,scenarioAsk,cost,spread:scenarioAsk-cost};
 }

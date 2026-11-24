@@ -2,6 +2,7 @@ import React,{useMemo,useState} from 'react';
 import {AlertTriangle,ArrowLeft,ChartNoAxesCombined,ChevronDown,Flame,Search,ShieldAlert,Warehouse} from 'lucide-react';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
 import {analyzeDealerStock,type StockTemperature} from '../services/marketIqStockXRay';
+import MarketIqStockXRayDeepPanel from './MarketIqStockXRayDeepPanel';
 
 const money=(n:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(n);
 const simple=(n:number)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1}).format(n);
@@ -26,6 +27,7 @@ export default function MarketIqStockXRayPanel({
  const [temperature,setTemperature]=useState<'all'|StockTemperature>('all');
  const [sort,setSort]=useState<'risk'|'capital'|'days'|'quantity'>('risk');
  const [unit,setUnit]=useState('all');
+ const [analyticalView,setAnalyticalView]=useState<'deep'|'alerts'>('deep');
  // Filtering by store reruns the score against that unit's portfolio.
  const scoped=useMemo(()=>unit==='all'?report:analyzeDealerStock({
   ...snapshot,vehicles:snapshot.vehicles.filter(v=>v.store===unit)
@@ -64,6 +66,21 @@ export default function MarketIqStockXRayPanel({
     {' '}A temperatura indica risco relativo de estoque, não procura no mercado nem vendas comprovadas.
    </p>
   </div>
+  <nav aria-label="Visões do Raio-X" className="grid grid-cols-2 gap-2">
+   <button type="button" aria-pressed={analyticalView==='deep'} onClick={()=>setAnalyticalView('deep')}
+    className={'rounded-xl border px-4 py-3 text-sm font-black '+(analyticalView==='deep'?
+     'border-[#14648b] bg-[#10364a] text-white':'border-slate-200 bg-white text-slate-700')}>
+    Análise gerencial aprofundada
+   </button>
+   <button type="button" aria-pressed={analyticalView==='alerts'} onClick={()=>setAnalyticalView('alerts')}
+    className={'rounded-xl border px-4 py-3 text-sm font-black '+(analyticalView==='alerts'?
+     'border-[#14648b] bg-[#10364a] text-white':'border-slate-200 bg-white text-slate-700')}>
+    Alertas e temperatura
+   </button>
+  </nav>
+  {analyticalView==='deep'&&<MarketIqStockXRayDeepPanel snapshot={snapshot}
+   previousSnapshot={previousSnapshot} onFamilySelect={onFamilySelect}/>}
+  {analyticalView==='alerts'&&<>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
    {([
     ['Veículos',''+scoped.count,scoped.families+' famílias'],
@@ -199,5 +216,6 @@ export default function MarketIqStockXRayPanel({
     </details>
    </div>
   </div>
+  </>}
  </section>;
 }
