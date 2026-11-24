@@ -4,17 +4,15 @@
  * determines company and read/publish permissions. Service credentials never
  * leave the function. No direct browser Firestore reads/rules release needed.
  */
-import firebaseConfig from '../firebase-applet-config.json';
 import {motyqFirestore} from '../server/motyqFirestore.js';
 import {safeCompany,canReadDealerStock,canPublishDealerStock,
  loadDealerShared,publishDealerShared} from '../server/motyqDealerShared.js';
 
-const key=String(firebaseConfig.apiKey||'');
 const ADMIN_OWNER='r.camargo.pires@gmail.com';
 const cleanEmail=(value:unknown)=>String(value||'').trim().toLowerCase();
 const fail=(res:any,status:number,error:string)=>res.status(status).json({error});
 
-async function authenticatedActor(req:any):Promise<any|null>{
+async function authenticatedActor(req:any,key:string):Promise<any|null>{
  const header=String(req.headers?.authorization||'');
  const token=header.startsWith('Bearer ')?header.slice(7):'';
  if(!token||!key)return null;
@@ -34,7 +32,7 @@ async function authenticatedActor(req:any):Promise<any|null>{
  return {...profile,email};
 }
 
-export default async function motyqDealerSharedGateway(req:any,res:any){
+export default async function motyqDealerSharedGateway(req:any,res:any,key:string){
  res.setHeader('Cache-Control','private, no-store, max-age=0');
  res.setHeader('X-Content-Type-Options','nosniff');
  if(req.method!=='GET'&&req.method!=='POST'){
@@ -43,7 +41,7 @@ export default async function motyqDealerSharedGateway(req:any,res:any){
  }
  if(!motyqFirestore.configured())return fail(res,503,'stock_cloud_unavailable');
  try{
-  const actor=await authenticatedActor(req);
+  const actor=await authenticatedActor(req,key);
   if(!actor)return fail(res,401,'not_authenticated_or_inactive');
   if(!canReadDealerStock(actor))return fail(res,403,'not_authorized_for_iq_stock');
   const asked=String(req.method==='POST'?req.body?.companyId:req.query?.companyId||'').trim();
