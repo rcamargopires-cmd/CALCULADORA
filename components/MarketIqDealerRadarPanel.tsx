@@ -31,6 +31,7 @@ type Props={
  onPublishSnapshot?:(snapshot:DealerStockSnapshot)=>Promise<void>;
  onRefreshShared?:()=>Promise<void>;
  quickSearchRequest?:{term:string;id:number}|null;
+ xrayOpenRequest?:number;
  onQuoteVehicle?:(vehicle:DealerStockVehicle)=>void;
  incomingFile?:MarketIqIncomingFile|null;
  onIncomingFileConsumed?:(token:string)=>void;
@@ -69,6 +70,17 @@ export default function MarketIqDealerRadarPanel(props:Props){
  const [capitalRate,setCapitalRate]=useState('1.5');
  const [visibleCount,setVisibleCount]=useState(60);
  const [showXRay,setShowXRay]=useState(false);
+ const lastXRayRequest=useRef(0);
+ useEffect(()=>{
+  const request=props.xrayOpenRequest||0;
+  if(request<=0||request===lastXRayRequest.current)return;
+  lastXRayRequest.current=request;
+  setShowXRay(true);
+  requestAnimationFrame(()=>document.getElementById('motyq-iq-stock-xray')?.scrollIntoView({
+   behavior:'smooth',block:'start'
+  }));
+ },[props.xrayOpenRequest]);
+
  const lastAppliedQuickSearch=useRef<number|null>(null);
  useEffect(()=>{
   const request=props.quickSearchRequest;
