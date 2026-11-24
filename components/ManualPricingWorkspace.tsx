@@ -18,6 +18,7 @@ import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
 import MarketIqQuickDecisionPanel from './MarketIqQuickDecisionPanel';
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
 import {readDealerLocalArchive,persistDealerLocalArchive} from '../services/marketIqDealerLocalArchive';
+import {getDealerCloudArchive,publishDealerCloudArchive} from '../services/marketIqDealerCloudClient';
 import MarketIqPlateHistoryPanel from './MarketIqPlateHistoryPanel';
 import MarketIqIntelligentHistoryPanel from './MarketIqIntelligentHistoryPanel';
 import type {ComparableEntry} from '../services/marketIqComparableHistory';
@@ -117,15 +118,22 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [expressOpen,setExpressOpen]=useState(false);
  const [favoriteIncoming,setFavoriteIncoming]=useState<ExpressVehicleExtract|null>(null);
  const [expressReview,setExpressReview]=useState<{vehicle:ExpressVehicleExtract;assessment:ExpressAssessment}|null>(null);
- // Local-only IndexedDB cache. Each account/company/unit owns an isolated key.
- // The parsed snapshot never leaves this device and is never uploaded.
+ // Shared company stock is canonical; this per-user IndexedDB key is offline cache only.
  const captureScope=[user.companyId||'',user.storeId||'',user.email.toLowerCase()].join('|');
+ const dealerCompanyId=user.companyId||'abrao-reze';
+ const canPublishDealer=user.role==='admin'||user.role==='manager'||
+  user.role==='pricing'||user.pricingDeskAccess===true||user.pricingDeskOnly===true;
  const [radarSnapshot,setRadarSnapshot]=useState<DealerStockSnapshot|null>(null);
  const [radarPreviousSnapshot,setRadarPreviousSnapshot]=useState<DealerStockSnapshot|null>(null);
  const [radarLoadedScope,setRadarLoadedScope]=useState('');
  const [radarCacheNotice,setRadarCacheNotice]=useState('');
  const [radarCacheState,setRadarCacheState]=useState<'loading'|'empty'|'restored'|'saving'|'saved'|'error'>('loading');
  const [radarWriteRevision,setRadarWriteRevision]=useState(0);
+ const [radarCloudState,setRadarCloudState]=useState<'loading'|'shared'|'empty'|'syncing'|'error'>('loading');
+ const [radarCloudNotice,setRadarCloudNotice]=useState('');
+ const [radarCloudTime,setRadarCloudTime]=useState('');
+ const cloudRequestRevision=useRef(0);
+ const cloudLastChecked=useRef(0);
  const updateRadarSnapshot=(next:DealerStockSnapshot|null)=>{
   setRadarSnapshot(next);setRadarWriteRevision(value=>value+1);
  };
@@ -144,30 +152,102 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  };
  const formKey='motyq-iq-preview-inputs-'+user.email.toLowerCase();
  const pendingCaptureKey='__captured_in_another_tab__';
- // Recover current/previous Dealer stock automatically after authentication.
- // Do not mount the Radar importer until the account-scoped read completes.
+
+ // On sign-in prefer shared company stock, with an explicit offline local fallback.
  useEffect(()=>{
   let alive=true;
+  const seq=++cloudRequestRevision.current;
   setRadarLoadedScope('');setRadarCacheState('loading');setRadarCacheNotice('');
+  cloudLastChecked.current=Date.now(); // No focus refresh while initial hydration runs.
   setRadarWriteRevision(0);setRadarSnapshot(null);setRadarPreviousSnapshot(null);
-  void readDealerLocalArchive(captureScope).then(saved=>{
+  setRadarCloudState('loading');setRadarCloudNotice('');setRadarCloudTime('');
+  void (async()=>{
+   let local:Awaited<ReturnType<typeof readDealerLocalArchive>>=null;
+   try{
+    local=await readDealerLocalArchive(captureScope);
+    if(!alive)return;
+    setRadarCacheState(local?.current?'restored':'empty');
+   }catch(error:any){
+    if(!alive)return;
+    setRadarCacheState('error');
+    setRadarCacheNotice('Cache local indisponível: '+String(error?.message||error));
+   }
    if(!alive)return;
-   setRadarSnapshot(saved?.current||null);
-   setRadarPreviousSnapshot(saved?.previous||null);
-   setRadarCacheState(saved?.current?'restored':'empty');
-   setRadarLoadedScope(captureScope);
-  }).catch(error=>{
-   if(!alive)return;
-   setRadarCacheState('error');
-   setRadarCacheNotice('Não foi possível recuperar o estoque local: '+String(error?.message||error)+'. Você pode importar, mas o navegador talvez não consiga preservar o relatório.');
-   setRadarLoadedScope(captureScope);
-  });
-  return ()=>{alive=false;};
- },[captureScope]);
+   setRadarSnapshot(local?.current||null);
+   setRadarPreviousSnapshot(local?.previous||null);
+   try{
+    const shared=await getDealerCloudArchive(dealerCompanyId);
+    if(!alive||seq!==cloudRequestRevision.current)return;
+    cloudLastChecked.current=Date.now();
+    if(shared){
+     setRadarSnapshot(shared.current);setRadarPreviousSnapshot(shared.previous);
+     setRadarCloudState('shared');setRadarCloudTime(shared.publishedAt);
+     // Cache-only write; never publish an old local copy during hydration.
+     void persistDealerLocalArchive(captureScope,shared.current,shared.previous).catch(()=>{});
+    }else setRadarCloudState('empty');
+   }catch(error:any){
+    if(!alive||seq!==cloudRequestRevision.current)return;
+    if(error?.status===401||error?.status===403){setRadarSnapshot(null);setRadarPreviousSnapshot(null);}
+    setRadarCloudState('error');
+    setRadarCloudNotice('Não foi possível verificar a base compartilhada. Exibindo apenas o cache deste dispositivo: '+String(error?.message||error));
+   }
+   if(alive&&seq===cloudRequestRevision.current)setRadarLoadedScope(captureScope);
+  })();
+  return ()=>{alive=false;cloudRequestRevision.current++;};
+ },[captureScope,dealerCompanyId]);
 
- // Save only imports/clears initiated by the operator, not the read-only
- // hydration of an existing snapshot. Serialized writes prevent stale files
- // from winning if the operator imports twice in rapid succession.
+ const refreshRadarCloud=async()=>{
+  const seq=++cloudRequestRevision.current;
+  setRadarCloudState('syncing');setRadarCloudNotice('');
+  try{
+   const shared=await getDealerCloudArchive(dealerCompanyId);
+   if(seq!==cloudRequestRevision.current)return;
+   cloudLastChecked.current=Date.now();
+   if(shared){
+    setRadarSnapshot(shared.current);setRadarPreviousSnapshot(shared.previous);
+    setRadarCloudState('shared');setRadarCloudTime(shared.publishedAt);
+    void persistDealerLocalArchive(captureScope,shared.current,shared.previous).catch(()=>{});
+   }else{
+    setRadarCloudState('empty');setRadarCloudTime('');
+    setRadarCloudNotice('Nenhum estoque compartilhado publicado para esta empresa. Um gestor deve publicar o Dealer V44.');
+   }
+  }catch(error:any){
+   if(seq!==cloudRequestRevision.current)return;
+   if(error?.status===401||error?.status===403){setRadarSnapshot(null);setRadarPreviousSnapshot(null);}
+   setRadarCloudState('error');
+   setRadarCloudNotice('Consulta da base compartilhada indisponível: '+String(error?.message||error));
+  }
+ };
+ // Refresh after returning to an open session, but do not poll on every render
+ // or every evaluation (important for the existing Firestore quota limits).
+ useEffect(()=>{
+  const refetch=()=>{
+   if(radarLoadedScope===captureScope&&document.visibilityState==='visible'&&
+    Date.now()-cloudLastChecked.current>120_000)
+    void refreshRadarCloud();
+  };
+  window.addEventListener('focus',refetch);
+  document.addEventListener('visibilitychange',refetch);
+  return ()=>{
+   window.removeEventListener('focus',refetch);
+   document.removeEventListener('visibilitychange',refetch);
+  };
+ },[captureScope,dealerCompanyId,radarLoadedScope]);
+
+ const publishRadarSnapshot=async(next:DealerStockSnapshot)=>{
+  ++cloudRequestRevision.current; // cancel any stale read racing an operator import
+  setRadarCloudState('syncing');setRadarCloudNotice('');
+  try{
+   const published=await publishDealerCloudArchive(dealerCompanyId,next);
+   setRadarCloudState('shared');setRadarCloudTime(published.publishedAt);
+   cloudLastChecked.current=Date.now();
+  }catch(error:any){
+   setRadarCloudState('error');
+   setRadarCloudNotice('Estoque NÃO publicado para a empresa: '+String(error?.message||error));
+   throw error;
+  }
+ };
+ // Save only explicit imports/clears locally. Cloud hydration does not upload.
  useEffect(()=>{
   if(radarLoadedScope!==captureScope||radarWriteRevision===0)return;
   let active=true;
@@ -180,7 +260,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    }).catch(error=>{
     if(!active)return;
     setRadarCacheState('error');
-    setRadarCacheNotice('Estoque disponível apenas nesta sessão: '+String(error?.message||error)+'. Reimporte caso volte a abrir o aplicativo.');
+    setRadarCacheNotice('Cache local não salvo: '+String((error as Error)?.message||error));
    });
   return ()=>{active=false;};
  },[radarLoadedScope,captureScope,radarWriteRevision,radarSnapshot,radarPreviousSnapshot]);
@@ -1026,12 +1106,15 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   deskSection==='learning'?<MarketIqLearningPanel user={user} history={saved} onRefresh={refreshHistory} onOpenArchive={()=>switchDeskSection('archive')}/>:
   deskSection==='radar'?(radarLoadedScope!==captureScope?
    <section role="status" className="rounded-xl border border-cyan-200 bg-white p-5 text-sm font-semibold text-slate-800">
-    Recuperando a última fotografia do estoque Dealer salva neste navegador...
+    Recuperando a última fotografia do estoque compartilhada da empresa...
    </section>:
    <MarketIqDealerRadarPanel
     snapshot={radarSnapshot} onSnapshotChange={updateRadarSnapshot}
     previousSnapshot={radarPreviousSnapshot} onPreviousSnapshotChange={updateRadarPreviousSnapshot}
     localArchiveState={radarCacheState} localArchiveWarning={radarCacheNotice}
+    cloudState={radarCloudState} cloudNotice={radarCloudNotice} cloudPublishedAt={radarCloudTime}
+    canPublishSnapshot={canPublishDealer} onPublishSnapshot={publishRadarSnapshot}
+    onRefreshShared={refreshRadarCloud}
     incomingFile={smartIncomingFile?.kind==='dealer'?smartIncomingFile:null}
     onIncomingFileConsumed={consumeSmartFile}
     onQuoteVehicle={vehicle=>{

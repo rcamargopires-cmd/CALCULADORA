@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { motyqFirestore } from '../server/motyqFirestore.js';
 import motyqAquaGateway from '../server/motyqAquaGateway.js';
+import motyqDealerSharedGateway from '../server/motyqDealerSharedGateway.js';
 import {analyzeIqExpressPrint} from '../server/motyqIqExpressPrint.js';
 
 // Per-function-instance circuit breaker to stop a burst of failed Firestore
@@ -429,8 +430,10 @@ const handleUserManagement=async(req:any,res:any)=>{
   }
 };
 
+export const config={api:{bodyParser:{sizeLimit:'4mb'}}};
 export default async function handler(req: any, res: any) {
   if(String(req.query?.action||'').startsWith('aqua-'))return motyqAquaGateway(req,res);
+  if(String(req.query?.action||'')==='dealer-stock')return motyqDealerSharedGateway(req,res);
   if(String(req.query?.action||'')==='iq-express-print'){
     res.setHeader('Cache-Control','no-store');
     if(req.method!=='POST')return res.status(405).json({error:'Método não permitido.'});

@@ -23,6 +23,12 @@ type Props={
  previousSnapshot?:DealerStockSnapshot|null;onPreviousSnapshotChange?:(next:DealerStockSnapshot|null)=>void;
  localArchiveState?:'loading'|'empty'|'restored'|'saving'|'saved'|'error';
  localArchiveWarning?:string;
+ cloudState?:'loading'|'shared'|'empty'|'syncing'|'error';
+ cloudNotice?:string;
+ cloudPublishedAt?:string;
+ canPublishSnapshot?:boolean;
+ onPublishSnapshot?:(snapshot:DealerStockSnapshot)=>Promise<void>;
+ onRefreshShared?:()=>Promise<void>;
  onQuoteVehicle?:(vehicle:DealerStockVehicle)=>void;
  incomingFile?:MarketIqIncomingFile|null;
  onIncomingFileConsumed?:(token:string)=>void;
@@ -88,6 +94,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
 
  const importFile=async(file:File|undefined)=>{
   if(!file)return;
+  if(props.canPublishSnapshot===false){setError('Seu perfil pode consultar, mas não publicar o estoque da empresa.');return;}
   setLoading(true);setError('');
   try{
    const snapshot={...(await readDealerWorkbook(file)),sourceFileName:file.name.slice(0,140)};
@@ -95,9 +102,11 @@ export default function MarketIqDealerRadarPanel(props:Props){
     if(snapshot.reportDate&&current.reportDate&&snapshot.reportDate<current.reportDate){
      setPrevious(snapshot);setError('Você importou um relatório anterior. Ele será usado apenas para comparação com o estoque atual. A última fotografia permanece ativa neste navegador.');
     }else{
+     if(props.onPublishSnapshot)await props.onPublishSnapshot(snapshot);
      setPrevious(current);setCurrent(snapshot);setSelectedKey('');setFileName(file.name);
     }
    }else{
+    if(props.onPublishSnapshot)await props.onPublishSnapshot(snapshot);
     setCurrent(snapshot);setSelectedKey('');setFileName(file.name);
    }
    setStore('all');setFilter('all');setSearch('');setType('all');setVisibleCount(60);
@@ -113,6 +122,15 @@ export default function MarketIqDealerRadarPanel(props:Props){
   props.onIncomingFileConsumed?.(incoming.token);
   void importFile(incoming.file);
  },[props.incomingFile?.token]);
+ const publishCurrent=async()=>{
+  if(!current||props.canPublishSnapshot===false||!props.onPublishSnapshot)return;
+  setLoading(true);setError('');
+  try{
+   await props.onPublishSnapshot(current);
+  }catch(error:any){
+   setError('O estoque continua local, sem atualização para os outros usuários: '+String(error?.message||error));
+  }finally{setLoading(false);}
+ };
  const clear=()=>{
   if(current&&!window.confirm('Apagar as fotografias do estoque SALVAS NESTE NAVEGADOR? Você precisará importar a planilha novamente. Nenhum registro oficial será afetado.'))return;
   setCurrent(null);setPrevious(null);setSelectedKey('');setError('');setFileName('');
@@ -142,27 +160,45 @@ export default function MarketIqDealerRadarPanel(props:Props){
    <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Meu estoque <span className="text-cyan-200">· Radar</span></h2>
    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100">Encontre um carro, confira o custo e veja o que precisa de atenção.</p>
    <div className="mt-4 flex flex-wrap items-center gap-3">
-    <button type="button" disabled={loading} onClick={()=>fileInput.current?.click()}
+    {props.canPublishSnapshot!==false&&<button type="button" disabled={loading} onClick={()=>fileInput.current?.click()}
      className="inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-extrabold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
      {loading?<RefreshCw size={18} className="animate-spin"/>:<UploadCloud size={18}/>}
-     {loading?'Analisando arquivo…':current?'Importar novo relatório':'Importar estoque do Dealer'}
-    </button>
+     {loading?'Importando e publicando…':current?'Importar e publicar novo Dealer':'Importar e publicar estoque do Dealer'}
+    </button>}
     <input ref={fileInput} type="file" accept=".xlsm,.xlsx" aria-label="Importar planilha de estoque Dealer"
      className="sr-only" onChange={e=>{void importFile(e.target.files?.[0]);e.currentTarget.value='';}}/>
+    {current&&props.canPublishSnapshot!==false&&props.onPublishSnapshot&&<button type="button" disabled={loading||props.cloudState==='syncing'}
+     onClick={()=>{void publishCurrent();}}
+     className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-950 disabled:opacity-50">
+     Publicar estoque atual para a empresa
+    </button>}
+    {props.onRefreshShared&&<button type="button" disabled={loading||props.cloudState==='syncing'}
+     onClick={()=>{void props.onRefreshShared?.();}}
+     className="rounded-lg border border-cyan-100 bg-white px-3 py-2.5 text-xs font-bold text-slate-900 disabled:opacity-50">
+     Atualizar estoque da empresa
+    </button>}
     {current&&<button type="button" onClick={clear}
      className="rounded-lg border border-white/30 px-3 py-2.5 text-xs font-semibold text-white hover:bg-white/10">
      Limpar dados locais</button>}
    </div>
    <details className="mt-3 rounded-lg border border-white/20 px-3 py-2 text-xs text-cyan-100">
     <summary className="cursor-pointer font-bold text-cyan-100">Origem dos dados e privacidade</summary>
-    <p className="mt-2 leading-5 text-cyan-100">Base importada manualmente do Dealer, salva somente neste navegador e conta. Não há conferência em tempo real. Nenhuma macro é executada e nenhuma avaliação oficial é alterada. Em computador compartilhado, use «Limpar dados locais» ao terminar.</p>
+    <p className="mt-2 leading-5 text-cyan-100">Uma importação autorizada publica a fotografia tratada para os usuários da mesma empresa. O arquivo XLSM original não é enviado. Nenhuma macro é executada. O navegador mantém um cache offline; «Limpar dados locais» não exclui o estoque compartilhado. A base não é uma consulta em tempo real ao Dealer.</p>
    </details>
   </section>
+  {props.onRefreshShared&&<div role="status" className="rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm font-semibold text-cyan-950">
+   {props.cloudState==='shared'?
+    'Estoque compartilhado da empresa atualizado'+(props.cloudPublishedAt?' em '+new Date(props.cloudPublishedAt).toLocaleString('pt-BR'):'')+'.':
+    props.cloudState==='syncing'||props.cloudState==='loading'?'Verificando estoque compartilhado da empresa…':
+    props.cloudState==='empty'?'Nenhum estoque da empresa publicado na nuvem. Um usuário autorizado deve publicá-lo.':
+    'A nuvem está indisponível. Os dados exibidos podem ser apenas o cache deste dispositivo.'}
+   {props.cloudNotice&&<p className="mt-1 text-xs font-medium">{props.cloudNotice}</p>}
+  </div>}
   {props.localArchiveWarning&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">{props.localArchiveWarning}</p>}
   {current&&<div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-950">
-   <span>{cacheState==='restored'?'Última fotografia do Dealer recuperada automaticamente neste navegador.':
+   <span>{cacheState==='restored'?'Cache de consulta do Dealer recuperado neste dispositivo.':
     cacheState==='saving'?'Salvando a fotografia para os próximos acessos...':
-    cacheState==='saved'?'Fotografia salva neste navegador para os próximos acessos.':
+    cacheState==='saved'?'Cópia local de consulta salva neste dispositivo.':
     cacheState==='error'?'Fotografia disponível nesta sessão; o armazenamento local falhou.':
     'Fotografia disponível para esta sessão.'}</span>
    <span>{current.reportDate?'Base de '+date(current.reportDate):'Data da base não informada'} · {vehicles.length.toLocaleString('pt-BR')} veículos</span>
