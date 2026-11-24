@@ -183,7 +183,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
    </div>
    <details className="mt-3 rounded-lg border border-white/20 px-3 py-2 text-xs text-cyan-100">
     <summary className="cursor-pointer font-bold text-cyan-100">Origem dos dados e privacidade</summary>
-    <p className="mt-2 leading-5 text-cyan-100">Uma importação autorizada publica a fotografia tratada para os usuários da mesma empresa. O arquivo XLSM original e as macros não são enviados. O navegador mantém um cache offline; «Limpar dados locais» não exclui o estoque compartilhado. A base não é uma consulta em tempo real ao Dealer.</p>
+    <p className="mt-2 leading-5 text-cyan-100">Uma importação autorizada publica a fotografia tratada para os usuários da mesma empresa. O arquivo XLSM original não é enviado. Nenhuma macro é executada. O navegador mantém um cache offline; «Limpar dados locais» não exclui o estoque compartilhado. A base não é uma consulta em tempo real ao Dealer.</p>
    </details>
   </section>
   {props.onRefreshShared&&<div role="status" className="rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm font-semibold text-cyan-950">
