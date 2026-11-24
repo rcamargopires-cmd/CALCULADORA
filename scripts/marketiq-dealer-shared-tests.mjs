@@ -93,17 +93,24 @@ await assert.rejects(()=>m.loadDealerShared('empresa-1',db),/shared_stock_incomp
 docs.set(oneChunkKey,backup);
 assert.equal((await m.loadDealerShared('empresa-1',db)).current.vehicles.length,137);
 assert.ok(!endpoint.includes("firebase-applet-config.json"),'Serverless runtime must never import JSON without attributes');
-assert.ok(endpoint.includes("async function authenticatedActor(req:any,key:string)"));
-assert.ok(endpoint.includes("identity?.emailVerified!==true"),'Require verified identity');
-assert.ok(endpoint.includes("motyqFirestore.get('users',email)"),'Role must come from active profile');
+assert.ok(!endpoint.includes('authenticatedActor('),'Gateway must not duplicate login/profile logic');
+assert.ok(endpoint.includes('motyqDealerSharedGateway(req:any,res:any,actor:any)'));
+assert.ok(existingApi.includes("currentUserProfileWithIdToken(token,email)"),'Use existing server-side Firestore role profile');
+assert.ok(existingApi.includes('ensureReinaldoDeskAccess(email,await ensureEvandroIqOnly(email,profile))'),
+ 'Honor the same authorized desk access as the regular login');
+assert.ok(existingApi.includes("profile.status!=='active'"),'Inactive account must not access Dealer stock');
+assert.ok(existingApi.includes("return res.status(403).json({error:'inactive_or_missing_user'})"));
+assert.ok(existingApi.includes("if(!token)return res.status(401).json({error:'not_authenticated'})"));
 assert.ok(endpoint.includes("company!==ownCompany"),'Forbid cross-company reads and writes');
 assert.ok(endpoint.includes("canPublishDealerStock(actor)"),'Restrict writers');
 assert.ok(endpoint.includes("canReadDealerStock(actor)"),'Restrict readers');
 assert.ok(endpoint.includes("cache-Control")||endpoint.includes("Cache-Control"));
 assert.ok(existingApi.includes("bodyParser:{sizeLimit:'4mb'}"));
-assert.ok(existingApi.includes("dealer-stock')return motyqDealerSharedGateway(req,res,FIREBASE_API_KEY)"),
- 'Existing Vercel function must route Dealer stock without creating a 13th function');
+assert.ok(existingApi.includes("dealer-stock'){"),'Dealer uses existing Vercel API function');
+assert.ok(existingApi.includes('return motyqDealerSharedGateway(req,res,actor)'),
+ 'Profile already verified by existing Motyq login is passed to Dealer gateway');
 assert.ok(client.includes("action=dealer-stock"));
+assert.ok(client.includes("auth.authStateReady()"),'Wait for Firebase session hydration');
 assert.ok(client.includes("auth.currentUser")&&client.includes("user.getIdToken()"));
 assert.ok(workspace.includes('getDealerCloudArchive(dealerCompanyId)'));
 assert.ok(workspace.includes('publishDealerCloudArchive(dealerCompanyId,next)'));
