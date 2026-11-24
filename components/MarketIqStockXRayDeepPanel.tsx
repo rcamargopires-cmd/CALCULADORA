@@ -7,7 +7,7 @@ const brl=(n:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'
 const num=(n:number,digits=1)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:digits}).format(n);
 const pct=(n:number)=>num(n*100)+'%';
 const compact=(n:number)=>n>=1_000_000?'R$ '+num(n/1_000_000,2)+' mi':n>=1000?'R$ '+num(n/1000,1)+' mil':brl(n);
-const className='rounded-2xl border border-slate-200 bg-white p-4 shadow-sm';
+const className='rounded-2xl border border-slate-300 bg-white p-4 shadow-sm';
 const emphasis='font-black text-slate-950';
 const flags:{key:string;label:string;help:string}[]=[
  {key:'review_buy',label:'Reavaliar compra',help:'Volume e envelhecimento sinalizam cautela; não é veto automático'},
@@ -44,13 +44,13 @@ export default function MarketIqStockXRayDeepPanel({
   b.cost-a.cost:b.oldCost-a.oldCost);
  const top=sorted.slice(0,12);
  const max=Math.max(1,...top.map(f=>viewMode==='days'?f.daysWeighted:viewMode==='capital'?f.cost:f.oldCost));
- const panelMini='rounded-xl border border-slate-200 bg-slate-50 p-3';
+ const panelMini='rounded-xl border border-slate-300 bg-[#f1f5f9] p-3';
  return <div className="space-y-4" aria-label="Análise aprofundada do estoque">
   <section className={className}>
    <div className="flex items-start gap-2"><Layers3 className="mt-0.5 text-[#14648b]" size={19}/>
     <div>
      <h4 className="text-lg font-black text-slate-950">Diagnóstico executivo</h4>
-     <p className="text-xs text-slate-600">O Raio-X mostra não só quantos carros envelheceram, mas a dimensão financeira, a concentração e onde agir primeiro.</p>
+     <p className="text-xs text-slate-800">O Raio-X mostra não só quantos carros envelheceram, mas a dimensão financeira, a concentração e onde agir primeiro.</p>
     </div>
    </div>
    <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -64,12 +64,12 @@ export default function MarketIqStockXRayDeepPanel({
      ['Veículos com OS',String(metrics.serviceOrderCount),'Exige leitura do detalhe de preparação'],
      ['Custo zerado',String(metrics.noCostCount),'Não permite análise financeira completa']
     ] as const).map(([label,value,detail])=><article key={label} className={panelMini}>
-     <p className="text-xs font-semibold text-slate-600">{label}</p>
+     <p className="text-xs font-semibold text-slate-800">{label}</p>
      <p className="mt-1 break-words text-lg font-black text-slate-950">{value}</p>
-     <p className="mt-1 text-xs text-slate-500">{detail}</p>
+     <p className="mt-1 text-xs text-slate-700">{detail}</p>
     </article>)}
    </div>
-   <p className="mt-3 text-xs text-slate-600">
+   <p className="mt-3 text-xs text-slate-800">
     <strong>Leitura executiva:</strong> {metrics.oldCostShare>=0.25?'Uma parcela relevante do capital está acima de 90 dias.':
     'O capital acima de 90 dias representa '+pct(metrics.oldCostShare)+' do custo atual.'}
     {' '}As cinco famílias mais concentradas representam {pct(metrics.top5Share)} do custo total.
@@ -81,7 +81,7 @@ export default function MarketIqStockXRayDeepPanel({
    <div className="flex items-center gap-2"><Clock3 size={19} className="text-[#14648b]"/>
     <h4 className="text-lg font-black text-slate-950">Envelhecimento por capital, não só por quantidade</h4>
    </div>
-   <p className="mt-1 text-xs text-slate-600">Cada barra representa a participação de uma faixa no investimento total. O relatório original não contém custos de aquisição do dinheiro nem vendas confirmadas.</p>
+   <p className="mt-1 text-xs text-slate-800">Cada barra representa a participação de uma faixa no investimento total. O relatório original não contém custos de aquisição do dinheiro nem vendas confirmadas.</p>
    <div className="mt-4 space-y-3">
     {metrics.cohorts.map(c=><div key={c.label} className="grid grid-cols-[60px_1fr_85px] items-center gap-2 sm:grid-cols-[85px_1fr_135px]">
      <span className="text-xs font-bold text-slate-700">{c.label} dias</span>
@@ -90,7 +90,7 @@ export default function MarketIqStockXRayDeepPanel({
        <div className={'h-full rounded-full '+(c.min>=121?'bg-rose-500':c.min>=91?'bg-amber-500':'bg-sky-600')}
         style={{width:Math.max(0,c.share*100)+'%'}}/>
       </div>
-      <p className="mt-0.5 text-[11px] text-slate-500">{c.count} carro(s) · {pct(c.share)}</p>
+      <p className="mt-0.5 text-xs text-slate-700">{c.count} carro(s) · {pct(c.share)}</p>
      </div>
      <strong className="text-right text-xs text-slate-900">{compact(c.cost)}</strong>
     </div>)}
@@ -102,13 +102,13 @@ export default function MarketIqStockXRayDeepPanel({
     <div>
      <div className="flex items-center gap-2"><BarChart3 size={19} className="text-[#14648b]"/>
       <h4 className="text-lg font-black text-slate-950">Ranking de prioridade gerencial</h4></div>
-     <p className="mt-1 text-xs text-slate-600">Comparação objetiva por família. O botão abre os veículos e as versões no Radar.</p>
+     <p className="mt-1 text-xs text-slate-800">Comparação objetiva por família. O botão abre os veículos e as versões no Radar.</p>
     </div>
-    <span className="text-xs text-slate-600">{sorted.length} famílias</span>
+    <span className="text-xs text-slate-800">{sorted.length} famílias</span>
    </div>
    <div className="mt-3 grid gap-2 sm:grid-cols-3">
     <label className="text-xs font-bold text-slate-700">Critério
-     <select className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
+     <select className="mt-1 w-full rounded-lg border border-slate-400 bg-white p-2 text-sm text-slate-950"
       value={viewMode} onChange={e=>setViewMode(e.target.value as typeof viewMode)}>
       <option value="stale">Maior capital há mais de 90 dias</option>
       <option value="capital">Maior capital total</option>
@@ -130,14 +130,14 @@ export default function MarketIqStockXRayDeepPanel({
    </div>
    {unit!=='all'&&<p className="mt-2 text-xs text-amber-900">Filtro de unidade: ranking e simulações recalculados para esta loja. O diagnóstico executivo e as faixas de idade acima seguem consolidados para a empresa.</p>}
    <div className="mt-4 space-y-3">
-    {top.length===0&&<p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Nenhuma família encontrada com os filtros escolhidos.</p>}
+    {top.length===0&&<p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-800">Nenhuma família encontrada com os filtros escolhidos.</p>}
     {top.map((f,i)=>{
      const amount=viewMode==='days'?f.daysWeighted:viewMode==='capital'?f.cost:f.oldCost;
      const action=flags.find(item=>item.key===f.action);
      return <div key={f.key} className="rounded-xl border border-slate-200 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
        <p className="text-sm font-black text-slate-900">{i+1}. {f.brand} {f.family}</p>
-       <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700">{action?.label||'Acompanhar'}</span>
+       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">{action?.label||'Acompanhar'}</span>
       </div>
       <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
        <div className="h-full rounded-full bg-[#177e9d]" style={{width:amount/max*100+'%'}}/>
@@ -148,11 +148,11 @@ export default function MarketIqStockXRayDeepPanel({
        <p><strong>{compact(f.oldCost)}</strong> envelhecidos</p>
        <p><strong>{num(f.daysWeighted)}</strong> dias ponderados</p>
       </div>
-      <p className="mt-2 text-xs text-slate-600">
+      <p className="mt-2 text-xs text-slate-800">
        {f.evidence.length?f.evidence.slice(0,3).join(' · '):'Sem alerta específico pelas regras atuais'}
       </p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-       <p className="text-xs text-slate-600">Unidades: {f.byUnit.slice(0,3).map(u=>u.store+' ('+u.count+')').join(', ')}</p>
+       <p className="text-xs text-slate-800">Unidades: {f.byUnit.slice(0,3).map(u=>u.store+' ('+u.count+')').join(', ')}</p>
        <button type="button" onClick={()=>onFamilySelect(f.family)}
         className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-2 text-xs font-black text-sky-900 hover:bg-sky-100">
         <ArrowUpRight size={14}/> Ver veículos e versões
@@ -167,7 +167,7 @@ export default function MarketIqStockXRayDeepPanel({
    <section className={className}>
     <div className="flex items-center gap-2"><Calculator size={18} className="text-[#14648b]"/>
      <h4 className="text-base font-black text-slate-950">Simulador de custo de capital</h4></div>
-    <p className="mt-1 text-xs text-slate-600">Cenário de manutenção do capital atual imobilizado. Altere a taxa que deseja utilizar como hipótese.</p>
+    <p className="mt-1 text-xs text-slate-800">Cenário de manutenção do capital atual imobilizado. Altere a taxa que deseja utilizar como hipótese.</p>
     <label className="mt-3 block text-xs font-semibold text-slate-700">Taxa de capital ao mês (%)
      <input type="number" min={0} max={6} step={0.25} value={monthlyRate}
       onChange={e=>setMonthlyRate(Math.max(0,Math.min(6,Number(e.target.value)||0)))}
@@ -177,34 +177,34 @@ export default function MarketIqStockXRayDeepPanel({
      {[
       ['30 dias',1],['60 dias',2]
      ].map(([label,months])=><div key={label} className={panelMini}>
-      <p className="text-xs text-slate-600">{label} · estoque atual</p>
+      <p className="text-xs text-slate-800">{label} · estoque atual</p>
       <p className="mt-1 text-lg font-black text-slate-900">{brl(xrayCapitalSensitivity(capital,monthlyRate,Number(months)))}</p>
      </div>)}
      <div className={panelMini+' col-span-2'}>
-      <p className="text-xs text-slate-600">30 dias · somente capital acima de 90 dias</p>
+      <p className="text-xs text-slate-800">30 dias · somente capital acima de 90 dias</p>
       <p className="mt-1 text-lg font-black text-amber-900">{brl(xrayCapitalSensitivity(oldCapital,monthlyRate,1))}</p>
      </div>
     </div>
-    <p className="mt-3 text-xs text-slate-500">Cálculo: custo informado × taxa mensal × período. Não é despesa contabilizada nem prevê que os veículos permanecerão no estoque.</p>
+    <p className="mt-3 text-xs text-slate-700">Cálculo: custo informado × taxa mensal × período. Não é despesa contabilizada nem prevê que os veículos permanecerão no estoque.</p>
    </section>
    <section className={className}>
     <div className="flex items-center gap-2"><TrendingDown size={18} className="text-[#14648b]"/>
      <h4 className="text-base font-black text-slate-950">Cenário de revisão de anúncios</h4></div>
-    <p className="mt-1 text-xs text-slate-600">Simula ajuste uniforme nos preços sugeridos dos veículos com mais de 90 dias, apenas onde há preço e custo válidos.</p>
+    <p className="mt-1 text-xs text-slate-800">Simula ajuste uniforme nos preços sugeridos dos veículos com mais de 90 dias, apenas onde há preço e custo válidos.</p>
     <label className="mt-3 block text-xs font-semibold text-slate-700">Redução simulada de preço (%)
      <input type="number" min={0} max={30} step={1} value={discount}
       onChange={e=>setDiscount(Math.max(0,Math.min(30,Number(e.target.value)||0)))}
       className="mt-1 w-32 rounded-lg border border-slate-300 p-2 text-sm"/>
     </label>
     <div className="mt-3 grid grid-cols-2 gap-2">
-     <div className={panelMini}><p className="text-xs text-slate-600">Preço sugerido atual</p>
+     <div className={panelMini}><p className="text-xs text-slate-800">Preço sugerido atual</p>
       <p className="mt-1 text-lg font-black text-slate-900">{brl(scenarios.currentAsk)}</p></div>
-     <div className={panelMini}><p className="text-xs text-slate-600">Após ajuste hipotético</p>
+     <div className={panelMini}><p className="text-xs text-slate-800">Após ajuste hipotético</p>
       <p className="mt-1 text-lg font-black text-slate-900">{brl(scenarios.scenarioAsk)}</p></div>
      <div className={panelMini+' col-span-2'}>
-      <p className="text-xs text-slate-600">Diferença bruta do cenário frente ao custo (não é lucro)</p>
+      <p className="text-xs text-slate-800">Diferença bruta do cenário frente ao custo (não é lucro)</p>
       <p className={'mt-1 text-lg font-black '+(scenarios.spread<0?'text-rose-800':'text-slate-900')}>{brl(scenarios.spread)}</p>
-      <p className="mt-1 text-xs text-slate-600">{scenarios.count} veículos elegíveis; impostos, negociação, custos futuros e probabilidade de venda não calculados.</p>
+      <p className="mt-1 text-xs text-slate-800">{scenarios.count} veículos elegíveis; impostos, negociação, custos futuros e probabilidade de venda não calculados.</p>
      </div>
     </div>
    </section>
@@ -227,11 +227,11 @@ export default function MarketIqStockXRayDeepPanel({
       ['Veículos permanecentes',String(metrics.period.retainedCount)],
       ['Alteração de custo nos permanecentes',brl(metrics.period.retainedCostChange)]
      ] as const).map(([label,value])=><div key={label} className={panelMini}>
-      <p className="text-xs text-slate-600">{label}</p>
+      <p className="text-xs text-slate-800">{label}</p>
       <p className="mt-1 text-lg font-black text-slate-900">{value}</p>
      </div>)}
     </div>
-    <p className="text-xs text-slate-600">{metrics.period.transfersObserved} mudança(s) de unidade nos veículos que permaneceram cadastrados.</p>
+    <p className="text-xs text-slate-800">{metrics.period.transfersObserved} mudança(s) de unidade nos veículos que permaneceram cadastrados.</p>
    </div>:<p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
      Só há uma fotografia datada disponível. A próxima importação em outro dia permitirá comparar entradas, saídas e variação de capital, mas não comprova vendas.
    </p>}
