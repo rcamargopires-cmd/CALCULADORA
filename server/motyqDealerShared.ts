@@ -108,7 +108,7 @@ const fetchRevision=async(db:StockDb,company:string,header:SharedStockHeader):Pr
  if(header.companyId!==company||header.chunkCount<1||header.chunkCount>100||
   header.count<1||header.count>MAX_CARS)throw Error('shared_stock_corrupt');
  const chunks=await Promise.all(Array.from({length:header.chunkCount},async(_,i)=>{
-  const doc=await db.get(DEALER_SHARED_CHUNKS,chunkId(company,header.revision,i));
+  const doc=(await db.get(DEALER_SHARED_CHUNKS,chunkId(company,header.revision,i))) as Record<string,any>|null;
   if(!doc||doc.companyId!==company||doc.revision!==header.revision||
    doc.index!==i||typeof doc.json!=='string')throw Error('shared_stock_incomplete');
   return JSON.parse(doc.json) as DealerStockVehicle[];
@@ -119,7 +119,7 @@ const fetchRevision=async(db:StockDb,company:string,header:SharedStockHeader):Pr
 };
 export async function loadDealerShared(companyId:string,db:StockDb=motyqFirestore):Promise<SharedStockArchive|null>{
  const company=safeCompany(companyId);
- const manifest=await db.get(DEALER_SHARED_MANIFEST,company) as SharedStockManifest|null;
+ const manifest=await db.get(DEALER_SHARED_MANIFEST,company) as unknown as SharedStockManifest|null;
  if(!manifest)return null;
  if(manifest.version!==1||manifest.companyId!==company||!manifest.current)
   throw Error('shared_stock_corrupt');
@@ -135,7 +135,7 @@ export async function loadDealerShared(companyId:string,db:StockDb=motyqFirestor
 export async function publishDealerShared(companyId:string,input:unknown,publishedBy:string,
  db:StockDb=motyqFirestore):Promise<SharedStockArchive>{
  const company=safeCompany(companyId),snapshot=cleanDealerSharedSnapshot(input);
- const old=await db.get(DEALER_SHARED_MANIFEST,company) as SharedStockManifest|null;
+ const old=await db.get(DEALER_SHARED_MANIFEST,company) as unknown as SharedStockManifest|null;
  if(old&&old.companyId!==company)throw Error('company_scope_mismatch');
  if(old?.current?.reportDate&&snapshot.reportDate<old.current.reportDate)
   throw Error('older_report_rejected');
