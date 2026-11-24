@@ -1,0 +1,44 @@
+/* Raio-X only: light analytical surface, legible independently of the global
+   MOTYQ graphical theme. Keep the navy header and selected dark actions light. */
+#root .motyq-iq-xray { color:#0f172a; background-color:#f1f5f9; }
+#root .motyq-iq-xray :is(h3,h4,p,label,summary) { color:#0f172a; }
+#root .motyq-iq-xray .motyq-iq-xray-hero {
+ background:#10364a !important; color:#fff !important;
+}
+#root .motyq-iq-xray .motyq-iq-xray-hero :is(h3,h4,p,span,label) {
+ color:#f8fafc !important;
+}
+#root .motyq-iq-xray .motyq-iq-xray-hero button {
+ color:#fff !important; border-color:#bae6fd !important;
+}
+#root .motyq-iq-xray :is(input,select,option) {
+ background-color:#fff !important; color:#0f172a !important;
+ border-color:#64748b !important; color-scheme:light;
+}
+#root .motyq-iq-xray :is(input,select):focus-visible {
+ outline:3px solid #0891b2 !important; outline-offset:2px;
+}
+#root .motyq-iq-xray :is(input,select)::placeholder { color:#475569 !important; }
+#root .motyq-iq-xray .bg-white { background-color:#fff !important; }
+#root .motyq-iq-xray .bg-slate-50 { background-color:#f8fafc !important; }
+#root .motyq-iq-xray .bg-slate-100 { background-color:#e2e8f0 !important; }
+#root .motyq-iq-xray :is(.text-slate-500,.text-slate-600,.text-slate-700,.text-slate-800) {
+ color:#334155 !important;
+}
+#root .motyq-iq-xray :is(.text-slate-900,.text-slate-950) {
+ color:#0f172a !important;
+}
+#root .motyq-iq-xray nav button[aria-pressed="true"] {
+ background-color:#10364a !important; color:#fff !important;
+ border-color:#10364a !important;
+}
+#root .motyq-iq-xray nav button[aria-pressed="false"] {
+ background-color:#fff !important; color:#0f172a !important;
+ border-color:#94a3b8 !important;
+}
+#root .motyq-iq-xray button:focus-visible {
+ outline:3px solid #0891b2 !important; outline-offset:2px;
+}
+#root .motyq-iq-xray .text-amber-950 { color:#78350f !important; }
+#root .motyq-iq-xray .text-rose-800 { color:#9f1239 !important; }
+#root .motyq-iq-xray .text-sky-900 { color:#0c4a6e !important; }
