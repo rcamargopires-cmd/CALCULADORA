@@ -8,7 +8,7 @@ export type DealerCloudArchive={
  current:DealerStockSnapshot;previous:DealerStockSnapshot|null;
  publishedAt:string;revision:string;publishedBy:string;
 };
-const URL='/api/marketiq-dealer-stock';
+const URL='/api/analyze-deal?action=dealer-stock';
 const message=(code:string)=>({
  not_authenticated_or_inactive:'Sessão expirada ou sem autorização. Entre novamente no Motyq.',
  not_authorized_for_iq_stock:'Seu perfil não tem acesso ao estoque da Mesa.',
@@ -24,7 +24,7 @@ async function request<T>(companyId:string,method:'GET'|'POST',snapshot?:DealerS
  const user=auth.currentUser;
  if(!user)throw Error('Entre na sua conta para sincronizar o estoque Dealer.');
  const token=await user.getIdToken();
- const params=method==='GET'?'?companyId='+encodeURIComponent(companyId):'';
+ const params=method==='GET'?'&companyId='+encodeURIComponent(companyId):'';
  const response=await fetch(URL+params,{
   method,cache:'no-store',
   headers:{Authorization:'Bearer '+token,...(method==='POST'?{'Content-Type':'application/json'}:{})},
