@@ -85,6 +85,13 @@ assert.ok(component.includes('onFamilySelect(v.family)'),'Drilldown into existin
 assert.ok(component.includes('setUnit')===false||component.includes("setUnit(e.target.value)"),
  'Unit filter must recompute analytics');
 assert.ok(component.includes('cloudState'));
+const home=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
+assert.ok(home.includes('Raio-X do Estoque'));
+assert.ok(home.includes("setStockXrayRequest(n=>n+1)"));
+assert.ok(home.includes("navigateSimple('radar')"));
+assert.ok(home.includes('xrayOpenRequest={stockXrayRequest}'));
+assert.ok(radar.includes('xrayOpenRequest?:number'));
+assert.ok(radar.includes('setShowXRay(true)'));
 assert.ok(radar.includes('Raio-X do Estoque'));
 assert.ok(radar.includes('MarketIqStockXRayPanel'));
 assert.ok(radar.includes('onFamilySelect={openXRayFamily}'));
