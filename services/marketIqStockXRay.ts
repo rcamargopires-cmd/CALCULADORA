@@ -35,7 +35,7 @@ export type DealerStockXRay={
  ranking:StockRiskMetric[];units:StockUnitMetric[];actions:StockAction[];
 };
 
-const sum=(rows:readonly DealerStockVehicle[],selector:(row:DealerStockVehicle)=>number)=>
+const sum=<T,>(rows:readonly T[],selector:(row:T)=>number)=>
  rows.reduce((acc,v)=>acc+selector(v),0);
 const average=(nums:number[])=>nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:0;
 const median=(nums:number[])=>{
@@ -194,7 +194,7 @@ export type XRayDeepAnalytics={
   entriesObserved:number;exitsObserved:number;
   entriesCost:number;exitsCost:number;
   retainedCount:number;retainedCostChange:number;
-  sameStoreExits:number;transfersObserved:number;
+  transfersObserved:number;
  };
 };
 const deepCohortDefinitions=[
@@ -287,7 +287,7 @@ export function analyzeDealerStockDeep(
    netVehicleChange:rows.length-previous.vehicles.length,
    entriesObserved:entrants.length,exitsObserved:leavers.length,
    entriesCost,exitsCost,retainedCount:retained.length,retainedCostChange,
-   sameStoreExits:0,transfersObserved
+   transfersObserved
   };
  }
  const priced=rows.filter(v=>v.price>0&&v.cost>0);
