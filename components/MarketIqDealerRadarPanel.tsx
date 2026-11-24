@@ -29,6 +29,7 @@ type Props={
  canPublishSnapshot?:boolean;
  onPublishSnapshot?:(snapshot:DealerStockSnapshot)=>Promise<void>;
  onRefreshShared?:()=>Promise<void>;
+ quickSearchRequest?:{term:string;id:number}|null;
  onQuoteVehicle?:(vehicle:DealerStockVehicle)=>void;
  incomingFile?:MarketIqIncomingFile|null;
  onIncomingFileConsumed?:(token:string)=>void;
@@ -66,6 +67,23 @@ export default function MarketIqDealerRadarPanel(props:Props){
  const [purchaseSummaryVehicle,setPurchaseSummaryVehicle]=useState<DealerStockVehicle|null>(null);
  const [capitalRate,setCapitalRate]=useState('1.5');
  const [visibleCount,setVisibleCount]=useState(60);
+ const lastAppliedQuickSearch=useRef<number|null>(null);
+ useEffect(()=>{
+  const request=props.quickSearchRequest;
+  if(!request||!request.term.trim()||lastAppliedQuickSearch.current===request.id)return;
+  lastAppliedQuickSearch.current=request.id;
+  setSearch(request.term);
+  setStore('all');
+  setType('all');
+  setFilter('all');
+  setVisibleCount(60);
+  setSelectedKey('');
+  // The detailed Radar table is the destination, not a new database/search result.
+  requestAnimationFrame(()=>document.getElementById('motyq-iq-stock-list')?.scrollIntoView({
+   block:'start',behavior:'smooth'
+  }));
+ },[props.quickSearchRequest?.id]);
+
  const vehicles=current?.vehicles||[];
  const selected=useMemo(()=>vehicles.find(v=>v.key===selectedKey)||null,[vehicles,selectedKey]);
  const filtered=useMemo(()=>{
@@ -296,7 +314,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
    </section>}
     </div>
    </details>
-   <section className={card}>
+   <section id="motyq-iq-stock-list" className={card}>
     <div className="flex flex-wrap items-start justify-between gap-3">
      <div><h3 className="text-lg font-black text-slate-950">Estoque por veículo</h3>
       <p className="mt-1 text-xs text-slate-600">Clique em um veículo para encontrar semelhantes no grupo e analisar seus custos.</p>
