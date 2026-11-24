@@ -105,6 +105,8 @@ assert.ok(workspace.includes('localArchiveState={radarCacheState}'),'Radar expla
 assert.ok(workspace.includes('updateRadarSnapshot')&&workspace.includes('updateRadarPreviousSnapshot'));
 assert.ok(panel.includes('sourceFileName:file.name.slice(0,140)'),'Remember filename but not raw workbook');
 assert.ok(panel.includes('setPrevious(current);setCurrent(snapshot)'),'Replacement retains previous report');
+assert.ok(panel.includes('await props.onPublishSnapshot(snapshot)'),'Import publishes before replacing local view');
+assert.ok(workspace.includes('getDealerCloudArchive(dealerCompanyId)'),'Cloud company stock must override stale local cache');
 assert.ok(panel.includes("setPrevious(snapshot);setError("),'Importing an older snapshot does not overwrite newer current stock');
 assert.ok(panel.includes('snapshotOutdated'),'Stale report warning required');
 assert.ok(panel.includes('SALVAS NESTE NAVEGADOR'),'Clear must explicitly warn about deleting saved local inventory');
