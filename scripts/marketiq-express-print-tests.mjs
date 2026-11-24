@@ -10,8 +10,9 @@ const transpile=(file)=>{
 };
 const fleet='data:text/javascript;base64,'+Buffer.from(transpile('services/marketIqFleetClassification.ts')).toString('base64');
 const expressTranspiled=transpile('services/marketIqExpress.ts');
-const actual=expressTranspiled.replace(/from ['"]\.\/marketIqFleetClassification['"]/,"from '"+fleet+"'");
+const actual=expressTranspiled.replace(/from ['"]\.\/marketIqFleetClassification(?:\.js)?['"]/,"from '"+fleet+"'");
 assert.ok(actual.includes(fleet),'Run fleet policy from real module, not mock');
+assert.ok(src('services/marketIqExpress.ts').includes("from './marketIqFleetClassification.js'"),'Node.js 24 ESM requires explicit .js runtime imports');
 const lib=await import('data:text/javascript;base64,'+Buffer.from(actual).toString('base64'));
 const prisma=lib.cleanExpressVehicle({
  brand:'CHEVROLET',model:'PRISMA LTZ 1.4 FLEX AUTOMÁTICO',yearManufacture:'2017',yearModel:'2018',
