@@ -144,4 +144,21 @@ assert.ok(deepPanel.includes('scopedMetrics.families'), 'Filter unit recalculate
 assert.ok(deepPanel.includes('não comprova venda'), 'Never call observed exits sales');
 assert.ok(deepPanel.includes('não é lucro'), 'Spread never claimed as profit');
 
+
+const contrast=readFileSync('components/marketIqStockXRayContrast.css','utf8');
+const deepReadable=readFileSync('components/MarketIqStockXRayDeepPanel.tsx','utf8');
+assert.ok(component.includes("import './marketIqStockXRayContrast.css'"),
+ 'Dedicated contrast style loaded only for Raio-X');
+assert.ok(component.includes('motyq-iq-xray-hero')&&component.includes('motyq-iq-xray space-y-4'));
+assert.ok(contrast.includes('.motyq-iq-xray :is(input,select,option)'),
+ 'Form controls keep dark ink over explicit white background');
+assert.ok(contrast.includes('nav button[aria-pressed="true"]'),
+ 'Selected analytical tab keeps white text on dark background');
+assert.ok(contrast.includes('.motyq-iq-xray-hero'),
+ 'Hero must remain readable on navy');
+assert.ok(deepReadable.includes('bg-[#f1f5f9]'),
+ 'Summary cards have solid near-white background');
+assert.ok(!deepReadable.includes('text-slate-500'),
+ 'Supporting text must not fade into pale background');
+
 console.log('Raio-X IQ: families, scores, capital aging, cautions, per-unit recalculation, snapshot exits and honest no-sales evidence passed.');
