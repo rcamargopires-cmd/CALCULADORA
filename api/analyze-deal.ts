@@ -433,7 +433,40 @@ const handleUserManagement=async(req:any,res:any)=>{
 export const config={api:{bodyParser:{sizeLimit:'4mb'}}};
 export default async function handler(req: any, res: any) {
   if(String(req.query?.action||'').startsWith('aqua-'))return motyqAquaGateway(req,res);
-  if(String(req.query?.action||'')==='dealer-stock')return motyqDealerSharedGateway(req,res,FIREBASE_API_KEY);
+  if(String(req.query?.action||'')==='dealer-stock'){
+    const authHeader=String(req.headers?.authorization||'');
+    const token=authHeader.startsWith('Bearer ')?authHeader.slice(7):'';
+    if(!token)return res.status(401).json({error:'not_authenticated'});
+    try{
+      const firebaseUser=await verifyFirebaseToken(token);
+      const email=emailOf(firebaseUser?.email);
+      if(!email)return res.status(401).json({error:'not_authenticated'});
+      // Use the same authoritative profile as the normal Motyq current-user route:
+      // Firebase identity token + Firestore profile in the configured auth database.
+      let actor:any;
+      if(email===OWNER_ADMIN){
+        const profile=await currentUserProfileWithIdToken(token,email).catch(()=>null);
+        actor=profile?{...profile,email,role:'admin',status:'active'}:
+          {email,id:email,name:'Admin',role:'admin',status:'active',companyId:'abrao-reze'};
+      }else{
+        const profile:any=await currentUserProfileWithIdToken(token,email);
+        if(!profile||profile.status!=='active')
+          return res.status(403).json({error:'inactive_or_missing_user'});
+        actor=await ensureReinaldoDeskAccess(email,await ensureEvandroIqOnly(email,profile));
+      }
+      return motyqDealerSharedGateway(req,res,actor);
+    }catch(error:any){
+      const reason=String(error?.message||error||'');
+      console.error('dealer_actor_lookup_failed',reason.slice(0,90));
+      if(/_429|resource.exhausted|quota/i.test(reason)){
+        res.setHeader('Retry-After','180');
+        return res.status(503).json({error:'stock_cloud_quota_exceeded'});
+      }
+      if(/current_user_firestore_5\d\d|current_user_firestore_403|firebase_oauth_failed|access_sync_unavailable/i.test(reason))
+        return res.status(503).json({error:'profile_verification_unavailable'});
+      return res.status(503).json({error:'stock_cloud_temporarily_unavailable'});
+    }
+  }
   if(String(req.query?.action||'')==='iq-express-print'){
     res.setHeader('Cache-Control','no-store');
     if(req.method!=='POST')return res.status(405).json({error:'Método não permitido.'});

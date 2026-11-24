@@ -10,7 +10,10 @@ export type DealerCloudArchive={
 };
 const URL='/api/analyze-deal?action=dealer-stock';
 const message=(code:string)=>({
- not_authenticated_or_inactive:'Sessão expirada ou sem autorização. Entre novamente no Motyq.',
+ not_authenticated_or_inactive:'Sua sessão Firebase não foi reconhecida. Entre novamente no Motyq.',
+ not_authenticated:'Sua sessão Firebase expirou ou não está ativa. Entre novamente no Motyq.',
+ inactive_or_missing_user:'Seu usuário não possui cadastro ativo na empresa. Peça ao gestor para conferir seu acesso.',
+ profile_verification_unavailable:'O servidor não conseguiu verificar seu perfil. Seus dados locais foram preservados.',
  not_authorized_for_iq_stock:'Seu perfil não tem acesso ao estoque da Mesa.',
  not_authorized_to_publish_stock:'Seu perfil pode consultar, mas não publicar o estoque compartilhado.',
  company_scope_forbidden:'Não é permitido consultar o estoque de outra empresa.',
@@ -21,6 +24,7 @@ const message=(code:string)=>({
  stock_too_large:'O relatório é grande demais para publicação. Gere uma planilha menor.'
 } as Record<string,string>)[code]||'A sincronização do estoque não foi concluída.';
 async function request<T>(companyId:string,method:'GET'|'POST',snapshot?:DealerStockSnapshot):Promise<T>{
+ await auth.authStateReady();
  const user=auth.currentUser;
  if(!user)throw Error('Entre na sua conta para sincronizar o estoque Dealer.');
  const token=await user.getIdToken();
