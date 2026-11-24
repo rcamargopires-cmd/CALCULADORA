@@ -433,7 +433,7 @@ const handleUserManagement=async(req:any,res:any)=>{
 export const config={api:{bodyParser:{sizeLimit:'4mb'}}};
 export default async function handler(req: any, res: any) {
   if(String(req.query?.action||'').startsWith('aqua-'))return motyqAquaGateway(req,res);
-  if(String(req.query?.action||'')==='dealer-stock')return motyqDealerSharedGateway(req,res);
+  if(String(req.query?.action||'')==='dealer-stock')return motyqDealerSharedGateway(req,res,FIREBASE_API_KEY);
   if(String(req.query?.action||'')==='iq-express-print'){
     res.setHeader('Cache-Control','no-store');
     if(req.method!=='POST')return res.status(405).json({error:'Método não permitido.'});
