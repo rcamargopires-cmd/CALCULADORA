@@ -187,6 +187,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     }else setRadarCloudState('empty');
    }catch(error:any){
     if(!alive||seq!==cloudRequestRevision.current)return;
+    if(error?.status===401||error?.status===403){setRadarSnapshot(null);setRadarPreviousSnapshot(null);}
     setRadarCloudState('error');
     setRadarCloudNotice('Não foi possível verificar a base compartilhada. Exibindo apenas o cache deste dispositivo: '+String(error?.message||error));
    }
@@ -212,6 +213,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    }
   }catch(error:any){
    if(seq!==cloudRequestRevision.current)return;
+   if(error?.status===401||error?.status===403){setRadarSnapshot(null);setRadarPreviousSnapshot(null);}
    setRadarCloudState('error');
    setRadarCloudNotice('Consulta da base compartilhada indisponível: '+String(error?.message||error));
   }
