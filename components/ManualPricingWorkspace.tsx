@@ -7,7 +7,7 @@ import MarketIqManagementDashboard from './MarketIqManagementDashboard';
 import MarketIqSimpleHome from './MarketIqSimpleHome';
 import type {MarketIqIncomingFile,MarketIqWorkbookKind} from '../services/marketIqSmartImport';
 import type {SimpleIqDestination} from '../services/marketIqSimpleNavigation';
-import {House,Menu} from 'lucide-react';
+import {House,Menu,Search} from 'lucide-react';
 import MarketIqMobileExperience from './MarketIqMobileExperience';
 import MarketIqDesktopVoiceSearch from './MarketIqDesktopVoiceSearch';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
@@ -144,6 +144,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [purchaseSummaryComparable,setPurchaseSummaryComparable]=useState<ComparableEntry|null>(null);
  const [mobileFullDesk,setMobileFullDesk]=useState(false);
  const [showAllTools,setShowAllTools]=useState(false);
+ const [quickStockTerm,setQuickStockTerm]=useState('');
+ const [quickStockRequest,setQuickStockRequest]=useState<{term:string;id:number}|null>(null);
  // One in-memory File handoff; no raw workbooks stored in browser storage.
  const [smartIncomingFile,setSmartIncomingFile]=useState<MarketIqIncomingFile|null>(null);
  const consumeSmartFile=(token:string)=>setSmartIncomingFile(current=>current?.token===token?null:current);
@@ -980,6 +982,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   switchDeskSection(destination);
   window.scrollTo({top:0,behavior:'smooth'});
  };
+ const openQuickStockSearch=(event:React.FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();
+  const term=quickStockTerm.trim().replace(/\s+/g,' ').slice(0,90);
+  if(!term)return;
+  // Pass the query to the existing shared-stock Radar, never make a new local copy.
+  setQuickStockRequest(previous=>({term,id:(previous?.id||0)+1}));
+  navigateSimple('radar');
+ };
  const selectSimpleImport=(kind:'dealer'|'evaluations')=>navigateSimple(kind==='dealer'?'radar':'archive');
  const acceptSmartImport=(file:File,kind:MarketIqWorkbookKind,sheet:string)=>{
   setSmartIncomingFile({token:Date.now()+'-'+Math.random(),file,kind,sheet});
@@ -994,6 +1004,26 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   onClose={()=>setQuickBuyerQuote(null)}
   onOpenDirectory={()=>{setQuickBuyerQuote(null);setQuoteFromRadar({token:'buyer-directory:'+Date.now(),vehicle:quickBuyerQuote});navigateSimple('consulted');}}/>}
  {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
+  <form onSubmit={openQuickStockSearch} role="search" aria-label="Pesquisa rápida de veículos no estoque da empresa"
+   className="rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
+   <div className="flex items-center gap-2 text-[#153f51]"><Search size={20}/>
+    <h2 className="text-base font-black">Pesquisa rápida de estoque</h2>
+   </div>
+   <p className="mt-1 text-xs text-slate-600">Pesquise um modelo ou placa no estoque compartilhado da empresa.</p>
+   <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+    <input aria-label="Modelo ou placa para pesquisar no estoque" type="search" maxLength={90}
+     className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-950 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+     placeholder="Ex.: T-Cross, Creta, Corolla Cross ou placa" value={quickStockTerm}
+     onChange={e=>setQuickStockTerm(e.target.value)}/>
+    <button type="submit" disabled={!quickStockTerm.trim()}
+     className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0b7199] px-5 py-3 text-sm font-black text-white hover:bg-[#075d80] disabled:opacity-50">
+     <Search size={17}/>Pesquisar estoque
+    </button>
+   </div>
+   {radarLoadedScope===captureScope&&radarSnapshot?
+    <p className="mt-2 text-xs text-slate-600">Base: {radarSnapshot.vehicles.length} veículos · {radarSnapshot.reportDate.split('-').reverse().join('/')}{radarCloudState==='shared'?' · Compartilhada na empresa':' · Cache local, conferir sincronização'}</p>:
+    <p className="mt-2 text-xs text-amber-800">A consulta usará o Radar. Caso ainda não haja estoque, será preciso publicá-lo primeiro.</p>}
+  </form>
   <MarketIqSimpleHome
    onOpenAqua={openAquaDashboard}
    onOpenExpress={()=>setExpressOpen(true)}
@@ -1110,6 +1140,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    </section>:
    <MarketIqDealerRadarPanel
     snapshot={radarSnapshot} onSnapshotChange={updateRadarSnapshot}
+    quickSearchRequest={quickStockRequest}
     previousSnapshot={radarPreviousSnapshot} onPreviousSnapshotChange={updateRadarPreviousSnapshot}
     localArchiveState={radarCacheState} localArchiveWarning={radarCacheNotice}
     cloudState={radarCloudState} cloudNotice={radarCloudNotice} cloudPublishedAt={radarCloudTime}
