@@ -19,7 +19,7 @@ const compile=(path,dependencies={})=>{
  return mod.exports;
 };
 const vehicleLib=compile('services/marketIqExpress.ts',{
- './marketIqFleetClassification':{classifyByMileage:()=>({classification:'A',destination:'SHOWROOM'})}
+ './marketIqFleetClassification.js':{classifyByMileage:()=>({classification:'A',destination:'SHOWROOM'})}
 });
 const lib=compile('services/marketIqAutoAvaliarFavorite.ts',{
  './marketIqExpress':vehicleLib
