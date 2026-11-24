@@ -30,13 +30,15 @@ export default function MarketIqStockXRayDeepPanel({
  const [viewMode,setViewMode]=useState<'stale'|'capital'|'days'>('stale');
  const [unit,setUnit]=useState('all');
  const unitRows=unit==='all'?snapshot.vehicles:snapshot.vehicles.filter(v=>v.store===unit);
+ const scopedMetrics=useMemo(()=>unit==='all'?metrics:analyzeDealerStockDeep(
+  {...snapshot,vehicles:snapshot.vehicles.filter(v=>v.store===unit)},
+  previousSnapshot?{...previousSnapshot,vehicles:previousSnapshot.vehicles.filter(v=>v.store===unit)}:null
+ ),[metrics,snapshot,previousSnapshot,unit]);
  const capital=unitRows.reduce((s,v)=>s+Math.max(0,v.cost),0);
  const old=unitRows.filter(v=>v.days>90);
  const oldCapital=old.reduce((s,v)=>s+Math.max(0,v.cost),0);
  const scenarios=useMemo(()=>xrayMarkdownSensitivity(old,discount),[old,discount]);
- const currentRelevant=metrics.families.filter(f=>
-  (focus==='all'||f.action===focus)&&
-  (unit==='all'||f.byUnit.some(v=>v.store===unit)));
+ const currentRelevant=scopedMetrics.families.filter(f=>focus==='all'||f.action===focus);
  const sorted=[...currentRelevant].sort((a,b)=>viewMode==='days'?
   b.daysWeighted-a.daysWeighted:viewMode==='capital'?
   b.cost-a.cost:b.oldCost-a.oldCost);
@@ -126,7 +128,7 @@ export default function MarketIqStockXRayDeepPanel({
      </select>
     </label>
    </div>
-   {unit!=='all'&&<p className="mt-2 text-xs text-amber-900">Filtro de unidade: os indicadores e gráficos financeiros abaixo usam essa unidade, mas o ranking de famílias preserva o total corporativo para comparação. Os detalhes mostram a presença por loja.</p>}
+   {unit!=='all'&&<p className="mt-2 text-xs text-amber-900">Filtro de unidade: ranking e simulações recalculados para esta loja. O diagnóstico executivo e as faixas de idade acima seguem consolidados para a empresa.</p>}
    <div className="mt-4 space-y-3">
     {top.length===0&&<p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Nenhuma família encontrada com os filtros escolhidos.</p>}
     {top.map((f,i)=>{
