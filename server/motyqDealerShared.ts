@@ -8,8 +8,10 @@ import {randomUUID} from 'node:crypto';
 import type {DealerStockSnapshot,DealerStockVehicle} from '../services/marketIqDealerRadar';
 import {motyqFirestore} from './motyqFirestore.js';
 
-export const DEALER_SHARED_MANIFEST='motyq_iq_dealer_manifests_v1';
-export const DEALER_SHARED_CHUNKS='motyq_iq_dealer_chunks_v1';
+// Preview tests never modify the canonical production company stock.
+const databaseNamespace=process.env.VERCEL_ENV==='production'?'v1':'preview_v1';
+export const DEALER_SHARED_MANIFEST='motyq_iq_dealer_manifests_'+databaseNamespace;
+export const DEALER_SHARED_CHUNKS='motyq_iq_dealer_chunks_'+databaseNamespace;
 const MAX_CARS=6000, CHUNK_SIZE=60, MAX_JSON_BYTES=3_000_000;
 const trim=(x:unknown,max=140)=>String(x??'').trim().slice(0,max);
 const number=(x:unknown)=>typeof x==='number'&&Number.isFinite(x)?x:0;
