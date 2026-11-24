@@ -300,4 +300,33 @@ assert.equal(auditedSnapshot.warnings.some(x=>x.includes('revisar no Dealer')),t
 assert.ok(panel.includes('dealerModelReviewReason(v.brand,v.model)'),
  'Radar must display per-row manual review warnings');
 
+
+// Quick search from Home must route into the actual shared Radar list.
+// Preserve the alias-aware search engine instead of creating a second matcher.
+const quickWorkspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
+assert.ok(quickWorkspace.includes('Pesquisa rápida de estoque'),'Search box must be discoverable from Motyq Home');
+assert.ok(quickWorkspace.includes('onSubmit={openQuickStockSearch}'),'Press Enter submits the lookup');
+assert.ok(quickWorkspace.includes("navigateSimple('radar')"),'Lookup must open Radar, including mobile full desk');
+assert.ok(quickWorkspace.includes('quickSearchRequest={quickStockRequest}'),'Submitted query reaches Radar');
+assert.ok(quickWorkspace.includes('const term=quickStockTerm.trim()'),'Whitespace-only lookup must not navigate');
+assert.ok(panel.includes('setSearch(request.term)'),'Submitted term must populate Radar filter');
+assert.ok(panel.includes("setStore('all')"),'Quick search includes all branches');
+assert.ok(panel.includes("setType('all')"),'Quick search includes vehicle categories');
+assert.ok(panel.includes("setFilter('all')"),'Quick search clears old filter');
+assert.ok(panel.includes('id="motyq-iq-stock-list"'),'Quick search moves to the real existing result list');
+assert.ok(panel.includes('dealerRadarTextMatches(v,search)'),'Use shared alias-aware model/plate matcher');
+const quickDealer=radar.parseDealerStockRows([
+ ['Atualizado: 23/11/2026 - 09:40:42 AM'],headers,
+ ...['VW/T CROSS HL TSI','T CROSS SENSE TSI','T-CROSS COMFORT TSI','VW/T-CROSS TSI'].map((Modelo,i)=>
+ row({Marca:'VOLKSWAGEN',Modelo,Placa:'QCK'+String(i+1).padStart(4,'0'),
+ Chassis:'9BW'+String(i+1).padStart(14,'0')})),
+ row({Marca:'VOLKSWAGEN',Modelo:'T-ROC TSI',Placa:'QCK0005',Chassis:'9BW00000000000005'})
+]);
+assert.equal(quickDealer.vehicles.filter(v=>radar.dealerRadarTextMatches(v,'T-Cross')).length,4,
+ 'Quick search returns all alias spellings of T-Cross');
+assert.equal(quickDealer.vehicles.filter(v=>radar.dealerRadarTextMatches(v,'QCK0001')).length,1,
+ 'Quick search by plate returns one correct vehicle');
+assert.equal(quickDealer.vehicles.filter(v=>radar.dealerRadarTextMatches(v,'T-ROC')).length,1,
+ 'Quick search must not mix T-Roc with T-Cross');
+
 console.log('Motyq IQ Dealer Radar: V44 header, 3 distinct VINs, OS dedup, risk indicators, local-only import, broad family matches, and snapshot deltas passed.');
