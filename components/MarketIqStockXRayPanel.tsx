@@ -3,6 +3,7 @@ import {AlertTriangle,ArrowLeft,ChartNoAxesCombined,ChevronDown,Flame,Search,Shi
 import type {DealerStockSnapshot} from '../services/marketIqDealerRadar';
 import {analyzeDealerStock,type StockTemperature} from '../services/marketIqStockXRay';
 import MarketIqStockXRayDeepPanel from './MarketIqStockXRayDeepPanel';
+import './marketIqStockXRayContrast.css';
 
 const money=(n:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(n);
 const simple=(n:number)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1}).format(n);
@@ -48,8 +49,8 @@ export default function MarketIqStockXRayPanel({
   key,count:scoped.ranking.filter(v=>v.temperature===key).length
  }));
  return <section role="region" aria-label="Raio-X gerencial do estoque"
-  className="space-y-4 rounded-2xl border border-cyan-200 bg-slate-50 p-3 shadow-sm sm:p-5">
-  <div className="rounded-2xl bg-[#10364a] px-4 py-5 text-white sm:px-6">
+  className="motyq-iq-xray space-y-4 rounded-2xl border border-cyan-300 bg-[#f1f5f9] p-3 text-slate-950 shadow-sm sm:p-5">
+  <div className="motyq-iq-xray-hero rounded-2xl bg-[#10364a] px-4 py-5 text-white sm:px-6">
    <div className="flex flex-wrap items-start justify-between gap-3">
     <div>
      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-cyan-200">
@@ -93,15 +94,15 @@ export default function MarketIqStockXRayPanel({
     ['Preço abaixo do custo',String(scoped.underCost),'Comparação bruta na planilha']
    ] as const).map(([label,value,hint])=>
     <article key={label} className="rounded-xl border border-slate-200 bg-white p-3">
-     <p className="text-xs font-bold text-slate-600">{label}</p>
+     <p className="text-xs font-bold text-slate-800">{label}</p>
      <p className="mt-1 break-words text-xl font-black text-slate-950 sm:text-2xl">{value}</p>
-     <p className="mt-1 text-xs text-slate-500">{hint}</p>
+     <p className="mt-1 text-xs text-slate-700">{hint}</p>
     </article>)}
   </div>
   <div className="grid gap-4 lg:grid-cols-[1fr_1.15fr]">
    <div className="rounded-xl border border-slate-200 bg-white p-4">
     <h4 className="flex items-center gap-2 text-base font-black text-slate-900"><Flame size={18}/> Temperatura por família</h4>
-    <p className="mt-1 text-xs text-slate-600">Escala 0–100 ponderada por idade média, proporção acima de 90 dias, quantidade, concentração de capital e problemas de preço.</p>
+    <p className="mt-1 text-xs text-slate-800">Escala 0–100 ponderada por idade média, proporção acima de 90 dias, quantidade, concentração de capital e problemas de preço.</p>
     <div className="mt-4 grid grid-cols-2 gap-2">
      {counts.map(v=><button key={v.key} type="button" aria-pressed={temperature===v.key}
       onClick={()=>setTemperature(temperature===v.key?'all':v.key)}
@@ -116,9 +117,9 @@ export default function MarketIqStockXRayPanel({
    </div>
    <div className="rounded-xl border border-slate-200 bg-white p-4">
     <h4 className="flex items-center gap-2 text-base font-black text-slate-900"><ShieldAlert size={18}/> Plano de ação sugerido</h4>
-    <p className="mt-1 text-xs text-slate-600">Recomendações para análise humana, nunca bloqueios automáticos de compra.</p>
+    <p className="mt-1 text-xs text-slate-800">Recomendações para análise humana, nunca bloqueios automáticos de compra.</p>
     <div className="mt-3 space-y-2">
-     {scoped.actions.length===0?<p className="text-sm text-slate-600">Nenhuma das regras de alerta foi acionada.</p>:
+     {scoped.actions.length===0?<p className="text-sm text-slate-800">Nenhuma das regras de alerta foi acionada.</p>:
      scoped.actions.slice(0,7).map((action,i)=>
       <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
        <p className="text-sm font-black text-slate-900">{action.title}</p>
@@ -134,13 +135,13 @@ export default function MarketIqStockXRayPanel({
   <div className="rounded-xl border border-slate-200 bg-white p-4">
    <div className="flex flex-wrap items-start justify-between gap-3">
     <div><h4 className="text-base font-black text-slate-900">Famílias que precisam de atenção</h4>
-     <p className="mt-1 text-xs text-slate-600">Selecione uma família para abrir os veículos correspondentes no Radar.</p></div>
-    <span className="text-xs font-semibold text-slate-600">{shown.length} de {scoped.ranking.length} famílias</span>
+     <p className="mt-1 text-xs text-slate-800">Selecione uma família para abrir os veículos correspondentes no Radar.</p></div>
+    <span className="text-xs font-semibold text-slate-800">{shown.length} de {scoped.ranking.length} famílias</span>
    </div>
    <div className="mt-3 grid gap-2 sm:grid-cols-3">
     <label className="text-xs font-bold text-slate-700"><Search size={13} className="inline"/> Buscar família
      <input type="search" value={query} onChange={e=>setQuery(e.target.value)}
-      placeholder="Ex.: T-Cross" className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm font-normal"/></label>
+      placeholder="Ex.: T-Cross" className="mt-1 w-full rounded-lg border border-slate-400 bg-white p-2 text-sm text-slate-950 font-normal"/></label>
     <label className="text-xs font-bold text-slate-700">Unidade
      <select value={unit} onChange={e=>setUnit(e.target.value)}
       className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm font-normal">
@@ -155,12 +156,12 @@ export default function MarketIqStockXRayPanel({
      </select></label>
    </div>
    <div className="mt-3 space-y-2">
-    {shown.length===0&&<p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Nenhuma família atende aos filtros.</p>}
+    {shown.length===0&&<p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-800">Nenhuma família atende aos filtros.</p>}
     {shown.slice(0,60).map(v=><article key={v.key} className="rounded-lg border border-slate-200 p-3">
      <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
        <p className="text-sm font-black text-slate-950">{v.brand} · {v.family}</p>
-       <p className="mt-1 text-xs text-slate-600">{v.count} veículo(s) · {simple(v.daysAverage)} dias em média · {v.over90} acima de 90 dias</p>
+       <p className="mt-1 text-xs text-slate-800">{v.count} veículo(s) · {simple(v.daysAverage)} dias em média · {v.over90} acima de 90 dias</p>
       </div>
       <span className={'rounded-full border px-2.5 py-1 text-xs font-black '+heat[v.temperature].color}>
        {heat[v.temperature].label} · {v.score}/100</span>
@@ -174,15 +175,15 @@ export default function MarketIqStockXRayPanel({
       <button type="button" onClick={()=>onFamilySelect(v.family)}
        className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-900 hover:bg-sky-100">Ver veículos</button>
      </div>
-     {v.reasons.length>0&&<p className="mt-2 text-xs text-slate-600">{v.reasons.slice(0,3).join(' · ')}</p>}
+     {v.reasons.length>0&&<p className="mt-2 text-xs text-slate-800">{v.reasons.slice(0,3).join(' · ')}</p>}
     </article>)}
-    {shown.length>60&&<p className="text-xs font-semibold text-slate-600">Mostrando as primeiras 60 famílias. Refine a busca ou a unidade.</p>}
+    {shown.length>60&&<p className="text-xs font-semibold text-slate-800">Mostrando as primeiras 60 famílias. Refine a busca ou a unidade.</p>}
    </div>
   </div>
   <div className="grid gap-4 lg:grid-cols-2">
    <div className="rounded-xl border border-slate-200 bg-white p-4">
     <h4 className="text-sm font-black text-slate-900">Onde está o capital envelhecido</h4>
-    <p className="mt-1 text-xs text-slate-600">Comparação por unidade com base no custo do Dealer.</p>
+    <p className="mt-1 text-xs text-slate-800">Comparação por unidade com base no custo do Dealer.</p>
     <div className="mt-3 space-y-3">{scoped.units.map(u=><div key={u.store}>
      <div className="flex items-center justify-between gap-3 text-xs"><span className="font-bold text-slate-800">{u.store}</span>
       <span className="text-slate-700">{u.over90}/{u.count} · {money(u.staleCost)}</span></div>
@@ -205,7 +206,7 @@ export default function MarketIqStockXRayPanel({
      e, para medir demanda, avaliações/consultas ou dados de mercado.
      O Raio-X não confunde estoque baixo com alta procura.
     </p>
-    <details className="mt-3 text-xs text-slate-600">
+    <details className="mt-3 text-xs text-slate-800">
      <summary className="flex cursor-pointer items-center gap-2 font-bold"><ChevronDown size={14}/> Como funciona a temperatura?</summary>
      <p className="mt-2 leading-5">O índice de 0 a 100 pondera idade média (35 pontos),
       fração de veículos acima de 90 dias (30), quantidade na família (15),
