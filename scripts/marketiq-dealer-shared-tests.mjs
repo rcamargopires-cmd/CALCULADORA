@@ -92,6 +92,8 @@ docs.delete(oneChunkKey);
 await assert.rejects(()=>m.loadDealerShared('empresa-1',db),/shared_stock_incomplete/);
 docs.set(oneChunkKey,backup);
 assert.equal((await m.loadDealerShared('empresa-1',db)).current.vehicles.length,137);
+assert.ok(!endpoint.includes("firebase-applet-config.json"),'Serverless runtime must never import JSON without attributes');
+assert.ok(endpoint.includes("async function authenticatedActor(req:any,key:string)"));
 assert.ok(endpoint.includes("identity?.emailVerified!==true"),'Require verified identity');
 assert.ok(endpoint.includes("motyqFirestore.get('users',email)"),'Role must come from active profile');
 assert.ok(endpoint.includes("company!==ownCompany"),'Forbid cross-company reads and writes');
@@ -99,7 +101,7 @@ assert.ok(endpoint.includes("canPublishDealerStock(actor)"),'Restrict writers');
 assert.ok(endpoint.includes("canReadDealerStock(actor)"),'Restrict readers');
 assert.ok(endpoint.includes("cache-Control")||endpoint.includes("Cache-Control"));
 assert.ok(existingApi.includes("bodyParser:{sizeLimit:'4mb'}"));
-assert.ok(existingApi.includes("dealer-stock')return motyqDealerSharedGateway(req,res)"),
+assert.ok(existingApi.includes("dealer-stock')return motyqDealerSharedGateway(req,res,FIREBASE_API_KEY)"),
  'Existing Vercel function must route Dealer stock without creating a 13th function');
 assert.ok(client.includes("action=dealer-stock"));
 assert.ok(client.includes("auth.currentUser")&&client.includes("user.getIdToken()"));
