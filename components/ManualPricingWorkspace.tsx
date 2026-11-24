@@ -158,6 +158,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   let alive=true;
   const seq=++cloudRequestRevision.current;
   setRadarLoadedScope('');setRadarCacheState('loading');setRadarCacheNotice('');
+  cloudLastChecked.current=Date.now(); // No focus refresh while initial hydration runs.
   setRadarWriteRevision(0);setRadarSnapshot(null);setRadarPreviousSnapshot(null);
   setRadarCloudState('loading');setRadarCloudNotice('');setRadarCloudTime('');
   void (async()=>{
@@ -219,7 +220,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  // or every evaluation (important for the existing Firestore quota limits).
  useEffect(()=>{
   const refetch=()=>{
-   if(document.visibilityState==='visible'&&Date.now()-cloudLastChecked.current>120_000)
+   if(radarLoadedScope===captureScope&&document.visibilityState==='visible'&&
+    Date.now()-cloudLastChecked.current>120_000)
     void refreshRadarCloud();
   };
   window.addEventListener('focus',refetch);
@@ -228,7 +230,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    window.removeEventListener('focus',refetch);
    document.removeEventListener('visibilitychange',refetch);
   };
- },[captureScope,dealerCompanyId]);
+ },[captureScope,dealerCompanyId,radarLoadedScope]);
 
  const publishRadarSnapshot=async(next:DealerStockSnapshot)=>{
   ++cloudRequestRevision.current; // cancel any stale read racing an operator import
