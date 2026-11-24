@@ -1,4 +1,4 @@
-import {classifyByMileage,type FleetClass} from './marketIqFleetClassification';
+import {classifyByMileage,type FleetClass} from './marketIqFleetClassification.js';
 
 /** Strategic purchase demand is distinct from the fleet's KM-based class and disposal policy. */
 export type ExpressCommercialClass='SHOWROOM'|'NORMAL'|'REPASSE';
