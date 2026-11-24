@@ -1,12 +1,13 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import type {MarketIqIncomingFile} from '../services/marketIqSmartImport';
 import './marketIqRadarCompact.css';
-import {AlertTriangle,ArrowDownUp,ArrowRight,CarFront,Clock3,FileSpreadsheet,RefreshCw,Search,ShieldCheck,UploadCloud,Warehouse} from 'lucide-react';
+import {AlertTriangle,ArrowDownUp,ArrowRight,CarFront,Clock3,FileSpreadsheet,RefreshCw,Search,ShieldCheck,UploadCloud,Warehouse,ChartNoAxesCombined} from 'lucide-react';
 import {
  readDealerWorkbook,dealerRadarStats,dealerRiskFlags,dealerSimilarStock,dealerPlateSuggestions,compareDealerSnapshots,dealerRadarTextMatches,
  type DealerStockSnapshot,type DealerStockVehicle
 } from '../services/marketIqDealerRadar';
 import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
+import MarketIqStockXRayPanel from './MarketIqStockXRayPanel';
 import {dealerModelReviewReason} from '../services/marketIqDealerModelIdentity';
 
 const brl=(n:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(n);
@@ -30,6 +31,7 @@ type Props={
  onPublishSnapshot?:(snapshot:DealerStockSnapshot)=>Promise<void>;
  onRefreshShared?:()=>Promise<void>;
  quickSearchRequest?:{term:string;id:number}|null;
+ xrayOpenRequest?:number;
  onQuoteVehicle?:(vehicle:DealerStockVehicle)=>void;
  incomingFile?:MarketIqIncomingFile|null;
  onIncomingFileConsumed?:(token:string)=>void;
@@ -67,6 +69,18 @@ export default function MarketIqDealerRadarPanel(props:Props){
  const [purchaseSummaryVehicle,setPurchaseSummaryVehicle]=useState<DealerStockVehicle|null>(null);
  const [capitalRate,setCapitalRate]=useState('1.5');
  const [visibleCount,setVisibleCount]=useState(60);
+ const [showXRay,setShowXRay]=useState(false);
+ const lastXRayRequest=useRef(0);
+ useEffect(()=>{
+  const request=props.xrayOpenRequest||0;
+  if(request<=0||request===lastXRayRequest.current)return;
+  lastXRayRequest.current=request;
+  setShowXRay(true);
+  requestAnimationFrame(()=>document.getElementById('motyq-iq-stock-xray')?.scrollIntoView({
+   behavior:'smooth',block:'start'
+  }));
+ },[props.xrayOpenRequest]);
+
  const lastAppliedQuickSearch=useRef<number|null>(null);
  useEffect(()=>{
   const request=props.quickSearchRequest;
@@ -168,6 +182,19 @@ export default function MarketIqDealerRadarPanel(props:Props){
   const a=document.createElement('a');a.href=url;a.download='motyq-radar-alertas-'+(current.reportDate||'estoque')+'.csv';a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
  };
+ const showXRayPanel=()=>{
+  setShowXRay(true);
+  requestAnimationFrame(()=>document.getElementById('motyq-iq-stock-xray')?.scrollIntoView({
+   behavior:'smooth',block:'start'
+  }));
+ };
+ const openXRayFamily=(family:string)=>{
+  setSearch(family);setStore('all');setType('all');setFilter('all');
+  setVisibleCount(60);setSelectedKey('');setShowXRay(false);
+  requestAnimationFrame(()=>document.getElementById('motyq-iq-stock-list')?.scrollIntoView({
+   behavior:'smooth',block:'start'
+  }));
+ };
  const showVehicle=(v:DealerStockVehicle)=>{
   setSelectedKey(v.key);
   window.setTimeout(()=>document.getElementById('motyq-radar-details')?.scrollIntoView({behavior:'smooth',block:'center'}),0);
@@ -195,6 +222,11 @@ export default function MarketIqDealerRadarPanel(props:Props){
      className="rounded-lg border border-cyan-100 bg-white px-3 py-2.5 text-xs font-bold text-slate-900 disabled:opacity-50">
      Atualizar estoque da empresa
     </button>}
+    {current&&<button type="button" onClick={showXRayPanel}
+     aria-expanded={showXRay} aria-controls="motyq-iq-stock-xray"
+     className="inline-flex items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-100 px-4 py-2.5 text-sm font-black text-[#123b51] hover:bg-white">
+     <ChartNoAxesCombined size={18}/> Raio-X do Estoque
+    </button>}
     {current&&<button type="button" onClick={clear}
      className="rounded-lg border border-white/30 px-3 py-2.5 text-xs font-semibold text-white hover:bg-white/10">
      Limpar dados locais</button>}
@@ -220,6 +252,11 @@ export default function MarketIqDealerRadarPanel(props:Props){
     cacheState==='error'?'Fotografia disponível nesta sessão; o armazenamento local falhou.':
     'Fotografia disponível para esta sessão.'}</span>
    <span>{current.reportDate?'Base de '+date(current.reportDate):'Data da base não informada'} · {vehicles.length.toLocaleString('pt-BR')} veículos</span>
+  </div>}
+  {current&&showXRay&&<div id="motyq-iq-stock-xray">
+   <MarketIqStockXRayPanel snapshot={current} previousSnapshot={previous}
+    cloudState={props.cloudState} onClose={()=>setShowXRay(false)}
+    onFamilySelect={openXRayFamily}/>
   </div>}
   {current&&snapshotOutdated&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-950">
    Atenção: a fotografia do estoque está {snapshotAge===null?'sem data válida':snapshotAge<0?'com data futura':'com '+snapshotAge+' dias de idade'}.

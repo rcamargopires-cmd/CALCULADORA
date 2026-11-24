@@ -146,6 +146,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const [showAllTools,setShowAllTools]=useState(false);
  const [quickStockTerm,setQuickStockTerm]=useState('');
  const [quickStockRequest,setQuickStockRequest]=useState<{term:string;id:number}|null>(null);
+ const [stockXrayRequest,setStockXrayRequest]=useState(0);
  // One in-memory File handoff; no raw workbooks stored in browser storage.
  const [smartIncomingFile,setSmartIncomingFile]=useState<MarketIqIncomingFile|null>(null);
  const consumeSmartFile=(token:string)=>setSmartIncomingFile(current=>current?.token===token?null:current);
@@ -1024,6 +1025,14 @@ export default function ManualPricingWorkspace({user}:{user:User}){
     <p className="mt-2 text-xs text-slate-600">Base: {radarSnapshot.vehicles.length} veículos · {radarSnapshot.reportDate.split('-').reverse().join('/')}{radarCloudState==='shared'?' · Compartilhada na empresa':' · Cache local, conferir sincronização'}</p>:
     <p className="mt-2 text-xs text-amber-800">A consulta usará o Radar. Caso ainda não haja estoque, será preciso publicá-lo primeiro.</p>}
   </form>
+  <button type="button" onClick={()=>{
+    setStockXrayRequest(n=>n+1);
+    navigateSimple('radar');
+   }} className="flex w-full items-center justify-between rounded-2xl border border-cyan-200 bg-[#123b51] px-5 py-4 text-left text-white shadow-sm hover:bg-[#174d68]">
+    <span><span className="block text-sm font-black">Raio-X do Estoque</span>
+     <span className="mt-1 block text-xs text-cyan-100">Capital parado, temperatura, concentração e alerta de compras</span></span>
+    <span className="text-lg font-black">→</span>
+  </button>
   <MarketIqSimpleHome
    onOpenAqua={openAquaDashboard}
    onOpenExpress={()=>setExpressOpen(true)}
@@ -1141,6 +1150,7 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    <MarketIqDealerRadarPanel
     snapshot={radarSnapshot} onSnapshotChange={updateRadarSnapshot}
     quickSearchRequest={quickStockRequest}
+    xrayOpenRequest={stockXrayRequest}
     previousSnapshot={radarPreviousSnapshot} onPreviousSnapshotChange={updateRadarPreviousSnapshot}
     localArchiveState={radarCacheState} localArchiveWarning={radarCacheNotice}
     cloudState={radarCloudState} cloudNotice={radarCloudNotice} cloudPublishedAt={radarCloudTime}
