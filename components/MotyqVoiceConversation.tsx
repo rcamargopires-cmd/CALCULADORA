@@ -23,6 +23,8 @@ const modelFrom=(raw:string)=>{
 export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Props){
  const [turns,setTurns]=useState<ChatTurn[]>([]);
  const [listen,setListen]=useState(false);
+ const [wakeEnabled,setWakeEnabled]=useState(false);
+ const [waitingCommand,setWaitingCommand]=useState(false);
  const [captured,setCaptured]=useState('');
  const [micState,setMicState]=useState<'idle'|'starting'|'listening'|'processing'>('idle');
  const [preferredVoice,setPreferredVoice]=useState('');
@@ -37,6 +39,12 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const delivered=useRef(false);
  const manuallyStopped=useRef(false);
  const mounted=useRef(true);
+ const wakeEnabledRef=useRef(false);
+ const commandRef=useRef(false);
+ const speakingRef=useRef(false);
+ const restartRef=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const startCycleRef=useRef<()=>void>(()=>{});
+ const commandTimeoutRef=useRef<ReturnType<typeof setTimeout>|null>(null);
 
  const turnRef=useRef<ChatTurn[]>([]);
  const addTurn=useCallback((speaker:ChatTurn['speaker'],message:string)=>{
@@ -47,7 +55,14 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   if(muted||!('speechSynthesis'in window))return;
   try{
    window.speechSynthesis.cancel();
+   speakingRef.current=true;
+   const active=recognizer.current;
+   recognizer.current=null;
+   try{active?.abort?.();}catch{}
+   setListen(false);
    const item=new SpeechSynthesisUtterance(phrase);
+   item.onend=()=>{speakingRef.current=false;if(wakeEnabledRef.current)startCycleRef.current();};
+   item.onerror=()=>{speakingRef.current=false;if(wakeEnabledRef.current)startCycleRef.current();};
    item.lang='pt-BR';item.rate=.98;item.pitch=.95;
    const options=window.speechSynthesis.getVoices();
    const pt=options.filter(v=>/^pt(-BR)?$/i.test(v.lang)||v.lang.toLowerCase().startsWith('pt-br'));
@@ -55,7 +70,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const male=pt.find(v=>/male|masculin|daniel|antonio|felipe|ricardo|paulo/i.test(v.name));
    item.voice=chosen||male||pt[0]||null;
    window.speechSynthesis.speak(item);
-  }catch{setNotice('Este navegador não conseguiu reproduzir a resposta. Ela continua disponível por escrito.');}
+  }catch{speakingRef.current=false;if(wakeEnabledRef.current)startCycleRef.current();setNotice('Este navegador não conseguiu reproduzir a resposta. Ela continua disponível por escrito.');}
  },[muted,preferredVoice]);
  const reply=useCallback((message:string)=>{addTurn('motyq',message);speak(message);},[addTurn,speak]);
  useEffect(()=>{
@@ -65,7 +80,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   // Playback at entry is best effort: browser autoplay restrictions may block it.
   const handleVoices=()=>{const arr=window.speechSynthesis?.getVoices()||[];setVoiceOptions(arr.filter(v=>v.lang.toLowerCase().startsWith('pt')).map(v=>({name:v.name,lang:v.lang})));};
   if('speechSynthesis'in window){window.speechSynthesis.addEventListener('voiceschanged',handleVoices);handleVoices();speak(welcome);}
-  return ()=>{mounted.current=false;recognizer.current?.abort?.();window.speechSynthesis?.cancel();window.speechSynthesis?.removeEventListener('voiceschanged',handleVoices);};
+  return ()=>{mounted.current=false;wakeEnabledRef.current=false;if(restartRef.current)clearTimeout(restartRef.current);if(commandTimeoutRef.current)clearTimeout(commandTimeoutRef.current);recognizer.current?.abort?.();window.speechSynthesis?.cancel();window.speechSynthesis?.removeEventListener('voiceschanged',handleVoices);};
  // One greeting per mount; the callbacks reference the initial state intentionally.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
@@ -114,70 +129,117 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   if(/ajuda|o que voc[eê] faz|pode fazer/.test(words)){reply('Posso consultar modelos no estoque Dealer carregado e simular a compra pela regra da Mesa. Para uma cotação real, a Webmotors precisa ser verificada.');return;}
   reply('Posso ajudar com o estoque ou uma simulação de compra. Experimente: quantos Creta temos no estoque? Ou: quanto pagar em um Renegade 2020?');
  },[addTurn,reply,lastModel,snapshot,stockReady,draft]);
- const deliverTranscript=useCallback((message:string)=>{
-  const final=message.trim();
-  if(delivered.current||!final)return;
-  delivered.current=true;setCaptured(final);setMicState('processing');
-  respondRef.current(final);
-  setMicState('idle');
- },[]);
  const respondRef=useRef(respond);
  useEffect(()=>{respondRef.current=respond;},[respond]);
- const stop=()=>{
-  manuallyStopped.current=true;
-  const r=recognizer.current;
-  setListen(false);setMicState('processing');
-  if(speechDraft.current.trim())deliverTranscript(speechDraft.current);
-  else {setMicState('idle');setNotice('Não recebi nenhuma fala. Confira o microfone e tente novamente.');}
-  try{r?.stop?.();}catch{}
+ const clearCommandTimeout=()=>{
+  if(commandTimeoutRef.current){clearTimeout(commandTimeoutRef.current);commandTimeoutRef.current=null;}
  };
- const start=()=>{
-  if(listen||micState==='starting'){stop();return;}
+ const armCommand=()=>{
+  commandRef.current=true;setWaitingCommand(true);clearCommandTimeout();
+  commandTimeoutRef.current=setTimeout(()=>{
+   commandRef.current=false;setWaitingCommand(false);
+   setNotice('Tempo de comando encerrado. Diga MOTYQ para chamar novamente.');
+  },12000);
+ };
+ const deliverTranscript=(message:string)=>{
+  const heard=message.trim();
+  if(!heard||delivered.current)return;
+  delivered.current=true;
+  if(!wakeEnabledRef.current){setCaptured(heard);respondRef.current(heard);return;}
+  const normalized=normalize(heard).replace(/[.,!?]/g,' ').replace(/\s+/g,' ').trim();
+  // A wake word must be an entire spoken word; never trigger on a substring.
+  const wake=/\b(?:motyq|motiq|motique)\b/i.exec(normalized);
+  if(!commandRef.current&&!wake){
+   setCaptured('Aguardando a palavra MOTYQ');return;
+  }
+  if(!commandRef.current){
+   const after=normalized.slice((wake?.index||0)+(wake?.[0].length||0)).trim();
+   armCommand();
+   if(!after){setCaptured('MOTYQ reconhecido');speakRef.current('Estou ouvindo.');return;}
+   clearCommandTimeout();commandRef.current=false;setWaitingCommand(false);
+   setCaptured(after);respondRef.current(after);return;
+  }
+  clearCommandTimeout();commandRef.current=false;setWaitingCommand(false);
+  const actual=wake?normalized.replace(/\b(?:motyq|motiq|motique)\b/i,'').trim():heard;
+  if(!actual){armCommand();return;}
+  setCaptured(actual);respondRef.current(actual);
+ };
+ const speakRef=useRef(speak);
+ useEffect(()=>{speakRef.current=speak;},[speak]);
+ const queueCycle=(delay=350)=>{
+  if(restartRef.current)clearTimeout(restartRef.current);
+  if(!wakeEnabledRef.current||!mounted.current||speakingRef.current)return;
+  restartRef.current=setTimeout(()=>{if(wakeEnabledRef.current&&!speakingRef.current)startCycleRef.current();},delay);
+ };
+ const startCycle=()=>{
+  if(!wakeEnabledRef.current||speakingRef.current||recognizer.current)return;
   const SpeechRecognizer=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
-  if(!window.isSecureContext||!SpeechRecognizer){setNotice('Seu navegador não disponibiliza reconhecimento de voz. Use o Chrome com HTTPS ou escreva a pergunta.');return;}
-  setNotice('');setCaptured('');setMicState('starting');speechDraft.current='';delivered.current=false;manuallyStopped.current=false;
-  window.speechSynthesis?.cancel();
+  if(!window.isSecureContext||!SpeechRecognizer){
+   wakeEnabledRef.current=false;setWakeEnabled(false);
+   setNotice('O reconhecimento por palavra de ativação exige Chrome e HTTPS.');return;
+  }
   try{
    const r=new SpeechRecognizer();
-   recognizer.current=r;r.lang='pt-BR';r.continuous=false;r.interimResults=true;r.maxAlternatives=1;
-   r.onstart=()=>{if(mounted.current&&recognizer.current===r){setListen(true);setMicState('listening');}};
+   recognizer.current=r;speechDraft.current='';delivered.current=false;manuallyStopped.current=false;
+   r.lang='pt-BR';r.continuous=false;r.interimResults=true;r.maxAlternatives=1;
+   r.onstart=()=>{if(recognizer.current===r&&mounted.current){setListen(true);setMicState('listening');}};
    r.onresult=(event:any)=>{
     if(recognizer.current!==r||!mounted.current)return;
-    let heard='';
-    let isFinal=false;
+    let heard='';let isFinal=false;
     for(let i=0;i<event.results.length;i++){
      heard+=String(event.results[i]?.[0]?.transcript||'')+' ';
      if(event.results[i]?.isFinal)isFinal=true;
     }
     speechDraft.current=heard.trim();
-    setCaptured(speechDraft.current);
     if(isFinal&&speechDraft.current){
      deliverTranscript(speechDraft.current);
-     setListen(false);
      try{r.stop();}catch{}
     }
    };
    r.onerror=(event:any)=>{
     if(recognizer.current!==r)return;
     const code=String(event?.error||'');
-    if(code==='not-allowed'||code==='service-not-allowed')setNotice('Permissão de microfone negada. Autorize nas configurações do navegador e tente novamente.');
-    else if(code==='no-speech')setNotice('Não detectei sua voz. Fale perto do microfone e tente novamente.');
-    else if(code==='network')setNotice('O serviço de reconhecimento do navegador não respondeu. Verifique a conexão ou digite sua pergunta.');
-    else if(code!=='aborted')setNotice('Falha no reconhecimento ('+code+'). Você pode digitar a pergunta.');
-    if(code!=='not-allowed'&&code!=='service-not-allowed'&&speechDraft.current.trim())deliverTranscript(speechDraft.current);
-    setListen(false);setMicState('idle');
+    if(code==='not-allowed'||code==='service-not-allowed'||code==='network'||code==='audio-capture'){
+     wakeEnabledRef.current=false;setWakeEnabled(false);
+     setNotice('Escuta interrompida ('+code+'). Verifique microfone, permissão e conexão e ative novamente.');
+    }else if(code!=='no-speech'&&code!=='aborted'){
+     setNotice('Falha na escuta ('+code+').');
+    }
    };
    r.onend=()=>{
     if(recognizer.current!==r)return;
-    recognizer.current=null;setListen(false);
-    // Some browser engines never mark the final hypothesis; use the latest
-    // interim text rather than discarding everything when recognition ends.
-    if(speechDraft.current&&!delivered.current&&!manuallyStopped.current)deliverTranscript(speechDraft.current);
-    if(!speechDraft.current&&!delivered.current&&!manuallyStopped.current)setNotice('O microfone parou sem transcrever. Teste a permissão ou digite sua pergunta.');
-    setMicState('idle');
+    recognizer.current=null;setListen(false);setMicState('idle');
+    if(speechDraft.current&&!delivered.current)deliverTranscript(speechDraft.current);
+    queueCycle();
    };
-   r.start();
-  }catch{setNotice('Não foi possível abrir o microfone. Confira a permissão do navegador.');setListen(false);setMicState('idle');recognizer.current=null;}
+   setMicState('starting');r.start();
+  }catch{
+   recognizer.current=null;wakeEnabledRef.current=false;setWakeEnabled(false);
+   setListen(false);setMicState('idle');
+   setNotice('O navegador não conseguiu reiniciar o microfone. Ative a escuta novamente.');
+  }
+ };
+ startCycleRef.current=startCycle;
+ const stop=()=>{
+  wakeEnabledRef.current=false;commandRef.current=false;
+  setWakeEnabled(false);setWaitingCommand(false);
+  clearCommandTimeout();
+  if(restartRef.current)clearTimeout(restartRef.current);
+  const active=recognizer.current;recognizer.current=null;
+  try{active?.abort?.();}catch{}
+  setListen(false);setMicState('idle');
+  setNotice('Escuta desativada.');
+ };
+ const start=()=>{
+  if(wakeEnabledRef.current){stop();return;}
+  const SpeechRecognizer=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
+  if(!window.isSecureContext||!SpeechRecognizer){
+   setNotice('Seu navegador não disponibiliza reconhecimento de voz. Use Chrome com HTTPS ou digite.');return;
+  }
+  window.speechSynthesis?.cancel();speakingRef.current=false;
+  setNotice('Escuta ativada. Diga MOTYQ para iniciar uma pergunta.');
+  setCaptured('');wakeEnabledRef.current=true;setWakeEnabled(true);
+  commandRef.current=false;setWaitingCommand(false);startCycle();
  };
  const sendText=(event:React.FormEvent)=>{event.preventDefault();const text=input.trim();if(!text)return;setInput('');respond(text);};
  return <section aria-label="MOTYQ Voice" className="rounded-2xl border border-cyan-300 bg-[#071a2e] p-4 text-white shadow-xl sm:p-6">
@@ -190,13 +252,13 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
     <strong className="mb-1 block text-xs">{turn.speaker==='motyq'?'MOTYQ':'Você'}</strong>{turn.message}</div>)}
   </div>
   <div className="mb-3 rounded-lg border border-cyan-500/30 bg-[#12314b] p-3 text-sm text-cyan-50" role="status" aria-live="polite">
-   {micState==='starting'?'Solicitando microfone...':micState==='listening'?'Estou ouvindo. Fale normalmente.':micState==='processing'?'Interpretando sua pergunta...':captured?'Último reconhecimento: '+captured:'Toque em Falar com MOTYQ e diga sua pergunta.'}
+   {micState==='starting'?'Ativando microfone...':wakeEnabled?(waitingCommand?'MOTYQ ativado. Diga sua pergunta.':listen?'Escuta ativa. Diga MOTYQ para chamar.':'Escuta ativa. Reconectando microfone...'):captured?'Último reconhecimento: '+captured:'Ative a escuta para usar a palavra MOTYQ.'}
   </div>
   <div className="flex flex-wrap items-center gap-3">
-   <button type="button" aria-label={listen?'Parar de ouvir':'Iniciar microfone'} onClick={start}
-    className={'flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold '+(listen?'bg-red-100 text-red-950':'bg-cyan-400 text-slate-950')}>
-    {listen?<MicOff size={18}/>:<Mic size={18}/>} {listen?'Parar de ouvir':'Falar com MOTYQ'}</button>
-   <button type="button" aria-label={muted?'Ativar respostas em voz':'Silenciar respostas em voz'} onClick={()=>{setMuted(x=>!x);window.speechSynthesis?.cancel();}}
+   <button type="button" aria-label={wakeEnabled?'Desativar escuta':'Ativar escuta por MOTYQ'} onClick={start}
+    className={'flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold '+(wakeEnabled?'bg-red-100 text-red-950':'bg-cyan-400 text-slate-950')}>
+    {wakeEnabled?<MicOff size={18}/>:<Mic size={18}/>} {wakeEnabled?'Desativar escuta':'Ativar MOTYQ'}</button>
+   <button type="button" aria-label={muted?'Ativar respostas em voz':'Silenciar respostas em voz'} onClick={()=>{setMuted(x=>!x);window.speechSynthesis?.cancel();speakingRef.current=false;if(wakeEnabledRef.current)queueCycle();}}
     className="flex items-center gap-2 rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-white">
     {muted?<VolumeX size={17}/>:<Volume2 size={17}/>} {muted?'Voz desligada':'Voz ligada'}</button>
   </div>
@@ -215,6 +277,6 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    <button type="submit" className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-950">Enviar</button>
   </form>
   {notice&&<p role="alert" className="mt-3 text-sm text-amber-200">{notice}</p>}
-  <p className="mt-3 text-xs leading-5 text-cyan-100">O microfone só funciona ao tocar no botão. A saudação falada depende da permissão de reprodução do navegador. Esta versão usa síntese de voz e comandos orientados; conversa contínua em tempo real e pesquisa automática de anúncios ainda não estão ativadas.</p>
+  <p className="mt-3 text-xs leading-5 text-cyan-100">Depois de ativar, diga MOTYQ e faça sua pergunta. A escuta só fica ativa enquanto esta tela e o navegador permitirem. Desative pelo botão quando quiser. Vozes disponíveis dependem do dispositivo; pesquisas automáticas de anúncios ainda não estão ativadas.</p>
  </section>;
 }
