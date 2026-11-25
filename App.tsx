@@ -328,7 +328,13 @@ const App: React.FC<{resolvedUser?:User|null}> = ({resolvedUser}) => {
   const goSelected=new URLSearchParams(window.location.search).get('go')==='1';
   if(iqAllowed&&(iqSelected||user.role==='pricing'||user.pricingDeskOnly||(iqEmail==='reinaldo.ribas@abraoreze.com.br'&&!goSelected)))return (
     <div className="motyq-iq-workspace min-h-screen bg-[#f4f7fb] text-slate-900">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#112d3d] px-4 py-3 text-white sm:px-5 sm:py-4">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#112d3d] px-4 py-3 text-white lg:hidden">
+        <div className="min-w-0"><strong className="text-base font-black text-white">Motyq IQ</strong>
+         <p className="truncate text-xs text-slate-200">{user.name}</p></div>
+        <button type="button" onClick={handleLogout} aria-label="Sair do Motyq e trocar usuário"
+         className="shrink-0 rounded-lg border border-cyan-300 bg-white px-4 py-2 text-sm font-black text-[#10364a]">Sair</button>
+      </div>
+      <header className="hidden flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#112d3d] px-5 py-4 text-white lg:flex">
         <div><strong className="text-xl text-white">Motyq IQ</strong><p className="text-xs text-slate-200">Inteligência de seminovos · {user.name}</p></div>
         <div className="flex items-center gap-2">
           {user.role!=='pricing'&&!user.pricingDeskOnly&&<a href={window.location.pathname+(iqEmail==='reinaldo.ribas@abraoreze.com.br'?'?go=1':'')} className="rounded-lg border border-white/20 px-4 py-2 text-sm text-white">Voltar ao Motyq GO</a>}
