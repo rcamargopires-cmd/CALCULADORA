@@ -248,7 +248,20 @@ const App: React.FC<{resolvedUser?:User|null}> = ({resolvedUser}) => {
   };
   const stockStatus = getStockStatus(data.stockDays);
 
-  const handleLogout = async () => { await signOut(auth); setUser(null); handleResetNoConfirm(); };
+  const handleLogout = async () => {
+    try {
+      // End the Firebase session first; never display another user's workspace
+      // until authentication re-runs. Preserve company data and scoped drafts.
+      await signOut(auth);
+      try { sessionStorage.removeItem('motyq-iq-active-desk-tab'); } catch {}
+      setUser(null);
+      setAuthError('');
+      handleResetNoConfirm();
+    } catch(error) {
+      console.error('Erro ao sair do Motyq:',error);
+      setToast({message:'Não foi possível encerrar a sessão. Tente novamente.',type:'error'});
+    }
+  };
   const updatePayment = (field: keyof typeof data.payments, value: number) => setData(prev => { const newData = { ...prev, payments: { ...prev.payments, [field]: value } }; if (field === 'financing') newData.bankReturn = getReturnAmount(value); return newData; });
   const handleBankTypeChange = (type: BankType) => { setBankType(type); setData(prev => ({ ...prev, bankReturn: getReturnAmount(prev.payments.financing, type) })); };
   const updateCost = (field: keyof typeof data.costs, value: number) => setData(prev => ({ ...prev, costs: { ...prev.costs, [field]: value } }));
@@ -315,11 +328,17 @@ const App: React.FC<{resolvedUser?:User|null}> = ({resolvedUser}) => {
   const goSelected=new URLSearchParams(window.location.search).get('go')==='1';
   if(iqAllowed&&(iqSelected||user.role==='pricing'||user.pricingDeskOnly||(iqEmail==='reinaldo.ribas@abraoreze.com.br'&&!goSelected)))return (
     <div className="motyq-iq-workspace min-h-screen bg-[#f4f7fb] text-slate-900">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#112d3d] px-4 py-3 text-white lg:hidden">
+        <div className="min-w-0"><strong className="text-base font-black text-white">Motyq IQ</strong>
+         <p className="truncate text-xs text-slate-200">{user.name}</p></div>
+        <button type="button" onClick={handleLogout} aria-label="Sair do Motyq e trocar usuário"
+         className="shrink-0 rounded-lg border border-cyan-300 bg-white px-4 py-2 text-sm font-black text-[#10364a]">Sair</button>
+      </div>
       <header className="hidden flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#112d3d] px-5 py-4 text-white lg:flex">
         <div><strong className="text-xl text-white">Motyq IQ</strong><p className="text-xs text-slate-200">Inteligência de seminovos · {user.name}</p></div>
         <div className="flex items-center gap-2">
           {user.role!=='pricing'&&!user.pricingDeskOnly&&<a href={window.location.pathname+(iqEmail==='reinaldo.ribas@abraoreze.com.br'?'?go=1':'')} className="rounded-lg border border-white/20 px-4 py-2 text-sm text-white">Voltar ao Motyq GO</a>}
-          <button onClick={handleLogout} className="rounded-lg border border-white/20 px-4 py-2 text-sm text-white">Sair</button>
+          <button type="button" onClick={handleLogout} aria-label="Sair do Motyq e trocar usuário" className="rounded-lg border border-cyan-300 bg-white px-4 py-2 text-sm font-black text-[#10364a] shadow-sm hover:bg-cyan-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300">Sair</button>
         </div>
       </header>
       <main className="mx-auto hidden max-w-7xl px-5 pt-6 lg:block">
