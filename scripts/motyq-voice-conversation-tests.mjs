@@ -18,8 +18,16 @@ assert.ok(component.includes('setDraft({...draft,reference:n})'),'conversational
 assert.ok(component.includes('r.lang=\'pt-BR\''),'pt BR recognition');
 assert.ok(component.includes('window.speechSynthesis.speak(item)'),'spoken replies');
 assert.ok(component.includes('onClick={start}'),'microphone user initiated');
-assert.ok(component.includes('if(isFinal&&speechDraft.current)'), 'final recognition must process');
-assert.ok(component.includes('if(speechDraft.current&&!delivered.current&&!manuallyStopped.current)'), 'interim recognition must process on stop');
+assert.ok(component.includes('wakeEnabledRef.current=true'),'wake mode requires user opt-in');
+assert.ok(component.includes('wakeEnabledRef.current=false'),'wake mode can be disabled');
+assert.ok(component.includes('const wake=/'),'wake word recognized as a whole word');
+assert.ok(component.includes('if(!commandRef.current&&!wake)'),'speech ignored until wake word');
+assert.ok(component.includes('armCommand()'),'wake arms next spoken command');
+assert.ok(component.includes('if(isFinal&&speechDraft.current)'),'final recognition processed');
+assert.ok(component.includes('if(speechDraft.current&&!delivered.current)'),'interim text retained when speech ends');
+assert.ok(component.includes('item.onend=')&&component.includes('speakingRef.current=true'),'mic pauses while TTS plays');
+assert.ok(component.includes('queueCycle()'),'recognition resumes between interactions');
+assert.ok(component.includes('clearCommandTimeout()'),'command timeout can be cleared');
 assert.ok(component.includes('Último reconhecimento:'), 'recognized speech displayed to diagnose failures');
 assert.ok(component.includes('Selecionar voz do assistente'), 'voice selector offered for installed voices');
 assert.ok(component.includes('onClose'), 'user can exit');
