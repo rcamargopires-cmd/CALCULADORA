@@ -11,6 +11,12 @@ assert.ok(workspace.includes("const voiceOwner=String(user.email||'').trim().toL
 assert.ok(workspace.includes("voiceOwner&&<section"),'only owner can open voice');
 assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),'must not cross dealer account scope');
 assert.ok(component.includes('dealerRadarTextMatches(v,queriedModel)'),'queries use real stock model matcher');
+assert.ok(component.includes('!isStock&&hasYear'),'vehicle and year treated as a pricing continuation');
+assert.ok(component.includes("awaiting==='version'"),'asks version instead of repeating model request');
+assert.ok(component.includes("draft?.awaiting==='version'"),'version answer retained in context');
+assert.ok(component.includes("draft?.awaiting==='details'"),'year and mileage answers retained in context');
+assert.ok(component.includes("draft.awaiting==='reference'"),'follow-up flows to market reference');
+assert.ok(component.includes('Compra sugerida:'),'simulation returns concise number');
 assert.ok(component.includes('!stockReady||!snapshot'),'must not claim unloaded inventory counts');
 assert.ok(component.includes('não uma cotação de mercado verificada'),'must not fabricate Webmotors findings');
 assert.ok(component.includes('Compra sugerida: '),'answer starts with value');
