@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import ts from 'typescript';
+const component=readFileSync('components/MotyqVoiceConversation.tsx','utf8');
+const workspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
+for(const [name,source] of [['voice',component],['workspace',workspace]]){
+ const errors=(ts.transpileModule(source,{fileName:name+'.tsx',compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX},reportDiagnostics:true}).diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error);
+ assert.equal(errors.length,0,name+' syntax: '+errors.map(e=>ts.flattenDiagnosticMessageText(e.messageText,' ')).join(';'));
+}
+assert.ok(workspace.includes("const voiceOwner=String(user.email||'').trim().toLowerCase()==='reinaldo.ribas@abraoreze.com.br'"),'voice pilot gated to user');
+assert.ok(workspace.includes("voiceOwner&&<section"),'only owner can open voice');
+assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),'must not cross dealer account scope');
+assert.ok(component.includes('dealerRadarTextMatches(v,queriedModel)'),'queries use real stock model matcher');
+assert.ok(component.includes('!stockReady||!snapshot'),'must not claim unloaded inventory counts');
+assert.ok(component.includes('Não tenho pesquisa de anúncios verificada'),'must not fabricate Webmotors findings');
+assert.ok(component.includes('next.reference!*0.86-n'),'pricing follows 14% cost rule');
+assert.ok(component.includes('setDraft({...draft,reference:n})'),'conversational context retained for price');
+assert.ok(component.includes('r.lang=\'pt-BR\''),'pt BR recognition');
+assert.ok(component.includes('window.speechSynthesis.speak(item)'),'spoken replies');
+assert.ok(component.includes('onClick={start}'),'microphone user initiated');
+assert.ok(component.includes('wakeEnabledRef.current=true'),'wake mode requires user opt-in');
+assert.ok(component.includes('wakeEnabledRef.current=false'),'wake mode can be disabled');
+assert.ok(component.includes('<MarketIqVoiceHologram'), 'hologram starts conversation');
+assert.ok(component.includes('onClick={start}'),'one tap starts or stops conversation');
+assert.ok(!component.includes('const wake=/'),'no wake-word gate');
+assert.ok(component.includes('respondRef.current(heard)'),'all spoken commands route directly to assistant');
+assert.ok(component.includes('if(isFinal&&speechDraft.current)'),'final recognition processed');
+assert.ok(component.includes('if(speechDraft.current&&!delivered.current)'),'interim text retained when speech ends');
+assert.ok(component.includes('item.onend=')&&component.includes('speakingRef.current=true'),'mic pauses while TTS plays');
+assert.ok(component.includes('queueCycle()'),'recognition resumes between interactions');
+assert.ok(component.includes("speak('Estou ouvindo.')"),'assistant acknowledges activation');
+assert.ok(component.includes('Último reconhecimento:'), 'recognized speech displayed to diagnose failures');
+assert.ok(component.includes('Selecionar voz do assistente'), 'voice selector offered for installed voices');
+assert.ok(component.includes('onClose'), 'user can exit');
+console.log('MOTYQ Voice pilot: single user, consent, real Dealer data, 14% simulated pricing, no invented Webmotors offers passed.');
