@@ -1005,6 +1005,36 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   onClose={()=>setQuickBuyerQuote(null)}
   onOpenDirectory={()=>{setQuickBuyerQuote(null);setQuoteFromRadar({token:'buyer-directory:'+Date.now(),vehicle:quickBuyerQuote});navigateSimple('consulted');}}/>}
  {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
+  <section aria-label="Três ações principais do Motyq IQ" className="space-y-3">
+   <div>
+    <p className="text-xs font-black uppercase tracking-wider text-[#14627d]">Motyq IQ · Central de comando</p>
+    <h1 className="mt-1 text-2xl font-black text-slate-950">O que vamos fazer hoje?</h1>
+    <p className="mt-1 text-sm text-slate-700">A inteligência continua aqui. Escolha apenas por onde começar.</p>
+   </div>
+   <div className="grid gap-3 sm:grid-cols-3">
+    <button type="button" onClick={()=>navigateSimple('pricing')}
+     className="group flex min-h-32 items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-white p-5 text-left shadow-sm hover:border-cyan-600 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700">
+     <span><span className="block text-lg font-black text-slate-950">Avaliar veículo</span>
+      <span className="mt-2 block text-xs leading-5 text-slate-700">Precificação, mercado e histórico</span></span>
+     <span aria-hidden="true" className="text-2xl font-black text-[#126083]">→</span>
+    </button>
+    <button type="button" onClick={()=>navigateSimple('radar')}
+     className="group flex min-h-32 items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-white p-5 text-left shadow-sm hover:border-cyan-600 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700">
+     <span><span className="block text-lg font-black text-slate-950">Inteligência de estoque</span>
+      <span className="mt-2 block text-xs leading-5 text-slate-700">Radar, Raio-X e prioridades</span></span>
+     <span aria-hidden="true" className="text-2xl font-black text-[#126083]">→</span>
+    </button>
+    <button type="button" onClick={()=>navigateSimple('consulted')}
+     className="group flex min-h-32 items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-white p-5 text-left shadow-sm hover:border-cyan-600 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700">
+     <span><span className="block text-lg font-black text-slate-950">Cotações e repasse</span>
+      <span className="mt-2 block text-xs leading-5 text-slate-700">Cotação Mesa e lojistas</span></span>
+     <span aria-hidden="true" className="text-2xl font-black text-[#126083]">→</span>
+    </button>
+   </div>
+  </section>
+  <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Outras ferramentas do Motyq IQ">
+   <summary className="cursor-pointer text-sm font-black text-[#153f51]">Outras ferramentas, pesquisa rápida e funções avançadas</summary>
+   <div className="mt-4 space-y-5">
   <form onSubmit={openQuickStockSearch} role="search" aria-label="Pesquisa rápida de veículos no estoque da empresa"
    className="rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
    <div className="flex items-center gap-2 text-[#153f51]"><Search size={20}/>
@@ -1044,6 +1074,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
    stockDate={radarLoadedScope===captureScope?radarSnapshot?.reportDate||null:null}
    historyCount={saved.length} historyBusy={historyBusy}
   />
+   </div>
+  </details>
  </main>}
  <div className={deskSection==='home'||mobileFullDesk?'hidden':'lg:hidden'}>
   <nav aria-label="Ferramentas de aquisição do Motyq IQ" className="mx-3 mt-3 flex flex-wrap gap-2">
