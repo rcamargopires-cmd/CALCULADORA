@@ -248,7 +248,20 @@ const App: React.FC<{resolvedUser?:User|null}> = ({resolvedUser}) => {
   };
   const stockStatus = getStockStatus(data.stockDays);
 
-  const handleLogout = async () => { await signOut(auth); setUser(null); handleResetNoConfirm(); };
+  const handleLogout = async () => {
+    try {
+      // End the Firebase session first; never display another user's workspace
+      // until authentication re-runs. Preserve company data and scoped drafts.
+      await signOut(auth);
+      try { sessionStorage.removeItem('motyq-iq-active-desk-tab'); } catch {}
+      setUser(null);
+      setAuthError('');
+      handleResetNoConfirm();
+    } catch(error) {
+      console.error('Erro ao sair do Motyq:',error);
+      setToast({message:'Não foi possível encerrar a sessão. Tente novamente.',type:'error'});
+    }
+  };
   const updatePayment = (field: keyof typeof data.payments, value: number) => setData(prev => { const newData = { ...prev, payments: { ...prev.payments, [field]: value } }; if (field === 'financing') newData.bankReturn = getReturnAmount(value); return newData; });
   const handleBankTypeChange = (type: BankType) => { setBankType(type); setData(prev => ({ ...prev, bankReturn: getReturnAmount(prev.payments.financing, type) })); };
   const updateCost = (field: keyof typeof data.costs, value: number) => setData(prev => ({ ...prev, costs: { ...prev.costs, [field]: value } }));
