@@ -116,7 +116,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const awaiting:PricingDraft['awaiting']=!hasYear||!hasKm?'details':!knownTrim?'version':'reference';
    setDraft({vehicle:raw,reference:null,preparation:null,awaiting});
    if(awaiting==='details')reply('Qual ano, quilometragem e versão?');
-   else if(awaiting==='version')reply('Renegade '+(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||'')+' reconhecido. Qual é a versão?');
+   else if(awaiting==='version')reply(explicitModel+' '+(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||'')+' reconhecido. Qual é a versão?');
    else reply('Qual é o menor preço de anúncio comparável?');
    return;
   }
