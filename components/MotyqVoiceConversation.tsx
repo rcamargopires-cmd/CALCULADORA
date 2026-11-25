@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {Mic,MicOff,Volume2,VolumeX,X} from 'lucide-react';
+import MarketIqVoiceHologram from './MarketIqVoiceHologram';
 import {dealerRadarTextMatches,type DealerStockSnapshot} from '../services/marketIqDealerRadar';
 
 type ChatTurn={speaker:'user'|'motyq';message:string};
@@ -24,7 +25,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const [turns,setTurns]=useState<ChatTurn[]>([]);
  const [listen,setListen]=useState(false);
  const [wakeEnabled,setWakeEnabled]=useState(false);
- const [waitingCommand,setWaitingCommand]=useState(false);
+ const [speechDetected,setSpeechDetected]=useState(false);
  const [captured,setCaptured]=useState('');
  const [micState,setMicState]=useState<'idle'|'starting'|'listening'|'processing'>('idle');
  const [preferredVoice,setPreferredVoice]=useState('');
@@ -40,11 +41,9 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const manuallyStopped=useRef(false);
  const mounted=useRef(true);
  const wakeEnabledRef=useRef(false);
- const commandRef=useRef(false);
  const speakingRef=useRef(false);
  const restartRef=useRef<ReturnType<typeof setTimeout>|null>(null);
  const startCycleRef=useRef<()=>void>(()=>{});
- const commandTimeoutRef=useRef<ReturnType<typeof setTimeout>|null>(null);
 
  const turnRef=useRef<ChatTurn[]>([]);
  const addTurn=useCallback((speaker:ChatTurn['speaker'],message:string)=>{
@@ -76,12 +75,12 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const reply=useCallback((message:string)=>{addTurn('motyq',message);speak(message);},[addTurn,speak]);
  useEffect(()=>{
   mounted.current=true;
-  const welcome='Boa tarde. MOTYQ à disposição. Toque no microfone quando quiser conversar.';
+  const welcome='MOTYQ à disposição. Toque no holograma para iniciar uma conversa.';
   addTurn('motyq',welcome);
   // Playback at entry is best effort: browser autoplay restrictions may block it.
   const handleVoices=()=>{const arr=window.speechSynthesis?.getVoices()||[];setVoiceOptions(arr.filter(v=>v.lang.toLowerCase().startsWith('pt')).map(v=>({name:v.name,lang:v.lang})));};
   if('speechSynthesis'in window){window.speechSynthesis.addEventListener('voiceschanged',handleVoices);handleVoices();speak(welcome);}
-  return ()=>{mounted.current=false;wakeEnabledRef.current=false;if(restartRef.current)clearTimeout(restartRef.current);if(commandTimeoutRef.current)clearTimeout(commandTimeoutRef.current);recognizer.current?.abort?.();window.speechSynthesis?.cancel();window.speechSynthesis?.removeEventListener('voiceschanged',handleVoices);};
+  return ()=>{mounted.current=false;wakeEnabledRef.current=false;if(restartRef.current)clearTimeout(restartRef.current);recognizer.current?.abort?.();window.speechSynthesis?.cancel();window.speechSynthesis?.removeEventListener('voiceschanged',handleVoices);};
  // One greeting per mount; the callbacks reference the initial state intentionally.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
@@ -132,41 +131,13 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  },[addTurn,reply,lastModel,snapshot,stockReady,draft]);
  const respondRef=useRef(respond);
  useEffect(()=>{respondRef.current=respond;},[respond]);
- const clearCommandTimeout=()=>{
-  if(commandTimeoutRef.current){clearTimeout(commandTimeoutRef.current);commandTimeoutRef.current=null;}
- };
- const armCommand=()=>{
-  commandRef.current=true;setWaitingCommand(true);clearCommandTimeout();
-  commandTimeoutRef.current=setTimeout(()=>{
-   commandRef.current=false;setWaitingCommand(false);
-   setNotice('Tempo de comando encerrado. Diga MOTYQ para chamar novamente.');
-  },12000);
- };
  const deliverTranscript=(message:string)=>{
   const heard=message.trim();
   if(!heard||delivered.current)return;
-  delivered.current=true;
-  if(!wakeEnabledRef.current){setCaptured(heard);respondRef.current(heard);return;}
-  const normalized=normalize(heard).replace(/[.,!?]/g,' ').replace(/\s+/g,' ').trim();
-  // A wake word must be an entire spoken word; never trigger on a substring.
-  const wake=/\b(?:motyq|motiq|motique)\b/i.exec(normalized);
-  if(!commandRef.current&&!wake){
-   setCaptured('Aguardando a palavra MOTYQ');return;
-  }
-  if(!commandRef.current){
-   const after=normalized.slice((wake?.index||0)+(wake?.[0].length||0)).trim();
-   armCommand();
-   if(!after){setCaptured('MOTYQ reconhecido');speakRef.current('Estou ouvindo.');return;}
-   clearCommandTimeout();commandRef.current=false;setWaitingCommand(false);
-   setCaptured(after);respondRef.current(after);return;
-  }
-  clearCommandTimeout();commandRef.current=false;setWaitingCommand(false);
-  const actual=wake?normalized.replace(/\b(?:motyq|motiq|motique)\b/i,'').trim():heard;
-  if(!actual){armCommand();return;}
-  setCaptured(actual);respondRef.current(actual);
+  delivered.current=true;setCaptured(heard);setMicState('processing');
+  respondRef.current(heard);
+  if(!speakingRef.current)setMicState('idle');
  };
- const speakRef=useRef(speak);
- useEffect(()=>{speakRef.current=speak;},[speak]);
  const queueCycle=(delay=350)=>{
   if(restartRef.current)clearTimeout(restartRef.current);
   if(!wakeEnabledRef.current||!mounted.current||speakingRef.current||recognizer.current)return;
@@ -177,13 +148,15 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const SpeechRecognizer=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
   if(!window.isSecureContext||!SpeechRecognizer){
    wakeEnabledRef.current=false;setWakeEnabled(false);
-   setNotice('O reconhecimento por palavra de ativação exige Chrome e HTTPS.');return;
+   setNotice('A conversa por voz exige navegador compatível e HTTPS.');return;
   }
   try{
    const r=new SpeechRecognizer();
    recognizer.current=r;speechDraft.current='';delivered.current=false;manuallyStopped.current=false;
    r.lang='pt-BR';r.continuous=false;r.interimResults=true;r.maxAlternatives=1;
    r.onstart=()=>{if(recognizer.current===r&&mounted.current){setListen(true);setMicState('listening');}};
+   r.onspeechstart=()=>{if(recognizer.current===r)setSpeechDetected(true);};
+   r.onspeechend=()=>{if(recognizer.current===r)setSpeechDetected(false);};
    r.onresult=(event:any)=>{
     if(recognizer.current!==r||!mounted.current)return;
     let heard='';let isFinal=false;
@@ -209,7 +182,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    };
    r.onend=()=>{
     if(recognizer.current!==r)return;
-    recognizer.current=null;setListen(false);setMicState('idle');
+    recognizer.current=null;setListen(false);setSpeechDetected(false);setMicState('idle');
     if(speechDraft.current&&!delivered.current)deliverTranscript(speechDraft.current);
     queueCycle();
    };
@@ -222,9 +195,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  };
  startCycleRef.current=startCycle;
  const stop=()=>{
-  wakeEnabledRef.current=false;commandRef.current=false;
-  setWakeEnabled(false);setWaitingCommand(false);
-  clearCommandTimeout();
+  wakeEnabledRef.current=false;
+  setWakeEnabled(false);setSpeechDetected(false);
   if(restartRef.current)clearTimeout(restartRef.current);
   const active=recognizer.current;recognizer.current=null;
   try{active?.abort?.();}catch{}
@@ -238,9 +210,10 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    setNotice('Seu navegador não disponibiliza reconhecimento de voz. Use Chrome com HTTPS ou digite.');return;
   }
   window.speechSynthesis?.cancel();speakingRef.current=false;
-  setNotice('Escuta ativada. Diga MOTYQ para iniciar uma pergunta.');
+  setNotice('Conversa ativada. Fale normalmente, sem repetir MOTYQ.');
   setCaptured('');wakeEnabledRef.current=true;setWakeEnabled(true);
-  commandRef.current=false;setWaitingCommand(false);startCycle();
+  speak('Estou ouvindo.');
+  if(!('speechSynthesis'in window)||muted)startCycle();
  };
  const sendText=(event:React.FormEvent)=>{event.preventDefault();const text=input.trim();if(!text)return;setInput('');respond(text);};
  return <section aria-label="MOTYQ Voice" className="rounded-2xl border border-cyan-300 bg-[#071a2e] p-4 text-white shadow-xl sm:p-6">
@@ -253,12 +226,18 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
     <strong className="mb-1 block text-xs">{turn.speaker==='motyq'?'MOTYQ':'Você'}</strong>{turn.message}</div>)}
   </div>
   <div className="mb-3 rounded-lg border border-cyan-500/30 bg-[#12314b] p-3 text-sm text-cyan-50" role="status" aria-live="polite">
-   {micState==='starting'?'Ativando microfone...':wakeEnabled?(waitingCommand?'MOTYQ ativado. Diga sua pergunta.':listen?'Escuta ativa. Diga MOTYQ para chamar.':'Escuta ativa. Reconectando microfone...'):captured?'Último reconhecimento: '+captured:'Ative a escuta para usar a palavra MOTYQ.'}
+   {micState==='starting'?'Ativando microfone...':wakeEnabled?(speakingRef.current?'MOTYQ respondendo...':listen?'Estou ouvindo. Pode falar.':'Preparando a próxima pergunta...'):captured?'Último reconhecimento: '+captured:'Toque no holograma para começar a conversar.'}
   </div>
-  <div className="flex flex-wrap items-center gap-3">
-   <button type="button" aria-label={wakeEnabled?'Desativar escuta':'Ativar escuta por MOTYQ'} onClick={start}
-    className={'flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold '+(wakeEnabled?'bg-red-100 text-red-950':'bg-cyan-400 text-slate-950')}>
-    {wakeEnabled?<MicOff size={18}/>:<Mic size={18}/>} {wakeEnabled?'Desativar escuta':'Ativar MOTYQ'}</button>
+  <div className="mx-auto mb-3 flex max-w-[300px] flex-col items-center">
+   <button type="button" aria-label={wakeEnabled?'Encerrar conversa':'Iniciar conversa por voz'}
+    aria-pressed={wakeEnabled} onClick={start}
+    className="w-full rounded-3xl focus-visible:outline focus-visible:outline-4 focus-visible:outline-cyan-300">
+    <MarketIqVoiceHologram listening={listen} processing={micState==='processing'}
+     heard={Boolean(captured)} speechDetected={speechDetected}/>
+   </button>
+   <span className="mt-1 text-sm font-bold text-cyan-100">{wakeEnabled?'Toque para encerrar':'Toque para conversar'}</span>
+  </div>
+  <div className="flex flex-wrap items-center justify-center gap-3">
    <button type="button" aria-label={muted?'Ativar respostas em voz':'Silenciar respostas em voz'} onClick={()=>{setMuted(x=>!x);window.speechSynthesis?.cancel();speakingRef.current=false;if(wakeEnabledRef.current)queueCycle();}}
     className="flex items-center gap-2 rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-white">
     {muted?<VolumeX size={17}/>:<Volume2 size={17}/>} {muted?'Voz desligada':'Voz ligada'}</button>
@@ -282,6 +261,6 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    <button type="submit" className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-950">Enviar</button>
   </form>
   {notice&&<p role="alert" className="mt-3 text-sm text-amber-200">{notice}</p>}
-  <p className="mt-3 text-xs leading-5 text-cyan-100">Depois de ativar, diga MOTYQ e faça sua pergunta. A escuta só fica ativa enquanto esta tela e o navegador permitirem. Desative pelo botão quando quiser. Vozes disponíveis dependem do dispositivo; pesquisas automáticas de anúncios ainda não estão ativadas.</p>
+  <p className="mt-3 text-xs leading-5 text-cyan-100">Toque uma vez no holograma e fale normalmente. O MOTYQ volta a escutar depois de responder. A escuta só fica ativa enquanto esta tela e o navegador permitirem. Desative pelo botão quando quiser. Vozes disponíveis dependem do dispositivo; pesquisas automáticas de anúncios ainda não estão ativadas.</p>
  </section>;
 }
