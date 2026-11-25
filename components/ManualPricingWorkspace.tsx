@@ -10,6 +10,7 @@ import type {SimpleIqDestination} from '../services/marketIqSimpleNavigation';
 import {House,Menu,Search} from 'lucide-react';
 import MarketIqMobileExperience from './MarketIqMobileExperience';
 import MarketIqDesktopVoiceSearch from './MarketIqDesktopVoiceSearch';
+import MotyqVoiceConversation from './MotyqVoiceConversation';
 import MarketIqLearningPanel from './MarketIqLearningPanel';
 import MarketIqMonthlyArchivePanel from './MarketIqMonthlyArchivePanel';
 import MarketIqDealerRadarPanel from './MarketIqDealerRadarPanel';
@@ -124,6 +125,8 @@ export default function ManualPricingWorkspace({user}:{user:User}){
  const canPublishDealer=user.role==='admin'||user.role==='manager'||
   user.role==='pricing'||user.pricingDeskAccess===true||user.pricingDeskOnly===true;
  const [radarSnapshot,setRadarSnapshot]=useState<DealerStockSnapshot|null>(null);
+ const [voiceConversationOpen,setVoiceConversationOpen]=useState(false);
+ const voiceOwner=String(user.email||'').trim().toLowerCase()==='reinaldo.ribas@abraoreze.com.br';
  const [radarPreviousSnapshot,setRadarPreviousSnapshot]=useState<DealerStockSnapshot|null>(null);
  const [radarLoadedScope,setRadarLoadedScope]=useState('');
  const [radarCacheNotice,setRadarCacheNotice]=useState('');
@@ -1005,6 +1008,17 @@ export default function ManualPricingWorkspace({user}:{user:User}){
   onClose={()=>setQuickBuyerQuote(null)}
   onOpenDirectory={()=>{setQuickBuyerQuote(null);setQuoteFromRadar({token:'buyer-directory:'+Date.now(),vehicle:quickBuyerQuote});navigateSimple('consulted');}}/>}
  {deskSection==='home'&&<main className="mx-auto max-w-7xl space-y-5 p-4 text-slate-900 sm:p-6">
+  {voiceOwner&&<section aria-label="MOTYQ Voice" className="space-y-3">
+   {!voiceConversationOpen?
+    <button type="button" onClick={()=>setVoiceConversationOpen(true)}
+     className="flex w-full items-center justify-between gap-3 rounded-2xl border border-cyan-300 bg-[#10364a] px-5 py-4 text-left text-white shadow-sm hover:bg-[#155577]">
+     <span><span className="block text-lg font-black text-white">🎙️ Conversar com MOTYQ</span>
+      <span className="mt-1 block text-xs text-cyan-100">Seu assistente de voz · laboratório individual</span></span>
+     <span aria-hidden="true" className="text-xl">→</span>
+    </button>:
+    <MotyqVoiceConversation snapshot={radarLoadedScope===captureScope?radarSnapshot:null}
+     stockReady={radarLoadedScope===captureScope&&Boolean(radarSnapshot)} onClose={()=>setVoiceConversationOpen(false)}/>}
+  </section>}
   <section aria-label="Três ações principais do Motyq IQ" className="space-y-3">
    <div>
     <p className="text-xs font-black uppercase tracking-wider text-[#14627d]">Motyq IQ · Central de comando</p>
