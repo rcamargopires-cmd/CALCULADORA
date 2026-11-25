@@ -23,7 +23,7 @@ assert.ok(component.includes('Compra sugerida: '),'answer starts with value');
 assert.ok(!component.includes('Nossa regra é usar'),'no rule lecture in pricing answer');
 assert.ok(component.includes('n>=0'),'accept zero-cost preparation');
 assert.ok(component.includes('next.reference!*0.86-n'),'pricing follows 14% cost rule');
-assert.ok(component.includes('setDraft({...draft,reference:n})'),'conversational context retained for price');
+assert.ok(component.includes("setDraft({...draft,reference:n,awaiting:'preparation'})"),'conversational context retained for price');
 assert.ok(component.includes('r.lang=\'pt-BR\''),'pt BR recognition');
 assert.ok(component.includes('window.speechSynthesis.speak(item)'),'spoken replies');
 assert.ok(component.includes('onClick={start}'),'microphone user initiated');
