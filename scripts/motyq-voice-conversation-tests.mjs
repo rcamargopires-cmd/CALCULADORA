@@ -18,5 +18,9 @@ assert.ok(component.includes('setDraft({...draft,reference:n})'),'conversational
 assert.ok(component.includes('r.lang=\'pt-BR\''),'pt BR recognition');
 assert.ok(component.includes('window.speechSynthesis.speak(item)'),'spoken replies');
 assert.ok(component.includes('onClick={start}'),'microphone user initiated');
+assert.ok(component.includes('if(isFinal&&speechDraft.current)'), 'final recognition must process');
+assert.ok(component.includes('if(speechDraft.current&&!delivered.current&&!manuallyStopped.current)'), 'interim recognition must process on stop');
+assert.ok(component.includes('Último reconhecimento:'), 'recognized speech displayed to diagnose failures');
+assert.ok(component.includes('Selecionar voz do assistente'), 'voice selector offered for installed voices');
 assert.ok(component.includes('onClose'), 'user can exit');
 console.log('MOTYQ Voice pilot: single user, consent, real Dealer data, 14% simulated pricing, no invented Webmotors offers passed.');
