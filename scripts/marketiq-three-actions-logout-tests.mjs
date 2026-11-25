@@ -9,8 +9,10 @@ for(const [path,source] of [['App.tsx',app],['ManualPricingWorkspace.tsx',iq]]){
  },reportDiagnostics:true}).diagnostics||[];
  assert.deepEqual(diagnostics.filter(x=>x.category===ts.DiagnosticCategory.Error),[],path+' must parse');
 }
-assert.ok(app.includes('className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10'),
- 'The IQ logout header must be visible on mobile as well as desktop');
+assert.ok(app.includes('bg-[#112d3d] px-4 py-3 text-white lg:hidden'),
+ 'Mobile gets a compact visible logout bar');
+assert.ok(app.includes('bg-[#112d3d] px-5 py-4 text-white lg:flex'),
+ 'Desktop masthead remains available at wide breakpoints');
 assert.ok(app.includes('aria-label="Sair do Motyq e trocar usuário"'));
 assert.ok(app.includes('await signOut(auth)'), 'Logout must terminate Firebase session');
 assert.ok(app.includes("sessionStorage.removeItem('motyq-iq-active-desk-tab')"),
