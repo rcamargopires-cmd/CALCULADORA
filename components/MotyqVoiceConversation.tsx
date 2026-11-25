@@ -63,12 +63,13 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const item=new SpeechSynthesisUtterance(phrase);
    item.onend=()=>{speakingRef.current=false;if(wakeEnabledRef.current)startCycleRef.current();};
    item.onerror=()=>{speakingRef.current=false;if(wakeEnabledRef.current)startCycleRef.current();};
-   item.lang='pt-BR';item.rate=.98;item.pitch=.95;
+   item.lang='pt-BR';item.rate=.96;item.pitch=1;
    const options=window.speechSynthesis.getVoices();
    const pt=options.filter(v=>/^pt(-BR)?$/i.test(v.lang)||v.lang.toLowerCase().startsWith('pt-br'));
    const chosen=options.find(v=>v.voiceURI===preferredVoice)||options.find(v=>v.name===preferredVoice);
+   const natural=pt.find(v=>/microsoft.*(antonio|daniel)|google.*portugu|natural|neural|premium/i.test(v.name));
    const male=pt.find(v=>/male|masculin|daniel|antonio|felipe|ricardo|paulo/i.test(v.name));
-   item.voice=chosen||male||pt[0]||null;
+   item.voice=chosen||natural||male||pt[0]||null;
    window.speechSynthesis.speak(item);
   }catch{speakingRef.current=false;if(wakeEnabledRef.current)startCycleRef.current();setNotice('Este navegador não conseguiu reproduzir a resposta. Ela continua disponível por escrito.');}
  },[muted,preferredVoice]);
@@ -168,7 +169,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  useEffect(()=>{speakRef.current=speak;},[speak]);
  const queueCycle=(delay=350)=>{
   if(restartRef.current)clearTimeout(restartRef.current);
-  if(!wakeEnabledRef.current||!mounted.current||speakingRef.current)return;
+  if(!wakeEnabledRef.current||!mounted.current||speakingRef.current||recognizer.current)return;
   restartRef.current=setTimeout(()=>{if(wakeEnabledRef.current&&!speakingRef.current)startCycleRef.current();},delay);
  };
  const startCycle=()=>{
@@ -270,6 +271,10 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
     {voiceOptions.map((voice,i)=><option key={i} value={voice.name}>{voice.name} ({voice.lang})</option>)}
    </select>
   </label>}
+  <button type="button" onClick={()=>speak('MOTYQ à disposição. Como posso ajudar?')}
+   className="mt-2 rounded-lg border border-cyan-400/40 px-3 py-2 text-xs font-semibold text-cyan-100">
+   Testar voz selecionada
+  </button>
   <form onSubmit={sendText} className="mt-4 flex gap-2">
    <input value={input} onChange={e=>setInput(e.target.value)} maxLength={300}
     aria-label="Escrever pergunta ao MOTYQ" placeholder="Ou digite sua pergunta..."
