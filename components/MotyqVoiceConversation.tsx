@@ -89,14 +89,14 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   if(!words)return;
   addTurn('user',raw);
   if(/^(oi|ola|bom dia|boa tarde|boa noite|motyq)[!., ]*$/.test(words)){
-   reply('Estou à disposição. Você pode perguntar sobre o estoque ou pedir uma simulação de compra.');return;
+   reply('Pode falar.');return;
   }
   const isStock=/estoque|quantos|quantas|temos|poss[uí]mos|parados|dias de estoque|capital investido/.test(words);
   const explicitModel=modelFrom(words);
   const queriedModel=explicitModel||(/desses|dessas|desse modelo|daqueles/.test(words)?lastModel:null);
   if(isStock&&queriedModel){
    setLastModel(queriedModel);
-   if(!stockReady||!snapshot){reply('Ainda não tenho um estoque Dealer confirmado nesta sessão. Abra o Radar e aguarde a sincronização para que eu responda com números reais.');return;}
+   if(!stockReady||!snapshot){reply('O estoque Dealer ainda não está carregado.');return;}
    const found=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&dealerRadarTextMatches(v,queriedModel));
    const overdue=found.filter(v=>v.days>90);
    const avg=found.length?Math.round(found.reduce((a,v)=>a+v.days,0)/found.length):0;
@@ -109,25 +109,25 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const wantsPrice=/quanto|pagar|compra|precific|avaliar|valor/.test(words);
   if(wantsPrice&&explicitModel){
    setDraft({vehicle:raw,reference:null,preparation:null});
-   reply('Entendi o '+explicitModel+'. Nossa regra é usar o menor anúncio válido da Webmotors, menos 14 por cento e a preparação. Não tenho pesquisa de anúncios verificada nesta conversa. Qual é o menor valor confirmado na Webmotors para essa versão, ano e quilometragem?');return;
+   reply('Para calcular, qual é o menor preço de anúncio comparável?');return;
   }
   if(draft){
    const n=parseMoney(raw);
-   if(n!==null&&n>=1000&&n<=2000000){
+   if(n!==null&&n>=0&&n<=2000000){
     if(draft.reference===null){
      setDraft({...draft,reference:n});
-     reply('Anotei '+brl(n)+' como referência informada por você, ainda não validada na Webmotors. Qual é a previsão de gastos com preparação?');return;
+     reply('Qual o custo estimado de preparação? Pode ser zero.');return;
     }
     if(draft.preparation===null){
      const next={...draft,preparation:n};
      setDraft(next);
      const suggested=Math.max(0,Math.round(next.reference!*0.86-n));
-     reply('Simulação com referência informada de '+brl(next.reference!)+': descontando 14 por cento e '+brl(n)+' de preparação, a compra sugerida é '+brl(suggested)+'. Antes da aprovação, precisamos confirmar versão, ano, quilometragem e procedência dos anúncios.');return;
+     reply('Compra sugerida: '+brl(suggested)+'. É uma simulação, não uma cotação de mercado verificada.');return;
     }
    }
   }
-  if(/ajuda|o que voc[eê] faz|pode fazer/.test(words)){reply('Posso consultar modelos no estoque Dealer carregado e simular a compra pela regra da Mesa. Para uma cotação real, a Webmotors precisa ser verificada.');return;}
-  reply('Posso ajudar com o estoque ou uma simulação de compra. Experimente: quantos Creta temos no estoque? Ou: quanto pagar em um Renegade 2020?');
+  if(/ajuda|o que voc[eê] faz|pode fazer/.test(words)){reply('Consigo consultar estoque e simular compra com um preço de referência.');return;}
+  reply('Qual modelo você quer consultar?');
  },[addTurn,reply,lastModel,snapshot,stockReady,draft]);
  const respondRef=useRef(respond);
  useEffect(()=>{respondRef.current=respond;},[respond]);
