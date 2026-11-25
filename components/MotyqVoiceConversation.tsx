@@ -4,7 +4,7 @@ import MarketIqVoiceHologram from './MarketIqVoiceHologram';
 import {dealerRadarTextMatches,type DealerStockSnapshot} from '../services/marketIqDealerRadar';
 
 type ChatTurn={speaker:'user'|'motyq';message:string};
-type PricingDraft={vehicle:string;reference:number|null;preparation:number|null};
+type PricingDraft={vehicle:string;reference:number|null;preparation:number|null;awaiting?:'details'|'version'|'reference'|'preparation'|'done'};
 type Props={snapshot:DealerStockSnapshot|null;stockReady:boolean;onClose:()=>void};
 const brl=(n:number)=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const normalize=(value:string)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
@@ -107,23 +107,55 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    return;
   }
   const wantsPrice=/quanto|pagar|compra|precific|avaliar|valor/.test(words);
-  if(wantsPrice&&explicitModel){
-   setDraft({vehicle:raw,reference:null,preparation:null});
-   reply('Para calcular, qual é o menor preço de anúncio comparável?');return;
+  const hasYear=/\b(?:19|20)\d{2}\b/.test(words);
+  const hasKm=/\bkm\b|quil[oô]metr/.test(words);
+  const knownTrim=/\b(?:sport|longitude|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(words);
+  // An operator may answer with just "Renegade 2022 com 50.000 km".
+  // Keep the vehicle context instead of demanding the verb "precificar".
+  if(explicitModel&&(wantsPrice||(!isStock&&hasYear)||(!draft&&!isStock))){
+   const awaiting:PricingDraft['awaiting']=!hasYear||!hasKm?'details':!knownTrim?'version':'reference';
+   setDraft({vehicle:raw,reference:null,preparation:null,awaiting});
+   if(awaiting==='details')reply('Qual ano, quilometragem e versão?');
+   else if(awaiting==='version')reply(explicitModel+' '+(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||'')+' reconhecido. Qual é a versão?');
+   else reply('Qual é o menor preço de anúncio comparável?');
+   return;
   }
-  if(draft){
+  if(draft?.awaiting==='details'){
+   const nextVehicle=draft.vehicle+' '+raw;
+   const full=normalize(nextVehicle);
+   const nextYear=/\b(?:19|20)\d{2}\b/.test(full);
+   const nextKm=/\bkm\b|quil[oô]metr/.test(full);
+   if(!nextYear||!nextKm){
+    setDraft({...draft,vehicle:nextVehicle});reply('Informe o ano e a quilometragem.');return;
+   }
+   if(!/\b(?:sport|longitude|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(full)){
+    setDraft({...draft,vehicle:nextVehicle,awaiting:'version'});reply('Qual é a versão?');return;
+   }
+   setDraft({...draft,vehicle:nextVehicle,awaiting:'reference'});
+   reply('Qual é o menor preço de anúncio comparável?');return;
+  }
+  if(draft?.awaiting==='version'){
+   if(!raw.trim()){reply('Qual é a versão?');return;}
+   // Reply is the exact trim or engine information, not another vehicle.
+   setDraft({...draft,vehicle:draft.vehicle+' '+raw,awaiting:'reference'});
+   reply('Qual é o menor preço de anúncio comparável?');return;
+  }
+  if(draft&&(draft.awaiting==='reference'||draft.awaiting==='preparation'||!draft.awaiting)){
    const n=parseMoney(raw);
    if(n!==null&&n>=0&&n<=2000000){
     if(draft.reference===null){
-     setDraft({...draft,reference:n});
+     if(n<1000){reply('Qual é o preço anunciado em reais?');return;}
+     setDraft({...draft,reference:n,awaiting:'preparation'});
      reply('Qual o custo estimado de preparação? Pode ser zero.');return;
     }
     if(draft.preparation===null){
-     const next={...draft,preparation:n};
+     const next={...draft,preparation:n,awaiting:'done' as const};
      setDraft(next);
      const suggested=Math.max(0,Math.round(next.reference!*0.86-n));
-     reply('Compra sugerida: '+brl(suggested)+'. É uma simulação, não uma cotação de mercado verificada.');return;
+     reply('Compra sugerida: '+brl(suggested)+'. Simulação com preço informado, sem pesquisa de mercado confirmada.');return;
     }
+   }else{
+    reply(draft.reference===null?'Qual é o menor preço de anúncio comparável?':'Qual o custo estimado de preparação?');return;
    }
   }
   if(/ajuda|o que voc[eê] faz|pode fazer/.test(words)){reply('Consigo consultar estoque e simular compra com um preço de referência.');return;}
