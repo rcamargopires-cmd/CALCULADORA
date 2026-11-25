@@ -12,7 +12,10 @@ assert.ok(workspace.includes("voiceOwner&&<section"),'only owner can open voice'
 assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),'must not cross dealer account scope');
 assert.ok(component.includes('dealerRadarTextMatches(v,queriedModel)'),'queries use real stock model matcher');
 assert.ok(component.includes('!stockReady||!snapshot'),'must not claim unloaded inventory counts');
-assert.ok(component.includes('Não tenho pesquisa de anúncios verificada'),'must not fabricate Webmotors findings');
+assert.ok(component.includes('não uma cotação de mercado verificada'),'must not fabricate Webmotors findings');
+assert.ok(component.includes('Compra sugerida: '),'answer starts with value');
+assert.ok(!component.includes('Nossa regra é usar'),'no rule lecture in pricing answer');
+assert.ok(component.includes('n>=0'),'accept zero-cost preparation');
 assert.ok(component.includes('next.reference!*0.86-n'),'pricing follows 14% cost rule');
 assert.ok(component.includes('setDraft({...draft,reference:n})'),'conversational context retained for price');
 assert.ok(component.includes('r.lang=\'pt-BR\''),'pt BR recognition');
