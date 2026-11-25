@@ -23,16 +23,21 @@ const modelFrom=(raw:string)=>{
 export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Props){
  const [turns,setTurns]=useState<ChatTurn[]>([]);
  const [listen,setListen]=useState(false);
- const [busy,setBusy]=useState(false);
+ const [captured,setCaptured]=useState('');
+ const [micState,setMicState]=useState<'idle'|'starting'|'listening'|'processing'>('idle');
+ const [preferredVoice,setPreferredVoice]=useState('');
+ const [voiceOptions,setVoiceOptions]=useState<{name:string;lang:string}[]>([]);
  const [input,setInput]=useState('');
  const [notice,setNotice]=useState('');
  const [muted,setMuted]=useState(false);
  const [lastModel,setLastModel]=useState<string|null>(null);
  const [draft,setDraft]=useState<PricingDraft|null>(null);
  const recognizer=useRef<any>(null);
- const keepListening=useRef(false);
+ const speechDraft=useRef('');
+ const delivered=useRef(false);
+ const manuallyStopped=useRef(false);
  const mounted=useRef(true);
- const voices=useRef<SpeechSynthesisVoice[]>([]);
+
  const turnRef=useRef<ChatTurn[]>([]);
  const addTurn=useCallback((speaker:ChatTurn['speaker'],message:string)=>{
   const next=[...turnRef.current,{speaker,message}].slice(-30);
@@ -43,23 +48,24 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   try{
    window.speechSynthesis.cancel();
    const item=new SpeechSynthesisUtterance(phrase);
-   item.lang='pt-BR';item.rate=.98;item.pitch=.82;
+   item.lang='pt-BR';item.rate=.98;item.pitch=.95;
    const options=window.speechSynthesis.getVoices();
    const pt=options.filter(v=>/^pt(-BR)?$/i.test(v.lang)||v.lang.toLowerCase().startsWith('pt-br'));
+   const chosen=options.find(v=>v.voiceURI===preferredVoice)||options.find(v=>v.name===preferredVoice);
    const male=pt.find(v=>/male|masculin|daniel|antonio|felipe|ricardo|paulo/i.test(v.name));
-   item.voice=male||pt[0]||null;
+   item.voice=chosen||male||pt[0]||null;
    window.speechSynthesis.speak(item);
   }catch{setNotice('Este navegador não conseguiu reproduzir a resposta. Ela continua disponível por escrito.');}
- },[muted]);
+ },[muted,preferredVoice]);
  const reply=useCallback((message:string)=>{addTurn('motyq',message);speak(message);},[addTurn,speak]);
  useEffect(()=>{
   mounted.current=true;
   const welcome='Boa tarde. MOTYQ à disposição. Toque no microfone quando quiser conversar.';
   addTurn('motyq',welcome);
   // Playback at entry is best effort: browser autoplay restrictions may block it.
-  const handleVoices=()=>{voices.current=window.speechSynthesis?.getVoices()||[];};
+  const handleVoices=()=>{const arr=window.speechSynthesis?.getVoices()||[];setVoiceOptions(arr.filter(v=>v.lang.toLowerCase().startsWith('pt')).map(v=>({name:v.name,lang:v.lang})));};
   if('speechSynthesis'in window){window.speechSynthesis.addEventListener('voiceschanged',handleVoices);handleVoices();speak(welcome);}
-  return ()=>{mounted.current=false;keepListening.current=false;recognizer.current?.abort?.();window.speechSynthesis?.cancel();window.speechSynthesis?.removeEventListener('voiceschanged',handleVoices);};
+  return ()=>{mounted.current=false;recognizer.current?.abort?.();window.speechSynthesis?.cancel();window.speechSynthesis?.removeEventListener('voiceschanged',handleVoices);};
  // One greeting per mount; the callbacks reference the initial state intentionally.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
@@ -108,30 +114,70 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   if(/ajuda|o que voc[eê] faz|pode fazer/.test(words)){reply('Posso consultar modelos no estoque Dealer carregado e simular a compra pela regra da Mesa. Para uma cotação real, a Webmotors precisa ser verificada.');return;}
   reply('Posso ajudar com o estoque ou uma simulação de compra. Experimente: quantos Creta temos no estoque? Ou: quanto pagar em um Renegade 2020?');
  },[addTurn,reply,lastModel,snapshot,stockReady,draft]);
+ const deliverTranscript=useCallback((message:string)=>{
+  const final=message.trim();
+  if(delivered.current||!final)return;
+  delivered.current=true;setCaptured(final);setMicState('processing');
+  respondRef.current(final);
+  setMicState('idle');
+ },[]);
  const respondRef=useRef(respond);
  useEffect(()=>{respondRef.current=respond;},[respond]);
  const stop=()=>{
-  keepListening.current=false;setListen(false);
-  const r=recognizer.current;recognizer.current=null;
+  manuallyStopped.current=true;
+  const r=recognizer.current;
+  setListen(false);setMicState('processing');
+  if(speechDraft.current.trim())deliverTranscript(speechDraft.current);
+  else {setMicState('idle');setNotice('Não recebi nenhuma fala. Confira o microfone e tente novamente.');}
   try{r?.stop?.();}catch{}
  };
  const start=()=>{
-  if(listen){stop();return;}
+  if(listen||micState==='starting'){stop();return;}
   const SpeechRecognizer=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
   if(!window.isSecureContext||!SpeechRecognizer){setNotice('Seu navegador não disponibiliza reconhecimento de voz. Use o Chrome com HTTPS ou escreva a pergunta.');return;}
-  setNotice('');window.speechSynthesis?.cancel();
+  setNotice('');setCaptured('');setMicState('starting');speechDraft.current='';delivered.current=false;manuallyStopped.current=false;
+  window.speechSynthesis?.cancel();
   try{
    const r=new SpeechRecognizer();
    recognizer.current=r;r.lang='pt-BR';r.continuous=false;r.interimResults=true;r.maxAlternatives=1;
-   r.onstart=()=>{if(mounted.current)setListen(true);};
+   r.onstart=()=>{if(mounted.current&&recognizer.current===r){setListen(true);setMicState('listening');}};
    r.onresult=(event:any)=>{
-    const latest=Array.from(event.results as any[]).map((v:any)=>String(v[0]?.transcript||'')).join(' ').trim();
-    if(latest&&event.results[event.results.length-1]?.isFinal){stop();respondRef.current(latest);}
+    if(recognizer.current!==r||!mounted.current)return;
+    let heard='';
+    let isFinal=false;
+    for(let i=0;i<event.results.length;i++){
+     heard+=String(event.results[i]?.[0]?.transcript||'')+' ';
+     if(event.results[i]?.isFinal)isFinal=true;
+    }
+    speechDraft.current=heard.trim();
+    setCaptured(speechDraft.current);
+    if(isFinal&&speechDraft.current){
+     deliverTranscript(speechDraft.current);
+     setListen(false);
+     try{r.stop();}catch{}
+    }
    };
-   r.onerror=(event:any)=>{setNotice(event?.error==='not-allowed'?'Autorize o microfone nas configurações do navegador.':'Não consegui reconhecer a fala. Tente novamente ou digite.');stop();};
-   r.onend=()=>{if(mounted.current){setListen(false);recognizer.current=null;}};
+   r.onerror=(event:any)=>{
+    if(recognizer.current!==r)return;
+    const code=String(event?.error||'');
+    if(code==='not-allowed'||code==='service-not-allowed')setNotice('Permissão de microfone negada. Autorize nas configurações do navegador e tente novamente.');
+    else if(code==='no-speech')setNotice('Não detectei sua voz. Fale perto do microfone e tente novamente.');
+    else if(code==='network')setNotice('O serviço de reconhecimento do navegador não respondeu. Verifique a conexão ou digite sua pergunta.');
+    else if(code!=='aborted')setNotice('Falha no reconhecimento ('+code+'). Você pode digitar a pergunta.');
+    if(code!=='not-allowed'&&code!=='service-not-allowed'&&speechDraft.current.trim())deliverTranscript(speechDraft.current);
+    setListen(false);setMicState('idle');
+   };
+   r.onend=()=>{
+    if(recognizer.current!==r)return;
+    recognizer.current=null;setListen(false);
+    // Some browser engines never mark the final hypothesis; use the latest
+    // interim text rather than discarding everything when recognition ends.
+    if(speechDraft.current&&!delivered.current&&!manuallyStopped.current)deliverTranscript(speechDraft.current);
+    if(!speechDraft.current&&!delivered.current&&!manuallyStopped.current)setNotice('O microfone parou sem transcrever. Teste a permissão ou digite sua pergunta.');
+    setMicState('idle');
+   };
    r.start();
-  }catch{setNotice('Não foi possível abrir o microfone. Confira a permissão do navegador.');stop();}
+  }catch{setNotice('Não foi possível abrir o microfone. Confira a permissão do navegador.');setListen(false);setMicState('idle');recognizer.current=null;}
  };
  const sendText=(event:React.FormEvent)=>{event.preventDefault();const text=input.trim();if(!text)return;setInput('');respond(text);};
  return <section aria-label="MOTYQ Voice" className="rounded-2xl border border-cyan-300 bg-[#071a2e] p-4 text-white shadow-xl sm:p-6">
@@ -143,6 +189,9 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    {turns.map((turn,i)=><div key={i} className={'rounded-xl p-3 text-sm leading-6 '+(turn.speaker==='motyq'?'bg-[#173c5b] text-cyan-50':'ml-5 bg-white text-slate-900')}>
     <strong className="mb-1 block text-xs">{turn.speaker==='motyq'?'MOTYQ':'Você'}</strong>{turn.message}</div>)}
   </div>
+  <div className="mb-3 rounded-lg border border-cyan-500/30 bg-[#12314b] p-3 text-sm text-cyan-50" role="status" aria-live="polite">
+   {micState==='starting'?'Solicitando microfone...':micState==='listening'?'Estou ouvindo. Fale normalmente.':micState==='processing'?'Interpretando sua pergunta...':captured?'Último reconhecimento: '+captured:'Toque em Falar com MOTYQ e diga sua pergunta.'}
+  </div>
   <div className="flex flex-wrap items-center gap-3">
    <button type="button" aria-label={listen?'Parar de ouvir':'Iniciar microfone'} onClick={start}
     className={'flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold '+(listen?'bg-red-100 text-red-950':'bg-cyan-400 text-slate-950')}>
@@ -151,6 +200,14 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
     className="flex items-center gap-2 rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-white">
     {muted?<VolumeX size={17}/>:<Volume2 size={17}/>} {muted?'Voz desligada':'Voz ligada'}</button>
   </div>
+  {voiceOptions.length>0&&<label className="mt-3 block text-xs font-semibold text-cyan-100">
+   Voz disponível no navegador
+   <select aria-label="Selecionar voz do assistente" value={preferredVoice} onChange={e=>setPreferredVoice(e.target.value)}
+    className="mt-1 w-full rounded-lg border border-cyan-500 bg-white p-2 text-sm text-slate-950">
+    <option value="">Automática (priorizar masculina, quando disponível)</option>
+    {voiceOptions.map((voice,i)=><option key={i} value={voice.name}>{voice.name} ({voice.lang})</option>)}
+   </select>
+  </label>}
   <form onSubmit={sendText} className="mt-4 flex gap-2">
    <input value={input} onChange={e=>setInput(e.target.value)} maxLength={300}
     aria-label="Escrever pergunta ao MOTYQ" placeholder="Ou digite sua pergunta..."
