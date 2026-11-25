@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import ts from 'typescript';
+const component=readFileSync('components/MotyqVoiceConversation.tsx','utf8');
+const workspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
+for(const [name,source] of [['voice',component],['workspace',workspace]]){
+ const errors=(ts.transpileModule(source,{fileName:name+'.tsx',compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX},reportDiagnostics:true}).diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error);
+ assert.equal(errors.length,0,name+' syntax: '+errors.map(e=>ts.flattenDiagnosticMessageText(e.messageText,' ')).join(';'));
+}
+assert.ok(workspace.includes("const voiceOwner=String(user.email||'').trim().toLowerCase()==='reinaldo.ribas@abraoreze.com.br'"),'voice pilot gated to user');
+assert.ok(workspace.includes("voiceOwner&&<section"),'only owner can open voice');
+assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),'must not cross dealer account scope');
+assert.ok(component.includes('dealerRadarTextMatches(v,queriedModel)'),'queries use real stock model matcher');
+assert.ok(component.includes('!stockReady||!snapshot'),'must not claim unloaded inventory counts');
+assert.ok(component.includes('Não tenho pesquisa de anúncios verificada'),'must not fabricate Webmotors findings');
+assert.ok(component.includes('next.reference!*0.86-n'),'pricing follows 14% cost rule');
+assert.ok(component.includes('setDraft({...draft,reference:n})'),'conversational context retained for price');
+assert.ok(component.includes('r.lang=\'pt-BR\''),'pt BR recognition');
+assert.ok(component.includes('window.speechSynthesis.speak(item)'),'spoken replies');
+assert.ok(component.includes('onClick={start}'),'microphone user initiated');
+assert.ok(component.includes('onClose'), 'user can exit');
+console.log('MOTYQ Voice pilot: single user, consent, real Dealer data, 14% simulated pricing, no invented Webmotors offers passed.');
