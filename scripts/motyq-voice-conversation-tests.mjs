@@ -18,7 +18,7 @@ assert.ok(component.includes("draft?.awaiting==='details'"),'year and mileage an
 assert.ok(component.includes("draft.awaiting==='reference'"),'follow-up flows to market reference');
 assert.ok(component.includes('Compra sugerida:'),'simulation returns concise number');
 assert.ok(component.includes('!stockReady||!snapshot'),'must not claim unloaded inventory counts');
-assert.ok(component.includes('não uma cotação de mercado verificada'),'must not fabricate Webmotors findings');
+assert.ok(component.includes('sem pesquisa de mercado confirmada'),'must not fabricate Webmotors findings');
 assert.ok(component.includes('Compra sugerida: '),'answer starts with value');
 assert.ok(!component.includes('Nossa regra é usar'),'no rule lecture in pricing answer');
 assert.ok(component.includes('n>=0'),'accept zero-cost preparation');
