@@ -12,6 +12,15 @@ assert.ok(workspace.includes("const voiceOwner=String(user.email||'').trim().toL
 assert.ok(workspace.includes("voiceOwner&&<section"),'only owner can open voice');
 assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),'must not cross dealer account scope');
 assert.ok(component.includes('dealerRadarTextMatches(v,queriedModel)'),'queries use real stock model matcher');
+assert.ok(component.includes("const matchYear=mobileYearOptions(years,year,fuel)"),'check the year of every candidate before selecting model');
+assert.ok(component.includes("const yearOption=winner.yearOption"),'use validated year code of selected model');
+assert.ok(component.includes("Number(result.year)!==year"),'reject mismatched FIPE model year from provider');
+assert.ok(component.includes("fipeChoicesRef.current={original:raw,options}"),'remember FIPE alternatives for conversational selection');
+assert.ok(component.includes("choice.options[index].code"),'choose option by spoken first/second instead of restarting');
+assert.ok(component.includes("const directCode=raw.match"),'allow known FIPE code when catalog is incomplete');
+assert.ok(component.includes("data.fipeCode!==directCode||Number(data.year)!==year"),'verify returned FIPE code and year');
+assert.ok(!component.includes("Esse ano não consta para a versão selecionada."),'do not falsely claim FIPE year is nonexistent');
+
 assert.ok(component.includes("if(/\\bfipe\\b|tabela fipe/.test(words))"),'FIPE question goes to independent intent');
 assert.ok(component.includes("fipeOptions('brands')")&&component.includes("fipeOptions('models'")&&component.includes("fipeOptions('years'")&&component.includes("fipeOptions('detail'"),'FIPE uses live catalog resolution');
 assert.ok(component.includes('if(!uniqueMatch)'),'ambiguous FIPE versions must not be silently selected');
