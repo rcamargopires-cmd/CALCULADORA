@@ -253,15 +253,37 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const clearYear=/\b(?:todos os anos|qualquer ano|sem filtrar ano)\b/.test(words);
   const spokenYear=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
   const stockSignal=/\b(?:estoque|estocados|quantos|quantas|temos|capital|investido|parados)\b|dinheiro parado|versao temos/.test(words);
-  const contextual=Boolean(previous)&&/^(?:e |quanto |qual |versao |versoes |do |da |desses |dessas |desse |dessa )/.test(words)&&!(/\bfipe\b|\bprecific|\bavaliar|\bcomprar/.test(words));
+  const purchaseIntent=/\b(?:pagar|pagaria|compro|compraria|precificar|precificacao|avaliar|avaliacao|preco de compra)\b/.test(words);
+  const broadenVersions=/\b(?:todas? as versoes|qualquer versao|sem filtrar versao|todas versoes|todos os renegade|todas as renegade)\b/.test(words);
+  const explicitlyScoped=/\b(?:desses|dessas|desse|dessa|deles|delas|nesses|nessas|mesmos|mesmas)\b/.test(words);
+  const explicitFamilyStock=Boolean(explicitModel)&&stockSignal&&!explicitlyScoped&&!/\b(?:longitude|sport|limited|trailhawk|sahara|moab|altitude|overland|t270|td350|t350)\b/.test(words)&&!spokenYear;
+
+  const contextual=Boolean(previous)&&/^(?:e |quanto |qual |versao |versoes |do |da |desses |dessas |desse |dessa )/.test(words)&&!(/\bfipe\b/.test(words)||purchaseIntent);
+  if(purchaseIntent){
+   fipePendingRef.current='';fipeChoicesRef.current=null;
+   const vehicle=explicitModel||previous?.model||lastModel||'';
+   const details=explicitModel?raw:vehicle?vehicle+' '+raw:raw;
+   const hasPurchaseYear=/\b(?:19|20)\d{2}\b/.test(details);
+   const hasPurchaseKm=/\bkm\b|quilometr/.test(details);
+   const hasPurchaseTrim=/\b(?:sport|longitude|prestige|limited|trailhawk|sahara|moab|t270|1[.,]3|1[.,]8|2[.,]0)\b/.test(details);
+   const awaiting:PricingDraft['awaiting']=!hasPurchaseYear||!hasPurchaseKm?'details':!hasPurchaseTrim?'version':'reference';
+   stockPendingModelRef.current=false;stockPendingMetricRef.current=null;
+   setDraft({vehicle:details,reference:null,preparation:null,awaiting});
+   if(!vehicle)reply('De qual veículo você quer saber o valor de compra? Informe modelo, versão, ano e quilometragem.');
+   else if(awaiting==='details')reply('Para precificar o '+vehicle+', informe ano, quilometragem e versão.');
+   else if(awaiting==='version')reply('Qual é a versão do '+vehicle+'?');
+   else reply('Qual é o menor preço de anúncio comparável?');
+   return;
+  }
   if(stockSignal||contextual||(stockPendingModelRef.current&&Boolean(explicitModel))){
    setDraft(null);fipePendingRef.current='';fipeChoicesRef.current=null;fipeRequestRef.current++;
    const model=all?'':explicitModel||previous?.model||lastModel||'';
    const changed=Boolean(explicitModel&&explicitModel!==previous?.model);
-   const year=all||clearYear?null:spokenYear||(changed?null:previous?.year||null);
+   const broaden=all||clearYear||broadenVersions||explicitFamilyStock;
+   const year=broaden?null:spokenYear||(changed?null:previous?.year||null);
    const explicitTrim=normalize(words).replace(/\blong\.?\b/g,'longitude').match(/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/)?.[1]||null;
-   const trim=all?null:explicitTrim||(changed?null:previous?.trim||null);
-   const requestedEngine=words.match(/\b(t270|td350|t350|1[.,]3|1[.,]8|2[.,]0)\b/)?.[1]?.replace(',','.')||(changed||all?null:previous?.engine||null);
+   const trim=broaden?null:explicitTrim||(changed?null:previous?.trim||null);
+   const requestedEngine=broaden?null:words.match(/\b(t270|td350|t350|1[.,]3|1[.,]8|2[.,]0)\b/)?.[1]?.replace(',','.')||(changed?null:previous?.engine||null);
    const metric=/\b(?:capital|investido|quanto custa)\b/.test(words)?'capital':/\b(?:quantos|quantas|versao|versoes)\b/.test(words)?'count':stockPendingMetricRef.current||'count';
    if(!model&&!all){
     stockPendingModelRef.current=true;stockPendingMetricRef.current=metric;
@@ -392,11 +414,13 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const current=auth.currentUser;
   if(!current){respondDeterministic(raw);return;}
   const normalized=normalize(raw);
-  if(!/\bfipe\b/.test(normalized)&&
+  const directPurchase=/\b(?:pagar|pagaria|compro|compraria|precificar|precificacao|avaliar|avaliacao|preco de compra)\b/.test(normalized);
+  if(!/\bfipe\b/.test(normalized)&&!directPurchase&&
    (/\b(?:quantos|quantas|capital|estoque|versao|versoes)\b/.test(normalized)||
     ((stockContextRef.current||fipeContextRef.current)&&/^(?:do|da|desses|dessas|desse|dessa|e )\b/.test(normalized)))){
    respondDeterministic(raw);return;
   }
+  if(directPurchase){respondDeterministic(raw);return;}
   try{
    const token=await current.getIdToken();
    const response=await fetch('/api/motyq-voice',{
