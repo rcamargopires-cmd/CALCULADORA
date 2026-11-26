@@ -51,7 +51,7 @@ const fipeOptions=async(action:'brands'|'models'|'years'|'detail',params:Record<
  if(!response.ok)throw new Error('FIPE indisponível');
  const result=await response.json();
  if(action!=='detail'&&(!Array.isArray(result.items)||!result.items.length))throw new Error('Catálogo FIPE indisponível');
- return result as {items?:MobileFipeOption[];value?:number;model?:string;fuel?:string;referenceMonth?:string;referenceStatus?:string};
+ return result as {items?:MobileFipeOption[];value?:number;model?:string;fuel?:string;year?:number;fipeCode?:string;referenceMonth?:string;referenceStatus?:string};
 };
 const modelFrom=(raw:string)=>{
  const message=normalize(raw);
