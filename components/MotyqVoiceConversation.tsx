@@ -74,6 +74,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const [draft,setDraft]=useState<PricingDraft|null>(null);
  const fipeRequestRef=useRef(0);
  const fipePendingRef=useRef('');
+ const fipeChoicesRef=useRef<{original:string;options:MobileFipeOption[]}|null>(null);
  const recognizer=useRef<any>(null);
  const speechDraft=useRef('');
  const delivered=useRef(false);
@@ -123,7 +124,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  // One greeting per mount; the callbacks reference the initial state intentionally.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
- const answerFipe=useCallback(async(raw:string)=>{
+ const answerFipe=useCallback(async(raw:string,chosenCode?:string)=>{
   const request=++fipeRequestRef.current;
   const current=()=>mounted.current&&request===fipeRequestRef.current;
   const words=normalize(raw);
@@ -150,24 +151,38 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const engine=words.match(/\b(?:1[.,][038]|2[.,]0|t270|td350|t350)\b/)?.[0]?.replace(',','.')||'';
    const narrowed=engine?matching.filter(m=>normalize(m.name).includes(engine)):matching;
    if(narrowed.length===0){reply('Não encontrei essa motorização na FIPE. Confira a versão.');return;}
-   const uniqueMatch=narrowed.length===1?narrowed[0]:fipeModelRank(raw,narrowed);
-   if(!uniqueMatch){
+   const fuel=/\\bdiesel\\b/.test(words)?'Diesel':/\\bflex\\b/.test(words)?'Flex':/\\bgasolina\\b/.test(words)?'Gasolina':/\\betanol\\b/.test(words)?'Etanol':'';
+   // First validate model year against EACH matching FIPE entry.
+   // A same-name version can exist under multiple codes with different year coverage.
+   const eligible:{model:MobileFipeOption;yearOption:MobileFipeOption}[]=[];
+   for(const candidate of narrowed.slice(0,12)){
+    if(!current())return;
+    const years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:candidate.code})).items||[];
+    if(!current())return;
+    const yearChoices=mobileYearOptions(years,year,fuel).choices;
+    // Only accept one specific fuel/year code per candidate; never guess a fuel.
+    if(yearChoices.length===1)eligible.push({model:candidate,yearOption:yearChoices[0]});
+   }
+   if(!eligible.length){
     fipePendingRef.current=raw;
-    const options=narrowed.slice(0,3).map(m=>m.name).join('; ');
-    reply('Ainda há duas versões FIPE parecidas: '+options+'. Qual descrição é a correta?');
+    reply('Não consegui confirmar '+year+' para essa versão no catálogo consultado. Vou precisar conferir o código FIPE.');
     return;
    }
-   const selected=uniqueMatch;
-   const years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:selected.code})).items||[];
-   if(!current())return;
-   const fuel=/\bdiesel\b/.test(words)?'Diesel':/\bflex\b/.test(words)?'Flex':/\bgasolina\b/.test(words)?'Gasolina':/\betanol\b/.test(words)?'Etanol':'';
-   const yearOptions=mobileYearOptions(years,year,fuel).choices;
-   if(yearOptions.length!==1){
+   const chosenByCode=chosenCode?eligible.find(item=>item.model.code===chosenCode):null;
+   const preferred=fipeModelRank(raw,eligible.map(item=>item.model));
+   const winner=chosenByCode|| (eligible.length===1?eligible[0] : preferred?eligible.find(item=>item.model.code===preferred.code):null);
+   if(!winner){
+    const options=eligible.map(item=>item.model);
+    fipeChoicesRef.current={original:raw,options};
     fipePendingRef.current=raw;
-    reply(yearOptions.length===0?'Esse ano não consta para a versão selecionada.':'Há mais de um combustível para esse ano. Qual é o combustível?');
+    reply('Encontrei '+options.length+' versões para '+year+': '+options.slice(0,3).map((m,i)=>(i+1)+': '+m.name).join('; ')+'. Diga primeira, segunda ou a descrição.');
     return;
    }
-   const result=await fipeOptions('detail',{brandCode:intent.brand.code,modelCode:selected.code,yearCode:yearOptions[0].code});
+   fipeChoicesRef.current=null;
+   fipePendingRef.current='';
+   const selected=winner.model;
+   const yearOption=winner.yearOption;
+   const result=await fipeOptions('detail',{brandCode:intent.brand.code,modelCode:selected.code,yearCode:yearOption.code});
    if(!current())return;
    const value=Number(result.value);
    if(!Number.isFinite(value)||value<=0){reply('A FIPE não retornou um valor válido.');return;}
@@ -182,6 +197,18 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const words=normalize(raw);
   if(!words)return;
   addTurn('user',raw);
+  const ordinal=words.match(/\\b(primeira|primeiro|segunda|segundo|terceira|terceiro|1|2|3)\\b/);
+  if(fipeChoicesRef.current&&ordinal&&!/\\bfipe\\b/.test(words)){
+   const index=/^(primeira|primeiro|1)$/.test(ordinal[1])?0:/^(segunda|segundo|2)$/.test(ordinal[1])?1:2;
+   const choice=fipeChoicesRef.current;
+   if(choice.options[index]){
+    fipeChoicesRef.current=null;
+    void answerFipe(choice.original,choice.options[index].code);
+    return;
+   }
+   reply('Essa opção não está na lista. Escolha uma das versões mostradas.');
+   return;
+  }
   if(fipePendingRef.current&&/\b(?:1[.,][0-9]|2[.,][0-9]|t270|td350|diesel|flex|gasolina|etanol|turbo|sport|limited|longitude|trailhawk|sahara|moab)\b/.test(words)&&!(/\bfipe\b|tabela fipe/.test(words))){
    const followup=fipePendingRef.current+' '+raw;
    fipePendingRef.current='';
