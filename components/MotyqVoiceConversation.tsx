@@ -17,7 +17,7 @@ const parseMoney=(value:string):number|null=>{
  if(!Number.isFinite(valueNumber))return null;
  return Math.round(valueNumber*(m[2]?1000:1));
 };
-const fipeTerms=(value:string)=>normalize(value).replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
+const fipeTerms=(value:string)=>normalize(value).replace(/\b(long|longi|longit)\b/g,'longitude').replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
 const fipeOptions=async(action:'brands'|'models'|'years'|'detail',params:Record<string,string>={})=>{
  const query=new URLSearchParams({action,vehicleType:'car',...params});
  const response=await fetch('/api/marketiq-fipe?'+query.toString(),{cache:'no-store'});
