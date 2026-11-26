@@ -30,6 +30,29 @@ assert.ok(component.includes('const purchaseIntent='),'purchase intent detected 
 assert.ok(component.includes('if(purchaseIntent){'),'explicit purchase request gets pricing wizard');
 assert.ok(component.includes('if(directPurchase){respondDeterministic(raw);return;}'),'pricing bypasses stock Gemini intent');
 assert.ok(component.includes("De qual veículo você quer saber o valor de compra?"),'purchase without model asks for a vehicle');
+// Conversational regressions from the operator's real November 26 dialogue.
+assert.ok(component.includes("'spin','c4 cactus','cactus'"),'Spin recognized as a real model, never fallback to Renegade');
+assert.ok(component.includes("const inferredBrand=model==='spin'?'chevrolet'"),'FIPE resolves Chevrolet Spin without forcing brand repetition');
+assert.ok(component.includes("'prestige','lt','ltz','premier'"),'Creta Prestige and Spin LT are supported FIPE versions');
+assert.ok(component.includes('lastAnswerRef.current'),'the assistant tracks repeating replies');
+assert.ok(component.includes("Não entendi sua última pergunta."),'repeated response changes to clarification');
+assert.ok(component.includes("Você quis dizer Citroën C4 Cactus?"),'unclear Cactos voice recognition requests confirmation');
+assert.ok(component.includes("const next=fipePendingRef.current+' '+raw"),'FIPE year/version follow-ups retain the original request');
+assert.ok(component.includes("if(fipeIntent){"),'FIPE intent supersedes stock/price wizard');
+assert.ok(component.includes("if(/\\bfipe\\b/.test(normalized)||fipePendingRef.current||draft"),'FIPE and ongoing pricing bypass Gemini stock router');
+assert.ok(component.includes("Sem um anúncio comparável confirmado"),'no repeated reference prompt when no verified ad price exists');
+assert.ok(component.includes("Quer saber a média de dias em estoque"),'fragmented aging question asks what operator meant');
+// Execute model recognizer to catch accidental substring or unexpected fallback.
+const modelStart=component.indexOf('const modelFrom=');
+const modelEnd=component.indexOf('export default function',modelStart);
+assert.ok(modelStart>=0&&modelEnd>modelStart,'vehicle matcher available');
+const modelCode=ts.transpileModule(component.slice(modelStart,modelEnd),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
+const matcherScope={normalize:(v)=>String(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().trim()};
+vm.createContext(matcherScope);vm.runInContext(modelCode,matcherScope);
+for(const [utterance,wanted] of [['Chevrolet Spin LT 2019','spin'],['FIPE do Creta Prestige 2020','creta'],['quantos Corolla temos no estoque','corolla'],['tem cactos no estoque',null]]){
+ matcherScope.utterance=utterance;
+ assert.equal(vm.runInContext('modelFrom(utterance)',matcherScope),wanted,'voice recognizes '+utterance);
+}
 // Run the exact Dealer fabrication/model-year extraction against common V44 labels.
 const yearFrom=component.slice(component.indexOf('export const dealerModelYear='),component.indexOf('const modelFrom=')).replace('export const ','');
 const compiled=ts.transpileModule(yearFrom,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
