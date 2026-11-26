@@ -11,12 +11,14 @@ for(const [name,source] of [['voice',component],['workspace',workspace]]){
 assert.ok(workspace.includes("const voiceOwner=String(user.email||'').trim().toLowerCase()==='reinaldo.ribas@abraoreze.com.br'"),'voice pilot gated to user');
 assert.ok(workspace.includes("voiceOwner&&<section"),'only owner can open voice');
 assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),'must not cross dealer account scope');
-assert.ok(component.includes('dealerRadarTextMatches(v,stockModel!)'),'queries use real stock model matcher');
-assert.ok(component.includes("const requestedStockYear=Number(words.match"),'spoken 2022 is recognized');
-assert.ok(component.includes('dealerModelYear(v.year)===yearFilter'),'stock results filtered by Dealer model year');
-assert.ok(component.includes('stockYearRef.current=yearFilter'),'follow-up retains stock year');
-assert.ok(component.includes('const differentModel='),'switching model does not inherit previous year');
-assert.ok(component.includes('clearStockYear?null'),'explicit all-years resets the filter');
+assert.ok(component.includes('dealerRadarTextMatches(v,model)'),'stock queries use real Dealer matcher');
+assert.ok(component.includes('const spokenYear=Number(words.match'),'explicit model year is parsed');
+assert.ok(component.includes('dealerModelYear(v.year)===year'),'filter uses Dealer model year');
+assert.ok(component.includes('stockContextRef.current={model,year,trim}'),'retain complete stock selection');
+assert.ok(component.includes('const changed=Boolean(explicitModel'),'changing models resets previous year');
+assert.ok(component.includes('clearYear'),'all years can be requested');
+assert.ok(component.includes('const requestedEngine='),'engine is part of exact vehicle lookup');
+assert.ok(component.includes('hasUnknownVersions'),'ambiguous Dealer versions are not counted as precise');
 // Run the exact Dealer fabrication/model-year extraction against common V44 labels.
 const yearFrom=component.slice(component.indexOf('export const dealerModelYear='),component.indexOf('const modelFrom=')).replace('export const ','');
 const compiled=ts.transpileModule(yearFrom,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
@@ -26,14 +28,16 @@ for(const [label,year] of [['2021/2022',2022],['2022',2022],['2022/2023',2023],[
  assert.equal(vm.runInContext('dealerModelYear(label)',yearContext),year,'Dealer model-year '+label);
 }
 
-assert.ok(component.includes("const isStock=/"),'stock intent detected independently');
-assert.ok(component.includes("if(isStock||(stockPendingModelRef.current&&Boolean(explicitModel)))"),'stock intent precedes pricing and FIPE continuation');
-assert.ok(component.includes("stockPendingModelRef.current=true"),'generic stock request remembers missing model');
-assert.ok(component.includes("const stockModel=explicitModel||lastModel"),'last mentioned model used for stock reference');
-assert.ok(component.includes("if(explicitModel)setLastModel(explicitModel)"),'FIPE mentioned model persists for stock');
-assert.ok(component.includes("setDraft(null);fipePendingRef.current='';fipeChoicesRef.current=null;fipeRequestRef.current++"),'stock cancels previous task');
-assert.ok(component.includes("isEntireStock||dealerRadarTextMatches(v,stockModel!)"),'stock filters by model unless whole stock requested');
-assert.ok(component.includes("if(!stockReady||!snapshot)"),'no fabricated counts without Dealer snapshot');
+assert.ok(component.includes('const stockSignal='),'stock intent recognized independently');
+assert.ok(component.includes('if(stockSignal||contextual'),'follow-ups route to stock before pricing');
+assert.ok(component.includes('stockPendingModelRef.current=true'),'generic request remembers missing model');
+assert.ok(component.includes('stockContextRef.current||fipeContextRef.current'),'FIPE vehicle carries into Dealer lookup');
+assert.ok(component.includes('if(explicitModel)setLastModel(explicitModel)'),'mentioned model retained');
+assert.ok(component.includes("setDraft(null);fipePendingRef.current='';fipeChoicesRef.current=null;fipeRequestRef.current++"),'stock cancels purchase wizard');
+assert.ok(component.includes('all||dealerRadarTextMatches(v,model)'),'model narrowed unless all requested');
+assert.ok(component.includes('normalizeTrim(v.model)'),'version must be verified against Dealer description');
+assert.ok(component.includes('(!requestedEngine||'),'engine filter applied when requested');
+assert.ok(component.includes('stockReady||!snapshot'),'cannot invent stock without Dealer import');
 assert.ok(component.includes("const fullInput=explicitModel?raw:(draft?.vehicle?draft.vehicle+' '+raw:raw)"),'FIPE can follow incomplete purchase question');
 assert.ok(component.includes("const matchYear=mobileYearOptions(years,year,fuel)"),'check the year of every candidate before selecting model');
 assert.ok(component.includes("const yearOption=winner.yearOption"),'use validated year code of selected model');
@@ -70,7 +74,7 @@ assert.ok(component.includes("const followup=fipePendingRef.current+' '+raw"),'f
 assert.ok(component.includes('if(fuel&&!matchYear.fuelMatched)continue'),'fuel ambiguity must not be silently selected');
 assert.ok(component.includes("referenceMonth"),'include FIPE reference month');
 assert.ok(component.includes("cache:'no-store'"),'refresh FIPE value rather than use stale cache');
-assert.ok(component.includes('!isStock&&hasYear'),'vehicle and year treated as a pricing continuation');
+assert.ok(component.includes('!stockSignal&&hasYear'),'pricing only starts outside stock intent');
 assert.ok(component.includes("awaiting==='version'"),'asks version instead of repeating model request');
 assert.ok(component.includes("draft?.awaiting==='version'"),'version answer retained in context');
 assert.ok(component.includes("draft?.awaiting==='details'"),'year and mileage answers retained in context');
