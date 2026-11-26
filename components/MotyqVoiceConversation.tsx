@@ -380,7 +380,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const token=await current.getIdToken();
    const response=await fetch('/api/motyq-conversation-ai',{
     method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},
-    body:JSON.stringify({transcript:raw,history:turnRef.current.slice(-8),
+    body:JSON.stringify({transcript:raw,history:turnRef.current.filter(t=>t.speaker==='user').slice(-6),
      lastModel:lastModel||stockModelRef.current||''}),
     signal:AbortSignal.timeout(9000)
    });
