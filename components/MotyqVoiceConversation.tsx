@@ -247,54 +247,49 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const explicitModel=modelFrom(words);
   // Model is conversational context across FIPE, pricing and inventory queries.
   if(explicitModel)setLastModel(explicitModel);
-  const isStock=/\b(?:estoque|estocados|quantos|quantas|temos|possuimos|parados)\b|dias de estoque|capital investido/.test(words);
-  const isEntireStock=/\b(?:estoque inteiro|estoque total|todos os carros do estoque|toda a frota|estoque completo)\b/.test(words);
-  const stockModel=explicitModel||lastModel;
-  const requestedStockYear=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
-  const clearStockYear=/\b(?:todos os anos|todas as safras|qualquer ano|sem filtrar ano|de todos os anos)\b/.test(words);
-  if(isStock||(stockPendingModelRef.current&&Boolean(explicitModel))){
-   // Inventory lookup always overrides pending FIPE and purchase calculations.
-   stockPendingModelRef.current=false;
+  const previous=stockContextRef.current||fipeContextRef.current;
+  const all=/\b(?:estoque inteiro|estoque total|todos os carros do estoque|toda a frota|estoque completo)\b/.test(words);
+  const clearYear=/\b(?:todos os anos|qualquer ano|sem filtrar ano)\b/.test(words);
+  const spokenYear=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
+  const stockSignal=/\b(?:estoque|estocados|quantos|quantas|temos|capital|investido|parados)\b|dinheiro parado|versao temos/.test(words);
+  const contextual=Boolean(previous)&&/^(?:e |quanto |qual |versao |versoes |do |da |desses |dessas |desse |dessa )/.test(words);
+  if(stockSignal||contextual||(stockPendingModelRef.current&&Boolean(explicitModel))){
    setDraft(null);fipePendingRef.current='';fipeChoicesRef.current=null;fipeRequestRef.current++;
-   if(!stockReady||!snapshot){reply('O estoque Dealer ainda não está carregado.');return;}
-   if(!stockModel&&!isEntireStock){
-    stockPendingModelRef.current=true;
-    reply('Qual modelo você quer consultar no estoque?');return;
+   const model=all?'':explicitModel||previous?.model||lastModel||'';
+   const changed=Boolean(explicitModel&&explicitModel!==previous?.model);
+   const year=all||clearYear?null:spokenYear||(changed?null:previous?.year||null);
+   const trim=all||clearYear||changed?null:previous?.trim||null;
+   const metric=/\b(?:capital|investido|quanto custa)\b/.test(words)?'capital':/\b(?:quantos|quantas|versao|versoes)\b/.test(words)?'count':stockPendingMetricRef.current||'count';
+   if(!model&&!all){
+    stockPendingModelRef.current=true;stockPendingMetricRef.current=metric;
+    reply(metric==='capital'?'De qual modelo você quer saber o capital investido?':'Qual modelo você quer consultar no estoque?');return;
    }
-   const differentModel=Boolean(explicitModel&&stockModelRef.current&&explicitModel!==stockModelRef.current);
-   const yearFilter=isEntireStock?null:clearStockYear?null:requestedStockYear||(differentModel?null:stockYearRef.current);
-   stockYearRef.current=yearFilter;
-   stockModelRef.current=isEntireStock?null:stockModel;
-   const found=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&
-    (isEntireStock||dealerRadarTextMatches(v,stockModel!))&&
-    (yearFilter===null||dealerModelYear(v.year)===yearFilter));
+   stockPendingModelRef.current=false;stockPendingMetricRef.current=null;
+   stockContextRef.current={model,year,trim};
+   if(!stockReady||!snapshot){reply('O estoque Dealer ainda não está carregado.');return;}
+   const vehicles=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&
+    (all||dealerRadarTextMatches(v,model))&&(year===null||dealerModelYear(v.year)===year));
+   const normalizeTrim=(s:string)=>normalize(s).replace(/\blong\.?\b/g,'longitude');
+   const hasVersion=vehicles.some(v=>/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/.test(normalizeTrim(v.model)));
+   if(trim&&!hasVersion){
+    reply('Encontrei '+vehicles.length+' '+model+(year?' '+year:'')+', mas a descrição do Dealer não confirma a versão '+trim+'. Não vou contar todas as versões como se fossem a mesma.');return;
+   }
+   const found=trim?vehicles.filter(v=>normalizeTrim(v.model).split(/[^a-z0-9]+/).includes(trim)):vehicles;
    const overdue=found.filter(v=>v.days>90);
    const avg=found.length?Math.round(found.reduce((a,v)=>a+v.days,0)/found.length):0;
    const capital=found.reduce((a,v)=>a+Math.max(0,v.cost),0);
-   const family=(isEntireStock?'veículos':stockModel!)+(yearFilter?' ano-modelo '+yearFilter:'');
+   const label=(all?'veículos':model)+(year?' ano-modelo '+year:'')+(trim?' versão '+trim:'');
    if(/\b(?:analis|diagnostic|risco|dinheiro parado)\b/.test(words)){
-    const loss=found.filter(v=>v.price>0&&v.cost>v.price);
-    const lossAmount=loss.reduce((sum,v)=>sum+(v.cost-v.price),0);
-    const highCapital=overdue.reduce((sum,v)=>sum+Math.max(0,v.cost),0);
-    reply('Análise de '+found.length+' '+family+': capital de '+brl(capital)+', média de '+avg+
-     ' dias, '+overdue.length+' acima de 90 dias ('+brl(highCapital)+' imobilizados nesses veículos). '+
-     loss.length+' com preço sugerido abaixo do custo, diferença acumulada de '+brl(lossAmount)+
-     '. Indicadores da última base Dealer, não uma previsão de prejuízo.');
-   }
-   else if(/\bmais antigo\b|\bmais tempo\b/.test(words)){
+    reply('Análise de '+found.length+' '+label+': capital de '+brl(capital)+', média de '+avg+' dias e '+overdue.length+' acima de 90 dias. Base Dealer.');
+   }else if(/\bmais antigo\b|\bmais tempo\b/.test(words)){
     const oldest=[...found].sort((a,b)=>b.days-a.days)[0];
-    reply(oldest?'O '+oldest.brand+' '+oldest.model+' ('+oldest.year+'), placa '+oldest.plate+
-     ', está há '+oldest.days+' dias em estoque. Custo registrado: '+brl(oldest.cost)+'.':'Nenhum '+family+' encontrado na última base Dealer.');
-   }
-   else if(/\b(?:listar|lista|mostra os|quais sao)\b/.test(words)){
-    const selected=[...found].sort((a,b)=>b.days-a.days).slice(0,5);
-    reply(selected.length?'Encontrei '+found.length+' '+family+'. Os cinco mais antigos: '+
-     selected.map(v=>v.brand+' '+v.model+' '+v.year+', '+v.days+' dias').join('; ')+'.':
-     'Nenhum '+family+' encontrado na última base Dealer.');
-   }
-   else if(/parad|mais de 90|noventa dias/.test(words))reply('Dos '+found.length+' '+family+' em estoque, '+overdue.length+' estão há mais de 90 dias.');
-   else if(/capital|investid/.test(words))reply('O capital registrado em '+found.length+' '+family+' é '+brl(capital)+'.');
-   else reply('Na última base Dealer carregada, encontrei '+found.length+' '+family+' em estoque. Média de '+avg+' dias; '+overdue.length+' acima de 90 dias.');
+    reply(oldest?'O '+oldest.brand+' '+oldest.model+' ('+oldest.year+'), placa '+oldest.plate+', está há '+oldest.days+' dias em estoque. Custo: '+brl(oldest.cost)+'.':'Nenhum '+label+' encontrado.');
+   }else if(/\b(?:listar|lista|mostra os|quais sao)\b/.test(words)){
+    reply(found.length?'Encontrei '+found.length+' '+label+'. Os cinco mais antigos: '+[...found].sort((a,b)=>b.days-a.days).slice(0,5).map(v=>v.brand+' '+v.model+' '+v.year+', '+v.days+' dias').join('; ')+'.':'Nenhum '+label+' encontrado.');
+   }else if(/parad|mais de 90|noventa dias/.test(words)){
+    reply('Dos '+found.length+' '+label+' em estoque, '+overdue.length+' estão há mais de 90 dias.');
+   }else if(metric==='capital')reply('O capital registrado em '+found.length+' '+label+' é '+brl(capital)+'.');
+   else reply('Na última base Dealer carregada, encontrei '+found.length+' '+label+' em estoque. Média de '+avg+' dias; '+overdue.length+' acima de 90 dias.');
    return;
   }
   stockPendingModelRef.current=false;
@@ -387,6 +382,12 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const respond=useCallback(async(raw:string)=>{
   const current=auth.currentUser;
   if(!current){respondDeterministic(raw);return;}
+  const normalized=normalize(raw);
+  if((stockContextRef.current||fipeContextRef.current)&&
+   (/\b(?:quantos|quantas|capital|estoque|versao|versoes)\b/.test(normalized)||
+    /^(?:do|da|desses|dessas|desse|dessa|quanto|qual|e )\b/.test(normalized))){
+   respondDeterministic(raw);return;
+  }
   try{
    const token=await current.getIdToken();
    const response=await fetch('/api/motyq-voice',{
