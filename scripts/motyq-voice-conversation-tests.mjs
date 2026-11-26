@@ -14,7 +14,7 @@ assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSna
 assert.ok(component.includes('dealerRadarTextMatches(v,model)'),'stock queries use real Dealer matcher');
 assert.ok(component.includes('const spokenYear=Number(words.match'),'explicit model year is parsed');
 assert.ok(component.includes('dealerModelYear(v.year)===year'),'filter uses Dealer model year');
-assert.ok(component.includes('stockContextRef.current={model,year,trim}'),'retain complete stock selection');
+assert.ok(component.includes('stockContextRef.current={model,year,trim,engine:requestedEngine}'),'retain model, year, trim and engine');
 assert.ok(component.includes('const changed=Boolean(explicitModel'),'changing models resets previous year');
 assert.ok(component.includes('clearYear'),'all years can be requested');
 assert.ok(component.includes('const requestedEngine='),'engine is part of exact vehicle lookup');
