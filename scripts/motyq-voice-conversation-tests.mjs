@@ -11,6 +11,14 @@ assert.ok(workspace.includes("const voiceOwner=String(user.email||'').trim().toL
 assert.ok(workspace.includes("voiceOwner&&<section"),'only owner can open voice');
 assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),'must not cross dealer account scope');
 assert.ok(component.includes('dealerRadarTextMatches(v,queriedModel)'),'queries use real stock model matcher');
+assert.ok(component.includes("if(/\\bfipe\\b|tabela fipe/.test(words))"),'FIPE question goes to independent intent');
+assert.ok(component.includes("fipeOptions('brands')")&&component.includes("fipeOptions('models'")&&component.includes("fipeOptions('years'")&&component.includes("fipeOptions('detail'"),'FIPE uses live catalog resolution');
+assert.ok(component.includes("narrowed.length>1"),'ambiguous FIPE versions must not be silently selected');
+assert.ok(component.includes("fipePendingRef.current=raw"),'FIPE ambiguity retains conversational context');
+assert.ok(component.includes("const followup=fipePendingRef.current+' '+raw"),'follow-up selects engine or fuel from original FIPE request');
+assert.ok(component.includes("yearOptions.length!==1"),'fuel ambiguity must not be silently selected');
+assert.ok(component.includes("referenceMonth"),'include FIPE reference month');
+assert.ok(component.includes("cache:'no-store'"),'refresh FIPE value rather than use stale cache');
 assert.ok(component.includes('!isStock&&hasYear'),'vehicle and year treated as a pricing continuation');
 assert.ok(component.includes("awaiting==='version'"),'asks version instead of repeating model request');
 assert.ok(component.includes("draft?.awaiting==='version'"),'version answer retained in context');
