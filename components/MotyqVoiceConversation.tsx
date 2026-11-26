@@ -140,7 +140,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const model=modelFrom(raw);
   const year=Number(normalize(raw).match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
   const trim=normalize(raw).match(/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/)?.[1]||null;
-  if(model)fipeContextRef.current={model,year,trim};
+  if(model){fipeContextRef.current={model,year,trim};stockContextRef.current=null;}
  };
  const answerFipe=useCallback(async(raw:string,chosenCode?:string)=>{
   const request=++fipeRequestRef.current;
@@ -383,9 +383,9 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const current=auth.currentUser;
   if(!current){respondDeterministic(raw);return;}
   const normalized=normalize(raw);
-  if((stockContextRef.current||fipeContextRef.current)&&
+  if(!/\bfipe\b/.test(normalized)&&(stockContextRef.current||fipeContextRef.current)&&
    (/\b(?:quantos|quantas|capital|estoque|versao|versoes)\b/.test(normalized)||
-    /^(?:do|da|desses|dessas|desse|dessa|quanto|qual|e )\b/.test(normalized))){
+    /^(?:do|da|desses|dessas|desse|dessa|e )\b/.test(normalized))){
    respondDeterministic(raw);return;
   }
   try{
