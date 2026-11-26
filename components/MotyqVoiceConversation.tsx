@@ -61,7 +61,7 @@ export const dealerModelYear=(yearLabel:string):number|null=>{
 };
 const modelFrom=(raw:string)=>{
  const message=normalize(raw);
- const known=['creta','renegade','t-cross','tcross','virtus','onix','hb20','compass','tracker','corolla','polo','nivus','kicks','pulse','argo','mobi','toro','fastback'];
+ const known=['spin','c4 cactus','cactus','creta','renegade','t-cross','tcross','virtus','onix','hb20','compass','tracker','corolla','polo','nivus','kicks','pulse','argo','mobi','toro','fastback'];
  return known.find(name=>message.includes(name))||null;
 };
 export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Props){
@@ -80,6 +80,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const [draft,setDraft]=useState<PricingDraft|null>(null);
  const fipeRequestRef=useRef(0);
  const fipePendingRef=useRef('');
+ const lastAnswerRef=useRef('');
+ const repeatedAnswerRef=useRef(0);
  const stockPendingModelRef=useRef(false);
  const stockContextRef=useRef<{model:string;year:number|null;trim:string|null;engine:string|null}|null>(null);
  const fipeContextRef=useRef<{model:string;year:number|null;trim:string|null;engine:string|null}|null>(null);
@@ -124,7 +126,15 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    window.speechSynthesis.speak(item);
   }catch{speakingRef.current=false;if(wakeEnabledRef.current)startCycleRef.current();setNotice('Este navegador não conseguiu reproduzir a resposta. Ela continua disponível por escrito.');}
  },[muted,preferredVoice]);
- const reply=useCallback((message:string)=>{addTurn('motyq',message);speak(message);},[addTurn,speak]);
+ const reply=useCallback((message:string)=>{
+  const repeated=normalize(message)===normalize(lastAnswerRef.current);
+  repeatedAnswerRef.current=repeated?repeatedAnswerRef.current+1:0;
+  lastAnswerRef.current=message;
+  const response=repeated&&repeatedAnswerRef.current>=1
+   ?repeatedAnswerRef.current===1?'Não entendi sua última pergunta. Pode reformular ou dizer se quer FIPE, estoque ou precificação?':'Ainda não consegui entender. Podemos mudar de assunto; diga o carro e o que você quer consultar.'
+   :message;
+  addTurn('motyq',response);speak(response);
+ },[addTurn,speak]);
  useEffect(()=>{
   mounted.current=true;
   const welcome='MOTYQ à disposição. Toque no holograma para iniciar uma conversa.';
@@ -154,7 +164,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   // The code is only a lookup hint; the price and year still come from the live provider.
   const knownCode=(model==='renegade'&&year===2022&&/\blongitude\b/.test(words)&&/\b(?:t270|turbo|1[.,]3)\b/.test(words))?'017088-7':undefined;
   const directCode=raw.match(/\b\d{6}-\d\b/)?.[0]||knownCode;
-  if(!year||(!model&&!directCode)){fipePendingRef.current=raw;reply('Qual modelo, versão e ano?');return;}
+  if(!year||(!model&&!directCode)){fipePendingRef.current=raw;reply(!model?'Qual é o modelo do veículo?':!year?'Qual é o ano-modelo?':'Qual é a versão?');return;}
   if(directCode){
    try{
     const query=new URLSearchParams({vehicleType:'car',brand:'Jeep',model:raw,year:String(year),fipeCode:directCode});
@@ -173,15 +183,17 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   }
   const tokens=fipeTerms(words);
   fipePendingRef.current='';
-  const trimNames=['longitude','sport','limited','trailhawk','sahara','moab','altitude','overland','signature','night eagle'];
+  const trimNames=['longitude','sport','limited','trailhawk','sahara','moab','altitude','overland','signature','night eagle','prestige','lt','ltz','premier'];
   const requestedTrims=trimNames.filter(t=>tokens.includes(t));
   if(requestedTrims.length===0){fipePendingRef.current=raw;reply('Qual é a versão?');return;}
   try{
    const brands=(await fipeOptions('brands')).items||[];
    if(!current())return;
    const intent=mobileQuickIntent(raw,brands);
-   if(!intent.brand){reply('Não consegui confirmar a marca na FIPE.');return;}
-   const models=(await fipeOptions('models',{brandCode:intent.brand.code})).items||[];
+   const inferredBrand=model==='spin'?'chevrolet':model==='creta'?'hyundai':model==='renegade'?'jeep':'';
+   const brand=intent.brand||brands.find(item=>Boolean(inferredBrand)&&normalize(item.name).includes(inferredBrand));
+   if(!brand){reply('Não consegui confirmar a marca na FIPE. Informe a marca para continuar.');return;}
+   const models=(await fipeOptions('models',{brandCode:brand.code})).items||[];
    if(!current())return;
    // Match model family AND trim as full tokens; never choose a similar edition by accident.
    const matching=models.filter(m=>{
@@ -199,7 +211,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    for(const candidate of narrowed.slice(0,12)){
     if(!current())return;
     let years:MobileFipeOption[]=[];
-    try{years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:candidate.code})).items||[];yearCatalogOk=true;}
+    try{years=(await fipeOptions('years',{brandCode:brand.code,modelCode:candidate.code})).items||[];yearCatalogOk=true;}
     catch{continue;}
     if(!current())return;
     const matchYear=mobileYearOptions(years,year,fuel);
@@ -228,7 +240,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    fipePendingRef.current='';
    const selected=winner.model;
    const yearOption=winner.yearOption;
-   const result=await fipeOptions('detail',{brandCode:intent.brand.code,modelCode:selected.code,yearCode:yearOption.code});
+   const result=await fipeOptions('detail',{brandCode:brand.code,modelCode:selected.code,yearCode:yearOption.code});
    if(!current())return;
    const value=Number(result.value);
    if(Number(result.year)!==year){reply('O ano retornado pela FIPE não confere com a solicitação.');return;}
@@ -245,6 +257,26 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const words=normalize(raw);
   if(!words)return;
   addTurn('user',spokenRaw);
+  // A partial voice transcript is not permission to reuse the last stock answer.
+  if(/^(?:qual a|qual o|quanto|quantos|quantas|e|do|da|de|quero saber|nao entendi)[?.! ]*$/.test(words)){
+   reply('Não entendi a pergunta completa. Pode terminar a frase?');return;
+  }
+  // Never turn an uncertain transcription into a different stock model.
+  if(/\bcactos\b/.test(words)){
+   reply('Você quis dizer Citroën C4 Cactus? Confirme o modelo para eu consultar o estoque.');return;
+  }
+  if(/^(?:qual|quantos|quantas)\s+(?:os\s+)?dias\s+(?:tem\s+de|de)?\s*$/.test(words)||/^(?:quantos|qual) dias tem de$/.test(words)){
+   reply('Quer saber a média de dias em estoque ou o carro mais antigo?');return;
+  }
+  // A pending FIPE question can be answered in multiple turns, without restarting pricing.
+  if(fipePendingRef.current&&!/\b(?:estoque|quantos|quantas|capital|pagar|precificar|avaliar)\b/.test(words)){
+   const hasDetails=Boolean(modelFrom(words))||/\b(?:19|20)\d{2}\b|\b(?:lt|ltz|prestige|longitude|limited|sport|t270|turbo)\b/.test(words);
+   if(hasDetails){
+    const next=fipePendingRef.current+' '+raw;
+    fipePendingRef.current='';
+    void answerFipe(next);return;
+   }
+  }
   const explicitModel=modelFrom(words);
   // Model is conversational context across FIPE, pricing and inventory queries.
   if(explicitModel)setLastModel(explicitModel);
@@ -254,6 +286,12 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const spokenYear=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
   const stockSignal=/\b(?:estoque|estocados|quantos|quantas|temos|capital|investido|parados)\b|dinheiro parado|versao temos/.test(words);
   const purchaseIntent=/\b(?:pagar|pagaria|compro|compraria|precificar|precificacao|avaliar|avaliacao|preco de compra)\b/.test(words);
+  const fipeIntent=/\bfipe\b/.test(words);
+  if(fipeIntent){
+   setDraft(null);
+   const fullInput=explicitModel?raw:(draft?.vehicle?draft.vehicle+' '+raw:previous?.model?previous.model+' '+raw:raw);
+   void answerFipe(fullInput);return;
+  }
   const broadenVersions=/\b(?:todas? as versoes|qualquer versao|sem filtrar versao|todas versoes|todos os renegade|todas as renegade)\b/.test(words);
   const explicitlyScoped=/\b(?:desses|dessas|desse|dessa|deles|delas|nesses|nessas|mesmos|mesmas)\b/.test(words);
   const explicitFamilyStock=Boolean(explicitModel)&&stockSignal&&!explicitlyScoped&&!/\b(?:longitude|sport|limited|trailhawk|sahara|moab|altitude|overland|t270|td350|t350)\b/.test(words)&&!spokenYear;
@@ -276,6 +314,10 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    return;
   }
   if(stockSignal||contextual||(stockPendingModelRef.current&&Boolean(explicitModel))){
+   // A new stock entity must not silently inherit the previously selected car.
+   if(!explicitModel&&/\btem\s+[a-z]{3,}\s+no estoque\b/.test(words)&&!/\b(?:tem estoque|temos no estoque)\b/.test(words)){
+    reply('Não identifiquei o modelo nessa fala. Pode repetir o nome do carro?');return;
+   }
    setDraft(null);fipePendingRef.current='';fipeChoicesRef.current=null;fipeRequestRef.current++;
    const model=all?'':explicitModel||previous?.model||lastModel||'';
    const changed=Boolean(explicitModel&&explicitModel!==previous?.model);
@@ -356,7 +398,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const wantsPrice=/quanto|pagar|compra|precific|avaliar|valor/.test(words);
   const hasYear=/\b(?:19|20)\d{2}\b/.test(words);
   const hasKm=/\bkm\b|quil[oô]metr/.test(words);
-  const knownTrim=/\b(?:sport|longitude|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(words);
+  const knownTrim=/\b(?:sport|longitude|prestige|lt|ltz|premier|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(words);
   // An operator may answer with just "Renegade 2022 com 50.000 km".
   // Keep the vehicle context instead of demanding the verb "precificar".
   if(explicitModel&&(wantsPrice||(!stockSignal&&hasYear)||(!draft&&!stockSignal))){
@@ -375,7 +417,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    if(!nextYear||!nextKm){
     setDraft({...draft,vehicle:nextVehicle});reply('Informe o ano e a quilometragem.');return;
    }
-   if(!/\b(?:sport|longitude|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(full)){
+   if(!/\b(?:sport|longitude|prestige|lt|ltz|premier|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(full)){
     setDraft({...draft,vehicle:nextVehicle,awaiting:'version'});reply('Qual é a versão?');return;
    }
    setDraft({...draft,vehicle:nextVehicle,awaiting:'reference'});
@@ -388,6 +430,10 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    reply('Qual é o menor preço de anúncio comparável?');return;
   }
   if(draft&&(draft.awaiting==='reference'||draft.awaiting==='preparation'||!draft.awaiting)){
+   if(/\b(?:nao sei|nao vi|nao tenho|nao encontrei|sem referencia)\b/.test(words)){
+    setDraft(null);
+    reply('Sem um anúncio comparável confirmado, não posso sugerir valor de compra. Consulte o menor preço válido na Webmotors e me informe, ou podemos falar de outra consulta.');return;
+   }
    const n=parseMoney(raw);
    if(n!==null&&n>=0&&n<=2000000){
     if(draft.reference===null){
@@ -406,7 +452,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    }
   }
   if(/ajuda|o que voc[eê] faz|pode fazer/.test(words)){reply('Consigo consultar estoque e simular compra com um preço de referência.');return;}
-  reply('Qual modelo você quer consultar?');
+  reply('Não entendi. Você quer consultar a FIPE, o estoque ou precificar um veículo?');
  },[addTurn,reply,answerFipe,lastModel,snapshot,stockReady,draft]);
  // The model only resolves conversational intent. All values come from local Dealer rows.
  // Any Gemini/API error falls back to the existing deterministic assistant.
@@ -415,6 +461,10 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   if(!current){respondDeterministic(raw);return;}
   const normalized=normalize(raw);
   const directPurchase=/\b(?:pagar|pagaria|compro|compraria|precificar|precificacao|avaliar|avaliacao|preco de compra)\b/.test(normalized);
+  // FIPE and ongoing FIPE or pricing conversations stay local; Gemini only interprets real stock intents.
+  if(/\bfipe\b/.test(normalized)||fipePendingRef.current||draft||/\bcactos\b/.test(normalized)||/\bspin\b/.test(normalized)){
+   respondDeterministic(raw);return;
+  }
   if(!/\bfipe\b/.test(normalized)&&!directPurchase&&
    (/\b(?:quantos|quantas|capital|estoque|versao|versoes)\b/.test(normalized)||
     ((stockContextRef.current||fipeContextRef.current)&&/^(?:do|da|desses|dessas|desse|dessa|e )\b/.test(normalized)))){
