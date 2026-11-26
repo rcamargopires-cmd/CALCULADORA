@@ -28,7 +28,7 @@ const fipeModelRank=(spoken:string,options:MobileFipeOption[])=>{
  const hasAutomatic=/\\b(?:automatico|automatica|aut)\\b/.test(normalize(spoken));
  const wants4x2=/\\b4\\s*(?:x|por|\\.|\\s)\\s*2\\b/.test(normalize(spoken));
  const matched=options.map(option=>{
-  const raw=fipeTerms(option.name);
+  const raw=normalize(option.name).replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
   const labels=new Set(raw);
   const literal=normalize(option.name);
   let score=0;
