@@ -190,8 +190,10 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const brands=(await fipeOptions('brands')).items||[];
    if(!current())return;
    const intent=mobileQuickIntent(raw,brands);
-   if(!intent.brand){reply('Não consegui confirmar a marca na FIPE.');return;}
-   const models=(await fipeOptions('models',{brandCode:intent.brand.code})).items||[];
+   const inferredBrand=model==='spin'?'chevrolet':model==='creta'?'hyundai':model==='renegade'?'jeep':'';
+   const brand=intent.brand||brands.find(item=>Boolean(inferredBrand)&&normalize(item.name).includes(inferredBrand));
+   if(!brand){reply('Não consegui confirmar a marca na FIPE. Informe a marca para continuar.');return;}
+   const models=(await fipeOptions('models',{brandCode:brand.code})).items||[];
    if(!current())return;
    // Match model family AND trim as full tokens; never choose a similar edition by accident.
    const matching=models.filter(m=>{
@@ -209,7 +211,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    for(const candidate of narrowed.slice(0,12)){
     if(!current())return;
     let years:MobileFipeOption[]=[];
-    try{years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:candidate.code})).items||[];yearCatalogOk=true;}
+    try{years=(await fipeOptions('years',{brandCode:brand.code,modelCode:candidate.code})).items||[];yearCatalogOk=true;}
     catch{continue;}
     if(!current())return;
     const matchYear=mobileYearOptions(years,year,fuel);
@@ -238,7 +240,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    fipePendingRef.current='';
    const selected=winner.model;
    const yearOption=winner.yearOption;
-   const result=await fipeOptions('detail',{brandCode:intent.brand.code,modelCode:selected.code,yearCode:yearOption.code});
+   const result=await fipeOptions('detail',{brandCode:brand.code,modelCode:selected.code,yearCode:yearOption.code});
    if(!current())return;
    const value=Number(result.value);
    if(Number(result.year)!==year){reply('O ano retornado pela FIPE não confere com a solicitação.');return;}
@@ -392,7 +394,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const wantsPrice=/quanto|pagar|compra|precific|avaliar|valor/.test(words);
   const hasYear=/\b(?:19|20)\d{2}\b/.test(words);
   const hasKm=/\bkm\b|quil[oô]metr/.test(words);
-  const knownTrim=/\b(?:sport|longitude|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(words);
+  const knownTrim=/\b(?:sport|longitude|prestige|lt|ltz|premier|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(words);
   // An operator may answer with just "Renegade 2022 com 50.000 km".
   // Keep the vehicle context instead of demanding the verb "precificar".
   if(explicitModel&&(wantsPrice||(!stockSignal&&hasYear)||(!draft&&!stockSignal))){
@@ -411,7 +413,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    if(!nextYear||!nextKm){
     setDraft({...draft,vehicle:nextVehicle});reply('Informe o ano e a quilometragem.');return;
    }
-   if(!/\b(?:sport|longitude|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(full)){
+   if(!/\b(?:sport|longitude|prestige|lt|ltz|premier|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(full)){
     setDraft({...draft,vehicle:nextVehicle,awaiting:'version'});reply('Qual é a versão?');return;
    }
    setDraft({...draft,vehicle:nextVehicle,awaiting:'reference'});
