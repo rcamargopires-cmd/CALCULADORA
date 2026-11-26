@@ -18,6 +18,33 @@ const parseMoney=(value:string):number|null=>{
  return Math.round(valueNumber*(m[2]?1000:1));
 };
 const fipeTerms=(value:string)=>normalize(value).replace(/\b(long|longi|longit)\b/g,'longitude').replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
+// Prefer a uniquely matching FIPE description when the operator says the exact
+// engine/trim. Similar FIPE codes are never collapsed solely by model name.
+const fipeModelRank=(spoken:string,options:MobileFipeOption[])=>{
+ const spokenWords=fipeTerms(spoken);
+ const requested=new Set(spokenWords);
+ const hasTurbo=requested.has('turbo');
+ const hasLongitude=requested.has('longitude');
+ const hasAutomatic=/\\b(?:automatico|automatica|aut)\\b/.test(normalize(spoken));
+ const wants4x2=/\\b4\\s*(?:x|por|\\.|\\s)\\s*2\\b/.test(normalize(spoken));
+ const matched=options.map(option=>{
+  const raw=normalize(option.name).replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
+  const labels=new Set(raw);
+  const literal=normalize(option.name);
+  let score=0;
+  // A full FIPE wording is more specific than abbreviated legacy descriptors.
+  if(hasLongitude)score+=labels.has('longitude')?5:labels.has('long')?1:0;
+  if(hasTurbo)score+=labels.has('turbo')?5:labels.has('tb')?1:0;
+  if(requested.has('t270')&&labels.has('t270'))score+=2;
+  if(/\\b1[.,]3\\b/.test(normalize(spoken))&&/\\b1[.,]3\\b/.test(literal))score+=2;
+  if(wants4x2&&/4\\s*x\\s*2/.test(literal))score+=2;
+  if(hasAutomatic&&/\\b(?:aut|automatic[oa])\\b/.test(literal))score+=1;
+  if(requested.has('flex')&&labels.has('flex'))score+=1;
+  return {option,score};
+ }).sort((a,b)=>b.score-a.score);
+ const winner=matched[0],second=matched[1];
+ return winner&&winner.score>=5&&(!second||winner.score-second.score>=4)?winner.option:null;
+};
 const fipeOptions=async(action:'brands'|'models'|'years'|'detail',params:Record<string,string>={})=>{
  const query=new URLSearchParams({action,vehicleType:'car',...params});
  const response=await fetch('/api/marketiq-fipe?'+query.toString(),{cache:'no-store'});
@@ -123,13 +150,14 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const engine=words.match(/\b(?:1[.,][038]|2[.,]0|t270|td350|t350)\b/)?.[0]?.replace(',','.')||'';
    const narrowed=engine?matching.filter(m=>normalize(m.name).includes(engine)):matching;
    if(narrowed.length===0){reply('Não encontrei essa motorização na FIPE. Confira a versão.');return;}
-   if(narrowed.length>1){
+   const uniqueMatch=narrowed.length===1?narrowed[0]:fipeModelRank(raw,narrowed);
+   if(!uniqueMatch){
     fipePendingRef.current=raw;
     const options=narrowed.slice(0,3).map(m=>m.name).join('; ');
-    reply('Encontrei mais de uma motorização: '+options+'. Qual é a versão exata?');
+    reply('Ainda há duas versões FIPE parecidas: '+options+'. Qual descrição é a correta?');
     return;
    }
-   const selected=narrowed[0];
+   const selected=uniqueMatch;
    const years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:selected.code})).items||[];
    if(!current())return;
    const fuel=/\bdiesel\b/.test(words)?'Diesel':/\bflex\b/.test(words)?'Flex':/\bgasolina\b/.test(words)?'Gasolina':/\betanol\b/.test(words)?'Etanol':'';
