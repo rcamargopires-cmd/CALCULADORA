@@ -55,7 +55,7 @@ const fipeOptions=async(action:'brands'|'models'|'years'|'detail',params:Record<
 };
 // Dealer 'Ano Fab/Mod' may read 2021/2022 or 2021-2022. Always use model year.
 export const dealerModelYear=(yearLabel:string):number|null=>{
- const years=String(yearLabel||'').match(/\\b(?:19|20)\\d{2}\\b/g);
+ const years=String(yearLabel||'').match(/\b(?:19|20)\d{2}\b/g);
  return years?.length?Number(years[years.length-1]):null;
 };
 const modelFrom=(raw:string)=>{
@@ -238,8 +238,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const isStock=/\b(?:estoque|estocados|quantos|quantas|temos|possuimos|parados)\b|dias de estoque|capital investido/.test(words);
   const isEntireStock=/\b(?:estoque inteiro|estoque total|todos os carros do estoque|toda a frota|estoque completo)\b/.test(words);
   const stockModel=explicitModel||lastModel;
-  const requestedStockYear=Number(words.match(/\\b(?:19|20)\\d{2}\\b/)?.[0]||0)||null;
-  const clearStockYear=/\\b(?:todos os anos|todas as safras|qualquer ano|sem filtrar ano|de todos os anos)\\b/.test(words);
+  const requestedStockYear=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
+  const clearStockYear=/\b(?:todos os anos|todas as safras|qualquer ano|sem filtrar ano|de todos os anos)\b/.test(words);
   if(isStock||(stockPendingModelRef.current&&Boolean(explicitModel))){
    // Inventory lookup always overrides pending FIPE and purchase calculations.
    stockPendingModelRef.current=false;
