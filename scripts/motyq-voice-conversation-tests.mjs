@@ -21,9 +21,9 @@ const end=component.indexOf('const fipeOptions=async',begin);
 assert.ok(begin>=0&&end>begin,'FIPE ranking helper exists');
 const rankJS=ts.transpileModule(component.slice(begin,end),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
 const context={
- normalize:(v)=>String(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().trim(),
+ normalize:(v)=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(),
 };
-context.fipeTerms=(v)=>context.normalize(v).replace(/\\b(long|longi|longit)\\b/g,'longitude').replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
+context.fipeTerms=(v)=>context.normalize(v).replace(/\b(long|longi|longit)\b/g,'longitude').replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
 vm.createContext(context);
 vm.runInContext(rankJS,context);
 const options=[
@@ -31,7 +31,6 @@ const options=[
  {code:'full',name:'Renegade Longitude T270 1.3 Turbo 4x2 Aut.'}
 ];
 context.options=options;
-console.log('FIPE ranking debug:',vm.runInContext("JSON.stringify({terms:fipeTerms('qual a fipe renegade longitude 2022 t270 1.3 turbo 4.2 automatico'),label1:fipeTerms(options[0].name),label2:fipeTerms(options[1].name),hasExact: /\\blongitude\\b/.test(normalize(options[1].name)), rank:fipeModelRank('qual a fipe renegade longitude 2022 t270 1.3 turbo 4.2 automatico',options)})",context));
 assert.equal(vm.runInContext("fipeModelRank('qual a fipe renegade longitude 2022 t270 1.3 turbo 4.2 automatico',options)?.code",context),'full','precise spoken T270 resolves full Longitude FIPE name');
 assert.equal(vm.runInContext("fipeModelRank('Renegade T270 2022',options)?.code ?? null",context),null,'insufficient evidence cannot silently choose a FIPE code');
 assert.ok(component.includes("fipePendingRef.current=raw"),'FIPE ambiguity retains conversational context');
