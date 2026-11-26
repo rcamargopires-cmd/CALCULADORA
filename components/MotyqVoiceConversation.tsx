@@ -258,7 +258,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const model=all?'':explicitModel||previous?.model||lastModel||'';
    const changed=Boolean(explicitModel&&explicitModel!==previous?.model);
    const year=all||clearYear?null:spokenYear||(changed?null:previous?.year||null);
-   const trim=all||clearYear||changed?null:previous?.trim||null;
+   const explicitTrim=normalize(words).replace(/\blong\.?\b/g,'longitude').match(/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/)?.[1]||null;
+   const trim=all?null:explicitTrim||(changed?null:previous?.trim||null);
    const metric=/\b(?:capital|investido|quanto custa)\b/.test(words)?'capital':/\b(?:quantos|quantas|versao|versoes)\b/.test(words)?'count':stockPendingMetricRef.current||'count';
    if(!model&&!all){
     stockPendingModelRef.current=true;stockPendingMetricRef.current=metric;
@@ -328,7 +329,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const knownTrim=/\b(?:sport|longitude|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(words);
   // An operator may answer with just "Renegade 2022 com 50.000 km".
   // Keep the vehicle context instead of demanding the verb "precificar".
-  if(explicitModel&&(wantsPrice||(!isStock&&hasYear)||(!draft&&!isStock))){
+  if(explicitModel&&(wantsPrice||(!stockSignal&&hasYear)||(!draft&&!stockSignal))){
    const awaiting:PricingDraft['awaiting']=!hasYear||!hasKm?'details':!knownTrim?'version':'reference';
    setDraft({vehicle:raw,reference:null,preparation:null,awaiting});
    if(awaiting==='details')reply('Qual ano, quilometragem e versão?');
@@ -383,9 +384,9 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const current=auth.currentUser;
   if(!current){respondDeterministic(raw);return;}
   const normalized=normalize(raw);
-  if(!/\bfipe\b/.test(normalized)&&(stockContextRef.current||fipeContextRef.current)&&
+  if(!/\bfipe\b/.test(normalized)&&
    (/\b(?:quantos|quantas|capital|estoque|versao|versoes)\b/.test(normalized)||
-    /^(?:do|da|desses|dessas|desse|dessa|e )\b/.test(normalized))){
+    ((stockContextRef.current||fipeContextRef.current)&&/^(?:do|da|desses|dessas|desse|dessa|e )\b/.test(normalized)))){
    respondDeterministic(raw);return;
   }
   try{
