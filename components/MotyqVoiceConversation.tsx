@@ -74,6 +74,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const [draft,setDraft]=useState<PricingDraft|null>(null);
  const fipeRequestRef=useRef(0);
  const fipePendingRef=useRef('');
+ const stockPendingModelRef=useRef(false);
  const fipeChoicesRef=useRef<{original:string;options:MobileFipeOption[]}|null>(null);
  const recognizer=useRef<any>(null);
  const speechDraft=useRef('');
@@ -224,6 +225,32 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const words=normalize(raw);
   if(!words)return;
   addTurn('user',raw);
+  const explicitModel=modelFrom(words);
+  // Model is conversational context across FIPE, pricing and inventory queries.
+  if(explicitModel)setLastModel(explicitModel);
+  const isStock=/\b(?:estoque|estocados|quantos|quantas|temos|possuimos|parados)\b|dias de estoque|capital investido/.test(words);
+  const isEntireStock=/\b(?:estoque inteiro|estoque total|todos os carros do estoque|toda a frota|estoque completo)\b/.test(words);
+  const stockModel=explicitModel||lastModel;
+  if(isStock||(stockPendingModelRef.current&&Boolean(explicitModel))){
+   // Inventory lookup always overrides pending FIPE and purchase calculations.
+   stockPendingModelRef.current=false;
+   setDraft(null);fipePendingRef.current='';fipeChoicesRef.current=null;fipeRequestRef.current++;
+   if(!stockReady||!snapshot){reply('O estoque Dealer ainda não está carregado.');return;}
+   if(!stockModel&&!isEntireStock){
+    stockPendingModelRef.current=true;
+    reply('Qual modelo você quer consultar no estoque?');return;
+   }
+   const found=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&(isEntireStock||dealerRadarTextMatches(v,stockModel!)));
+   const overdue=found.filter(v=>v.days>90);
+   const avg=found.length?Math.round(found.reduce((a,v)=>a+v.days,0)/found.length):0;
+   const capital=found.reduce((a,v)=>a+Math.max(0,v.cost),0);
+   const family=isEntireStock?'veículos':stockModel!;
+   if(/parad|mais de 90|noventa dias/.test(words))reply('Dos '+found.length+' '+family+' em estoque, '+overdue.length+' estão há mais de 90 dias.');
+   else if(/capital|investid/.test(words))reply('O capital registrado em '+found.length+' '+family+' é '+brl(capital)+'.');
+   else reply('Na última base Dealer carregada, encontrei '+found.length+' '+family+' em estoque. Média de '+avg+' dias; '+overdue.length+' acima de 90 dias.');
+   return;
+  }
+  stockPendingModelRef.current=false;
   const ordinal=words.match(/\b(primeira|primeiro|segunda|segundo|terceira|terceiro|1|2|3)\b/);
   if(fipeChoicesRef.current&&ordinal&&!/\bfipe\b/.test(words)){
    const index=/^(primeira|primeiro|1)$/.test(ordinal[1])?0:/^(segunda|segundo|2)$/.test(ordinal[1])?1:2;
@@ -242,29 +269,16 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    void answerFipe(followup);
    return;
   }
-  // FIPE is a distinct lookup, never a purchase-price conversation.
   if(/\bfipe\b|tabela fipe/.test(words)){
    setDraft(null);
-   void answerFipe(raw);
+   // "Eu quero saber a FIPE" continues with the vehicle already supplied for pricing.
+   const fullInput=explicitModel?raw:(draft?.vehicle?draft.vehicle+' '+raw:raw);
+   if(!explicitModel&&modelFrom(fullInput))setLastModel(modelFrom(fullInput));
+   void answerFipe(fullInput);
    return;
   }
   if(/^(oi|ola|bom dia|boa tarde|boa noite|motyq)[!., ]*$/.test(words)){
    reply('Pode falar.');return;
-  }
-  const isStock=/estoque|quantos|quantas|temos|poss[uí]mos|parados|dias de estoque|capital investido/.test(words);
-  const explicitModel=modelFrom(words);
-  const queriedModel=explicitModel||(/desses|dessas|desse modelo|daqueles/.test(words)?lastModel:null);
-  if(isStock&&queriedModel){
-   setLastModel(queriedModel);
-   if(!stockReady||!snapshot){reply('O estoque Dealer ainda não está carregado.');return;}
-   const found=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&dealerRadarTextMatches(v,queriedModel));
-   const overdue=found.filter(v=>v.days>90);
-   const avg=found.length?Math.round(found.reduce((a,v)=>a+v.days,0)/found.length):0;
-   const capital=found.reduce((a,v)=>a+Math.max(0,v.cost),0);
-   if(/parad|mais de 90|noventa dias/.test(words))reply('Dos '+found.length+' '+queriedModel+' em estoque, '+overdue.length+' estão há mais de 90 dias.');
-   else if(/capital|investid/.test(words))reply('O capital registrado em '+found.length+' '+queriedModel+' é '+brl(capital)+'.');
-   else reply('Na última base Dealer carregada, encontrei '+found.length+' '+queriedModel+' em estoque. A média é '+avg+' dias, e '+overdue.length+' estão há mais de 90 dias.');
-   return;
   }
   const wantsPrice=/quanto|pagar|compra|precific|avaliar|valor/.test(words);
   const hasYear=/\b(?:19|20)\d{2}\b/.test(words);
