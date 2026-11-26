@@ -1,4 +1,5 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
+import {auth} from '../firebase';
 import {Mic,MicOff,Volume2,VolumeX,X} from 'lucide-react';
 import MarketIqVoiceHologram from './MarketIqVoiceHologram';
 import {dealerRadarTextMatches,type DealerStockSnapshot} from '../services/marketIqDealerRadar';
@@ -228,10 +229,10 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    if(current())reply('A consulta FIPE está indisponível agora. Tente novamente.');
   }
  },[reply]);
- const respond=useCallback((raw:string)=>{
+ const respondDeterministic=useCallback((raw:string,spokenRaw=raw)=>{
   const words=normalize(raw);
   if(!words)return;
-  addTurn('user',raw);
+  addTurn('user',spokenRaw);
   const explicitModel=modelFrom(words);
   // Model is conversational context across FIPE, pricing and inventory queries.
   if(explicitModel)setLastModel(explicitModel);
@@ -260,7 +261,27 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const avg=found.length?Math.round(found.reduce((a,v)=>a+v.days,0)/found.length):0;
    const capital=found.reduce((a,v)=>a+Math.max(0,v.cost),0);
    const family=(isEntireStock?'veículos':stockModel!)+(yearFilter?' ano-modelo '+yearFilter:'');
-   if(/parad|mais de 90|noventa dias/.test(words))reply('Dos '+found.length+' '+family+' em estoque, '+overdue.length+' estão há mais de 90 dias.');
+   if(/\b(?:analis|diagnostic|risco|dinheiro parado)\b/.test(words)){
+    const loss=found.filter(v=>v.price>0&&v.cost>v.price);
+    const lossAmount=loss.reduce((sum,v)=>sum+(v.cost-v.price),0);
+    const highCapital=overdue.reduce((sum,v)=>sum+Math.max(0,v.cost),0);
+    reply('Análise de '+found.length+' '+family+': capital de '+brl(capital)+', média de '+avg+
+     ' dias, '+overdue.length+' acima de 90 dias ('+brl(highCapital)+' imobilizados nesses veículos). '+
+     loss.length+' com preço sugerido abaixo do custo, diferença acumulada de '+brl(lossAmount)+
+     '. Indicadores da última base Dealer, não uma previsão de prejuízo.');
+   }
+   else if(/\bmais antigo\b|\bmais tempo\b/.test(words)){
+    const oldest=[...found].sort((a,b)=>b.days-a.days)[0];
+    reply(oldest?'O '+oldest.brand+' '+oldest.model+' ('+oldest.year+'), placa '+oldest.plate+
+     ', está há '+oldest.days+' dias em estoque. Custo registrado: '+brl(oldest.cost)+'.':'Nenhum '+family+' encontrado na última base Dealer.');
+   }
+   else if(/\b(?:listar|lista|mostra os|quais sao)\b/.test(words)){
+    const selected=[...found].sort((a,b)=>b.days-a.days).slice(0,5);
+    reply(selected.length?'Encontrei '+found.length+' '+family+'. Os cinco mais antigos: '+
+     selected.map(v=>v.brand+' '+v.model+' '+v.year+', '+v.days+' dias').join('; ')+'.':
+     'Nenhum '+family+' encontrado na última base Dealer.');
+   }
+   else if(/parad|mais de 90|noventa dias/.test(words))reply('Dos '+found.length+' '+family+' em estoque, '+overdue.length+' estão há mais de 90 dias.');
    else if(/capital|investid/.test(words))reply('O capital registrado em '+found.length+' '+family+' é '+brl(capital)+'.');
    else reply('Na última base Dealer carregada, encontrei '+found.length+' '+family+' em estoque. Média de '+avg+' dias; '+overdue.length+' acima de 90 dias.');
    return;
@@ -350,6 +371,41 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   if(/ajuda|o que voc[eê] faz|pode fazer/.test(words)){reply('Consigo consultar estoque e simular compra com um preço de referência.');return;}
   reply('Qual modelo você quer consultar?');
  },[addTurn,reply,answerFipe,lastModel,snapshot,stockReady,draft]);
+ // The model only resolves conversational intent. All values come from local Dealer rows.
+ // Any Gemini/API error falls back to the existing deterministic assistant.
+ const respond=useCallback(async(raw:string)=>{
+  const current=auth.currentUser;
+  if(!current){respondDeterministic(raw);return;}
+  try{
+   const token=await current.getIdToken();
+   const response=await fetch('/api/motyq-voice',{
+    method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},
+    body:JSON.stringify({action:'stock_intent',transcript:raw,history:turnRef.current.filter(t=>t.speaker==='user').slice(-6),
+     lastModel:lastModel||stockModelRef.current||''}),
+    signal:AbortSignal.timeout(9000)
+   });
+   if(response.ok){
+    const intent=await response.json();
+    if(intent?.intent==='stock'){
+     const model=typeof intent.model==='string'&&modelFrom(intent.model)?modelFrom(intent.model):null;
+     const existing=modelFrom(raw);
+     const scopedModel=intent.scope==='all'?'':model||existing||lastModel||stockModelRef.current||'';
+     const year=Number.isInteger(intent.year)?String(intent.year):'';
+     const resetYear=intent.clearYear?' todos os anos':'';
+     const suffix=intent.scope==='all'?'estoque inteiro':(scopedModel+' '+year+resetYear+' no estoque').trim();
+     let canonical='quantos '+suffix;
+     if(intent.metric==='capital')canonical='qual capital investido em '+suffix;
+     else if(intent.metric==='aging')canonical='quantos '+suffix+' parados há mais de 90 dias';
+     else if(intent.metric==='oldest')canonical='qual o mais antigo de '+suffix;
+     else if(intent.metric==='analysis')canonical='analise risco dinheiro parado de '+suffix;
+     else if(intent.metric==='list')canonical='listar '+suffix;
+     respondDeterministic(canonical,raw);
+     return;
+    }
+   }
+  }catch{/* The original conversational rules remain available offline or on quota errors. */}
+  respondDeterministic(raw);
+ },[respondDeterministic,lastModel]);
  const respondRef=useRef(respond);
  useEffect(()=>{respondRef.current=respond;},[respond]);
  const deliverTranscript=(message:string)=>{

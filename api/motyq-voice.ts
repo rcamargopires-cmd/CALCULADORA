@@ -1,3 +1,4 @@
+import {interpretStockIntent} from '../services/motyqStockIntent';
 const FIREBASE_API_KEY='AIzaSyAZ5AjBE71pZOcCtKE7ZM8V14I7DNnf0-Q';
 
 const clean=(value:any,max=500)=>String(value||'').trim().slice(0,max);
@@ -128,6 +129,11 @@ export default async function handler(req:any,res:any){
   const token=authHeader.startsWith('Bearer ')?authHeader.slice(7):'';
   const firebaseUser=token?await verifyFirebaseToken(token):null;
   if(!firebaseUser)return res.status(401).json({error:'unauthorized'});
+
+  if(req.body?.action==='stock_intent'){
+    if(String(firebaseUser?.email||'').toLowerCase()!=='reinaldo.ribas@abraoreze.com.br')return res.status(403).json({error:'restricted_pilot'});
+    return interpretStockIntent(req,res);
+  }
 
   if(req.body?.action==='tts'){
     const text=clean(req.body?.text,1200);
