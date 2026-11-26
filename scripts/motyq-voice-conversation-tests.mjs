@@ -11,7 +11,16 @@ for(const [name,source] of [['voice',component],['workspace',workspace]]){
 assert.ok(workspace.includes("const voiceOwner=String(user.email||'').trim().toLowerCase()==='reinaldo.ribas@abraoreze.com.br'"),'voice pilot gated to user');
 assert.ok(workspace.includes("voiceOwner&&<section"),'only owner can open voice');
 assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),'must not cross dealer account scope');
-assert.ok(component.includes('dealerRadarTextMatches(v,queriedModel)'),'queries use real stock model matcher');
+assert.ok(component.includes('dealerRadarTextMatches(v,stockModel!)'),'queries use real stock model matcher');
+assert.ok(component.includes("const isStock=/"),'stock intent detected independently');
+assert.ok(component.includes("if(isStock||(stockPendingModelRef.current&&Boolean(explicitModel)))"),'stock intent precedes pricing and FIPE continuation');
+assert.ok(component.includes("stockPendingModelRef.current=true"),'generic stock request remembers missing model');
+assert.ok(component.includes("const stockModel=explicitModel||lastModel"),'last mentioned model used for stock reference');
+assert.ok(component.includes("if(explicitModel)setLastModel(explicitModel)"),'FIPE mentioned model persists for stock');
+assert.ok(component.includes("setDraft(null);fipePendingRef.current='';fipeChoicesRef.current=null;fipeRequestRef.current++"),'stock cancels previous task');
+assert.ok(component.includes("isEntireStock||dealerRadarTextMatches(v,stockModel!)"),'stock filters by model unless whole stock requested');
+assert.ok(component.includes("if(!stockReady||!snapshot)"),'no fabricated counts without Dealer snapshot');
+assert.ok(component.includes("const fullInput=explicitModel?raw:(draft?.vehicle?draft.vehicle+' '+raw:raw)"),'FIPE can follow incomplete purchase question');
 assert.ok(component.includes("const matchYear=mobileYearOptions(years,year,fuel)"),'check the year of every candidate before selecting model');
 assert.ok(component.includes("const yearOption=winner.yearOption"),'use validated year code of selected model');
 assert.ok(component.includes("Number(result.year)!==year"),'reject mismatched FIPE model year from provider');
