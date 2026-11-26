@@ -81,8 +81,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const fipeRequestRef=useRef(0);
  const fipePendingRef=useRef('');
  const stockPendingModelRef=useRef(false);
- const stockContextRef=useRef<{model:string;year:number|null;trim:string|null}|null>(null);
- const fipeContextRef=useRef<{model:string;year:number|null;trim:string|null}|null>(null);
+ const stockContextRef=useRef<{model:string;year:number|null;trim:string|null;engine:string|null}|null>(null);
+ const fipeContextRef=useRef<{model:string;year:number|null;trim:string|null;engine:string|null}|null>(null);
  const stockPendingMetricRef=useRef<'count'|'capital'|null>(null);
  const stockYearRef=useRef<number|null>(null);
  const stockModelRef=useRef<string|null>(null);
@@ -140,7 +140,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const model=modelFrom(raw);
   const year=Number(normalize(raw).match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
   const trim=normalize(raw).match(/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/)?.[1]||null;
-  if(model){fipeContextRef.current={model,year,trim};stockContextRef.current=null;}
+  const engine=normalize(raw).match(/\b(t270|td350|t350|1[.,]3|1[.,]8|2[.,]0)\b/)?.[1]?.replace(',','.')||null;
+  if(model){fipeContextRef.current={model,year,trim,engine};stockContextRef.current=null;}
  };
  const answerFipe=useCallback(async(raw:string,chosenCode?:string)=>{
   const request=++fipeRequestRef.current;
@@ -260,18 +261,19 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const year=all||clearYear?null:spokenYear||(changed?null:previous?.year||null);
    const explicitTrim=normalize(words).replace(/\blong\.?\b/g,'longitude').match(/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/)?.[1]||null;
    const trim=all?null:explicitTrim||(changed?null:previous?.trim||null);
-   const requestedEngine=words.match(/\b(t270|td350|t350|1[.,]3|1[.,]8|2[.,]0)\b/)?.[1]?.replace(',','.')||null;
+   const requestedEngine=words.match(/\b(t270|td350|t350|1[.,]3|1[.,]8|2[.,]0)\b/)?.[1]?.replace(',','.')||(changed||all?null:previous?.engine||null);
    const metric=/\b(?:capital|investido|quanto custa)\b/.test(words)?'capital':/\b(?:quantos|quantas|versao|versoes)\b/.test(words)?'count':stockPendingMetricRef.current||'count';
    if(!model&&!all){
     stockPendingModelRef.current=true;stockPendingMetricRef.current=metric;
     reply(metric==='capital'?'De qual modelo você quer saber o capital investido?':'Qual modelo você quer consultar no estoque?');return;
    }
    stockPendingModelRef.current=false;stockPendingMetricRef.current=null;
-   stockContextRef.current={model,year,trim};
+   stockContextRef.current={model,year,trim,engine:requestedEngine};
    if(!stockReady||!snapshot){reply('O estoque Dealer ainda não está carregado.');return;}
    const vehicles=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&
     (all||dealerRadarTextMatches(v,model))&&(year===null||dealerModelYear(v.year)===year));
    const normalizeTrim=(s:string)=>normalize(s).replace(/\blong\.?\b/g,'longitude');
+   if(!vehicles.length){reply('Nenhum '+model+(year?' ano-modelo '+year:'')+(trim?' versão '+trim:'')+' encontrado na última base Dealer.');return;}
    const hasVersion=vehicles.some(v=>/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/.test(normalizeTrim(v.model)));
    const hasUnknownVersions=vehicles.some(v=>!/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/.test(normalizeTrim(v.model)));
    if(trim&&(!hasVersion||hasUnknownVersions)){
