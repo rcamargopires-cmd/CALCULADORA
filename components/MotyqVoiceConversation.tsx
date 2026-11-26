@@ -2,7 +2,7 @@ import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {Mic,MicOff,Volume2,VolumeX,X} from 'lucide-react';
 import MarketIqVoiceHologram from './MarketIqVoiceHologram';
 import {dealerRadarTextMatches,type DealerStockSnapshot} from '../services/marketIqDealerRadar';
-import {mobileQuickIntent,mobileFilterModels,mobileYearOptions,type MobileFipeOption} from '../services/marketIqMobileFlow';
+import {mobileQuickIntent,mobileYearOptions,type MobileFipeOption} from '../services/marketIqMobileFlow';
 
 type ChatTurn={speaker:'user'|'motyq';message:string};
 type PricingDraft={vehicle:string;reference:number|null;preparation:number|null;awaiting?:'details'|'version'|'reference'|'preparation'|'done'};
