@@ -47,7 +47,7 @@ const modelStart=component.indexOf('const modelFrom=');
 const modelEnd=component.indexOf('export default function',modelStart);
 assert.ok(modelStart>=0&&modelEnd>modelStart,'vehicle matcher available');
 const modelCode=ts.transpileModule(component.slice(modelStart,modelEnd),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
-const matcherScope={normalize:(v)=>String(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().trim()};
+const matcherScope={normalize:(v)=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()};
 vm.createContext(matcherScope);vm.runInContext(modelCode,matcherScope);
 for(const [utterance,wanted] of [['Chevrolet Spin LT 2019','spin'],['FIPE do Creta Prestige 2020','creta'],['quantos Corolla temos no estoque','corolla'],['tem cactos no estoque',null]]){
  matcherScope.utterance=utterance;
