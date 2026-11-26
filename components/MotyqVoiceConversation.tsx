@@ -133,7 +133,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const model=modelFrom(words);
   // Confirmed by the operator's November 2026 FIPE screenshot.
   // The code is only a lookup hint; the price and year still come from the live provider.
-  const knownCode=(model==='renegade'&&year===2022&&/\\blongitude\\b/.test(words)&&/\\b(?:t270|turbo|1[.,]3)\\b/.test(words))?'017088-7':undefined;
+  const knownCode=(model==='renegade'&&year===2022&&/\blongitude\b/.test(words)&&/\b(?:t270|turbo|1[.,]3)\b/.test(words))?'017088-7':undefined;
   const directCode=raw.match(/\b\d{6}-\d\b/)?.[0]||knownCode;
   if(!year||(!model&&!directCode)){fipePendingRef.current=raw;reply('Qual modelo, versão e ano?');return;}
   if(directCode){
