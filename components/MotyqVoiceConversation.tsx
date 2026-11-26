@@ -81,6 +81,9 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const fipeRequestRef=useRef(0);
  const fipePendingRef=useRef('');
  const stockPendingModelRef=useRef(false);
+ const stockContextRef=useRef<{model:string;year:number|null;trim:string|null}|null>(null);
+ const fipeContextRef=useRef<{model:string;year:number|null;trim:string|null}|null>(null);
+ const stockPendingMetricRef=useRef<'count'|'capital'|null>(null);
  const stockYearRef=useRef<number|null>(null);
  const stockModelRef=useRef<string|null>(null);
  const fipeChoicesRef=useRef<{original:string;options:MobileFipeOption[]}|null>(null);
@@ -133,6 +136,12 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  // One greeting per mount; the callbacks reference the initial state intentionally.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
+ const rememberFipe=(raw:string)=>{
+  const model=modelFrom(raw);
+  const year=Number(normalize(raw).match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
+  const trim=normalize(raw).match(/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/)?.[1]||null;
+  if(model)fipeContextRef.current={model,year,trim};
+ };
  const answerFipe=useCallback(async(raw:string,chosenCode?:string)=>{
   const request=++fipeRequestRef.current;
   const current=()=>mounted.current&&request===fipeRequestRef.current;
@@ -155,6 +164,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
     if(data.fipeCode!==directCode||Number(data.year)!==year||!Number.isFinite(Number(data.value))||Number(data.value)<=0){
      reply('Não foi possível validar esse código FIPE para '+year+'.');return;
     }
+    rememberFipe(raw);
     reply('FIPE '+data.model+', '+year+': '+brl(Number(data.value))+(data.referenceMonth?' ('+data.referenceMonth+').':'')+
      (data.referenceStatus==='outdated'?' Referência desatualizada.':''));
    }catch{if(current())reply('Não consegui confirmar esse código FIPE agora.');}
@@ -224,6 +234,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    if(!Number.isFinite(value)||value<=0){reply('A FIPE não retornou um valor válido.');return;}
    const month=String(result.referenceMonth||'').trim();
    const status=result.referenceStatus==='outdated'?' Referência possivelmente desatualizada.':result.referenceStatus==='unverified'?' Mês de referência não confirmado.':'';
+   rememberFipe(raw);
    reply('FIPE '+selected.name+', '+year+': '+brl(value)+(month?' ('+month+').':'.')+status);
   }catch{
    if(current())reply('A consulta FIPE está indisponível agora. Tente novamente.');
