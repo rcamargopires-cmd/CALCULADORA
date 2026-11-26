@@ -19,6 +19,17 @@ assert.ok(component.includes('const changed=Boolean(explicitModel'),'changing mo
 assert.ok(component.includes('clearYear'),'all years can be requested');
 assert.ok(component.includes('const requestedEngine='),'engine is part of exact vehicle lookup');
 assert.ok(component.includes('hasUnknownVersions'),'ambiguous Dealer versions are not counted as precise');
+// Regression: a generic family inventory query must drop previously selected year/trim/engine.
+assert.ok(component.includes('const broadenVersions='),'spoken all-versions requests recognized');
+assert.ok(component.includes('const explicitFamilyStock='),'explicit whole-family request resets FIPE filter');
+assert.ok(component.includes('const year=broaden?null:'),'family request clears model-year');
+assert.ok(component.includes('const trim=broaden?null:'),'family request clears version');
+assert.ok(component.includes('const requestedEngine=broaden?null:'),'family request clears engine');
+// Purchase intents must bypass both stock-memory shortcuts and Gemini stock classifier.
+assert.ok(component.includes('const purchaseIntent='),'purchase intent detected before Dealer routing');
+assert.ok(component.includes('if(purchaseIntent){'),'explicit purchase request gets pricing wizard');
+assert.ok(component.includes('if(directPurchase){respondDeterministic(raw);return;}'),'pricing bypasses stock Gemini intent');
+assert.ok(component.includes("De qual veículo você quer saber o valor de compra?"),'purchase without model asks for a vehicle');
 // Run the exact Dealer fabrication/model-year extraction against common V44 labels.
 const yearFrom=component.slice(component.indexOf('export const dealerModelYear='),component.indexOf('const modelFrom=')).replace('export const ','');
 const compiled=ts.transpileModule(yearFrom,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
