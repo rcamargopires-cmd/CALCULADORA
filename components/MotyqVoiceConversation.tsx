@@ -25,8 +25,8 @@ const fipeModelRank=(spoken:string,options:MobileFipeOption[])=>{
  const requested=new Set(spokenWords);
  const hasTurbo=requested.has('turbo');
  const hasLongitude=requested.has('longitude');
- const hasAutomatic=/\\b(?:automatico|automatica|aut)\\b/.test(normalize(spoken));
- const wants4x2=/\\b4\\s*(?:x|por|\\.|\\s)\\s*2\\b/.test(normalize(spoken));
+ const hasAutomatic=/\b(?:automatico|automatica|aut)\b/.test(normalize(spoken));
+ const wants4x2=/\b4\s*(?:x|por|\.|\s)\s*2\b/.test(normalize(spoken));
  const matched=options.map(option=>{
   const raw=normalize(option.name).replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
   const labels=new Set(raw);
@@ -36,9 +36,9 @@ const fipeModelRank=(spoken:string,options:MobileFipeOption[])=>{
   if(hasLongitude)score+=labels.has('longitude')?5:labels.has('long')?1:0;
   if(hasTurbo)score+=labels.has('turbo')?5:labels.has('tb')?1:0;
   if(requested.has('t270')&&labels.has('t270'))score+=2;
-  if(/\\b1[.,]3\\b/.test(normalize(spoken))&&/\\b1[.,]3\\b/.test(literal))score+=2;
-  if(wants4x2&&/4\\s*x\\s*2/.test(literal))score+=2;
-  if(hasAutomatic&&/\\b(?:aut|automatic[oa])\\b/.test(literal))score+=1;
+  if(/\b1[.,]3\b/.test(normalize(spoken))&&/\b1[.,]3\b/.test(literal))score+=2;
+  if(wants4x2&&/4\s*x\s*2/.test(literal))score+=2;
+  if(hasAutomatic&&/\b(?:aut|automatic[oa])\b/.test(literal))score+=1;
   if(requested.has('flex')&&labels.has('flex'))score+=1;
   return {option,score};
  }).sort((a,b)=>b.score-a.score);
@@ -131,8 +131,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   fipeChoicesRef.current=null;
   const year=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0);
   const model=modelFrom(words);
-  if(!model||!year){fipePendingRef.current=raw;reply('Qual modelo, versão e ano?');return;}
-  const directCode=raw.match(/\\b\\d{6}-\\d\\b/)?.[0];
+  const directCode=raw.match(/\b\d{6}-\d\b/)?.[0];
+  if(!year||(!model&&!directCode)){fipePendingRef.current=raw;reply('Qual modelo, versão e ano?');return;}
   if(directCode){
    try{
     const query=new URLSearchParams({vehicleType:'car',brand:'Jeep',model:raw,year:String(year),fipeCode:directCode});
@@ -168,27 +168,32 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const engine=words.match(/\b(?:1[.,][038]|2[.,]0|t270|td350|t350)\b/)?.[0]?.replace(',','.')||'';
    const narrowed=engine?matching.filter(m=>normalize(m.name).includes(engine)):matching;
    if(narrowed.length===0){reply('Não encontrei essa motorização na FIPE. Confira a versão.');return;}
-   const fuel=/\\bdiesel\\b/.test(words)?'Diesel':/\\bflex\\b/.test(words)?'Flex':/\\bgasolina\\b/.test(words)?'Gasolina':/\\betanol\\b/.test(words)?'Etanol':'';
+   const fuel=/\bdiesel\b/.test(words)?'Diesel':/\bflex\b/.test(words)?'Flex':/\bgasolina\b/.test(words)?'Gasolina':/\betanol\b/.test(words)?'Etanol':'';
    // First validate model year against EACH matching FIPE entry.
    // A same-name version can exist under multiple codes with different year coverage.
    const eligible:{model:MobileFipeOption;yearOption:MobileFipeOption}[]=[];
+   let yearCatalogOk=false;
    for(const candidate of narrowed.slice(0,12)){
     if(!current())return;
-    const years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:candidate.code})).items||[];
+    let years:MobileFipeOption[]=[];
+    try{years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:candidate.code})).items||[];yearCatalogOk=true;}
+    catch{continue;}
     if(!current())return;
-    const yearChoices=mobileYearOptions(years,year,fuel).choices;
+    const matchYear=mobileYearOptions(years,year,fuel);
+    if(fuel&&!matchYear.fuelMatched)continue;
+    const yearChoices=matchYear.choices;
     // Only accept one specific fuel/year code per candidate; never guess a fuel.
     if(yearChoices.length===1)eligible.push({model:candidate,yearOption:yearChoices[0]});
    }
    if(!eligible.length){
     fipePendingRef.current=raw;
-    reply('Não consegui confirmar '+year+' para essa versão no catálogo consultado. Vou precisar conferir o código FIPE.');
+    reply(yearCatalogOk?'Não consegui confirmar '+year+' para essa versão nesta fonte FIPE. Informe o código FIPE para consultar diretamente.':'O catálogo de anos FIPE está indisponível agora. Tente novamente.');
     return;
    }
    const chosenByCode=chosenCode?eligible.find(item=>item.model.code===chosenCode):null;
    if(chosenCode&&!chosenByCode){reply('A versão escolhida não tem esse ano confirmado na fonte consultada.');return;}
-   const preferred=fipeModelRank(raw,eligible.map(item=>item.model));
-   const winner=chosenByCode|| (eligible.length===1?eligible[0] : preferred?eligible.find(item=>item.model.code===preferred.code):null);
+   // Never infer that similar FIPE descriptions have identical prices/codes.
+   const winner=chosenByCode||(eligible.length===1?eligible[0]:null);
    if(!winner){
     const options=eligible.map(item=>item.model);
     fipeChoicesRef.current={original:raw,options};
@@ -203,6 +208,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const result=await fipeOptions('detail',{brandCode:intent.brand.code,modelCode:selected.code,yearCode:yearOption.code});
    if(!current())return;
    const value=Number(result.value);
+   if(Number(result.year)!==year){reply('O ano retornado pela FIPE não confere com a solicitação.');return;}
    if(!Number.isFinite(value)||value<=0){reply('A FIPE não retornou um valor válido.');return;}
    const month=String(result.referenceMonth||'').trim();
    const status=result.referenceStatus==='outdated'?' Referência possivelmente desatualizada.':result.referenceStatus==='unverified'?' Mês de referência não confirmado.':'';
@@ -215,8 +221,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const words=normalize(raw);
   if(!words)return;
   addTurn('user',raw);
-  const ordinal=words.match(/\\b(primeira|primeiro|segunda|segundo|terceira|terceiro|1|2|3)\\b/);
-  if(fipeChoicesRef.current&&ordinal&&!/\\bfipe\\b/.test(words)){
+  const ordinal=words.match(/\b(primeira|primeiro|segunda|segundo|terceira|terceiro|1|2|3)\b/);
+  if(fipeChoicesRef.current&&ordinal&&!/\bfipe\b/.test(words)){
    const index=/^(primeira|primeiro|1)$/.test(ordinal[1])?0:/^(segunda|segundo|2)$/.test(ordinal[1])?1:2;
    const choice=fipeChoicesRef.current;
    if(choice.options[index]){
