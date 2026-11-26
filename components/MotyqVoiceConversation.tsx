@@ -257,6 +257,10 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const words=normalize(raw);
   if(!words)return;
   addTurn('user',spokenRaw);
+  // A partial voice transcript is not permission to reuse the last stock answer.
+  if(/^(?:qual a|qual o|quanto|quantos|quantas|e|do|da|de|quero saber|nao entendi)[?.! ]*$/.test(words)){
+   reply('Não entendi a pergunta completa. Pode terminar a frase?');return;
+  }
   // Never turn an uncertain transcription into a different stock model.
   if(/\bcactos\b/.test(words)){
    reply('Você quis dizer Citroën C4 Cactus? Confirme o modelo para eu consultar o estoque.');return;
