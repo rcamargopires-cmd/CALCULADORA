@@ -81,6 +81,9 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const fipeRequestRef=useRef(0);
  const fipePendingRef=useRef('');
  const stockPendingModelRef=useRef(false);
+ const stockContextRef=useRef<{model:string;year:number|null;trim:string|null;engine:string|null}|null>(null);
+ const fipeContextRef=useRef<{model:string;year:number|null;trim:string|null;engine:string|null}|null>(null);
+ const stockPendingMetricRef=useRef<'count'|'capital'|null>(null);
  const stockYearRef=useRef<number|null>(null);
  const stockModelRef=useRef<string|null>(null);
  const fipeChoicesRef=useRef<{original:string;options:MobileFipeOption[]}|null>(null);
@@ -133,6 +136,13 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  // One greeting per mount; the callbacks reference the initial state intentionally.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
+ const rememberFipe=(raw:string)=>{
+  const model=modelFrom(raw);
+  const year=Number(normalize(raw).match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
+  const trim=normalize(raw).match(/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/)?.[1]||null;
+  const engine=normalize(raw).match(/\b(t270|td350|t350|1[.,]3|1[.,]8|2[.,]0)\b/)?.[1]?.replace(',','.')||null;
+  if(model){fipeContextRef.current={model,year,trim,engine};stockContextRef.current=null;}
+ };
  const answerFipe=useCallback(async(raw:string,chosenCode?:string)=>{
   const request=++fipeRequestRef.current;
   const current=()=>mounted.current&&request===fipeRequestRef.current;
@@ -155,6 +165,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
     if(data.fipeCode!==directCode||Number(data.year)!==year||!Number.isFinite(Number(data.value))||Number(data.value)<=0){
      reply('Não foi possível validar esse código FIPE para '+year+'.');return;
     }
+    rememberFipe(raw);
     reply('FIPE '+data.model+', '+year+': '+brl(Number(data.value))+(data.referenceMonth?' ('+data.referenceMonth+').':'')+
      (data.referenceStatus==='outdated'?' Referência desatualizada.':''));
    }catch{if(current())reply('Não consegui confirmar esse código FIPE agora.');}
@@ -224,6 +235,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    if(!Number.isFinite(value)||value<=0){reply('A FIPE não retornou um valor válido.');return;}
    const month=String(result.referenceMonth||'').trim();
    const status=result.referenceStatus==='outdated'?' Referência possivelmente desatualizada.':result.referenceStatus==='unverified'?' Mês de referência não confirmado.':'';
+   rememberFipe(raw);
    reply('FIPE '+selected.name+', '+year+': '+brl(value)+(month?' ('+month+').':'.')+status);
   }catch{
    if(current())reply('A consulta FIPE está indisponível agora. Tente novamente.');
@@ -236,54 +248,57 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const explicitModel=modelFrom(words);
   // Model is conversational context across FIPE, pricing and inventory queries.
   if(explicitModel)setLastModel(explicitModel);
-  const isStock=/\b(?:estoque|estocados|quantos|quantas|temos|possuimos|parados)\b|dias de estoque|capital investido/.test(words);
-  const isEntireStock=/\b(?:estoque inteiro|estoque total|todos os carros do estoque|toda a frota|estoque completo)\b/.test(words);
-  const stockModel=explicitModel||lastModel;
-  const requestedStockYear=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
-  const clearStockYear=/\b(?:todos os anos|todas as safras|qualquer ano|sem filtrar ano|de todos os anos)\b/.test(words);
-  if(isStock||(stockPendingModelRef.current&&Boolean(explicitModel))){
-   // Inventory lookup always overrides pending FIPE and purchase calculations.
-   stockPendingModelRef.current=false;
+  const previous=stockContextRef.current||fipeContextRef.current;
+  const all=/\b(?:estoque inteiro|estoque total|todos os carros do estoque|toda a frota|estoque completo)\b/.test(words);
+  const clearYear=/\b(?:todos os anos|qualquer ano|sem filtrar ano)\b/.test(words);
+  const spokenYear=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0)||null;
+  const stockSignal=/\b(?:estoque|estocados|quantos|quantas|temos|capital|investido|parados)\b|dinheiro parado|versao temos/.test(words);
+  const contextual=Boolean(previous)&&/^(?:e |quanto |qual |versao |versoes |do |da |desses |dessas |desse |dessa )/.test(words)&&!(/\bfipe\b|\bprecific|\bavaliar|\bcomprar/.test(words));
+  if(stockSignal||contextual||(stockPendingModelRef.current&&Boolean(explicitModel))){
    setDraft(null);fipePendingRef.current='';fipeChoicesRef.current=null;fipeRequestRef.current++;
-   if(!stockReady||!snapshot){reply('O estoque Dealer ainda não está carregado.');return;}
-   if(!stockModel&&!isEntireStock){
-    stockPendingModelRef.current=true;
-    reply('Qual modelo você quer consultar no estoque?');return;
+   const model=all?'':explicitModel||previous?.model||lastModel||'';
+   const changed=Boolean(explicitModel&&explicitModel!==previous?.model);
+   const year=all||clearYear?null:spokenYear||(changed?null:previous?.year||null);
+   const explicitTrim=normalize(words).replace(/\blong\.?\b/g,'longitude').match(/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/)?.[1]||null;
+   const trim=all?null:explicitTrim||(changed?null:previous?.trim||null);
+   const requestedEngine=words.match(/\b(t270|td350|t350|1[.,]3|1[.,]8|2[.,]0)\b/)?.[1]?.replace(',','.')||(changed||all?null:previous?.engine||null);
+   const metric=/\b(?:capital|investido|quanto custa)\b/.test(words)?'capital':/\b(?:quantos|quantas|versao|versoes)\b/.test(words)?'count':stockPendingMetricRef.current||'count';
+   if(!model&&!all){
+    stockPendingModelRef.current=true;stockPendingMetricRef.current=metric;
+    reply(metric==='capital'?'De qual modelo você quer saber o capital investido?':'Qual modelo você quer consultar no estoque?');return;
    }
-   const differentModel=Boolean(explicitModel&&stockModelRef.current&&explicitModel!==stockModelRef.current);
-   const yearFilter=isEntireStock?null:clearStockYear?null:requestedStockYear||(differentModel?null:stockYearRef.current);
-   stockYearRef.current=yearFilter;
-   stockModelRef.current=isEntireStock?null:stockModel;
-   const found=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&
-    (isEntireStock||dealerRadarTextMatches(v,stockModel!))&&
-    (yearFilter===null||dealerModelYear(v.year)===yearFilter));
+   stockPendingModelRef.current=false;stockPendingMetricRef.current=null;
+   stockContextRef.current={model,year,trim,engine:requestedEngine};
+   if(!stockReady||!snapshot){reply('O estoque Dealer ainda não está carregado.');return;}
+   const vehicles=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&
+    (all||dealerRadarTextMatches(v,model))&&(year===null||dealerModelYear(v.year)===year));
+   const normalizeTrim=(s:string)=>normalize(s).replace(/\blong\.?\b/g,'longitude');
+   if(!vehicles.length){reply('Nenhum '+model+(year?' ano-modelo '+year:'')+(trim?' versão '+trim:'')+' encontrado na última base Dealer.');return;}
+   const hasVersion=vehicles.some(v=>/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/.test(normalizeTrim(v.model)));
+   const hasUnknownVersions=vehicles.some(v=>!/\b(longitude|sport|limited|trailhawk|sahara|moab|altitude|overland)\b/.test(normalizeTrim(v.model)));
+   if(trim&&(!hasVersion||hasUnknownVersions)){
+    reply('Encontrei '+vehicles.length+' '+model+(year?' '+year:'')+', mas a descrição do Dealer não confirma a versão '+trim+'. Não vou contar todas as versões como se fossem a mesma.');return;
+   }
+   const found=vehicles.filter(v=>(!trim||normalizeTrim(v.model).split(/[^a-z0-9]+/).includes(trim))&&
+    (!requestedEngine||normalize(v.model).includes(requestedEngine)||requestedEngine==='t270'&&/\b1[.,]3\b/.test(v.model)));
+   if(requestedEngine&&vehicles.length&&found.length===0){
+    reply('Não encontrei '+model+(year?' '+year:'')+' '+(trim||'')+' '+requestedEngine+' identificado nesta base Dealer. Confira se a motorização consta na descrição do estoque.');return;
+   }
    const overdue=found.filter(v=>v.days>90);
    const avg=found.length?Math.round(found.reduce((a,v)=>a+v.days,0)/found.length):0;
    const capital=found.reduce((a,v)=>a+Math.max(0,v.cost),0);
-   const family=(isEntireStock?'veículos':stockModel!)+(yearFilter?' ano-modelo '+yearFilter:'');
+   const label=(all?'veículos':model)+(year?' ano-modelo '+year:'')+(trim?' versão '+trim:'');
    if(/\b(?:analis|diagnostic|risco|dinheiro parado)\b/.test(words)){
-    const loss=found.filter(v=>v.price>0&&v.cost>v.price);
-    const lossAmount=loss.reduce((sum,v)=>sum+(v.cost-v.price),0);
-    const highCapital=overdue.reduce((sum,v)=>sum+Math.max(0,v.cost),0);
-    reply('Análise de '+found.length+' '+family+': capital de '+brl(capital)+', média de '+avg+
-     ' dias, '+overdue.length+' acima de 90 dias ('+brl(highCapital)+' imobilizados nesses veículos). '+
-     loss.length+' com preço sugerido abaixo do custo, diferença acumulada de '+brl(lossAmount)+
-     '. Indicadores da última base Dealer, não uma previsão de prejuízo.');
-   }
-   else if(/\bmais antigo\b|\bmais tempo\b/.test(words)){
+    reply('Análise de '+found.length+' '+label+': capital de '+brl(capital)+', média de '+avg+' dias e '+overdue.length+' acima de 90 dias. Base Dealer.');
+   }else if(/\bmais antigo\b|\bmais tempo\b/.test(words)){
     const oldest=[...found].sort((a,b)=>b.days-a.days)[0];
-    reply(oldest?'O '+oldest.brand+' '+oldest.model+' ('+oldest.year+'), placa '+oldest.plate+
-     ', está há '+oldest.days+' dias em estoque. Custo registrado: '+brl(oldest.cost)+'.':'Nenhum '+family+' encontrado na última base Dealer.');
-   }
-   else if(/\b(?:listar|lista|mostra os|quais sao)\b/.test(words)){
-    const selected=[...found].sort((a,b)=>b.days-a.days).slice(0,5);
-    reply(selected.length?'Encontrei '+found.length+' '+family+'. Os cinco mais antigos: '+
-     selected.map(v=>v.brand+' '+v.model+' '+v.year+', '+v.days+' dias').join('; ')+'.':
-     'Nenhum '+family+' encontrado na última base Dealer.');
-   }
-   else if(/parad|mais de 90|noventa dias/.test(words))reply('Dos '+found.length+' '+family+' em estoque, '+overdue.length+' estão há mais de 90 dias.');
-   else if(/capital|investid/.test(words))reply('O capital registrado em '+found.length+' '+family+' é '+brl(capital)+'.');
-   else reply('Na última base Dealer carregada, encontrei '+found.length+' '+family+' em estoque. Média de '+avg+' dias; '+overdue.length+' acima de 90 dias.');
+    reply(oldest?'O '+oldest.brand+' '+oldest.model+' ('+oldest.year+'), placa '+oldest.plate+', está há '+oldest.days+' dias em estoque. Custo: '+brl(oldest.cost)+'.':'Nenhum '+label+' encontrado.');
+   }else if(/\b(?:listar|lista|mostra os|quais sao)\b/.test(words)){
+    reply(found.length?'Encontrei '+found.length+' '+label+'. Os cinco mais antigos: '+[...found].sort((a,b)=>b.days-a.days).slice(0,5).map(v=>v.brand+' '+v.model+' '+v.year+', '+v.days+' dias').join('; ')+'.':'Nenhum '+label+' encontrado.');
+   }else if(/parad|mais de 90|noventa dias/.test(words)){
+    reply('Dos '+found.length+' '+label+' em estoque, '+overdue.length+' estão há mais de 90 dias.');
+   }else if(metric==='capital')reply('O capital registrado em '+found.length+' '+label+' é '+brl(capital)+'.');
+   else reply('Na última base Dealer carregada, encontrei '+found.length+' '+label+' em estoque. Média de '+avg+' dias; '+overdue.length+' acima de 90 dias.');
    return;
   }
   stockPendingModelRef.current=false;
@@ -322,7 +337,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const knownTrim=/\b(?:sport|longitude|limited|trailhawk|sahara|moab|serie s|s[eé]rie s|1\.3 turbo|1\.8 flex)\b/.test(words);
   // An operator may answer with just "Renegade 2022 com 50.000 km".
   // Keep the vehicle context instead of demanding the verb "precificar".
-  if(explicitModel&&(wantsPrice||(!isStock&&hasYear)||(!draft&&!isStock))){
+  if(explicitModel&&(wantsPrice||(!stockSignal&&hasYear)||(!draft&&!stockSignal))){
    const awaiting:PricingDraft['awaiting']=!hasYear||!hasKm?'details':!knownTrim?'version':'reference';
    setDraft({vehicle:raw,reference:null,preparation:null,awaiting});
    if(awaiting==='details')reply('Qual ano, quilometragem e versão?');
@@ -376,6 +391,12 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const respond=useCallback(async(raw:string)=>{
   const current=auth.currentUser;
   if(!current){respondDeterministic(raw);return;}
+  const normalized=normalize(raw);
+  if(!/\bfipe\b/.test(normalized)&&
+   (/\b(?:quantos|quantas|capital|estoque|versao|versoes)\b/.test(normalized)||
+    ((stockContextRef.current||fipeContextRef.current)&&/^(?:do|da|desses|dessas|desse|dessa|e )\b/.test(normalized)))){
+   respondDeterministic(raw);return;
+  }
   try{
    const token=await current.getIdToken();
    const response=await fetch('/api/motyq-voice',{
