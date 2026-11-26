@@ -128,9 +128,26 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const request=++fipeRequestRef.current;
   const current=()=>mounted.current&&request===fipeRequestRef.current;
   const words=normalize(raw);
+  fipeChoicesRef.current=null;
   const year=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0);
   const model=modelFrom(words);
   if(!model||!year){fipePendingRef.current=raw;reply('Qual modelo, versão e ano?');return;}
+  const directCode=raw.match(/\\b\\d{6}-\\d\\b/)?.[0];
+  if(directCode){
+   try{
+    const query=new URLSearchParams({vehicleType:'car',brand:'Jeep',model:raw,year:String(year),fipeCode:directCode});
+    const response=await fetch('/api/marketiq-fipe?'+query.toString(),{cache:'no-store'});
+    if(!response.ok)throw new Error('FIPE indisponível');
+    const data=await response.json();
+    if(!current())return;
+    if(data.fipeCode!==directCode||Number(data.year)!==year||!Number.isFinite(Number(data.value))||Number(data.value)<=0){
+     reply('Não foi possível validar esse código FIPE para '+year+'.');return;
+    }
+    reply('FIPE '+data.model+', '+year+': '+brl(Number(data.value))+(data.referenceMonth?' ('+data.referenceMonth+').':'')+
+     (data.referenceStatus==='outdated'?' Referência desatualizada.':''));
+   }catch{if(current())reply('Não consegui confirmar esse código FIPE agora.');}
+   return;
+  }
   const tokens=fipeTerms(words);
   fipePendingRef.current='';
   const trimNames=['longitude','sport','limited','trailhawk','sahara','moab','altitude','overland','signature','night eagle'];
@@ -169,6 +186,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
     return;
    }
    const chosenByCode=chosenCode?eligible.find(item=>item.model.code===chosenCode):null;
+   if(chosenCode&&!chosenByCode){reply('A versão escolhida não tem esse ano confirmado na fonte consultada.');return;}
    const preferred=fipeModelRank(raw,eligible.map(item=>item.model));
    const winner=chosenByCode|| (eligible.length===1?eligible[0] : preferred?eligible.find(item=>item.model.code===preferred.code):null);
    if(!winner){
