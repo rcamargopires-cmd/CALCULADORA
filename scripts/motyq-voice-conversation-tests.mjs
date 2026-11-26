@@ -12,6 +12,20 @@ assert.ok(workspace.includes("const voiceOwner=String(user.email||'').trim().toL
 assert.ok(workspace.includes("voiceOwner&&<section"),'only owner can open voice');
 assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSnapshot:null}'),'must not cross dealer account scope');
 assert.ok(component.includes('dealerRadarTextMatches(v,stockModel!)'),'queries use real stock model matcher');
+assert.ok(component.includes("const requestedStockYear=Number(words.match"),'spoken 2022 is recognized');
+assert.ok(component.includes('dealerModelYear(v.year)===yearFilter'),'stock results filtered by Dealer model year');
+assert.ok(component.includes('stockYearRef.current=yearFilter'),'follow-up retains stock year');
+assert.ok(component.includes('const differentModel='),'switching model does not inherit previous year');
+assert.ok(component.includes('clearStockYear?null'),'explicit all-years resets the filter');
+// Run the exact Dealer fabrication/model-year extraction against common V44 labels.
+const yearFrom=component.slice(component.indexOf('export const dealerModelYear='),component.indexOf('const modelFrom=')).replace('export const ','');
+const compiled=ts.transpileModule(yearFrom,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
+const yearContext={};vm.createContext(yearContext);vm.runInContext(compiled,yearContext);
+for(const [label,year] of [['2021/2022',2022],['2022',2022],['2022/2023',2023],['2021 - 2022',2022],['',null]]){
+ yearContext.label=label;
+ assert.equal(vm.runInContext('dealerModelYear(label)',yearContext),year,'Dealer model-year '+label);
+}
+
 assert.ok(component.includes("const isStock=/"),'stock intent detected independently');
 assert.ok(component.includes("if(isStock||(stockPendingModelRef.current&&Boolean(explicitModel)))"),'stock intent precedes pricing and FIPE continuation');
 assert.ok(component.includes("stockPendingModelRef.current=true"),'generic stock request remembers missing model');
