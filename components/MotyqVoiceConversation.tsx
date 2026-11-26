@@ -46,6 +46,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const [lastModel,setLastModel]=useState<string|null>(null);
  const [draft,setDraft]=useState<PricingDraft|null>(null);
  const fipeRequestRef=useRef(0);
+ const fipePendingRef=useRef('');
  const recognizer=useRef<any>(null);
  const speechDraft=useRef('');
  const delivered=useRef(false);
@@ -101,11 +102,12 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const words=normalize(raw);
   const year=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0);
   const model=modelFrom(words);
-  if(!model||!year){reply('Qual modelo, versão e ano?');return;}
+  if(!model||!year){fipePendingRef.current=raw;reply('Qual modelo, versão e ano?');return;}
   const tokens=fipeTerms(words);
+  fipePendingRef.current='';
   const trimNames=['longitude','sport','limited','trailhawk','sahara','moab','altitude','overland','signature','night eagle'];
   const requestedTrims=trimNames.filter(t=>tokens.includes(t));
-  if(requestedTrims.length===0){reply('Qual é a versão?');return;}
+  if(requestedTrims.length===0){fipePendingRef.current=raw;reply('Qual é a versão?');return;}
   try{
    const brands=(await fipeOptions('brands')).items||[];
    if(!current())return;
@@ -118,17 +120,22 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
     const label=fipeTerms(m.name);
     return label.includes(model.replace('-',''))||label.includes(model);
    }).filter(m=>requestedTrims.every(t=>fipeTerms(m.name).includes(t)));
-   if(matching.length===0){reply('Não encontrei essa versão na FIPE. Confira o nome completo.');return;}
-   if(matching.length>1){
-    const options=matching.slice(0,3).map(m=>m.name).join('; ');
+   const engine=words.match(/\b(?:1[.,][038]|2[.,]0|t270|td350|t350)\b/)?.[0]?.replace(',','.')||'';
+   const narrowed=engine?matching.filter(m=>normalize(m.name).includes(engine)):matching;
+   if(narrowed.length===0){reply('Não encontrei essa motorização na FIPE. Confira a versão.');return;}
+   if(narrowed.length>1){
+    fipePendingRef.current=raw;
+    const options=narrowed.slice(0,3).map(m=>m.name).join('; ');
     reply('Encontrei mais de uma motorização: '+options+'. Qual é a versão exata?');
     return;
    }
-   const selected=matching[0];
+   const selected=narrowed[0];
    const years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:selected.code})).items||[];
    if(!current())return;
-   const yearOptions=mobileYearOptions(years,year,'').choices;
+   const fuel=/\bdiesel\b/.test(words)?'Diesel':/\bflex\b/.test(words)?'Flex':/\bgasolina\b/.test(words)?'Gasolina':/\betanol\b/.test(words)?'Etanol':'';
+   const yearOptions=mobileYearOptions(years,year,fuel).choices;
    if(yearOptions.length!==1){
+    fipePendingRef.current=raw;
     reply(yearOptions.length===0?'Esse ano não consta para a versão selecionada.':'Há mais de um combustível para esse ano. Qual é o combustível?');
     return;
    }
@@ -147,6 +154,12 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const words=normalize(raw);
   if(!words)return;
   addTurn('user',raw);
+  if(fipePendingRef.current&&/\b(?:1[.,][0-9]|2[.,][0-9]|t270|td350|diesel|flex|gasolina|etanol|turbo|sport|limited|longitude|trailhawk|sahara|moab)\b/.test(words)&&!(/\bfipe\b|tabela fipe/.test(words))){
+   const followup=fipePendingRef.current+' '+raw;
+   fipePendingRef.current='';
+   void answerFipe(followup);
+   return;
+  }
   // FIPE is a distinct lookup, never a purchase-price conversation.
   if(/\bfipe\b|tabela fipe/.test(words)){
    setDraft(null);
