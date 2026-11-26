@@ -53,6 +53,11 @@ const fipeOptions=async(action:'brands'|'models'|'years'|'detail',params:Record<
  if(action!=='detail'&&(!Array.isArray(result.items)||!result.items.length))throw new Error('Catálogo FIPE indisponível');
  return result as {items?:MobileFipeOption[];value?:number;model?:string;fuel?:string;year?:number;fipeCode?:string;referenceMonth?:string;referenceStatus?:string};
 };
+// Dealer 'Ano Fab/Mod' may read 2021/2022 or 2021-2022. Always use model year.
+export const dealerModelYear=(yearLabel:string):number|null=>{
+ const years=String(yearLabel||'').match(/\\b(?:19|20)\\d{2}\\b/g);
+ return years?.length?Number(years[years.length-1]):null;
+};
 const modelFrom=(raw:string)=>{
  const message=normalize(raw);
  const known=['creta','renegade','t-cross','tcross','virtus','onix','hb20','compass','tracker','corolla','polo','nivus','kicks','pulse','argo','mobi','toro','fastback'];
@@ -75,6 +80,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const fipeRequestRef=useRef(0);
  const fipePendingRef=useRef('');
  const stockPendingModelRef=useRef(false);
+ const stockYearRef=useRef<number|null>(null);
+ const stockModelRef=useRef<string|null>(null);
  const fipeChoicesRef=useRef<{original:string;options:MobileFipeOption[]}|null>(null);
  const recognizer=useRef<any>(null);
  const speechDraft=useRef('');
@@ -231,6 +238,8 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const isStock=/\b(?:estoque|estocados|quantos|quantas|temos|possuimos|parados)\b|dias de estoque|capital investido/.test(words);
   const isEntireStock=/\b(?:estoque inteiro|estoque total|todos os carros do estoque|toda a frota|estoque completo)\b/.test(words);
   const stockModel=explicitModel||lastModel;
+  const requestedStockYear=Number(words.match(/\\b(?:19|20)\\d{2}\\b/)?.[0]||0)||null;
+  const clearStockYear=/\\b(?:todos os anos|todas as safras|qualquer ano|sem filtrar ano|de todos os anos)\\b/.test(words);
   if(isStock||(stockPendingModelRef.current&&Boolean(explicitModel))){
    // Inventory lookup always overrides pending FIPE and purchase calculations.
    stockPendingModelRef.current=false;
@@ -240,11 +249,17 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
     stockPendingModelRef.current=true;
     reply('Qual modelo você quer consultar no estoque?');return;
    }
-   const found=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&(isEntireStock||dealerRadarTextMatches(v,stockModel!)));
+   const differentModel=Boolean(explicitModel&&stockModelRef.current&&explicitModel!==stockModelRef.current);
+   const yearFilter=isEntireStock?null:clearStockYear?null:requestedStockYear||(differentModel?null:stockYearRef.current);
+   stockYearRef.current=yearFilter;
+   stockModelRef.current=isEntireStock?null:stockModel;
+   const found=snapshot.vehicles.filter(v=>v.vehicleType==='car'&&
+    (isEntireStock||dealerRadarTextMatches(v,stockModel!))&&
+    (yearFilter===null||dealerModelYear(v.year)===yearFilter));
    const overdue=found.filter(v=>v.days>90);
    const avg=found.length?Math.round(found.reduce((a,v)=>a+v.days,0)/found.length):0;
    const capital=found.reduce((a,v)=>a+Math.max(0,v.cost),0);
-   const family=isEntireStock?'veículos':stockModel!;
+   const family=(isEntireStock?'veículos':stockModel!)+(yearFilter?' ano-modelo '+yearFilter:'');
    if(/parad|mais de 90|noventa dias/.test(words))reply('Dos '+found.length+' '+family+' em estoque, '+overdue.length+' estão há mais de 90 dias.');
    else if(/capital|investid/.test(words))reply('O capital registrado em '+found.length+' '+family+' é '+brl(capital)+'.');
    else reply('Na última base Dealer carregada, encontrei '+found.length+' '+family+' em estoque. Média de '+avg+' dias; '+overdue.length+' acima de 90 dias.');
