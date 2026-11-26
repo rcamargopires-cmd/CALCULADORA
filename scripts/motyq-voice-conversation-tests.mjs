@@ -23,7 +23,7 @@ assert.ok(!component.includes("Esse ano não consta para a versão selecionada."
 
 assert.ok(component.includes("if(/\\bfipe\\b|tabela fipe/.test(words))"),'FIPE question goes to independent intent');
 assert.ok(component.includes("fipeOptions('brands')")&&component.includes("fipeOptions('models'")&&component.includes("fipeOptions('years'")&&component.includes("fipeOptions('detail'"),'FIPE uses live catalog resolution');
-assert.ok(component.includes('if(!uniqueMatch)'),'ambiguous FIPE versions must not be silently selected');
+assert.ok(component.includes('if(!winner)'),'ambiguous FIPE versions must not be silently selected');
 // Execute the pure ranking helper against the exact voice scenario that failed.
 const begin=component.indexOf('const fipeModelRank=');
 const end=component.indexOf('const fipeOptions=async',begin);
@@ -44,7 +44,7 @@ assert.equal(vm.runInContext("fipeModelRank('qual a fipe renegade longitude 2022
 assert.equal(vm.runInContext("fipeModelRank('Renegade T270 2022',options)?.code ?? null",context),null,'insufficient evidence cannot silently choose a FIPE code');
 assert.ok(component.includes("fipePendingRef.current=raw"),'FIPE ambiguity retains conversational context');
 assert.ok(component.includes("const followup=fipePendingRef.current+' '+raw"),'follow-up selects engine or fuel from original FIPE request');
-assert.ok(component.includes("yearOptions.length!==1"),'fuel ambiguity must not be silently selected');
+assert.ok(component.includes('if(fuel&&!matchYear.fuelMatched)continue'),'fuel ambiguity must not be silently selected');
 assert.ok(component.includes("referenceMonth"),'include FIPE reference month');
 assert.ok(component.includes("cache:'no-store'"),'refresh FIPE value rather than use stale cache');
 assert.ok(component.includes('!isStock&&hasYear'),'vehicle and year treated as a pricing continuation');
