@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
+import vm from 'node:vm';
 const component=readFileSync('components/MotyqVoiceConversation.tsx','utf8');
 const workspace=readFileSync('components/ManualPricingWorkspace.tsx','utf8');
 for(const [name,source] of [['voice',component],['workspace',workspace]]){
@@ -13,7 +14,25 @@ assert.ok(workspace.includes('snapshot={radarLoadedScope===captureScope?radarSna
 assert.ok(component.includes('dealerRadarTextMatches(v,queriedModel)'),'queries use real stock model matcher');
 assert.ok(component.includes("if(/\\bfipe\\b|tabela fipe/.test(words))"),'FIPE question goes to independent intent');
 assert.ok(component.includes("fipeOptions('brands')")&&component.includes("fipeOptions('models'")&&component.includes("fipeOptions('years'")&&component.includes("fipeOptions('detail'"),'FIPE uses live catalog resolution');
-assert.ok(component.includes("narrowed.length>1"),'ambiguous FIPE versions must not be silently selected');
+assert.ok(component.includes('if(!uniqueMatch)'),'ambiguous FIPE versions must not be silently selected');
+// Execute the pure ranking helper against the exact voice scenario that failed.
+const begin=component.indexOf('const fipeModelRank=');
+const end=component.indexOf('const fipeOptions=async',begin);
+assert.ok(begin>=0&&end>begin,'FIPE ranking helper exists');
+const rankJS=ts.transpileModule(component.slice(begin,end),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
+const context={
+ normalize:(v)=>String(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().trim(),
+};
+context.fipeTerms=(v)=>context.normalize(v).replace(/\\b(long|longi|longit)\\b/g,'longitude').replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
+vm.createContext(context);
+vm.runInContext(rankJS,context);
+const options=[
+ {code:'abbr',name:'Renegade Long. T270 1.3 TB 4x2 Flex Aut.'},
+ {code:'full',name:'Renegade Longitude T270 1.3 Turbo 4x2 Aut.'}
+];
+context.options=options;
+assert.equal(vm.runInContext("fipeModelRank('qual a fipe renegade longitude 2022 t270 1.3 turbo 4.2 automatico',options)?.code",context),'full','precise spoken T270 resolves full Longitude FIPE name');
+assert.equal(vm.runInContext("fipeModelRank('Renegade T270 2022',options)?.code ?? null",context),null,'insufficient evidence cannot silently choose a FIPE code');
 assert.ok(component.includes("fipePendingRef.current=raw"),'FIPE ambiguity retains conversational context');
 assert.ok(component.includes("const followup=fipePendingRef.current+' '+raw"),'follow-up selects engine or fuel from original FIPE request');
 assert.ok(component.includes("yearOptions.length!==1"),'fuel ambiguity must not be silently selected');
