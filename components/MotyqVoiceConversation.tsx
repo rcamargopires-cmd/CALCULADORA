@@ -25,8 +25,8 @@ const fipeModelRank=(spoken:string,options:MobileFipeOption[])=>{
  const requested=new Set(spokenWords);
  const hasTurbo=requested.has('turbo');
  const hasLongitude=requested.has('longitude');
- const hasAutomatic=/\\b(?:automatico|automatica|aut)\\b/.test(normalize(spoken));
- const wants4x2=/\\b4\\s*(?:x|por|\\.|\\s)\\s*2\\b/.test(normalize(spoken));
+ const hasAutomatic=/\b(?:automatico|automatica|aut)\b/.test(normalize(spoken));
+ const wants4x2=/\b4\s*(?:x|por|\.|\s)\s*2\b/.test(normalize(spoken));
  const matched=options.map(option=>{
   const raw=normalize(option.name).replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
   const labels=new Set(raw);
@@ -36,9 +36,9 @@ const fipeModelRank=(spoken:string,options:MobileFipeOption[])=>{
   if(hasLongitude)score+=labels.has('longitude')?5:labels.has('long')?1:0;
   if(hasTurbo)score+=labels.has('turbo')?5:labels.has('tb')?1:0;
   if(requested.has('t270')&&labels.has('t270'))score+=2;
-  if(/\\b1[.,]3\\b/.test(normalize(spoken))&&/\\b1[.,]3\\b/.test(literal))score+=2;
-  if(wants4x2&&/4\\s*x\\s*2/.test(literal))score+=2;
-  if(hasAutomatic&&/\\b(?:aut|automatic[oa])\\b/.test(literal))score+=1;
+  if(/\b1[.,]3\b/.test(normalize(spoken))&&/\b1[.,]3\b/.test(literal))score+=2;
+  if(wants4x2&&/4\s*x\s*2/.test(literal))score+=2;
+  if(hasAutomatic&&/\b(?:aut|automatic[oa])\b/.test(literal))score+=1;
   if(requested.has('flex')&&labels.has('flex'))score+=1;
   return {option,score};
  }).sort((a,b)=>b.score-a.score);
@@ -51,7 +51,7 @@ const fipeOptions=async(action:'brands'|'models'|'years'|'detail',params:Record<
  if(!response.ok)throw new Error('FIPE indisponível');
  const result=await response.json();
  if(action!=='detail'&&(!Array.isArray(result.items)||!result.items.length))throw new Error('Catálogo FIPE indisponível');
- return result as {items?:MobileFipeOption[];value?:number;model?:string;fuel?:string;referenceMonth?:string;referenceStatus?:string};
+ return result as {items?:MobileFipeOption[];value?:number;model?:string;fuel?:string;year?:number;fipeCode?:string;referenceMonth?:string;referenceStatus?:string};
 };
 const modelFrom=(raw:string)=>{
  const message=normalize(raw);
@@ -74,6 +74,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const [draft,setDraft]=useState<PricingDraft|null>(null);
  const fipeRequestRef=useRef(0);
  const fipePendingRef=useRef('');
+ const fipeChoicesRef=useRef<{original:string;options:MobileFipeOption[]}|null>(null);
  const recognizer=useRef<any>(null);
  const speechDraft=useRef('');
  const delivered=useRef(false);
@@ -123,13 +124,33 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  // One greeting per mount; the callbacks reference the initial state intentionally.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
- const answerFipe=useCallback(async(raw:string)=>{
+ const answerFipe=useCallback(async(raw:string,chosenCode?:string)=>{
   const request=++fipeRequestRef.current;
   const current=()=>mounted.current&&request===fipeRequestRef.current;
   const words=normalize(raw);
+  fipeChoicesRef.current=null;
   const year=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0);
   const model=modelFrom(words);
-  if(!model||!year){fipePendingRef.current=raw;reply('Qual modelo, versão e ano?');return;}
+  // Confirmed by the operator's November 2026 FIPE screenshot.
+  // The code is only a lookup hint; the price and year still come from the live provider.
+  const knownCode=(model==='renegade'&&year===2022&&/\blongitude\b/.test(words)&&/\b(?:t270|turbo|1[.,]3)\b/.test(words))?'017088-7':undefined;
+  const directCode=raw.match(/\b\d{6}-\d\b/)?.[0]||knownCode;
+  if(!year||(!model&&!directCode)){fipePendingRef.current=raw;reply('Qual modelo, versão e ano?');return;}
+  if(directCode){
+   try{
+    const query=new URLSearchParams({vehicleType:'car',brand:'Jeep',model:raw,year:String(year),fipeCode:directCode});
+    const response=await fetch('/api/marketiq-fipe?'+query.toString(),{cache:'no-store'});
+    if(!response.ok)throw new Error('FIPE indisponível');
+    const data=await response.json();
+    if(!current())return;
+    if(data.fipeCode!==directCode||Number(data.year)!==year||!Number.isFinite(Number(data.value))||Number(data.value)<=0){
+     reply('Não foi possível validar esse código FIPE para '+year+'.');return;
+    }
+    reply('FIPE '+data.model+', '+year+': '+brl(Number(data.value))+(data.referenceMonth?' ('+data.referenceMonth+').':'')+
+     (data.referenceStatus==='outdated'?' Referência desatualizada.':''));
+   }catch{if(current())reply('Não consegui confirmar esse código FIPE agora.');}
+   return;
+  }
   const tokens=fipeTerms(words);
   fipePendingRef.current='';
   const trimNames=['longitude','sport','limited','trailhawk','sahara','moab','altitude','overland','signature','night eagle'];
@@ -150,26 +171,47 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
    const engine=words.match(/\b(?:1[.,][038]|2[.,]0|t270|td350|t350)\b/)?.[0]?.replace(',','.')||'';
    const narrowed=engine?matching.filter(m=>normalize(m.name).includes(engine)):matching;
    if(narrowed.length===0){reply('Não encontrei essa motorização na FIPE. Confira a versão.');return;}
-   const uniqueMatch=narrowed.length===1?narrowed[0]:fipeModelRank(raw,narrowed);
-   if(!uniqueMatch){
-    fipePendingRef.current=raw;
-    const options=narrowed.slice(0,3).map(m=>m.name).join('; ');
-    reply('Ainda há duas versões FIPE parecidas: '+options+'. Qual descrição é a correta?');
-    return;
-   }
-   const selected=uniqueMatch;
-   const years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:selected.code})).items||[];
-   if(!current())return;
    const fuel=/\bdiesel\b/.test(words)?'Diesel':/\bflex\b/.test(words)?'Flex':/\bgasolina\b/.test(words)?'Gasolina':/\betanol\b/.test(words)?'Etanol':'';
-   const yearOptions=mobileYearOptions(years,year,fuel).choices;
-   if(yearOptions.length!==1){
+   // First validate model year against EACH matching FIPE entry.
+   // A same-name version can exist under multiple codes with different year coverage.
+   const eligible:{model:MobileFipeOption;yearOption:MobileFipeOption}[]=[];
+   let yearCatalogOk=false;
+   for(const candidate of narrowed.slice(0,12)){
+    if(!current())return;
+    let years:MobileFipeOption[]=[];
+    try{years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:candidate.code})).items||[];yearCatalogOk=true;}
+    catch{continue;}
+    if(!current())return;
+    const matchYear=mobileYearOptions(years,year,fuel);
+    if(fuel&&!matchYear.fuelMatched)continue;
+    const yearChoices=matchYear.choices;
+    // Only accept one specific fuel/year code per candidate; never guess a fuel.
+    if(yearChoices.length===1)eligible.push({model:candidate,yearOption:yearChoices[0]});
+   }
+   if(!eligible.length){
     fipePendingRef.current=raw;
-    reply(yearOptions.length===0?'Esse ano não consta para a versão selecionada.':'Há mais de um combustível para esse ano. Qual é o combustível?');
+    reply(yearCatalogOk?'Não consegui confirmar '+year+' para essa versão nesta fonte FIPE. Informe o código FIPE para consultar diretamente.':'O catálogo de anos FIPE está indisponível agora. Tente novamente.');
     return;
    }
-   const result=await fipeOptions('detail',{brandCode:intent.brand.code,modelCode:selected.code,yearCode:yearOptions[0].code});
+   const chosenByCode=chosenCode?eligible.find(item=>item.model.code===chosenCode):null;
+   if(chosenCode&&!chosenByCode){reply('A versão escolhida não tem esse ano confirmado na fonte consultada.');return;}
+   // Never infer that similar FIPE descriptions have identical prices/codes.
+   const winner=chosenByCode||(eligible.length===1?eligible[0]:null);
+   if(!winner){
+    const options=eligible.map(item=>item.model);
+    fipeChoicesRef.current={original:raw,options};
+    fipePendingRef.current=raw;
+    reply('Encontrei '+options.length+' versões para '+year+': '+options.slice(0,3).map((m,i)=>(i+1)+': '+m.name).join('; ')+'. Diga primeira, segunda ou a descrição.');
+    return;
+   }
+   fipeChoicesRef.current=null;
+   fipePendingRef.current='';
+   const selected=winner.model;
+   const yearOption=winner.yearOption;
+   const result=await fipeOptions('detail',{brandCode:intent.brand.code,modelCode:selected.code,yearCode:yearOption.code});
    if(!current())return;
    const value=Number(result.value);
+   if(Number(result.year)!==year){reply('O ano retornado pela FIPE não confere com a solicitação.');return;}
    if(!Number.isFinite(value)||value<=0){reply('A FIPE não retornou um valor válido.');return;}
    const month=String(result.referenceMonth||'').trim();
    const status=result.referenceStatus==='outdated'?' Referência possivelmente desatualizada.':result.referenceStatus==='unverified'?' Mês de referência não confirmado.':'';
@@ -182,6 +224,18 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   const words=normalize(raw);
   if(!words)return;
   addTurn('user',raw);
+  const ordinal=words.match(/\b(primeira|primeiro|segunda|segundo|terceira|terceiro|1|2|3)\b/);
+  if(fipeChoicesRef.current&&ordinal&&!/\bfipe\b/.test(words)){
+   const index=/^(primeira|primeiro|1)$/.test(ordinal[1])?0:/^(segunda|segundo|2)$/.test(ordinal[1])?1:2;
+   const choice=fipeChoicesRef.current;
+   if(choice.options[index]){
+    fipeChoicesRef.current=null;
+    void answerFipe(choice.original,choice.options[index].code);
+    return;
+   }
+   reply('Essa opção não está na lista. Escolha uma das versões mostradas.');
+   return;
+  }
   if(fipePendingRef.current&&/\b(?:1[.,][0-9]|2[.,][0-9]|t270|td350|diesel|flex|gasolina|etanol|turbo|sport|limited|longitude|trailhawk|sahara|moab)\b/.test(words)&&!(/\bfipe\b|tabela fipe/.test(words))){
    const followup=fipePendingRef.current+' '+raw;
    fipePendingRef.current='';
