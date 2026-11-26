@@ -2,6 +2,7 @@ import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {Mic,MicOff,Volume2,VolumeX,X} from 'lucide-react';
 import MarketIqVoiceHologram from './MarketIqVoiceHologram';
 import {dealerRadarTextMatches,type DealerStockSnapshot} from '../services/marketIqDealerRadar';
+import {mobileQuickIntent,mobileFilterModels,mobileYearOptions,type MobileFipeOption} from '../services/marketIqMobileFlow';
 
 type ChatTurn={speaker:'user'|'motyq';message:string};
 type PricingDraft={vehicle:string;reference:number|null;preparation:number|null;awaiting?:'details'|'version'|'reference'|'preparation'|'done'};
@@ -15,6 +16,15 @@ const parseMoney=(value:string):number|null=>{
  const valueNumber=Number(m[1].replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(/,(?=\d{3}(?:\D|$))/g,'').replace(',','.'));
  if(!Number.isFinite(valueNumber))return null;
  return Math.round(valueNumber*(m[2]?1000:1));
+};
+const fipeTerms=(value:string)=>normalize(value).replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean);
+const fipeOptions=async(action:'brands'|'models'|'years'|'detail',params:Record<string,string>={})=>{
+ const query=new URLSearchParams({action,vehicleType:'car',...params});
+ const response=await fetch('/api/marketiq-fipe?'+query.toString(),{cache:'no-store'});
+ if(!response.ok)throw new Error('FIPE indisponível');
+ const result=await response.json();
+ if(action!=='detail'&&(!Array.isArray(result.items)||!result.items.length))throw new Error('Catálogo FIPE indisponível');
+ return result as {items?:MobileFipeOption[];value?:number;model?:string;fuel?:string;referenceMonth?:string;referenceStatus?:string};
 };
 const modelFrom=(raw:string)=>{
  const message=normalize(raw);
@@ -35,6 +45,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
  const [muted,setMuted]=useState(false);
  const [lastModel,setLastModel]=useState<string|null>(null);
  const [draft,setDraft]=useState<PricingDraft|null>(null);
+ const fipeRequestRef=useRef(0);
  const recognizer=useRef<any>(null);
  const speechDraft=useRef('');
  const delivered=useRef(false);
@@ -80,14 +91,68 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   // Playback at entry is best effort: browser autoplay restrictions may block it.
   const handleVoices=()=>{const arr=window.speechSynthesis?.getVoices()||[];setVoiceOptions(arr.filter(v=>v.lang.toLowerCase().startsWith('pt')).map(v=>({name:v.name,lang:v.lang})));};
   if('speechSynthesis'in window){window.speechSynthesis.addEventListener('voiceschanged',handleVoices);handleVoices();speak(welcome);}
-  return ()=>{mounted.current=false;wakeEnabledRef.current=false;if(restartRef.current)clearTimeout(restartRef.current);recognizer.current?.abort?.();window.speechSynthesis?.cancel();window.speechSynthesis?.removeEventListener('voiceschanged',handleVoices);};
+  return ()=>{fipeRequestRef.current++;mounted.current=false;wakeEnabledRef.current=false;if(restartRef.current)clearTimeout(restartRef.current);recognizer.current?.abort?.();window.speechSynthesis?.cancel();window.speechSynthesis?.removeEventListener('voiceschanged',handleVoices);};
  // One greeting per mount; the callbacks reference the initial state intentionally.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
+ const answerFipe=useCallback(async(raw:string)=>{
+  const request=++fipeRequestRef.current;
+  const current=()=>mounted.current&&request===fipeRequestRef.current;
+  const words=normalize(raw);
+  const year=Number(words.match(/\b(?:19|20)\d{2}\b/)?.[0]||0);
+  const model=modelFrom(words);
+  if(!model||!year){reply('Qual modelo, versão e ano?');return;}
+  const tokens=fipeTerms(words);
+  const trimNames=['longitude','sport','limited','trailhawk','sahara','moab','altitude','overland','signature','night eagle'];
+  const requestedTrims=trimNames.filter(t=>tokens.includes(t));
+  if(requestedTrims.length===0){reply('Qual é a versão?');return;}
+  try{
+   const brands=(await fipeOptions('brands')).items||[];
+   if(!current())return;
+   const intent=mobileQuickIntent(raw,brands);
+   if(!intent.brand){reply('Não consegui confirmar a marca na FIPE.');return;}
+   const models=(await fipeOptions('models',{brandCode:intent.brand.code})).items||[];
+   if(!current())return;
+   // Match model family AND trim as full tokens; never choose a similar edition by accident.
+   const matching=models.filter(m=>{
+    const label=fipeTerms(m.name);
+    return label.includes(model.replace('-',''))||label.includes(model);
+   }).filter(m=>requestedTrims.every(t=>fipeTerms(m.name).includes(t)));
+   if(matching.length===0){reply('Não encontrei essa versão na FIPE. Confira o nome completo.');return;}
+   if(matching.length>1){
+    const options=matching.slice(0,3).map(m=>m.name).join('; ');
+    reply('Encontrei mais de uma motorização: '+options+'. Qual é a versão exata?');
+    return;
+   }
+   const selected=matching[0];
+   const years=(await fipeOptions('years',{brandCode:intent.brand.code,modelCode:selected.code})).items||[];
+   if(!current())return;
+   const yearOptions=mobileYearOptions(years,year,'').choices;
+   if(yearOptions.length!==1){
+    reply(yearOptions.length===0?'Esse ano não consta para a versão selecionada.':'Há mais de um combustível para esse ano. Qual é o combustível?');
+    return;
+   }
+   const result=await fipeOptions('detail',{brandCode:intent.brand.code,modelCode:selected.code,yearCode:yearOptions[0].code});
+   if(!current())return;
+   const value=Number(result.value);
+   if(!Number.isFinite(value)||value<=0){reply('A FIPE não retornou um valor válido.');return;}
+   const month=String(result.referenceMonth||'').trim();
+   const status=result.referenceStatus==='outdated'?' Referência possivelmente desatualizada.':result.referenceStatus==='unverified'?' Mês de referência não confirmado.':'';
+   reply('FIPE '+selected.name+', '+year+': '+brl(value)+(month?' ('+month+').':'.')+status);
+  }catch{
+   if(current())reply('A consulta FIPE está indisponível agora. Tente novamente.');
+  }
+ },[reply]);
  const respond=useCallback((raw:string)=>{
   const words=normalize(raw);
   if(!words)return;
   addTurn('user',raw);
+  // FIPE is a distinct lookup, never a purchase-price conversation.
+  if(/\bfipe\b|tabela fipe/.test(words)){
+   setDraft(null);
+   void answerFipe(raw);
+   return;
+  }
   if(/^(oi|ola|bom dia|boa tarde|boa noite|motyq)[!., ]*$/.test(words)){
    reply('Pode falar.');return;
   }
@@ -160,7 +225,7 @@ export default function MotyqVoiceConversation({snapshot,stockReady,onClose}:Pro
   }
   if(/ajuda|o que voc[eê] faz|pode fazer/.test(words)){reply('Consigo consultar estoque e simular compra com um preço de referência.');return;}
   reply('Qual modelo você quer consultar?');
- },[addTurn,reply,lastModel,snapshot,stockReady,draft]);
+ },[addTurn,reply,answerFipe,lastModel,snapshot,stockReady,draft]);
  const respondRef=useRef(respond);
  useEffect(()=>{respondRef.current=respond;},[respond]);
  const deliverTranscript=(message:string)=>{
