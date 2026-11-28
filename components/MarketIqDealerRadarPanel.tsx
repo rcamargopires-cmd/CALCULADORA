@@ -9,6 +9,7 @@ import {
 import MarketIqPurchaseSummaryModal from './MarketIqPurchaseSummaryModal';
 import MarketIqStockXRayPanel from './MarketIqStockXRayPanel';
 import {dealerModelReviewReason} from '../services/marketIqDealerModelIdentity';
+import {fetchDealerDriveWorkbook,dealerDriveFileId} from '../services/marketIqGoogleDriveStock';
 
 const brl=(n:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(n);
 const dec=(n:number)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1}).format(n);
@@ -61,6 +62,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
  const snapshotOutdated=snapshotAge===null||snapshotAge>14||snapshotAge<0;
  const [loading,setLoading]=useState(false);
  const [error,setError]=useState('');
+ const [driveLink,setDriveLink]=useState('');
+ const [driveMessage,setDriveMessage]=useState('');
  const [search,setSearch]=useState('');
  const [store,setStore]=useState('all');
  const [type,setType]=useState<'all'|'car'|'motorcycle'>('all');
@@ -124,9 +127,9 @@ export default function MarketIqDealerRadarPanel(props:Props){
  const diff=useMemo(()=>current&&previous?compareDealerSnapshots(previous,current):null,[current,previous]);
  const progressMax=Math.max(1,...stats.ageBuckets.map(x=>x.count));
 
- const importFile=async(file:File|undefined)=>{
-  if(!file)return;
-  if(props.canPublishSnapshot===false){setError('Seu perfil pode consultar, mas não publicar o estoque da empresa.');return;}
+ const importFile=async(file:File|undefined,localOnly=false):Promise<boolean>=>{
+  if(!file)return false;
+  if(props.canPublishSnapshot===false){setError('Seu perfil pode consultar, mas não publicar o estoque da empresa.');return false;}
   setLoading(true);setError('');
   try{
    const snapshot={...(await readDealerWorkbook(file)),sourceFileName:file.name.slice(0,140)};
@@ -134,16 +137,32 @@ export default function MarketIqDealerRadarPanel(props:Props){
     if(snapshot.reportDate&&current.reportDate&&snapshot.reportDate<current.reportDate){
      setPrevious(snapshot);setError('Você importou um relatório anterior. Ele será usado apenas para comparação com o estoque atual. A última fotografia permanece ativa neste navegador.');
     }else{
-     if(props.onPublishSnapshot)await props.onPublishSnapshot(snapshot);
+     if(!localOnly&&props.onPublishSnapshot)await props.onPublishSnapshot(snapshot);
      setPrevious(current);setCurrent(snapshot);setSelectedKey('');setFileName(file.name);
     }
    }else{
-    if(props.onPublishSnapshot)await props.onPublishSnapshot(snapshot);
+    if(!localOnly&&props.onPublishSnapshot)await props.onPublishSnapshot(snapshot);
     setCurrent(snapshot);setSelectedKey('');setFileName(file.name);
    }
    setStore('all');setFilter('all');setSearch('');setType('all');setVisibleCount(60);
-  }catch(err){setError(err instanceof Error?err.message:'Não foi possível ler este arquivo do Dealer.');}
+   return true;
+  }catch(err){setError(err instanceof Error?err.message:'Não foi possível ler este arquivo do Dealer.');return false;}
   finally{setLoading(false);}
+ };
+ const importFromDrive=async()=>{
+  if(!dealerDriveFileId(driveLink)){setError('Informe o link do arquivo XLSX/XLSM no Google Drive.');return;}
+  if(props.canPublishSnapshot===false){setError('Você não tem permissão de importação de estoque.');return;}
+  setDriveMessage('Solicitando permissão de leitura ao Google…');
+  setError('');
+  try{
+   const file=await fetchDealerDriveWorkbook(driveLink);
+   const loaded=await importFile(file,true);
+   if(!loaded){setDriveMessage('');return;}
+   setDriveMessage('Consulta via Google Drive concluída. Verifique os resultados do Radar e da voz. Dados mantidos apenas no navegador.');
+  }catch(err){
+   setDriveMessage('');
+   setError(err instanceof Error?err.message:'Não foi possível consultar o Drive.');
+  }
  };
  // A confirmed smart import uses the original importer, with all existing
  // stock-date and local-archive safeguards. React strict replays cannot re-import.
@@ -231,6 +250,19 @@ export default function MarketIqDealerRadarPanel(props:Props){
      className="rounded-lg border border-white/30 px-3 py-2.5 text-xs font-semibold text-white hover:bg-white/10">
      Limpar dados locais</button>}
    </div>
+   {props.canPublishSnapshot!==false&&<div className="mt-4 rounded-xl border border-cyan-200/40 bg-slate-950/30 p-3">
+    <label htmlFor="motyq-drive-stock-link" className="block text-sm font-bold text-white">Consultar estoque do Google Drive</label>
+    <p className="mt-1 text-xs text-cyan-100">Conexão opcional, apenas leitura do Drive. O Google pedirá autorização e, se necessário, vinculará sua conta Google ao login MOTYQ. A importação fica no cache local, sem novo banco de dados ou link público.</p>
+    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+     <input id="motyq-drive-stock-link" type="url" value={driveLink} onChange={e=>setDriveLink(e.target.value)}
+      placeholder="Cole o link do estoque no Google Drive" autoComplete="off"
+      className="min-w-0 flex-1 rounded-lg border border-cyan-100/50 bg-white px-3 py-2 text-sm text-slate-950"/>
+     <button type="button" disabled={loading||!dealerDriveFileId(driveLink)}
+      onClick={()=>{void importFromDrive();}}
+      className="rounded-lg bg-cyan-200 px-4 py-2 text-sm font-bold text-slate-950 disabled:opacity-50">Autorizar e consultar</button>
+    </div>
+    {driveMessage&&<p role="status" className="mt-2 text-xs font-medium text-cyan-100">{driveMessage}</p>}
+   </div>}
    <details className="mt-3 rounded-lg border border-white/20 px-3 py-2 text-xs text-cyan-100">
     <summary className="cursor-pointer font-bold text-cyan-100">Origem dos dados e privacidade</summary>
     <p className="mt-2 leading-5 text-cyan-100">Uma importação autorizada publica a fotografia tratada para os usuários da mesma empresa. O arquivo XLSM original não é enviado. Nenhuma macro é executada. O navegador mantém um cache offline; «Limpar dados locais» não exclui o estoque compartilhado. A base não é uma consulta em tempo real ao Dealer.</p>

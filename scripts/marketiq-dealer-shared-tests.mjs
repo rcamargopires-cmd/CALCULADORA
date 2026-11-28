@@ -122,4 +122,18 @@ assert.ok(panel.includes('Publicar estoque atual para a empresa'));
 assert.ok(panel.includes('Atualizar estoque da empresa'));
 assert.ok(panel.includes('onPublishSnapshot?:(snapshot:DealerStockSnapshot)=>Promise<void>'));
 assert.ok(panel.includes('SALVAS NESTE NAVEGADOR'),'Clear is explicitly local-only');
+// Optional Google Drive access must never introduce a public file endpoint or leak OAuth tokens.
+const driveSource=readFileSync('services/marketIqGoogleDriveStock.ts','utf8');
+const driveTranspiled=ts.transpileModule(driveSource,{fileName:'marketIqGoogleDriveStock.ts',compilerOptions:opts,reportDiagnostics:true});
+assert.equal((driveTranspiled.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error).length,0,'Drive importer must parse');
+assert.ok(driveSource.includes('drive.readonly'),'Google Drive read-only permission');
+assert.ok(driveSource.includes('reauthenticateWithPopup'),'Google account explicitly reauthorizes the application');
+assert.ok(driveSource.includes('linkWithPopup')&&driveSource.includes("providerId==='google.com'"),'Explicit Google linking keeps current MOTYQ account');
+assert.ok(driveSource.includes('MAX_BYTES=42*1024*1024'),'Limit workbook size');
+assert.ok(driveSource.includes('new File([payload]'),'Reuse established Dealer workbook parser');
+assert.ok(!driveSource.includes('localStorage')&&!driveSource.includes('sessionStorage'),'OAuth token and workbook bytes are never persisted by the Drive connector');
+assert.ok(panel.includes('fetchDealerDriveWorkbook(driveLink)'),'Radar can pull a consenting users Drive file');
+assert.ok(panel.includes('const loaded=await importFile(file,true)'),'Drive import stays local only');
+assert.ok(panel.includes('if(!localOnly&&props.onPublishSnapshot)'),'No new bank publish from Drive import');
+console.log('Motyq IQ Google Drive opt-in: user-scoped OAuth, read-only, file size, local import and no raw data sharing passed.');
 console.log('Motyq IQ Dealer cloud: company isolation, verified roles, atomic manifests, chunks, old-report guard, failed-upload fallback and shared UI verified.');
