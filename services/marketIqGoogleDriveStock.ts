@@ -3,7 +3,7 @@
  * or expose the source file to an unauthenticated endpoint.
  * Google OAuth consent is separate from ChatGPT's Drive connector.
  */
-import {GoogleAuthProvider,reauthenticateWithPopup} from 'firebase/auth';
+import {GoogleAuthProvider,linkWithPopup,reauthenticateWithPopup} from 'firebase/auth';
 import {auth} from '../firebase';
 
 const MAX_BYTES=42*1024*1024;
@@ -24,12 +24,18 @@ export async function fetchDealerDriveWorkbook(source:string):Promise<File> {
  if(!id)throw new Error('Informe um link válido do Google Drive para o estoque.');
  const user=auth.currentUser;
  if(!user)throw new Error('Entre no MOTYQ antes de conectar o Google Drive.');
- if(!user.providerData.some(p=>p.providerId==='google.com')){
-  throw new Error('Para liberar o Drive, é necessário vincular o Google à conta MOTYQ. A conexão ainda não está disponível neste login.');
- }
  const provider=new GoogleAuthProvider();
  provider.addScope('https://www.googleapis.com/auth/drive.readonly');
- const result=await reauthenticateWithPopup(user,provider);
+ const linked=user.providerData.some(p=>p.providerId==='google.com');
+ let result;
+ try{
+  // The pop-up explicitly asks permission. Linking retains the current UID and tenant.
+  result=linked?await reauthenticateWithPopup(user,provider):await linkWithPopup(user,provider);
+ }catch(error:any){
+  if(error?.code==='auth/credential-already-in-use'||error?.code==='auth/account-exists-with-different-credential')
+   throw new Error('Esta conta Google já está associada a outro login. Não alterei seu usuário MOTYQ. Peça suporte para vincular com segurança.');
+  throw new Error('Autorização do Google Drive não concluída. Verifique o pop-up e as permissões do Google.');
+ }
  const accessToken=GoogleAuthProvider.credentialFromResult(result)?.accessToken;
  if(!accessToken)throw new Error('O Google não autorizou acesso de leitura ao Drive.');
  // OAuth access stays in memory only for the duration of this operation.
