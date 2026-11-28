@@ -128,7 +128,7 @@ const driveTranspiled=ts.transpileModule(driveSource,{fileName:'marketIqGoogleDr
 assert.equal((driveTranspiled.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error).length,0,'Drive importer must parse');
 assert.ok(driveSource.includes('drive.readonly'),'Google Drive read-only permission');
 assert.ok(driveSource.includes('reauthenticateWithPopup'),'Google account explicitly reauthorizes the application');
-assert.ok(driveSource.includes('providerId===\'google.com\''),'Do not silently replace the existing MOTYQ login');
+assert.ok(driveSource.includes('linkWithPopup')&&driveSource.includes("providerId==='google.com'"),'Explicit Google linking keeps current MOTYQ account');
 assert.ok(driveSource.includes('MAX_BYTES=42*1024*1024'),'Limit workbook size');
 assert.ok(driveSource.includes('new File([payload]'),'Reuse established Dealer workbook parser');
 assert.ok(!driveSource.includes('localStorage')&&!driveSource.includes('sessionStorage'),'OAuth token and workbook bytes are never persisted by the Drive connector');
