@@ -127,9 +127,9 @@ export default function MarketIqDealerRadarPanel(props:Props){
  const diff=useMemo(()=>current&&previous?compareDealerSnapshots(previous,current):null,[current,previous]);
  const progressMax=Math.max(1,...stats.ageBuckets.map(x=>x.count));
 
- const importFile=async(file:File|undefined,localOnly=false)=>{
-  if(!file)return;
-  if(props.canPublishSnapshot===false){setError('Seu perfil pode consultar, mas não publicar o estoque da empresa.');return;}
+ const importFile=async(file:File|undefined,localOnly=false):Promise<boolean>=>{
+  if(!file)return false;
+  if(props.canPublishSnapshot===false){setError('Seu perfil pode consultar, mas não publicar o estoque da empresa.');return false;}
   setLoading(true);setError('');
   try{
    const snapshot={...(await readDealerWorkbook(file)),sourceFileName:file.name.slice(0,140)};
@@ -145,7 +145,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
     setCurrent(snapshot);setSelectedKey('');setFileName(file.name);
    }
    setStore('all');setFilter('all');setSearch('');setType('all');setVisibleCount(60);
-  }catch(err){setError(err instanceof Error?err.message:'Não foi possível ler este arquivo do Dealer.');}
+   return true;
+  }catch(err){setError(err instanceof Error?err.message:'Não foi possível ler este arquivo do Dealer.');return false;}
   finally{setLoading(false);}
  };
  const importFromDrive=async()=>{
@@ -155,7 +156,8 @@ export default function MarketIqDealerRadarPanel(props:Props){
   setError('');
   try{
    const file=await fetchDealerDriveWorkbook(driveLink);
-   await importFile(file,true);
+   const loaded=await importFile(file,true);
+   if(!loaded){setDriveMessage('');return;}
    setDriveMessage('Consulta via Google Drive concluída. Verifique os resultados do Radar e da voz. Dados mantidos apenas no navegador.');
   }catch(err){
    setDriveMessage('');
