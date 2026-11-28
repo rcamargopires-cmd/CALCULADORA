@@ -252,7 +252,7 @@ export default function MarketIqDealerRadarPanel(props:Props){
    </div>
    {props.canPublishSnapshot!==false&&<div className="mt-4 rounded-xl border border-cyan-200/40 bg-slate-950/30 p-3">
     <label htmlFor="motyq-drive-stock-link" className="block text-sm font-bold text-white">Consultar estoque do Google Drive</label>
-    <p className="mt-1 text-xs text-cyan-100">Conexão opcional, apenas leitura. Google solicitará sua autorização. A importação usa o cache local, sem novo banco de dados e sem compartilhar o arquivo publicamente.</p>
+    <p className="mt-1 text-xs text-cyan-100">Conexão opcional, apenas leitura do Drive. O Google pedirá autorização e, se necessário, vinculará sua conta Google ao login MOTYQ. A importação fica no cache local, sem novo banco de dados ou link público.</p>
     <div className="mt-2 flex flex-col gap-2 sm:flex-row">
      <input id="motyq-drive-stock-link" type="url" value={driveLink} onChange={e=>setDriveLink(e.target.value)}
       placeholder="Cole o link do estoque no Google Drive" autoComplete="off"
